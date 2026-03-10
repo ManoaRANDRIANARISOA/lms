@@ -67,7 +67,15 @@ export class StudentRepository {
 
   static getSetting(key: string): string {
     const result = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string };
-    return result ? JSON.parse(result.value) : '';
+    if (!result) return '';
+    
+    try {
+        const parsed = JSON.parse(result.value);
+        return typeof parsed === 'string' ? parsed.trim() : String(parsed).trim();
+    } catch (e) {
+        // Fallback for raw strings
+        return result.value.replace(/['"]/g, '').trim();
+    }
   }
 
   static determineTuitionLevel(className: string): string {
@@ -186,7 +194,7 @@ export class StudentRepository {
         // Initialize Student Fees for current year (Only if class is provided)
         if (studentDataClean.class) {
             let schoolYear = this.getSetting('school_year') || '2025-2026';
-            schoolYear = schoolYear.replace(/['"]/g, '');
+            schoolYear = schoolYear.replace(/['"]/g, '').trim();
             const level = this.determineTuitionLevel(studentDataClean.class);
             const tuitionFee = parseFloat(this.getSetting(`tuition_${level}`) || '0');
             
@@ -418,11 +426,8 @@ export class StudentRepository {
               return dbYear === schoolYear;
           });
 
-          // Fallback: If no exact match found but records exist, use the most recent one (matches getById logic)
-          if (!feeRecord && allFees.length > 0) {
-             console.log('Exact year match not found. Falling back to most recent fee record:', allFees[0].id);
-             feeRecord = allFees[0];
-          }
+          // REMOVED FALLBACK: We must not update old records if the current year is missing.
+          // Instead, we should let the code proceed to create a new fee record for the current year.
           
           if (feeRecord) {
               console.log('Updating existing fee record:', feeRecord.id);
