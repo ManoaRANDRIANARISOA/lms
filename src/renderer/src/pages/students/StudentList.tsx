@@ -2,17 +2,15 @@ import { useEffect, useState } from 'react';
 import { useStudentStore } from '@/store/useStudentStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Plus, User, BarChart } from 'lucide-react';
+import { Search, Plus, User } from 'lucide-react';
 import StudentForm from './StudentForm';
 import StudentDetail from './StudentDetail';
-import { ServiceDashboard } from '@/components/students/ServiceDashboard';
 
 export default function StudentList() {
   const { students, currentStudent, currentFees, loading, fetchStudents } = useStudentStore();
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'list' | 'create' | 'edit' | 'detail'>('list');
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-  const [isServiceDashboardOpen, setIsServiceDashboardOpen] = useState(false);
   
   useEffect(() => {
     fetchStudents();
@@ -73,22 +71,11 @@ export default function StudentList() {
     <div className="p-6 w-full h-full">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Gestion des Élèves</h1>
-        <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setIsServiceDashboardOpen(true)}>
-                <BarChart className="w-4 h-4 mr-2" />
-                Tableau de Bord Services
-            </Button>
-            <Button onClick={() => setView('create')}>
-            <Plus className="w-4 h-4 mr-2" />
-            Nouvel Élève
-            </Button>
-        </div>
+        <Button onClick={() => setView('create')}>
+          <Plus className="w-4 h-4 mr-2" />
+          Nouvel Élève
+        </Button>
       </div>
-      
-      <ServiceDashboard 
-        isOpen={isServiceDashboardOpen} 
-        onClose={() => setIsServiceDashboardOpen(false)} 
-      />
       
       <div className="mb-4 flex gap-2">
         <Input 

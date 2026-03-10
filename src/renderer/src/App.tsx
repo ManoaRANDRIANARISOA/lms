@@ -5,6 +5,7 @@ import Settings from './pages/Settings';
 import CertificatePage from './pages/students/CertificatePage';
 import AttendancePage from './pages/AttendancePage'; // Import the new page
 import EventsPage from './pages/EventsPage';
+import FinancePage from './pages/FinancePage';
 import { cn } from './lib/utils';
 
 // Simple Error Boundary
@@ -93,7 +94,7 @@ function Layout() {
             <Route path="/attendance" element={<AttendancePage />} />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/certificate/:studentId" element={<CertificatePage />} />
-            <Route path="/finance" element={<div className="p-6">Finance (En construction)</div>} />
+            <Route path="/finance" element={<FinancePage />} />
             <Route path="/personnel" element={<div className="p-6">Personnel (En construction)</div>} />
             <Route path="/grades" element={<div className="p-6">Notes (En construction)</div>} />
             <Route path="/settings" element={<Settings />} />

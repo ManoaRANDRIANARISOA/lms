@@ -12,6 +12,11 @@ export function registerPaymentHandlers() {
     return PaymentRepository.getByStudent(studentId);
   });
 
+  // GET ALL PAYMENTS (Global View)
+  ipcMain.handle('payment:getAll', async (_, filters) => {
+    return PaymentRepository.getAll(filters);
+  });
+
   // GET TUITION STATUS
   ipcMain.handle('payment:getTuitionStatus', async (_, studentId, schoolYear) => {
     return PaymentRepository.getTuitionStatus(studentId, schoolYear);

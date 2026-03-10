@@ -59,6 +59,37 @@ export class PaymentRepository {
     `).all(studentId);
   }
 
+  static getAll(filters: { startDate?: string, endDate?: string, type?: string } = {}) {
+    let query = `
+      SELECT sp.*, s.first_name, s.last_name, s.class_name 
+      FROM student_payments sp 
+      LEFT JOIN students s ON sp.student_id = s.id
+    `;
+    const params: any[] = [];
+    const conditions: string[] = [];
+
+    if (filters.startDate) {
+      conditions.push('sp.payment_date >= ?');
+      params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      conditions.push('sp.payment_date <= ?');
+      params.push(filters.endDate);
+    }
+    if (filters.type && filters.type !== 'all') {
+      conditions.push('sp.payment_type = ?');
+      params.push(filters.type);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    query += ' ORDER BY sp.payment_date DESC, sp.created_at DESC';
+
+    return db.prepare(query).all(...params);
+  }
+
   static getTuitionStatus(studentId: string, schoolYear: string) {
     console.log(`Getting tuition status for student ${studentId} and year ${schoolYear}`);
     // 1. Get Fee Structure

@@ -17,6 +17,8 @@ interface StudentAttendance {
   present: boolean;
 }
 
+import { ServiceDashboard } from '@/components/students/ServiceDashboard';
+
 export default function AttendancePage() {
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [busStudents, setBusStudents] = useState<StudentAttendance[]>([]);
@@ -25,6 +27,7 @@ export default function AttendancePage() {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('bus');
   const [schoolYear, setSchoolYear] = useState('2025-2026');
+  const [isServiceDashboardOpen, setIsServiceDashboardOpen] = useState(false);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -135,17 +138,27 @@ export default function AttendancePage() {
             </p>
         </div>
         
-        <div className="flex items-center gap-4 bg-white p-2 rounded-lg shadow-sm border">
-            <Label htmlFor="date" className="font-medium">Date du pointage:</Label>
-            <Input 
-                id="date" 
-                type="date" 
-                value={date} 
-                onChange={(e) => setDate(e.target.value)}
-                className="w-40"
-            />
+        <div className="flex items-center gap-4">
+            <Button variant="outline" onClick={() => setIsServiceDashboardOpen(true)}>
+                Tableau de Bord Services
+            </Button>
+            <div className="flex items-center gap-4 bg-white p-2 rounded-lg shadow-sm border">
+                <Label htmlFor="date" className="font-medium">Date du pointage:</Label>
+                <Input 
+                    id="date" 
+                    type="date" 
+                    value={date} 
+                    onChange={(e) => setDate(e.target.value)}
+                    className="w-40"
+                />
+            </div>
         </div>
       </div>
+
+      <ServiceDashboard 
+        isOpen={isServiceDashboardOpen} 
+        onClose={() => setIsServiceDashboardOpen(false)} 
+      />
 
       <Tabs defaultValue="bus" className="w-full flex-1 flex flex-col" onValueChange={setActiveTab}>
         <div className="flex justify-between items-center mb-4">

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
-import { Bus, Utensils, Users, ArrowRight } from 'lucide-react';
+import { Bus, Utensils, Users } from 'lucide-react';
 
 interface ServiceStats {
     canteenStats: Record<string, number>;

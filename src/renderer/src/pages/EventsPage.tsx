@@ -94,6 +94,12 @@ export default function EventsPage() {
     if (result.success) {
       setIsCreateOpen(false);
       loadEvents();
+      // Select the newly created event
+      if (result.id) {
+          const newEventData = { ...newEvent, id: result.id, status: 'planned' as const };
+          setEvents(prev => [newEventData, ...prev]);
+          setSelectedEvent(newEventData);
+      }
       setNewEvent({
         name: '',
         event_date: format(new Date(), 'yyyy-MM-dd'),
