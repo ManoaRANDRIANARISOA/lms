@@ -8,7 +8,7 @@ import { app } from 'electron';
 export class StudentRepository {
   
   private static feeFields = [
-      'bus_subscribed', 'bus_route', 'canteen_subscribed', 'canteen_days_per_week',
+      'bus_subscribed', 'bus_route', 'canteen_subscribed', 'canteen_days_per_week', 'canteen_days',
       'uniform_tshirt_purchased', 'uniform_apron_purchased', 'uniform_shorts_purchased', 'uniform_badge_purchased',
       'fram_paid_by_parent'
   ];
@@ -300,35 +300,49 @@ export class StudentRepository {
     return { student, fees, feesHistory: allFees, payments };
   }
 
-  // Helper to normalize class names (minimal to allow user flexibility)
-  private static normalizeClassName(name: string): string {
-      if (!name) return '';
-      return name.trim();
-  }
-
   static update(id: string, updates: any) {
     try {
       console.log(`[StudentRepository.update] Starting update for student ${id}`, JSON.stringify(updates, null, 2));
 
-      // Self-healing: Ensure parent contact columns exist
+      // Self-healing: Ensure ALL allowed columns exist in the table
       try {
           const tableInfo = db.prepare('PRAGMA table_info(students)').all() as any[];
-          const columns = tableInfo.map(c => c.name);
-          const missingColumns = [
-              'father_contact', 'mother_contact', 
-              'father_profession', 'mother_profession'
-          ].filter(col => !columns.includes(col));
+          const existingColumns = tableInfo.map(c => c.name);
+          
+          // Check all allowed fields to ensure robustness
+          // This covers email, contacts, professions, etc.
+          const missingColumns = StudentRepository.studentAllowedFields.filter(col => !existingColumns.includes(col));
           
           if (missingColumns.length > 0) {
               console.log('[StudentRepository.update] Self-healing: Adding missing columns:', missingColumns);
               missingColumns.forEach(col => {
                   try {
+                      // Default to TEXT for simplicity. SQLite is flexible.
                       db.prepare(`ALTER TABLE students ADD COLUMN ${col} TEXT`).run();
+                      console.log(`[StudentRepository.update] Added column ${col}`);
                   } catch (e) {
                       console.error(`[StudentRepository.update] Failed to add column ${col}`, e);
                   }
               });
           }
+
+          // Self-healing for student_fees table
+          const feesTableInfo = db.prepare('PRAGMA table_info(student_fees)').all() as any[];
+          const existingFeesColumns = feesTableInfo.map(c => c.name);
+          const missingFeesColumns = StudentRepository.feeFields.filter(col => !existingFeesColumns.includes(col));
+
+          if (missingFeesColumns.length > 0) {
+              console.log('[StudentRepository.update] Self-healing: Adding missing columns to student_fees:', missingFeesColumns);
+              missingFeesColumns.forEach(col => {
+                  try {
+                      db.prepare(`ALTER TABLE student_fees ADD COLUMN ${col} TEXT`).run();
+                      console.log(`[StudentRepository.update] Added column ${col} to student_fees`);
+                  } catch (e) {
+                      console.error(`[StudentRepository.update] Failed to add column ${col} to student_fees`, e);
+                  }
+              });
+          }
+
       } catch (e) {
           console.warn('[StudentRepository.update] Self-healing check failed (non-fatal):', e);
       }
@@ -433,7 +447,11 @@ export class StudentRepository {
                   Object.keys(feeUpdates).forEach(k => {
                       // Map booleans to 0/1
                       const val = feeUpdates[k];
-                      validFeeUpdates[k] = typeof val === 'boolean' ? (val ? 1 : 0) : val;
+                      if (k === 'canteen_days' && Array.isArray(val)) {
+                          validFeeUpdates[k] = JSON.stringify(val);
+                      } else {
+                          validFeeUpdates[k] = typeof val === 'boolean' ? (val ? 1 : 0) : val;
+                      }
                   });
 
                   const fields = Object.keys(validFeeUpdates).map(key => `${key} = ?`).join(', ');
@@ -476,7 +494,11 @@ export class StudentRepository {
                   const dbFeeRecord: any = {};
                   Object.keys(newFeeRecord).forEach(k => {
                       const val = newFeeRecord[k];
-                      dbFeeRecord[k] = typeof val === 'boolean' ? (val ? 1 : 0) : val;
+                      if (k === 'canteen_days' && Array.isArray(val)) {
+                          dbFeeRecord[k] = JSON.stringify(val);
+                      } else {
+                          dbFeeRecord[k] = typeof val === 'boolean' ? (val ? 1 : 0) : val;
+                      }
                   });
 
                   // Insert

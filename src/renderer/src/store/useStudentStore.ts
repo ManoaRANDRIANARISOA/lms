@@ -41,6 +41,7 @@ export interface Student {
   bus_route?: string;
   canteen_subscribed?: boolean;
   canteen_days_per_week?: number;
+  canteen_days?: string[];
   
   uniform_tshirt_purchased?: boolean;
   uniform_apron_purchased?: boolean;

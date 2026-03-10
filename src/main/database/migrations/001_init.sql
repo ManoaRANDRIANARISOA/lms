@@ -35,6 +35,9 @@ CREATE TABLE students (
     -- Siblings (stored as JSON array of IDs)
     siblings TEXT DEFAULT '[]',          -- ["id1", "id2"]
     
+    -- Contact
+    email TEXT,
+
     -- Search optimization
     search_text TEXT GENERATED ALWAYS AS (
         lower(first_name || ' ' || last_name || ' ' || registration_number)
@@ -78,6 +81,7 @@ CREATE TABLE student_fees (
     -- Canteen
     canteen_subscribed BOOLEAN DEFAULT 0,
     canteen_days_per_week INTEGER DEFAULT 0,
+    canteen_days TEXT,                   -- JSON array ["Monday", "Tuesday"]
     canteen_daily_rate REAL DEFAULT 0,
     
     -- Uniforms

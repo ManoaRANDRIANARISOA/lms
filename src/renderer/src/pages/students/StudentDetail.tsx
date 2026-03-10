@@ -14,6 +14,22 @@ interface StudentDetailProps {
   onEdit: () => void
 }
 
+const formatCanteenDays = (daysJson: string | string[] | undefined, daysPerWeek: number) => {
+    if (!daysJson) return `${daysPerWeek} j/sem`;
+    try {
+        const days = Array.isArray(daysJson) ? daysJson : JSON.parse(daysJson);
+        if (!Array.isArray(days) || days.length === 0) return `${daysPerWeek} j/sem`;
+        
+        const labels: Record<string, string> = {
+            'Monday': 'Lun', 'Tuesday': 'Mar', 'Wednesday': 'Mer', 'Thursday': 'Jeu', 'Friday': 'Ven'
+        };
+        
+        return days.map((d: any) => labels[d] || d).join(', ');
+    } catch {
+        return `${daysPerWeek} j/sem`;
+    }
+};
+
 export default function StudentDetail({ studentId, onBack, onEdit }: StudentDetailProps) {
   const navigate = useNavigate()
   const { currentStudent, currentFees, currentFeesHistory, getStudent, loading, error, deleteStudent } = useStudentStore()
@@ -283,8 +299,8 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                                             Cantine:
                                         </span>
                                         <span className={displayedFees.canteen_subscribed ? "text-green-600 font-medium" : "text-gray-400"}>
-                                            {displayedFees.canteen_subscribed ? `Oui (${displayedFees.canteen_days_per_week} j/sem)` : "Non"}
-                                        </span>
+                                        {displayedFees.canteen_subscribed ? `Oui (${formatCanteenDays(displayedFees.canteen_days, displayedFees.canteen_days_per_week)})` : "Non"}
+                                    </span>
                                     </div>
                                 </div>
                             </div>
@@ -362,7 +378,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                                         <span className="text-gray-500 block mb-1">Services Souscrits</span>
                                         <ul className="space-y-1">
                                             {fee.bus_subscribed && <li className="flex items-center"><Bus className="w-3 h-3 mr-2"/> Bus ({fee.bus_route})</li>}
-                                            {fee.canteen_subscribed && <li className="flex items-center"><Utensils className="w-3 h-3 mr-2"/> Cantine ({fee.canteen_days_per_week}j)</li>}
+                                            {fee.canteen_subscribed && <li className="flex items-center"><Utensils className="w-3 h-3 mr-2"/> Cantine ({formatCanteenDays(fee.canteen_days, fee.canteen_days_per_week)})</li>}
                                             {!fee.bus_subscribed && !fee.canteen_subscribed && <li className="text-gray-400 italic">Aucun service</li>}
                                         </ul>
                                     </div>

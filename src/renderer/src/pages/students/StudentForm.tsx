@@ -45,6 +45,7 @@ const studentSchema = z.object({
   bus_route: z.string().optional(),
   canteen_subscribed: z.boolean().optional(),
   canteen_days_per_week: z.number().min(0).max(5).or(z.nan()).transform(val => isNaN(val) ? 0 : val),
+  canteen_days: z.array(z.string()).optional(),
   
   uniform_tshirt_purchased: z.boolean().optional(),
   uniform_apron_purchased: z.boolean().optional(),
@@ -161,6 +162,7 @@ export default function StudentForm({ onSuccess, onCancel, initialData, initialF
           formData.bus_route = initialFees.bus_route || "";
           formData.canteen_subscribed = Boolean(initialFees.canteen_subscribed);
           formData.canteen_days_per_week = initialFees.canteen_days_per_week || 0;
+          formData.canteen_days = initialFees.canteen_days ? JSON.parse(initialFees.canteen_days) : [];
           
           formData.uniform_tshirt_purchased = Boolean(initialFees.uniform_tshirt_purchased);
           formData.uniform_apron_purchased = Boolean(initialFees.uniform_apron_purchased);
@@ -577,13 +579,43 @@ export default function StudentForm({ onSuccess, onCancel, initialData, initialF
                     
                     {form.watch("canteen_subscribed") && (
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Jours par semaine</label>
-                            <Input 
-                                type="number" 
-                                min={1} 
-                                max={5}
-                                {...form.register("canteen_days_per_week", { valueAsNumber: true })} 
-                            />
+                            <label className="text-sm font-medium">Jours de cantine</label>
+                            <div className="flex gap-2 flex-wrap">
+                                {[
+                                    { id: 'Monday', label: 'Lun' },
+                                    { id: 'Tuesday', label: 'Mar' },
+                                    { id: 'Wednesday', label: 'Mer' },
+                                    { id: 'Thursday', label: 'Jeu' },
+                                    { id: 'Friday', label: 'Ven' }
+                                ].map(day => {
+                                    const currentDays = form.watch("canteen_days") || [];
+                                    const isSelected = currentDays.includes(day.id);
+                                    return (
+                                        <button
+                                            key={day.id}
+                                            type="button"
+                                            onClick={() => {
+                                                const newDays = isSelected 
+                                                    ? currentDays.filter(d => d !== day.id)
+                                                    : [...currentDays, day.id];
+                                                form.setValue("canteen_days", newDays);
+                                                form.setValue("canteen_days_per_week", newDays.length);
+                                            }}
+                                            className={`px-3 py-2 rounded text-sm font-medium transition-colors border ${
+                                                isSelected 
+                                                    ? 'bg-green-600 text-white border-green-600 hover:bg-green-700' 
+                                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            {day.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <p className="text-xs text-gray-500">
+                                {form.watch("canteen_days_per_week")} jour(s) par semaine
+                            </p>
+                            <input type="hidden" {...form.register("canteen_days_per_week")} />
                         </div>
                     )}
                 </div>
