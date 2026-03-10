@@ -280,8 +280,8 @@ export class StudentRepository {
     
     // valid fees for current year
     const fees: any = allFees.find((f: any) => {
-        const dbYear = f.school_year.replace(/['"]/g, '');
-        const targetYear = schoolYear.replace(/['"]/g, '');
+        const dbYear = f.school_year.replace(/['"]/g, '').trim();
+        const targetYear = schoolYear.replace(/['"]/g, '').trim();
         return dbYear === targetYear;
     });
     
@@ -300,27 +300,37 @@ export class StudentRepository {
     return { student, fees, feesHistory: allFees, payments };
   }
 
+  // Helper to normalize class names (minimal to allow user flexibility)
+  private static normalizeClassName(name: string): string {
+      if (!name) return '';
+      return name.trim();
+  }
+
   static update(id: string, updates: any) {
     try {
-      // Self-healing: Ensure parent contact columns exist (Migration 002 check)
-      const tableInfo = db.prepare('PRAGMA table_info(students)').all() as any[];
-      const columns = tableInfo.map(c => c.name);
-      
-      const missingColumns = [
-          'father_contact', 'mother_contact', 
-          'father_profession', 'mother_profession'
-      ].filter(col => !columns.includes(col));
-      
-      if (missingColumns.length > 0) {
-          console.log('Self-healing: Adding missing columns:', missingColumns);
-          missingColumns.forEach(col => {
-              try {
-                  db.prepare(`ALTER TABLE students ADD COLUMN ${col} TEXT`).run();
-                  console.log(`Added column ${col}`);
-              } catch (e) {
-                  console.error(`Failed to add column ${col}`, e);
-              }
-          });
+      console.log(`[StudentRepository.update] Starting update for student ${id}`, JSON.stringify(updates, null, 2));
+
+      // Self-healing: Ensure parent contact columns exist
+      try {
+          const tableInfo = db.prepare('PRAGMA table_info(students)').all() as any[];
+          const columns = tableInfo.map(c => c.name);
+          const missingColumns = [
+              'father_contact', 'mother_contact', 
+              'father_profession', 'mother_profession'
+          ].filter(col => !columns.includes(col));
+          
+          if (missingColumns.length > 0) {
+              console.log('[StudentRepository.update] Self-healing: Adding missing columns:', missingColumns);
+              missingColumns.forEach(col => {
+                  try {
+                      db.prepare(`ALTER TABLE students ADD COLUMN ${col} TEXT`).run();
+                  } catch (e) {
+                      console.error(`[StudentRepository.update] Failed to add column ${col}`, e);
+                  }
+              });
+          }
+      } catch (e) {
+          console.warn('[StudentRepository.update] Self-healing check failed (non-fatal):', e);
       }
 
       // Handle special fields
@@ -333,22 +343,19 @@ export class StudentRepository {
 
       if (updates.siblings) {
           if (typeof updates.siblings !== 'string') {
-              newSiblingsArray = updates.siblings; // Store array for helper
+              newSiblingsArray = updates.siblings;
               updates.siblings = JSON.stringify(updates.siblings);
           } else {
               newSiblingsArray = JSON.parse(updates.siblings);
           }
 
-          // Fetch old siblings
           const currentStudent = db.prepare('SELECT siblings FROM students WHERE id = ?').get(id) as { siblings: string };
           if (currentStudent && currentStudent.siblings) {
               oldSiblingsArray = JSON.parse(currentStudent.siblings);
           }
       }
 
-      // Separate fee updates
-      // feeFields and studentAllowedFields are now static properties
-
+      // Separate fee updates and student updates
       const studentUpdates: any = {};
       const feeUpdates: any = {};
 
@@ -358,23 +365,20 @@ export class StudentRepository {
           } else if (StudentRepository.studentAllowedFields.includes(key)) {
               studentUpdates[key] = updates[key];
               
-              // Ensure guardian_contact is not null if updated
               if (key === 'guardian_contact' && !studentUpdates[key]) {
                   studentUpdates[key] = '';
               }
 
-              // Normalize class
               if (key === 'class' && typeof studentUpdates[key] === 'string') {
                   studentUpdates[key] = this.normalizeClassName(studentUpdates[key]);
               }
           }
       });
 
-      const updateTransaction = db.transaction(() => {
-          console.log('Starting update transaction for student:', id);
-          console.log('Student Updates:', studentUpdates);
-          console.log('Fee Updates:', feeUpdates);
+      console.log('[StudentRepository.update] Parsed Student Updates:', studentUpdates);
+      console.log('[StudentRepository.update] Parsed Fee Updates:', feeUpdates);
 
+      const updateTransaction = db.transaction(() => {
           // Update Sibling Relations
           if (newSiblingsArray) {
               this.updateSiblingRelations(id, newSiblingsArray, oldSiblingsArray);
@@ -391,65 +395,63 @@ export class StudentRepository {
                 WHERE id = ?
               `);
               const result = stmt.run(...values, id);
-              console.log(`Updated student ${id}, changes: ${result.changes}`);
+              console.log(`[StudentRepository.update] Updated student table. Changes: ${result.changes}`);
               
               if (result.changes > 0) {
                   addToSyncQueue('students', id, 'update', studentUpdates);
-              } else {
-                  console.warn(`Student update failed: ID ${id} not found`);
               }
           }
 
-          // Update Fees Table (Current Year)
+          // Update Fees Table
           if (Object.keys(feeUpdates).length > 0 || studentUpdates.class) {
               let schoolYear = this.getSetting('school_year') || '2025-2026';
-              // Clean school year (remove quotes if present)
               schoolYear = schoolYear.replace(/['"]/g, '').trim();
-              console.log('Updating fees for school year:', schoolYear);
-              console.log('Fee updates payload:', feeUpdates);
               
-              // If class changed, we should update class_name in fees too
+              // If class changed, update fee record too
               if (studentUpdates.class) {
                   feeUpdates.class_name = studentUpdates.class;
-                  // Recalculate tuition level if class changed
                   const newLevel = this.determineTuitionLevel(studentUpdates.class);
                   feeUpdates.tuition_level = newLevel;
                   feeUpdates.monthly_tuition = parseFloat(this.getSetting(`tuition_${newLevel}`) || '0');
+                  console.log(`[StudentRepository.update] Class changed to ${studentUpdates.class}. New tuition level: ${newLevel}`);
               }
 
-              // Check if fee record exists for this year (Robust check)
-          // Fetch all fees for student and find matching year in JS to avoid SQL quote issues
-          const allFees = db.prepare('SELECT id, school_year FROM student_fees WHERE student_id = ? ORDER BY school_year DESC').all(id) as { id: string, school_year: string }[];
-          
-          let feeRecord = allFees.find(f => {
-              const dbYear = f.school_year.replace(/['"]/g, '').trim();
-              return dbYear === schoolYear;
-          });
-
-          // REMOVED FALLBACK: We must not update old records if the current year is missing.
-          // Instead, we should let the code proceed to create a new fee record for the current year.
-          
-          if (feeRecord) {
-              console.log('Updating existing fee record:', feeRecord.id);
-              const fields = Object.keys(feeUpdates).map(key => `${key} = ?`).join(', ');
-              const values = Object.values(feeUpdates).map(v => typeof v === 'boolean' ? (v ? 1 : 0) : v);
+              // Find existing fee record
+              const allFees = db.prepare('SELECT id, school_year FROM student_fees WHERE student_id = ? ORDER BY school_year DESC').all(id) as { id: string, school_year: string }[];
               
-              if (fields.length > 0) {
-                  const stmt = db.prepare(`
-                    UPDATE student_fees
-                    SET ${fields}, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending'
-                    WHERE id = ?
-                  `);
+              const feeRecord = allFees.find(f => {
+                  const dbYear = f.school_year.replace(/['"]/g, '').trim();
+                  return dbYear === schoolYear;
+              });
+
+              if (feeRecord) {
+                  console.log(`[StudentRepository.update] Updating existing fee record: ${feeRecord.id}`);
                   
-                  stmt.run(...values, feeRecord.id);
-                  addToSyncQueue('student_fees', feeRecord.id, 'update', feeUpdates);
-              }
-          } else {
-                  console.log('Creating new fee record for year:', schoolYear);
-                  // Create new fee record if it doesn't exist
+                  // Filter feeUpdates to ensure they are valid columns
+                  // We assume feeFields matches columns, but we must be careful with types
+                  const validFeeUpdates: any = {};
+                  Object.keys(feeUpdates).forEach(k => {
+                      // Map booleans to 0/1
+                      const val = feeUpdates[k];
+                      validFeeUpdates[k] = typeof val === 'boolean' ? (val ? 1 : 0) : val;
+                  });
+
+                  const fields = Object.keys(validFeeUpdates).map(key => `${key} = ?`).join(', ');
+                  const values = Object.values(validFeeUpdates);
+                  
+                  if (fields.length > 0) {
+                      db.prepare(`
+                        UPDATE student_fees
+                        SET ${fields}, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending'
+                        WHERE id = ?
+                      `).run(...values, feeRecord.id);
+                      
+                      addToSyncQueue('student_fees', feeRecord.id, 'update', validFeeUpdates);
+                  }
+              } else {
+                  console.log(`[StudentRepository.update] No fee record found for year "${schoolYear}". Creating new one.`);
+                  
                   const feeId = uuidv4();
-                  
-                  // Determine class to set tuition level
                   let className = studentUpdates.class;
                   if (!className) {
                       const currentStudent = db.prepare('SELECT class FROM students WHERE id = ?').get(id) as { class: string };
@@ -459,41 +461,42 @@ export class StudentRepository {
                   const level = this.determineTuitionLevel(className);
                   const tuitionFee = parseFloat(this.getSetting(`tuition_${level}`) || '0');
                   
-                  // Final check for existing record to avoid unique constraint error
-                  const existingCheck = db.prepare('SELECT id FROM student_fees WHERE student_id = ? AND school_year = ?').get(id, schoolYear);
-                  if (existingCheck) {
-                       console.warn('Race condition or match failure: Fee record actually exists. Updating instead of inserting.');
-                       const fields = Object.keys(feeUpdates).map(key => `${key} = ?`).join(', ');
-                       const values = Object.values(feeUpdates).map(v => typeof v === 'boolean' ? (v ? 1 : 0) : v);
-                       if (fields.length > 0) {
-                           db.prepare(`UPDATE student_fees SET ${fields} WHERE id = ?`).run(...values, (existingCheck as any).id);
-                       }
-                  } else {
-                      const insertFields = ['id', 'student_id', 'school_year', 'tuition_level', 'monthly_tuition', 'class_name', ...Object.keys(feeUpdates)];
-                      const placeholders = insertFields.map(() => '?').join(', ');
-                      
-                      const insertValues = [
-                          feeId, id, schoolYear, level, tuitionFee, className,
-                          ...Object.values(feeUpdates).map(v => typeof v === 'boolean' ? (v ? 1 : 0) : v)
-                      ];
-                      
-                      db.prepare(`INSERT INTO student_fees (${insertFields.join(', ')}) VALUES (${placeholders})`).run(...insertValues);
-                      
-                      addToSyncQueue('student_fees', feeId, 'create', { 
-                          id: feeId, student_id: id, school_year: schoolYear, 
-                          tuition_level: level, monthly_tuition: tuitionFee, class_name: className,
-                          ...feeUpdates
-                      });
-                  }
+                  // Construct new fee object
+                  const newFeeRecord: any = {
+                      id: feeId,
+                      student_id: id,
+                      school_year: schoolYear,
+                      tuition_level: level,
+                      monthly_tuition: tuitionFee,
+                      class_name: className,
+                      ...feeUpdates
+                  };
+
+                  // Convert booleans to 0/1 for DB
+                  const dbFeeRecord: any = {};
+                  Object.keys(newFeeRecord).forEach(k => {
+                      const val = newFeeRecord[k];
+                      dbFeeRecord[k] = typeof val === 'boolean' ? (val ? 1 : 0) : val;
+                  });
+
+                  // Insert
+                  const keys = Object.keys(dbFeeRecord);
+                  const placeholders = keys.map(() => '?').join(', ');
+                  const values = Object.values(dbFeeRecord);
+                  
+                  db.prepare(`INSERT INTO student_fees (${keys.join(', ')}) VALUES (${placeholders})`).run(...values);
+                  
+                  addToSyncQueue('student_fees', feeId, 'create', newFeeRecord);
               }
           }
       });
 
       updateTransaction();
+      console.log('[StudentRepository.update] Transaction committed successfully');
       
       return { success: true };
     } catch (error: any) {
-      console.error('Update error:', error);
+      console.error('[StudentRepository.update] Update error:', error);
       return { success: false, error: error.message };
     }
   }
