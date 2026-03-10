@@ -596,4 +596,46 @@ export class StudentRepository {
         return { success: false, error: error.message };
     }
   }
+
+  static getServiceStats() {
+      const schoolYear = this.getSetting('school_year') || '2025-2026';
+      
+      const rows = db.prepare(`
+          SELECT canteen_days, canteen_subscribed, bus_route, bus_subscribed 
+          FROM student_fees 
+          WHERE school_year = ?
+      `).all(schoolYear) as any[];
+
+      const canteenStats: Record<string, number> = {
+          Monday: 0, Tuesday: 0, Wednesday: 0, Thursday: 0, Friday: 0
+      };
+      
+      const busStats: Record<string, number> = {};
+
+      rows.forEach(row => {
+          // Canteen
+          if (row.canteen_subscribed && row.canteen_days) {
+              try {
+                  const days = JSON.parse(row.canteen_days);
+                  if (Array.isArray(days)) {
+                      days.forEach(day => {
+                          if (canteenStats[day] !== undefined) canteenStats[day]++;
+                      });
+                  }
+              } catch (e) {
+                  // Ignore parse errors
+              }
+          }
+          
+          // Bus
+          if (row.bus_subscribed && row.bus_route) {
+              const route = row.bus_route.trim();
+              if (route) {
+                  busStats[route] = (busStats[route] || 0) + 1;
+              }
+          }
+      });
+
+      return { canteenStats, busStats, totalStudents: rows.length };
+  }
 }

@@ -43,6 +43,11 @@ export function registerStudentHandlers() {
         return StudentRepository.reEnroll(id, newClass, targetYear);
     });
 
+    // SERVICE STATS
+    ipcMain.handle('student:serviceStats', async () => {
+        return StudentRepository.getServiceStats();
+    });
+
     // RESET DATABASE (Dev only)
     ipcMain.handle('db:reset', async (_) => {
         return StudentRepository.resetDatabase();

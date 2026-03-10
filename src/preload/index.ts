@@ -10,6 +10,7 @@ const api = {
     update: (id: string, updates: any) => ipcRenderer.invoke('student:update', id, updates),
     delete: (id: string) => ipcRenderer.invoke('student:delete', id),
     reEnroll: (id: string, newClass: string, targetYear: string) => ipcRenderer.invoke('student:reEnroll', id, newClass, targetYear),
+    getServiceStats: () => ipcRenderer.invoke('student:serviceStats'),
   },
   payment: {
     create: (data: any) => ipcRenderer.invoke('payment:create', data),
