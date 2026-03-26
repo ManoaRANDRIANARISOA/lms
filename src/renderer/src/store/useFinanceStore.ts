@@ -1,0 +1,67 @@
+import { create } from 'zustand'
+import { FinancePrices, defaultPrices } from '@/lib/finance-settings'
+
+interface FinanceState {
+  prices: FinancePrices
+  loading: boolean
+  error: string | null
+  fetchPrices: () => Promise<void>
+  savePrices: (newPrices: FinancePrices) => Promise<void>
+  getClasses: () => string[]
+}
+
+export const useFinanceStore = create<FinanceState>((set, get) => ({
+  prices: defaultPrices,
+  loading: false,
+  error: null,
+
+  fetchPrices: async () => {
+    set({ loading: true, error: null })
+    try {
+      // @ts-ignore
+      const savedPrices = await window.electron.ipcRenderer.invoke('settings:get', 'finance_prices')
+
+      set((state) => {
+        if (savedPrices) {
+          return {
+            prices: {
+              ...state.prices,
+              ...savedPrices,
+              classes: savedPrices.classes || state.prices.classes,
+              tuition: { ...state.prices.tuition, ...(savedPrices.tuition || {}) },
+              canteen: { ...state.prices.canteen, ...(savedPrices.canteen || {}) },
+              bus: { ...state.prices.bus, ...(savedPrices.bus || {}) },
+              uniforms: { ...state.prices.uniforms, ...(savedPrices.uniforms || {}) }
+            },
+            loading: false
+          }
+        }
+        return { loading: false }
+      })
+    } catch (error: any) {
+      console.error('Failed to load settings', error)
+      set({ error: error.message || 'Failed to load settings', loading: false })
+    }
+  },
+
+  savePrices: async (newPrices: FinancePrices) => {
+    set({ loading: true, error: null })
+    try {
+      // @ts-ignore
+      await window.electron.ipcRenderer.invoke('settings:set', 'finance_prices', newPrices)
+      set({ prices: newPrices, loading: false })
+    } catch (error: any) {
+      console.error('Failed to save settings', error)
+      set({ error: error.message || 'Failed to save settings', loading: false })
+      throw error
+    }
+  },
+
+  getClasses: () => {
+    const state = get()
+    if (state.prices.classes && state.prices.classes.length > 0) {
+      return state.prices.classes
+    }
+    return defaultPrices.classes
+  }
+}))

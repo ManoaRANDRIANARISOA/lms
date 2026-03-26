@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @theme {
   --color-border: hsl(var(--border));
@@ -35,10 +35,10 @@
   :root {
     /* Palette: #AD8B73, #CEAB93, #E3CAA5, #FFFBE9 */
     /* Converted to HSL for Tailwind compatibility */
-    
+
     /* Background: #FFFBE9 (Cream) -> 48, 100%, 96% */
     --background: 48 100% 96%;
-    
+
     /* Foreground: Dark Brown/Black for text -> using a dark version of the primary hue */
     --foreground: 24 23% 20%;
 

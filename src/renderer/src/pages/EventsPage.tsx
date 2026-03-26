@@ -1,137 +1,187 @@
-import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Dialog } from '@/components/ui/dialog';
-import { Calendar as CalendarIcon, Plus, Users, DollarSign, CheckCircle2, XCircle } from 'lucide-react';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Dialog } from '@/components/ui/dialog'
+import {
+  Calendar as CalendarIcon,
+  Plus,
+  Users,
+  DollarSign,
+  CheckCircle2,
+  XCircle,
+  Trash2,
+  Edit
+} from 'lucide-react'
+import { format } from 'date-fns'
+import { fr } from 'date-fns/locale'
+import { useFinanceStore } from '@/store/useFinanceStore'
 
 interface Event {
-  id: string;
-  name: string;
-  event_date: string;
-  amount_per_parent: number;
-  description: string;
-  status: 'planned' | 'ongoing' | 'completed';
+  id: string
+  name: string
+  event_date: string
+  amount_per_parent: number
+  description: string
+  status: 'planned' | 'ongoing' | 'completed'
 }
 
 interface Participation {
-  id: string; // event_payment id
-  student_id: string;
-  first_name: string;
-  last_name: string;
-  class: string;
-  amount_due: number;
-  amount_paid: number;
-  paid: boolean;
+  id: string // event_payment id
+  student_id: string
+  first_name: string
+  last_name: string
+  class: string
+  amount_due: number
+  amount_paid: number
+  paid: boolean
 }
 
 export default function EventsPage() {
-  const [events, setEvents] = useState<Event[]>([]);
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [participation, setParticipation] = useState<Participation[]>([]);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isAddParticipantsOpen, setIsAddParticipantsOpen] = useState(false);
-  
+  const [events, setEvents] = useState<Event[]>([])
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
+  const [participation, setParticipation] = useState<Participation[]>([])
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isAddParticipantsOpen, setIsAddParticipantsOpen] = useState(false)
+
   // Create Form State
   const [newEvent, setNewEvent] = useState({
     name: '',
     event_date: format(new Date(), 'yyyy-MM-dd'),
     amount_per_parent: 0,
     description: ''
-  });
+  })
 
   // Add Participants State
-  const [selectedClass, setSelectedClass] = useState<string>('all');
-  const [classList, setClassList] = useState<string[]>([]); // To be populated
+  const [selectedClass, setSelectedClass] = useState<string>('all')
+  const { prices, fetchPrices } = useFinanceStore()
+  const classList = prices.classes || []
 
   useEffect(() => {
-    loadEvents();
-    // Fetch unique classes for filter
-    fetchClasses();
-  }, []);
+    loadEvents()
+    fetchPrices()
+  }, [])
 
   useEffect(() => {
     if (selectedEvent) {
-      loadParticipation(selectedEvent.id);
+      loadParticipation(selectedEvent.id)
     }
-  }, [selectedEvent]);
+  }, [selectedEvent])
 
   const loadEvents = async () => {
     try {
-      const result = await (window as any).api.event.list();
+      const result = await (window as any).api.event.list()
       if (result.success) {
-        setEvents(result.events);
+        setEvents(result.events)
       }
     } catch (error) {
-      console.error(error);
+      console.error(error)
     }
-  };
+  }
 
   const loadParticipation = async (eventId: string) => {
     try {
-      const result = await (window as any).api.event.getById(eventId);
+      const result = await (window as any).api.event.getById(eventId)
       if (result.success) {
-        setParticipation(result.participation);
+        setParticipation(result.participation)
       }
     } catch (error) {
-      console.error(error);
+      console.error(error)
     }
-  };
-
-  const fetchClasses = async () => {
-    // Hack: get all students and extract classes
-    // In a real app, we should have a class list API
-    const result = await (window as any).api.student.list({ limit: 1000 });
-    if (result.students) {
-      const classes = Array.from(new Set(result.students.map((s: any) => s.class))).sort() as string[];
-      setClassList(classes);
-    }
-  };
+  }
 
   const handleCreateEvent = async () => {
-    const result = await (window as any).api.event.create(newEvent);
+    const result = await (window as any).api.event.create(newEvent)
     if (result.success) {
-      setIsCreateOpen(false);
-      loadEvents();
+      setIsCreateOpen(false)
+      loadEvents()
       // Select the newly created event
       if (result.id) {
-          const newEventData = { ...newEvent, id: result.id, status: 'planned' as const };
-          setEvents(prev => [newEventData, ...prev]);
-          setSelectedEvent(newEventData);
+        const newEventData = { ...newEvent, id: result.id, status: 'planned' as const }
+        setEvents((prev) => [newEventData, ...prev])
+        setSelectedEvent(newEventData)
       }
       setNewEvent({
         name: '',
         event_date: format(new Date(), 'yyyy-MM-dd'),
         amount_per_parent: 0,
         description: ''
-      });
+      })
     }
-  };
+  }
 
   const handleAddParticipants = async () => {
     // 1. Get students for selected class (or all)
-    const filters: any = { limit: 1000 };
-    if (selectedClass !== 'all') filters.class = selectedClass;
-    
-    const result = await (window as any).api.student.list(filters);
-    const studentIds = result.students.map((s: any) => s.id);
-    
+    const filters: any = { limit: 1000 }
+    if (selectedClass !== 'all') filters.class = selectedClass
+
+    const result = await (window as any).api.student.list(filters)
+    const studentIds = result.students.map((s: any) => s.id)
+
     if (studentIds.length > 0 && selectedEvent) {
-       await (window as any).api.event.addParticipants(selectedEvent.id, studentIds, selectedEvent.amount_per_parent);
-       loadParticipation(selectedEvent.id);
-       setIsAddParticipantsOpen(false);
+      await (window as any).api.event.addParticipants(
+        selectedEvent.id,
+        studentIds,
+        selectedEvent.amount_per_parent
+      )
+      loadParticipation(selectedEvent.id)
+      setIsAddParticipantsOpen(false)
     }
-  };
+  }
 
   const handlePayment = async (p: Participation) => {
-    if (!selectedEvent) return;
-    
-    if (confirm(`Confirmer le paiement de ${selectedEvent.amount_per_parent} Ar pour ${p.first_name} ${p.last_name} ?`)) {
-      await (window as any).api.event.recordPayment(selectedEvent.id, p.student_id, selectedEvent.amount_per_parent, 'cash');
-      loadParticipation(selectedEvent.id);
+    if (!selectedEvent) return
+
+    if (
+      confirm(
+        `Confirmer le paiement de ${selectedEvent.amount_per_parent} Ar pour ${p.first_name} ${p.last_name} ?`
+      )
+    ) {
+      await (window as any).api.event.recordPayment(
+        selectedEvent.id,
+        p.student_id,
+        selectedEvent.amount_per_parent,
+        'cash'
+      )
+      loadParticipation(selectedEvent.id)
     }
-  };
+  }
+
+  const handleDeleteEvent = async () => {
+    if (!selectedEvent) return
+    if (confirm(`Êtes-vous sûr de vouloir supprimer l'événement "${selectedEvent.name}" ?`)) {
+      await (window as any).api.event.delete(selectedEvent.id)
+      setSelectedEvent(null)
+      loadEvents()
+    }
+  }
+
+  const openEditModal = () => {
+    if (!selectedEvent) return
+    setNewEvent({
+      name: selectedEvent.name,
+      event_date: selectedEvent.event_date,
+      amount_per_parent: selectedEvent.amount_per_parent,
+      description: selectedEvent.description
+    })
+    setIsEditOpen(true)
+  }
+
+  const handleUpdateEvent = async () => {
+    if (!selectedEvent) return
+    const result = await (window as any).api.event.update(selectedEvent.id, newEvent)
+    if (result.success) {
+      setIsEditOpen(false)
+      loadEvents()
+      setSelectedEvent({ ...selectedEvent, ...newEvent })
+      setNewEvent({
+        name: '',
+        event_date: format(new Date(), 'yyyy-MM-dd'),
+        amount_per_parent: 0,
+        description: ''
+      })
+    }
+  }
 
   return (
     <div className="h-full flex flex-col p-6 space-y-6">
@@ -140,7 +190,17 @@ export default function EventsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Événements Parents</h1>
           <p className="text-gray-500">Gestion des événements et participations</p>
         </div>
-        <Button onClick={() => setIsCreateOpen(true)}>
+        <Button
+          onClick={() => {
+            setNewEvent({
+              name: '',
+              event_date: format(new Date(), 'yyyy-MM-dd'),
+              amount_per_parent: 0,
+              description: ''
+            })
+            setIsCreateOpen(true)
+          }}
+        >
           <Plus className="w-4 h-4 mr-2" />
           Nouvel Événement
         </Button>
@@ -149,12 +209,10 @@ export default function EventsPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full min-h-0">
         {/* Events List */}
         <div className="bg-white rounded-lg border shadow-sm overflow-hidden flex flex-col">
-          <div className="p-4 border-b bg-gray-50 font-medium">
-            Événements
-          </div>
+          <div className="p-4 border-b bg-gray-50 font-medium">Événements</div>
           <div className="overflow-auto flex-1 p-2 space-y-2">
-            {events.map(event => (
-              <div 
+            {events.map((event) => (
+              <div
                 key={event.id}
                 onClick={() => setSelectedEvent(event)}
                 className={`
@@ -164,12 +222,20 @@ export default function EventsPage() {
               >
                 <div className="flex justify-between items-start mb-1">
                   <span className="font-semibold text-gray-900">{event.name}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${
-                    event.status === 'completed' ? 'bg-green-100 text-green-700' :
-                    event.status === 'ongoing' ? 'bg-blue-100 text-blue-700' :
-                    'bg-gray-100 text-gray-700'
-                  }`}>
-                    {event.status === 'planned' ? 'Prévu' : event.status === 'ongoing' ? 'En cours' : 'Terminé'}
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full ${
+                      event.status === 'completed'
+                        ? 'bg-green-100 text-green-700'
+                        : event.status === 'ongoing'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    {event.status === 'planned'
+                      ? 'Prévu'
+                      : event.status === 'ongoing'
+                        ? 'En cours'
+                        : 'Terminé'}
                   </span>
                 </div>
                 <div className="text-sm text-gray-500 flex items-center gap-2 mb-1">
@@ -182,9 +248,7 @@ export default function EventsPage() {
               </div>
             ))}
             {events.length === 0 && (
-              <div className="text-center p-8 text-gray-400 text-sm">
-                Aucun événement créé
-              </div>
+              <div className="text-center p-8 text-gray-400 text-sm">Aucun événement créé</div>
             )}
           </div>
         </div>
@@ -196,8 +260,10 @@ export default function EventsPage() {
               <div className="p-6 border-b flex justify-between items-start bg-gray-50/50">
                 <div>
                   <h2 className="text-xl font-bold mb-1">{selectedEvent.name}</h2>
-                  <p className="text-gray-500 text-sm mb-4">{selectedEvent.description || 'Aucune description'}</p>
-                  
+                  <p className="text-gray-500 text-sm mb-4">
+                    {selectedEvent.description || 'Aucune description'}
+                  </p>
+
                   <div className="flex gap-4 text-sm">
                     <div className="flex items-center gap-2">
                       <Users className="w-4 h-4 text-gray-400" />
@@ -205,15 +271,29 @@ export default function EventsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <DollarSign className="w-4 h-4 text-gray-400" />
-                      <span>{participation.filter(p => p.paid).length} payés</span>
+                      <span>{participation.filter((p) => p.paid).length} payés</span>
                     </div>
                   </div>
                 </div>
-                
-                <Button variant="outline" size="sm" onClick={() => setIsAddParticipantsOpen(true)}>
-                  <Users className="w-4 h-4 mr-2" />
-                  Gérer Participants
-                </Button>
+
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={openEditModal}>
+                    <Edit className="w-4 h-4 mr-2" />
+                    Modifier
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={handleDeleteEvent}>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Supprimer
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsAddParticipantsOpen(true)}
+                  >
+                    <Users className="w-4 h-4 mr-2" />
+                    Gérer Participants
+                  </Button>
+                </div>
               </div>
 
               <div className="flex-1 overflow-auto">
@@ -228,7 +308,7 @@ export default function EventsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {participation.map(p => (
+                    {participation.map((p) => (
                       <tr key={p.id} className="hover:bg-gray-50/50">
                         <td className="px-4 py-3 font-medium">
                           {p.last_name} {p.first_name}
@@ -243,14 +323,19 @@ export default function EventsPage() {
                               <CheckCircle2 className="w-3 h-3 mr-1" /> Payé
                             </span>
                           ) : (
-                             <span className="inline-flex items-center text-red-600 bg-red-50 px-2 py-1 rounded-full text-xs font-medium">
+                            <span className="inline-flex items-center text-red-600 bg-red-50 px-2 py-1 rounded-full text-xs font-medium">
                               <XCircle className="w-3 h-3 mr-1" /> Non Payé
                             </span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-right">
                           {!p.paid && (
-                            <Button size="sm" variant="ghost" className="h-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => handlePayment(p)}>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              onClick={() => handlePayment(p)}
+                            >
                               Encaisser
                             </Button>
                           )}
@@ -278,88 +363,148 @@ export default function EventsPage() {
       </div>
 
       {/* Create Event Dialog */}
-      <Dialog 
-        isOpen={isCreateOpen} 
+      <Dialog
+        isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
         title="Nouvel Événement"
         footer={
           <>
-            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Annuler</Button>
+            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+              Annuler
+            </Button>
             <Button onClick={handleCreateEvent}>Créer</Button>
           </>
         }
       >
-          <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Nom de l'événement</label>
+            <Input
+              value={newEvent.name}
+              onChange={(e) => setNewEvent({ ...newEvent, name: e.target.value })}
+              placeholder="Ex: Sortie Zoo"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Nom de l'événement</label>
-              <Input 
-                value={newEvent.name} 
-                onChange={e => setNewEvent({...newEvent, name: e.target.value})}
-                placeholder="Ex: Sortie Zoo"
+              <label className="text-sm font-medium">Date</label>
+              <Input
+                type="date"
+                value={newEvent.event_date}
+                onChange={(e) => setNewEvent({ ...newEvent, event_date: e.target.value })}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Date</label>
-                <Input 
-                  type="date"
-                  value={newEvent.event_date} 
-                  onChange={e => setNewEvent({...newEvent, event_date: e.target.value})}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Montant / Parent (Ar)</label>
-                <Input 
-                  type="number"
-                  value={newEvent.amount_per_parent} 
-                  onChange={e => setNewEvent({...newEvent, amount_per_parent: parseFloat(e.target.value)})}
-                />
-              </div>
-            </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Description</label>
-              <Input 
-                value={newEvent.description} 
-                onChange={e => setNewEvent({...newEvent, description: e.target.value})}
-                placeholder="Détails optionnels..."
+              <label className="text-sm font-medium">Montant / Parent (Ar)</label>
+              <Input
+                type="number"
+                value={newEvent.amount_per_parent}
+                onChange={(e) =>
+                  setNewEvent({ ...newEvent, amount_per_parent: parseFloat(e.target.value) })
+                }
               />
             </div>
           </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Description</label>
+            <Input
+              value={newEvent.description}
+              onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
+              placeholder="Détails optionnels..."
+            />
+          </div>
+        </div>
       </Dialog>
 
       {/* Add Participants Dialog */}
-      <Dialog 
-        isOpen={isAddParticipantsOpen} 
+      <Dialog
+        isOpen={isAddParticipantsOpen}
         onClose={() => setIsAddParticipantsOpen(false)}
         title="Ajouter des Participants"
         footer={
           <>
-            <Button variant="outline" onClick={() => setIsAddParticipantsOpen(false)}>Annuler</Button>
-            <Button onClick={handleAddParticipants}>
-              Ajouter Participants
+            <Button variant="outline" onClick={() => setIsAddParticipantsOpen(false)}>
+              Annuler
             </Button>
+            <Button onClick={handleAddParticipants}>Ajouter Participants</Button>
           </>
         }
       >
-          <div className="py-4 space-y-4">
-            <p className="text-sm text-gray-500">
-              Sélectionnez une classe ou ajoutez tous les élèves de l'école à cet événement.
-            </p>
+        <div className="py-4 space-y-4">
+          <p className="text-sm text-gray-500">
+            Sélectionnez une classe ou ajoutez tous les élèves de l'école à cet événement.
+          </p>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Groupe Cible</label>
+            <select
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              value={selectedClass}
+              onChange={(e) => setSelectedClass(e.target.value)}
+            >
+              <option value="all">Toute l'école</option>
+              {classList.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Edit Event Dialog */}
+      <Dialog
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        title="Modifier l'Événement"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setIsEditOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleUpdateEvent}>Mettre à jour</Button>
+          </>
+        }
+      >
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Nom de l'événement</label>
+            <Input
+              value={newEvent.name}
+              onChange={(e) => setNewEvent({ ...newEvent, name: e.target.value })}
+              placeholder="Ex: Sortie Zoo"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Groupe Cible</label>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-              >
-                <option value="all">Toute l'école</option>
-                {classList.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+              <label className="text-sm font-medium">Date</label>
+              <Input
+                type="date"
+                value={newEvent.event_date}
+                onChange={(e) => setNewEvent({ ...newEvent, event_date: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Montant / Parent (Ar)</label>
+              <Input
+                type="number"
+                value={newEvent.amount_per_parent}
+                onChange={(e) =>
+                  setNewEvent({ ...newEvent, amount_per_parent: parseFloat(e.target.value) })
+                }
+              />
             </div>
           </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Description</label>
+            <Input
+              value={newEvent.description}
+              onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
+              placeholder="Détails optionnels..."
+            />
+          </div>
+        </div>
       </Dialog>
     </div>
-  );
+  )
 }

@@ -1,26 +1,29 @@
-import React from 'react';
-import { HashRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import StudentList from './pages/students/StudentList';
-import Settings from './pages/Settings';
-import CertificatePage from './pages/students/CertificatePage';
-import AttendancePage from './pages/AttendancePage'; // Import the new page
-import EventsPage from './pages/EventsPage';
-import FinancePage from './pages/FinancePage';
-import { cn } from './lib/utils';
+import React from 'react'
+import { HashRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom'
+import StudentList from './pages/students/StudentList'
+import Settings from './pages/Settings'
+import CertificatePage from './pages/students/CertificatePage'
+import AttendancePage from './pages/AttendancePage' // Import the new page
+import EventsPage from './pages/EventsPage'
+import FinancePage from './pages/FinancePage'
+import { cn } from './lib/utils'
 
 // Simple Error Boundary
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: Error | null }> {
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
   constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false, error: null };
+    super(props)
+    this.state = { hasError: false, error: null }
   }
 
   static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
+    return { hasError: true, error }
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("ErrorBoundary caught an error", error, errorInfo);
+    console.error('ErrorBoundary caught an error', error, errorInfo)
   }
 
   render() {
@@ -31,37 +34,37 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
           <pre className="bg-gray-100 p-4 rounded overflow-auto text-sm">
             {this.state.error?.toString()}
           </pre>
-          <button 
+          <button
             className="mt-4 px-4 py-2 bg-primary text-white rounded"
             onClick={() => window.location.reload()}
           >
             Recharger l'application
           </button>
         </div>
-      );
+      )
     }
 
-    return this.props.children;
+    return this.props.children
   }
 }
 
 function NavItem({ to, children }: { to: string; children: React.ReactNode }) {
-  const location = useLocation();
-  const isActive = location.pathname === to || (to !== '/' && location.pathname.startsWith(to));
+  const location = useLocation()
+  const isActive = location.pathname === to || (to !== '/' && location.pathname.startsWith(to))
 
   return (
     <Link
       to={to}
       className={cn(
-        "block py-2 px-4 rounded-md mb-1 transition-colors",
+        'block py-2 px-4 rounded-md mb-1 transition-colors',
         isActive
-          ? "bg-secondary text-secondary-foreground shadow-sm font-medium"
-          : "hover:bg-secondary/50 hover:text-secondary-foreground text-primary-foreground/90"
+          ? 'bg-secondary text-secondary-foreground shadow-sm font-medium'
+          : 'hover:bg-secondary/50 hover:text-secondary-foreground text-primary-foreground/90'
       )}
     >
       {children}
     </Link>
-  );
+  )
 }
 
 function Layout() {
@@ -80,29 +83,33 @@ function Layout() {
           <NavItem to="/grades">Notes</NavItem>
           <NavItem to="/settings">Paramètres</NavItem>
         </nav>
-        <div className="text-xs text-primary-foreground/60 text-center mt-4">
-          v1.0.0
-        </div>
+        <div className="text-xs text-primary-foreground/60 text-center mt-4">v1.0.0</div>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto bg-background p-6">
         <div className="w-full h-full">
           <Routes>
-            <Route path="/" element={<div className="p-6">Tableau de bord (En construction)</div>} />
+            <Route
+              path="/"
+              element={<div className="p-6">Tableau de bord (En construction)</div>}
+            />
             <Route path="/students" element={<StudentList />} />
             <Route path="/attendance" element={<AttendancePage />} />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/certificate/:studentId" element={<CertificatePage />} />
             <Route path="/finance" element={<FinancePage />} />
-            <Route path="/personnel" element={<div className="p-6">Personnel (En construction)</div>} />
+            <Route
+              path="/personnel"
+              element={<div className="p-6">Personnel (En construction)</div>}
+            />
             <Route path="/grades" element={<div className="p-6">Notes (En construction)</div>} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </div>
       </main>
     </div>
-  );
+  )
 }
 
 function App(): React.JSX.Element {
@@ -112,7 +119,7 @@ function App(): React.JSX.Element {
         <Layout />
       </ErrorBoundary>
     </Router>
-  );
+  )
 }
 
-export default App;
+export default App
