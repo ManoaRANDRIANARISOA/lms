@@ -20,11 +20,14 @@ import {
   History,
   Calendar,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  ToggleLeft,
+  ToggleRight
 } from 'lucide-react'
 import { getStudentPhotoUrl } from '@/lib/image-utils'
 import { useNavigate } from 'react-router-dom'
 import { useFinanceStore } from '@/store/useFinanceStore'
+import { usePermissions } from '@/lib/usePermissions'
 
 interface StudentDetailProps {
   studentId: string
@@ -59,6 +62,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
     currentFees,
     currentFeesHistory,
     getStudent,
+    updateStudent,
     loading,
     error,
     deleteStudent
@@ -68,6 +72,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
   const [selectedYear, setSelectedYear] = useState<string>('')
 
   const { prices: financePrices, fetchPrices } = useFinanceStore()
+  const { canWrite } = usePermissions()
 
   useEffect(() => {
     fetchPrices()
@@ -99,8 +104,27 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
     }
   }
 
+  const handleToggleBus = async () => {
+    if (!displayedFees) return
+    const newValue = !displayedFees.bus_subscribed
+    await updateStudent(studentId, {
+      bus_subscribed: newValue,
+      bus_route: newValue ? displayedFees.bus_route || '' : ''
+    })
+  }
+
+  const handleToggleCanteen = async () => {
+    if (!displayedFees) return
+    const newValue = !displayedFees.canteen_subscribed
+    await updateStudent(studentId, {
+      canteen_subscribed: newValue,
+      canteen_days: newValue ? (displayedFees.canteen_days || ['Monday','Tuesday','Wednesday','Thursday','Friday']) : [],
+      canteen_days_per_week: newValue ? 5 : 0
+    })
+  }
+
   const handleReEnrollSuccess = () => {
-    getStudent(studentId) // Refresh data
+    getStudent(studentId)
   }
 
   const handleRefresh = () => {
@@ -109,23 +133,16 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
 
   const getDisplayClass = (fee: any) => {
     // Priority 1: Class name stored in the fee record (History)
-    if (fee?.class_name && fee.class_name !== 'Classe non spécifiée') {
+    if (fee?.class_name && fee.class_name !== 'Classe non spécifiée' && fee.class_name !== 'Non inscrit') {
       return fee.class_name
     }
 
-    // Priority 2: If we are looking at the current student's active year/context
-    // We check if the fee record corresponds to the current enrollment
-    // or if we have no fee record (default view)
-    const isCurrentContext =
-      !fee ||
-      (currentFees && fee.id === currentFees.id) ||
-      fee.school_year === currentFees?.school_year
-
-    if (isCurrentContext && currentStudent?.class) {
+    // Priority 2: Current student's active class (if valid)
+    if (currentStudent?.class && currentStudent.class !== 'Classe non spécifiée' && currentStudent.class !== 'Non inscrit') {
       return currentStudent.class
     }
 
-    return 'Classe non spécifiée'
+    return 'Non inscrit'
   }
 
   const displayedFees =
@@ -157,12 +174,14 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
             >
               <RefreshCw className="w-4 h-4" />
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setIsReEnrollOpen(true)}>
-              <History className="w-4 h-4 mr-2" />
-              {!currentStudent?.class || currentStudent.class === 'Classe non spécifiée'
-                ? 'Inscrire'
-                : 'Réinscrire'}
-            </Button>
+            {canWrite('students') && (
+              <Button variant="outline" size="sm" onClick={() => setIsReEnrollOpen(true)}>
+                <History className="w-4 h-4 mr-2" />
+                {!currentFees
+                  ? 'Inscrire'
+                  : 'Réinscrire'}
+              </Button>
+            )}
             <Button
               variant="secondary"
               size="sm"
@@ -171,14 +190,18 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
               <FileText className="w-4 h-4 mr-2" />
               Certificat
             </Button>
-            <Button variant="outline" size="sm" onClick={onEdit}>
-              <Edit className="w-4 h-4 mr-2" />
-              Modifier
-            </Button>
-            <Button variant="destructive" size="sm" onClick={handleDelete}>
-              <Trash2 className="w-4 h-4 mr-2" />
-              Supprimer
-            </Button>
+            {canWrite('students') && (
+              <Button variant="outline" size="sm" onClick={onEdit}>
+                <Edit className="w-4 h-4 mr-2" />
+                Modifier
+              </Button>
+            )}
+            {canWrite('students') && (
+              <Button variant="destructive" size="sm" onClick={handleDelete}>
+                <Trash2 className="w-4 h-4 mr-2" />
+                Supprimer
+              </Button>
+            )}
           </div>
         </div>
 
@@ -366,155 +389,109 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <h4 className="font-medium text-sm mb-2 flex items-center">
-                        <Bus className="w-4 h-4 mr-2" />
-                        Transport & Restauration
+                      <h4 className="font-medium text-sm mb-2 flex items-center justify-between">
+                        <span className="flex items-center">
+                          <Bus className="w-4 h-4 mr-2" />
+                          Transport & Restauration
+                        </span>
+                        {canWrite('students') && (
+                          <span className="text-xs text-gray-400">Cliquez pour activer/désactiver</span>
+                        )}
                       </h4>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Bus:</span>
-                          <div className="text-right">
-                            <span
-                              className={
-                                displayedFees.bus_subscribed
-                                  ? 'text-green-600 font-medium block'
-                                  : 'text-gray-400 block'
-                              }
-                            >
-                              {displayedFees.bus_subscribed
-                                ? `Oui (${displayedFees.bus_route || 'Zone ?'})`
-                                : 'Non'}
-                            </span>
-                            {displayedFees.bus_subscribed &&
-                              financePrices?.bus?.[displayedFees.bus_route] && (
-                                <span className="text-xs text-gray-500">
-                                  {financePrices.bus[displayedFees.bus_route].toLocaleString()}{' '}
-                                  Ar/mois
-                                </span>
-                              )}
+                      <div className="space-y-3">
+                        {/* Bus Toggle */}
+                        <button
+                          onClick={handleToggleBus}
+                          disabled={!canWrite('students')}
+                          className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${
+                            displayedFees.bus_subscribed
+                              ? 'bg-yellow-50 border-yellow-200'
+                              : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                          } ${!canWrite('students') ? 'cursor-default' : 'cursor-pointer'}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Bus className={`w-5 h-5 ${displayedFees.bus_subscribed ? 'text-yellow-600' : 'text-gray-400'}`} />
+                            <div>
+                              <p className="text-sm font-medium">Bus Scolaire</p>
+                              <p className="text-xs text-gray-500">
+                                {displayedFees.bus_subscribed
+                                  ? (displayedFees.bus_route || 'Zone non définie')
+                                  : 'Non inscrit'}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600 flex items-center">
-                            <Utensils className="w-3 h-3 mr-1" />
-                            Cantine:
-                          </span>
-                          <div className="text-right">
-                            <span
-                              className={
-                                displayedFees.canteen_subscribed
-                                  ? 'text-green-600 font-medium block'
-                                  : 'text-gray-400 block'
-                              }
-                            >
-                              {displayedFees.canteen_subscribed
-                                ? `Oui (${formatCanteenDays(displayedFees.canteen_days, displayedFees.canteen_days_per_week)})`
-                                : 'Non'}
-                            </span>
-                            {displayedFees.canteen_subscribed && (
-                              <span className="text-xs text-gray-500">
-                                {(() => {
-                                  let days = displayedFees.canteen_days_per_week || 0
-                                  if (
-                                    Array.isArray(displayedFees.canteen_days) &&
-                                    displayedFees.canteen_days.length > 0
-                                  ) {
-                                    days = displayedFees.canteen_days.length
-                                  }
-                                  const effectiveDays = days === 0 ? 5 : days
+                          {displayedFees.bus_subscribed ? (
+                            <ToggleRight className="w-6 h-6 text-yellow-600" />
+                          ) : (
+                            <ToggleLeft className="w-6 h-6 text-gray-400" />
+                          )}
+                        </button>
 
-                                  if (effectiveDays >= 5) {
-                                    return financePrices?.canteen?.monthly
-                                      ? `${financePrices.canteen.monthly.toLocaleString()} Ar/mois`
-                                      : '-'
-                                  } else {
-                                    const daily = financePrices?.canteen?.daily || 0
-                                    const monthly = daily * effectiveDays * 4
-                                    return `${monthly.toLocaleString()} Ar/mois (${effectiveDays}j/sem)`
-                                  }
-                                })()}
-                              </span>
-                            )}
+                        {/* Canteen Toggle */}
+                        <button
+                          onClick={handleToggleCanteen}
+                          disabled={!canWrite('students')}
+                          className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${
+                            displayedFees.canteen_subscribed
+                              ? 'bg-orange-50 border-orange-200'
+                              : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                          } ${!canWrite('students') ? 'cursor-default' : 'cursor-pointer'}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Utensils className={`w-5 h-5 ${displayedFees.canteen_subscribed ? 'text-orange-600' : 'text-gray-400'}`} />
+                            <div>
+                              <p className="text-sm font-medium">Cantine</p>
+                              <p className="text-xs text-gray-500">
+                                {displayedFees.canteen_subscribed
+                                  ? formatCanteenDays(displayedFees.canteen_days, displayedFees.canteen_days_per_week)
+                                  : 'Non inscrit'}
+                              </p>
+                            </div>
                           </div>
-                        </div>
+                          {displayedFees.canteen_subscribed ? (
+                            <ToggleRight className="w-6 h-6 text-orange-600" />
+                          ) : (
+                            <ToggleLeft className="w-6 h-6 text-gray-400" />
+                          )}
+                        </button>
                       </div>
                     </div>
                     <div>
                       <h4 className="font-medium text-sm mb-2 flex items-center">
                         <Shirt className="w-4 h-4 mr-2" />
-                        Tenues & Accessoires
+                        Uniformes & Accessoires
                       </h4>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        {!!displayedFees.uniform_tshirt_purchased && (
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                              <span className="text-gray-900">T-shirt Sport</span>
-                            </div>
-                            {financePrices?.uniforms?.['T-shirt'] && (
-                              <span className="text-xs text-gray-400 ml-4">
-                                {financePrices.uniforms['T-shirt'].toLocaleString()} Ar
-                              </span>
-                            )}
-                          </div>
+                      <ul className="space-y-1 text-sm">
+                        {displayedFees.uniform_tshirt_purchased && (
+                          <li className="flex items-center text-green-600">
+                            <CheckCircle2 className="w-3 h-3 mr-1" /> T-shirt
+                          </li>
                         )}
-
-                        {!!displayedFees.uniform_apron_purchased && (
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                              <span className="text-gray-900">Tablier</span>
-                            </div>
-                            {financePrices?.uniforms?.['Tablier'] && (
-                              <span className="text-xs text-gray-400 ml-4">
-                                {financePrices.uniforms['Tablier'].toLocaleString()} Ar
-                              </span>
-                            )}
-                          </div>
+                        {displayedFees.uniform_apron_purchased && (
+                          <li className="flex items-center text-green-600">
+                            <CheckCircle2 className="w-3 h-3 mr-1" /> Tablier
+                          </li>
                         )}
-
-                        {!!displayedFees.uniform_shorts_purchased && (
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                              <span className="text-gray-900">Short</span>
-                            </div>
-                            {financePrices?.uniforms?.['Short'] && (
-                              <span className="text-xs text-gray-400 ml-4">
-                                {financePrices.uniforms['Short'].toLocaleString()} Ar
-                              </span>
-                            )}
-                          </div>
+                        {displayedFees.uniform_shorts_purchased && (
+                          <li className="flex items-center text-green-600">
+                            <CheckCircle2 className="w-3 h-3 mr-1" /> Short
+                          </li>
                         )}
-
-                        {!!displayedFees.uniform_badge_purchased && (
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                              <span className="text-gray-900">Écusson</span>
-                            </div>
-                            {financePrices?.uniforms?.['Ecusson'] && (
-                              <span className="text-xs text-gray-400 ml-4">
-                                {financePrices.uniforms['Ecusson'].toLocaleString()} Ar
-                              </span>
-                            )}
-                          </div>
+                        {displayedFees.uniform_badge_purchased && (
+                          <li className="flex items-center text-green-600">
+                            <CheckCircle2 className="w-3 h-3 mr-1" /> Badge
+                          </li>
                         )}
-                      </div>
-                    </div>
-                    <div className="md:col-span-2 border-t pt-2 mt-2">
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium text-sm">Cotisation FRAM</span>
-                        <span
-                          className={`px-2 py-1 rounded text-xs font-bold ${displayedFees.fram_paid_by_parent ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}
-                        >
-                          {displayedFees.fram_paid_by_parent
-                            ? 'Payé par les parents'
-                            : 'Inclus / Non spécifié'}
-                        </span>
-                      </div>
+                        {!displayedFees.uniform_tshirt_purchased &&
+                          !displayedFees.uniform_apron_purchased &&
+                          !displayedFees.uniform_shorts_purchased &&
+                          !displayedFees.uniform_badge_purchased && (
+                            <li className="text-gray-400 italic">Aucun achat</li>
+                          )}
+                      </ul>
                     </div>
                   </div>
+
                 </div>
               )}
             </div>

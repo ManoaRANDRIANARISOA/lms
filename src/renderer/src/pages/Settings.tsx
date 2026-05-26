@@ -3,8 +3,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useState, useEffect } from 'react'
 import { getStudentPhotoUrl } from '../lib/image-utils'
+import { useAuthStore } from '@/store/useAuthStore'
 
 export default function Settings() {
+  const canRead = useAuthStore((s) => s.canRead)
+  const canWrite = useAuthStore((s) => s.canWrite)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [wipeCloud, setWipeCloud] = useState(false)
@@ -15,19 +18,33 @@ export default function Settings() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [isLoadingImage, setIsLoadingImage] = useState(false)
 
+  // If user cannot read settings at all, show access denied
+  if (!canRead('settings')) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-destructive mb-2">Accès refusé</h2>
+          <p className="text-muted-foreground">
+            Vous n'avez pas les permissions nécessaires pour accéder aux paramètres.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   useEffect(() => {
     const loadSettings = async () => {
-      if (window.electron && window.electron.ipcRenderer) {
+      if (window.api) {
         try {
-          const name = await window.electron.ipcRenderer.invoke('settings:get', 'school_name')
-          const year = await window.electron.ipcRenderer.invoke('settings:get', 'current_year')
-          const logo = await window.electron.ipcRenderer.invoke('settings:get', 'school_logo')
+          const name = await window.api.settings.get('school_name')
+          const year = await window.api.settings.get('current_year')
+          const logo = await window.api.settings.get('school_logo')
 
-          if (name) setSchoolName(name)
-          if (year) setCurrentYear(year)
+          if (name) setSchoolName(name as string)
+          if (year) setCurrentYear(year as string)
           if (logo) {
-            setSchoolLogo(logo)
-            setLogoPreview(logo)
+            setSchoolLogo(logo as string)
+            setLogoPreview(logo as string | null)
           }
         } catch (e) {
           console.error('Failed to load settings', e)
@@ -41,10 +58,10 @@ export default function Settings() {
     setLoading(true)
     setMessage('')
     try {
-      if (window.electron && window.electron.ipcRenderer) {
-        await window.electron.ipcRenderer.invoke('settings:set', 'school_name', schoolName)
-        await window.electron.ipcRenderer.invoke('settings:set', 'current_year', currentYear)
-        await window.electron.ipcRenderer.invoke('settings:set', 'school_logo', schoolLogo)
+      if (window.api) {
+        await window.api.settings.set('school_name', schoolName)
+        await window.api.settings.set('current_year', currentYear)
+        await window.api.settings.set('school_logo', schoolLogo)
         setMessage('Configuration enregistrée avec succès.')
       }
     } catch (e: any) {
@@ -55,14 +72,14 @@ export default function Settings() {
   }
 
   const handleLogoSelect = async () => {
-    if (!window.electron || !window.electron.ipcRenderer) {
+    if (!window.api) {
       alert("Le sélecteur de fichiers n'est disponible que sur l'application Desktop.")
       return
     }
 
     setIsLoadingImage(true)
     try {
-      const result = await window.electron.ipcRenderer.invoke('dialog:openFile')
+      const result = await window.api.dialog.openFile()
       if (result) {
         if (typeof result === 'object' && result.filePath) {
           setSchoolLogo(result.filePath)
@@ -92,16 +109,11 @@ export default function Settings() {
 
     setLoading(true)
     try {
-      if (window.electron && window.electron.ipcRenderer) {
-        // @ts-ignore
-        const result = await window.electron.ipcRenderer.invoke('db:reset', wipeCloud)
-        if (result.success) {
-          setMessage('Base de données réinitialisée avec succès.')
-        } else {
-          setMessage('Erreur: ' + result.error)
-        }
+      const result = await window.api.student.resetDatabase(wipeCloud)
+      if (result.success) {
+        setMessage('Base de données réinitialisée avec succès.')
       } else {
-        setMessage('Action non disponible en mode Web.')
+        setMessage('Erreur: ' + result.error)
       }
     } catch (e: any) {
       setMessage('Erreur: ' + e.message)
@@ -113,14 +125,11 @@ export default function Settings() {
   const handleRepair = async () => {
     setLoading(true)
     try {
-      if (window.electron && window.electron.ipcRenderer) {
-        // @ts-ignore
-        const result = await window.electron.ipcRenderer.invoke('student:repair', '2025-2026')
-        if (result.success) {
-          setMessage(`Réparation terminée. ${result.fixedCount} inscriptions créées.`)
-        } else {
-          setMessage('Erreur: ' + result.error)
-        }
+      const result = await window.api.student.repair('2025-2026')
+      if (result.success) {
+        setMessage(`Réparation terminée. ${result.fixedCount} inscriptions créées.`)
+      } else {
+        setMessage('Erreur: ' + result.error)
       }
     } catch (e: any) {
       setMessage('Erreur: ' + e.message)
@@ -197,7 +206,11 @@ export default function Settings() {
                 onChange={(e) => setCurrentYear(e.target.value)}
               />
             </div>
-            <Button onClick={handleSaveConfig} disabled={loading} className="w-full">
+            <Button
+              onClick={handleSaveConfig}
+              disabled={loading || !canWrite('settings')}
+              className="w-full"
+            >
               {loading ? 'Enregistrement...' : 'Enregistrer la Configuration'}
             </Button>
           </div>

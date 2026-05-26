@@ -25,11 +25,11 @@ export const ServiceDashboard: React.FC<ServiceDashboardProps> = ({ isOpen, onCl
   }, [isOpen])
 
   const loadStats = async () => {
-    if (!(window as any).api) return
+    if (!window.api) return
     setLoading(true)
     try {
-      const result = await (window as any).api.student.getServiceStats()
-      setStats(result)
+      const result = await window.api.student.getServiceStats()
+      setStats(result as unknown as ServiceStats)
     } catch (error) {
       console.error('Failed to load stats:', error)
     } finally {

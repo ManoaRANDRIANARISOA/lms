@@ -18,14 +18,11 @@ export default function CertificatePage() {
     }
 
     // Fetch settings via IPC
-    if (window.electron && window.electron.ipcRenderer) {
-      Promise.all([
-        window.electron.ipcRenderer.invoke('settings:get', 'school_year'),
-        window.electron.ipcRenderer.invoke('settings:get', 'school_name')
-      ])
+    if (window.api) {
+      Promise.all([window.api.settings.get('school_year'), window.api.settings.get('school_name')])
         .then(([year, name]) => {
-          if (year) setSchoolYear(year)
-          if (name) setSchoolName(name)
+          if (year) setSchoolYear(year as string)
+          if (name) setSchoolName(name as string)
         })
         .catch(console.error)
     }

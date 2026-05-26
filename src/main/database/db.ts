@@ -20,150 +20,134 @@ db.pragma('journal_mode = WAL')
 
 // Migration runner
 const runMigrations = () => {
+  // Ensure migrations tracking table exists
   const migrationTableExists =
     (
       db
         .prepare(
-          `
-    SELECT count(*) as count FROM sqlite_master WHERE type='table' AND name='migrations'
-  `
+          `SELECT count(*) as count FROM sqlite_master WHERE type='table' AND name='migrations'`
         )
         .get() as { count: number }
     ).count > 0
 
   if (!migrationTableExists) {
     db.prepare(
-      `
-      CREATE TABLE migrations (
+      `CREATE TABLE migrations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `
+      )`
     ).run()
   }
 
-  // We are looking for the migration file.
-  // In production, we need to make sure resources are copied correctly.
-  // For now, let's assume we can read the file we just copied.
-  // In electron-vite, resources are handled differently.
-  // We'll read the file content I just copied to 001_init.sql
-
-  // Note: For simplicity in this environment, I'll inline the migration checking for the first file.
-  // In a real app, I'd iterate through the folder.
-
-  const initMigrationName = '001_init.sql'
-  const migrationApplied =
-    (
-      db
-        .prepare('SELECT count(*) as count FROM migrations WHERE name = ?')
-        .get(initMigrationName) as { count: number }
-    ).count > 0
-
-  if (!migrationApplied) {
-    // ... (existing code for 001)
-    console.log('Applying migration: 001_init.sql')
-    try {
-      let migrationPath = path.join(__dirname, '../src/main/database/migrations/001_init.sql')
-      if (isDev) {
-        migrationPath = path.resolve(app.getAppPath(), 'src/main/database/migrations/001_init.sql')
-      } else {
-        migrationPath = path.join(process.resourcesPath, 'migrations/001_init.sql')
-      }
-
-      if (fs.existsSync(migrationPath)) {
-        const migrationSql = fs.readFileSync(migrationPath, 'utf-8')
-        db.exec(migrationSql)
-        db.prepare('INSERT INTO migrations (name) VALUES (?)').run(initMigrationName)
-        console.log('Migration 001 applied successfully.')
-      } else {
-        const fallbackPath = 'C:\\rep\\School\\lms\\src\\main\\database\\migrations\\001_init.sql'
-        if (fs.existsSync(fallbackPath)) {
-          const migrationSql = fs.readFileSync(fallbackPath, 'utf-8')
-          db.exec(migrationSql)
-          db.prepare('INSERT INTO migrations (name) VALUES (?)').run(initMigrationName)
-          console.log('Migration 001 applied successfully (fallback).')
+  /**
+   * Apply a single migration file if not already applied.
+   * Resolves path relative to app root in dev, or resources dir in production.
+   */
+  function applyMigration(migFile: string): void {
+    const alreadyApplied =
+      (
+        db.prepare('SELECT count(*) as count FROM migrations WHERE name = ?').get(migFile) as {
+          count: number
         }
-      }
-    } catch (err) {
-      console.error('Migration 001 failed:', err)
+      ).count > 0
+
+    if (alreadyApplied) return
+
+    console.log(`Applying migration: ${migFile}`)
+
+    const migrationPath = isDev
+      ? path.join(app.getAppPath(), 'src/main/database/migrations', migFile)
+      : path.join(process.resourcesPath, 'migrations', migFile)
+
+    if (!fs.existsSync(migrationPath)) {
+      console.warn(`Migration file not found: ${migrationPath}. Skipping.`)
+      return
     }
-  }
 
-  // Check for 002
-  const mig002Name = '002_add_parent_details.sql'
-  const mig002Applied =
-    (
-      db.prepare('SELECT count(*) as count FROM migrations WHERE name = ?').get(mig002Name) as {
-        count: number
-      }
-    ).count > 0
-
-  if (!mig002Applied) {
-    console.log('Applying migration: 002_add_parent_details.sql')
-    // ... (implementation omitted for brevity, similar to 001)
-    // Note: Assuming the implementation is correct based on the pattern
-    // To be safe, I'll copy the robust pattern from 003 below
     try {
-      const migFile = '002_add_parent_details.sql'
-      let migrationPath = isDev
-        ? path.join(app.getAppPath(), 'src/main/database/migrations', migFile)
-        : path.join(process.resourcesPath, 'migrations', migFile)
-
-      if (!fs.existsSync(migrationPath)) {
-        // Try hardcoded fallback
-        migrationPath = `C:\\rep\\School\\lms\\src\\main\\database\\migrations\\${migFile}`
-      }
-
-      if (fs.existsSync(migrationPath)) {
-        const migrationSql = fs.readFileSync(migrationPath, 'utf-8')
-        db.exec(migrationSql)
-        db.prepare('INSERT INTO migrations (name) VALUES (?)').run(mig002Name)
-        console.log(`Migration ${migFile} applied successfully.`)
-      } else {
-        console.warn(`Migration file ${migFile} not found.`)
-      }
+      const migrationSql = fs.readFileSync(migrationPath, 'utf-8')
+      db.exec(migrationSql)
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migFile)
+      console.log(`Migration ${migFile} applied successfully.`)
     } catch (err) {
-      console.error('Migration 002 failed:', err)
+      console.error(`Migration ${migFile} failed:`, err)
     }
   }
 
-  // Check for 003
-  const mig003Name = '003_add_class_history.sql'
-  const mig003Applied =
-    (
-      db.prepare('SELECT count(*) as count FROM migrations WHERE name = ?').get(mig003Name) as {
-        count: number
-      }
-    ).count > 0
-
-  if (!mig003Applied) {
-    console.log('Applying migration: 003_add_class_history.sql')
-    try {
-      const migFile = '003_add_class_history.sql'
-      let migrationPath = isDev
-        ? path.join(app.getAppPath(), 'src/main/database/migrations', migFile)
-        : path.join(process.resourcesPath, 'migrations', migFile)
-
-      if (!fs.existsSync(migrationPath)) {
-        migrationPath = `C:\\rep\\School\\lms\\src\\main\\database\\migrations\\${migFile}`
-      }
-
-      if (fs.existsSync(migrationPath)) {
-        const migrationSql = fs.readFileSync(migrationPath, 'utf-8')
-        db.exec(migrationSql)
-        db.prepare('INSERT INTO migrations (name) VALUES (?)').run(mig003Name)
-        console.log(`Migration ${migFile} applied successfully.`)
-      } else {
-        console.warn(`Migration file ${migFile} not found.`)
-      }
-    } catch (err) {
-      console.error('Migration 003 failed:', err)
-    }
-  }
+  // Apply all migrations in order
+  const migrations = [
+    '001_init.sql',
+    '002_add_parent_details.sql',
+    '003_add_class_history.sql',
+    '004_add_rbac.sql',
+    '005_add_personnel_tables.sql',
+    '006_add_daily_attendance.sql',
+    '007_add_soft_delete_to_personnel_related.sql',
+    '008_add_deleted_to_grades.sql',
+    '009_seed_subjects.sql',
+    '010_sync_student_class_from_fees.sql',
+    '011_sync_subscriptions_with_payments.sql'
+  ]
+  migrations.forEach(applyMigration)
 }
 
 runMigrations()
+
+// --------------------------------------------
+// SCHEMA HEALING: Ensure expected columns exist
+// (moved here from StudentRepository.update to avoid ALTER TABLE inside transactions)
+// --------------------------------------------
+function ensureTableColumns(tableName: string, columns: string[]): void {
+  try {
+    const info = db.prepare(`PRAGMA table_info(${tableName})`).all() as { name: string }[]
+    const existing = new Set(info.map((c) => c.name))
+    for (const col of columns) {
+      if (!existing.has(col)) {
+        console.log(`[SchemaRepair] Adding missing column ${col} to ${tableName}`)
+        db.prepare(`ALTER TABLE ${tableName} ADD COLUMN ${col} TEXT`).run()
+      }
+    }
+  } catch (err) {
+    console.error(`[SchemaRepair] Failed for ${tableName}:`, err)
+  }
+}
+
+ensureTableColumns('students', [
+  'first_name',
+  'last_name',
+  'date_of_birth',
+  'place_of_birth',
+  'class',
+  'enrollment_date',
+  'previous_school',
+  'father_name',
+  'mother_name',
+  'guardian_name',
+  'father_contact',
+  'mother_contact',
+  'guardian_contact',
+  'father_profession',
+  'mother_profession',
+  'guardian_profession',
+  'address',
+  'photo_path',
+  'siblings',
+  'email'
+])
+
+ensureTableColumns('student_fees', [
+  'bus_subscribed',
+  'bus_route',
+  'canteen_subscribed',
+  'canteen_days_per_week',
+  'canteen_days',
+  'uniform_tshirt_purchased',
+  'uniform_apron_purchased',
+  'uniform_shorts_purchased',
+  'uniform_badge_purchased',
+  'fram_paid_by_parent'
+])
 
 // AUTO-CLEANUP: Remove corrupted students (empty registration_number) on startup
 try {

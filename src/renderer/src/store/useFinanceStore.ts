@@ -18,8 +18,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   fetchPrices: async () => {
     set({ loading: true, error: null })
     try {
-      // @ts-ignore
-      const savedPrices = await window.electron.ipcRenderer.invoke('settings:get', 'finance_prices')
+      const savedPrices = await window.api.settings.get('finance_prices') as Partial<FinancePrices> | null
 
       set((state) => {
         if (savedPrices) {
@@ -47,8 +46,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   savePrices: async (newPrices: FinancePrices) => {
     set({ loading: true, error: null })
     try {
-      // @ts-ignore
-      await window.electron.ipcRenderer.invoke('settings:set', 'finance_prices', newPrices)
+      await window.api.settings.set('finance_prices', newPrices)
       set({ prices: newPrices, loading: false })
     } catch (error: any) {
       console.error('Failed to save settings', error)

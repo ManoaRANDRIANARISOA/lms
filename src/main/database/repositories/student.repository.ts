@@ -212,6 +212,7 @@ export class StudentRepository {
 
     // Add current student to new siblings
     added.forEach((siblingId) => {
+      if (siblingId === studentId) return // prevent self-referencing loops
       const sibling = db.prepare('SELECT siblings FROM students WHERE id = ?').get(siblingId) as {
         siblings: string
       }
@@ -399,49 +400,85 @@ export class StudentRepository {
   static list(filters: any = {}) {
     const { search, class: className, limit = 50, offset = 0 } = filters
 
-    let query = 'SELECT * FROM students WHERE deleted = 0'
+    // Build WHERE clause incrementally (same conditions for data and count)
+    const conditions = ['s.deleted = 0']
     const params: any[] = []
 
-    if (className) {
-      query += ' AND class = ?'
-      params.push(className)
-    }
-
     if (search) {
-      // Use generated column if available, or manual concat
-      query += ' AND search_text LIKE ?'
+      conditions.push('s.search_text LIKE ?')
       params.push(`%${search.toLowerCase()}%`)
     }
 
-    query += ' ORDER BY last_name, first_name LIMIT ? OFFSET ?'
-    params.push(limit, offset)
+    const whereClause = conditions.join(' AND ')
+
+    // Sub-query that resolves class with fallback to student_fees
+    const resolvedSubQuery = `
+      SELECT s.*,
+        COALESCE(NULLIF(s.class, 'Classe non spécifiée'),
+                 (SELECT class_name FROM student_fees sf
+                  WHERE sf.student_id = s.id AND sf.class_name IS NOT NULL AND sf.class_name != ''
+                  ORDER BY sf.school_year DESC LIMIT 1),
+                 'Non inscrit'
+        ) as resolved_class
+      FROM students s
+      WHERE ${whereClause}
+    `
+
+    // Apply class filter post-resolution if needed
+    const classFilter = className ? "WHERE resolved_class = ?" : ''
+    const classParam = className ? [className] : []
+
+    const dataQuery = `
+      SELECT * FROM (${resolvedSubQuery})
+      ${classFilter}
+      ORDER BY last_name, first_name
+      LIMIT ? OFFSET ?
+    `
+    const dataParams = [...params, ...classParam, limit, offset]
+
+    const countQuery = `
+      SELECT COUNT(*) as total FROM (${resolvedSubQuery})
+      ${classFilter}
+    `
+    const countParams = [...params, ...classParam]
 
     const students = db
-      .prepare(query)
-      .all(...params)
+      .prepare(dataQuery)
+      .all(...dataParams)
       .map((s: any) => ({
         ...s,
+        class: s.resolved_class,
         siblings: s.siblings ? JSON.parse(s.siblings) : []
       }))
 
-    const countQuery = query.replace('SELECT *', 'SELECT COUNT(*) as total').split('ORDER BY')[0]
-    const countResult = db.prepare(countQuery).get(...params.slice(0, -2)) as { total: number }
+    const countResult = db.prepare(countQuery).get(...countParams) as { total: number }
 
     return { students, total: countResult.total }
   }
 
   static getById(id: string) {
-    const student = db.prepare('SELECT * FROM students WHERE id = ?').get(id) as any
+    const student = db.prepare(`
+      SELECT *,
+        COALESCE(NULLIF(class, 'Classe non spécifiée'),
+                 (SELECT class_name FROM student_fees sf
+                  WHERE sf.student_id = students.id AND sf.class_name IS NOT NULL AND sf.class_name != ''
+                  ORDER BY sf.school_year DESC LIMIT 1),
+                 'Non inscrit'
+        ) as resolved_class
+      FROM students
+      WHERE id = ?
+    `).get(id) as any
+
     if (!student) return null
 
+    student.class = student.resolved_class
+    delete student.resolved_class
     student.siblings = student.siblings ? JSON.parse(student.siblings) : []
 
     const allFees = db
       .prepare('SELECT * FROM student_fees WHERE student_id = ? ORDER BY school_year DESC')
       .all(id)
-    console.log(`Getting fees for student ${id}, found ${allFees.length} records`)
     const schoolYear = this.getSetting('school_year') || '2025-2026'
-    console.log(`Current school year setting: ${schoolYear}`)
 
     // valid fees for current year
     const fees: any = allFees.find((f: any) => {
@@ -450,11 +487,8 @@ export class StudentRepository {
       return dbYear === targetYear
     })
 
-    // SELF-HEALING: If fees exist but class_name is null, update it with student's class
+    // Repair legacy fee records missing class_name
     if (fees && !fees.class_name && student.class) {
-      console.log(
-        `Self-healing: Updating missing class_name for fee record ${fees.id} to ${student.class}`
-      )
       db.prepare('UPDATE student_fees SET class_name = ? WHERE id = ?').run(student.class, fees.id)
       fees.class_name = student.class
     }
@@ -474,10 +508,6 @@ export class StudentRepository {
       }
     }
 
-    if (fees)
-      console.log(`Returning fees for year: ${(fees as any).school_year}, ID: ${(fees as any).id}`)
-    else console.log('No matching fees found, returning null or undefined')
-
     const payments = db
       .prepare('SELECT * FROM student_payments WHERE student_id = ? ORDER BY payment_date DESC')
       .all(id)
@@ -487,65 +517,7 @@ export class StudentRepository {
 
   static update(id: string, updates: any) {
     try {
-      console.log(
-        `[StudentRepository.update] Starting update for student ${id}`,
-        JSON.stringify(updates, null, 2)
-      )
 
-      // Self-healing: Ensure ALL allowed columns exist in the table
-      try {
-        const tableInfo = db.prepare('PRAGMA table_info(students)').all() as any[]
-        const existingColumns = tableInfo.map((c) => c.name)
-
-        // Check all allowed fields to ensure robustness
-        // This covers email, contacts, professions, etc.
-        const missingColumns = StudentRepository.studentAllowedFields.filter(
-          (col) => !existingColumns.includes(col)
-        )
-
-        if (missingColumns.length > 0) {
-          console.log(
-            '[StudentRepository.update] Self-healing: Adding missing columns:',
-            missingColumns
-          )
-          missingColumns.forEach((col) => {
-            try {
-              // Default to TEXT for simplicity. SQLite is flexible.
-              db.prepare(`ALTER TABLE students ADD COLUMN ${col} TEXT`).run()
-              console.log(`[StudentRepository.update] Added column ${col}`)
-            } catch (e) {
-              console.error(`[StudentRepository.update] Failed to add column ${col}`, e)
-            }
-          })
-        }
-
-        // Self-healing for student_fees table
-        const feesTableInfo = db.prepare('PRAGMA table_info(student_fees)').all() as any[]
-        const existingFeesColumns = feesTableInfo.map((c) => c.name)
-        const missingFeesColumns = StudentRepository.feeFields.filter(
-          (col) => !existingFeesColumns.includes(col)
-        )
-
-        if (missingFeesColumns.length > 0) {
-          console.log(
-            '[StudentRepository.update] Self-healing: Adding missing columns to student_fees:',
-            missingFeesColumns
-          )
-          missingFeesColumns.forEach((col) => {
-            try {
-              db.prepare(`ALTER TABLE student_fees ADD COLUMN ${col} TEXT`).run()
-              console.log(`[StudentRepository.update] Added column ${col} to student_fees`)
-            } catch (e) {
-              console.error(
-                `[StudentRepository.update] Failed to add column ${col} to student_fees`,
-                e
-              )
-            }
-          })
-        }
-      } catch (e) {
-        console.warn('[StudentRepository.update] Self-healing check failed (non-fatal):', e)
-      }
 
       // Handle special fields
       if (updates.photo_path) {
@@ -591,8 +563,7 @@ export class StudentRepository {
         }
       })
 
-      console.log('[StudentRepository.update] Parsed Student Updates:', studentUpdates)
-      console.log('[StudentRepository.update] Parsed Fee Updates:', feeUpdates)
+
 
       const updateTransaction = db.transaction(() => {
         // Update Sibling Relations
@@ -634,9 +605,7 @@ export class StudentRepository {
             feeUpdates.tuition_level =
               config.key || this.determineTuitionLevel(studentUpdates.class)
             feeUpdates.monthly_tuition = config.price
-            console.log(
-              `[StudentRepository.update] Class changed to ${studentUpdates.class}. New tuition level: ${feeUpdates.tuition_level}`
-            )
+
           }
 
           // Find existing fee record
@@ -652,7 +621,7 @@ export class StudentRepository {
           })
 
           if (feeRecord) {
-            console.log(`[StudentRepository.update] Updating existing fee record: ${feeRecord.id}`)
+
 
             // Filter feeUpdates to ensure they are valid columns
             // We assume feeFields matches columns, but we must be careful with types
@@ -681,12 +650,10 @@ export class StudentRepository {
                       `
               ).run(...values, feeRecord.id)
 
-              addToSyncQueue('student_fees', feeRecord.id, 'update', validFeeUpdates)
+              addToSyncQueue('student_fees', feeRecord.id, 'update', { ...validFeeUpdates, student_id: id })
             }
           } else {
-            console.log(
-              `[StudentRepository.update] No fee record found for year "${schoolYear}". Creating new one.`
-            )
+
 
             const feeId = uuidv4()
             let className = studentUpdates.class
@@ -737,7 +704,7 @@ export class StudentRepository {
       })
 
       updateTransaction()
-      console.log('[StudentRepository.update] Transaction committed successfully')
+
 
       return { success: true }
     } catch (error: any) {
@@ -768,11 +735,11 @@ export class StudentRepository {
   static async resetDatabase(includeRemote: boolean = false) {
     try {
       if (includeRemote) {
-        console.log('Resetting REMOTE database...')
+
         await wipeRemoteData()
       }
 
-      console.log('Resetting LOCAL database...')
+
       // 1. Delete Attendance & Event Payments
       db.prepare('DELETE FROM bus_attendance').run()
       db.prepare('DELETE FROM canteen_attendance').run()
@@ -898,7 +865,7 @@ export class StudentRepository {
   }
 
   static repairEnrollments(targetYear: string = '2025-2026') {
-    console.log(`Starting repair for year ${targetYear}...`)
+
     const students = db
       .prepare("SELECT id, class FROM students WHERE class IS NOT NULL AND class != ''")
       .all() as any[]
@@ -911,9 +878,7 @@ export class StudentRepository {
           .get(student.id, targetYear)
 
         if (!existingFee) {
-          console.log(
-            `Fixing missing enrollment for student ${student.id} (Class: ${student.class})`
-          )
+
           const level = this.determineTuitionLevel(student.class)
           const tuitionFee = this.getTuitionPrice(student.class)
           const feeId = uuidv4()

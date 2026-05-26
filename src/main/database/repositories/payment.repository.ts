@@ -41,6 +41,37 @@ export class PaymentRepository {
       )
 
       addToSyncQueue('student_payments', id, 'create', { ...payment, id })
+
+      // SYNC: When a bus or canteen payment is recorded, ensure the subscription flag
+      // in student_fees is activated. This keeps the two sources of truth coherent.
+      if (payment.payment_type === 'bus' || payment.payment_type === 'canteen') {
+        const schoolYear = StudentRepository.getSetting('school_year') || '2025-2026'
+        const targetYear = schoolYear.replace(/['"]/g, '').trim()
+
+        // Find the fee record for current year
+        const feeRecord = db.prepare(
+          'SELECT id, bus_subscribed, canteen_subscribed FROM student_fees WHERE student_id = ? AND school_year = ?'
+        ).get(payment.student_id, targetYear) as { id: string; bus_subscribed: number; canteen_subscribed: number } | undefined
+
+        if (feeRecord) {
+          const updates: any = {}
+          if (payment.payment_type === 'bus' && !feeRecord.bus_subscribed) {
+            updates.bus_subscribed = 1
+          }
+          if (payment.payment_type === 'canteen' && !feeRecord.canteen_subscribed) {
+            updates.canteen_subscribed = 1
+          }
+
+          if (Object.keys(updates).length > 0) {
+            const fields = Object.keys(updates).map(k => `${k} = ?`).join(', ')
+            db.prepare(
+              `UPDATE student_fees SET ${fields}, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending' WHERE id = ?`
+            ).run(...Object.values(updates), feeRecord.id)
+
+            addToSyncQueue('student_fees', feeRecord.id, 'update', { ...updates, student_id: payment.student_id })
+          }
+        }
+      }
     })
 
     try {
@@ -101,15 +132,12 @@ export class PaymentRepository {
 
     query += ' ORDER BY sp.payment_date DESC, sp.created_at DESC'
 
-    // Log the query and params for debugging
-    console.log('PaymentRepository.getAll query:', query)
-    console.log('PaymentRepository.getAll params:', params)
 
     return db.prepare(query).all(...params)
   }
 
   static getTuitionStatus(studentId: string, schoolYear: string) {
-    console.log(`Getting tuition status for student ${studentId} and year ${schoolYear}`)
+
     // 1. Get Fee Structure
     const feeRecord = db
       .prepare(
@@ -121,7 +149,7 @@ export class PaymentRepository {
       .get(studentId, schoolYear) as any
 
     if (!feeRecord) {
-      console.log('No fee record found for year:', schoolYear)
+
       // Try with quotes if not found (legacy fallback)
       const feeRecordQuoted = db
         .prepare(
@@ -136,7 +164,7 @@ export class PaymentRepository {
         return { success: false, error: 'No fee record found for this year' }
       }
       // Found with quotes, use it
-      console.log('Found fee record with quotes')
+
     }
 
     // 2. Get Tuition Payments
@@ -149,7 +177,7 @@ export class PaymentRepository {
       )
       .all(studentId)
 
-    console.log(`Found ${payments.length} tuition payments`)
+
 
     // Fetch global settings for dynamic pricing
     let globalMonthlyTuition: number | null = null

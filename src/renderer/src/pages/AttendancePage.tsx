@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Save, Bus, Utensils, CheckCircle2, XCircle, Calendar, RefreshCcw } from 'lucide-react'
 import { format } from 'date-fns'
+import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
+import { usePermissions } from '@/lib/usePermissions'
 
 interface StudentAttendance {
   id: string
@@ -20,6 +22,7 @@ interface StudentAttendance {
 import { ServiceDashboard } from '@/components/students/ServiceDashboard'
 
 export default function AttendancePage() {
+  const { canWrite } = usePermissions()
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [busStudents, setBusStudents] = useState<StudentAttendance[]>([])
   const [canteenStudents, setCanteenStudents] = useState<StudentAttendance[]>([])
@@ -32,8 +35,8 @@ export default function AttendancePage() {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const year = await (window as any).api.settings.get('school_year')
-        if (year) setSchoolYear(year.replace(/"/g, ''))
+        const year = await window.api.settings.get('school_year')
+        if (year) setSchoolYear((year as string).replace(/"/g, ''))
       } catch (e) {
         console.error('Failed to load settings', e)
       }
@@ -52,14 +55,14 @@ export default function AttendancePage() {
     try {
       // 1. Get Subscribers
       const [busSubs, canteenSubs] = await Promise.all([
-        (window as any).api.attendance.getBusSubscribers(schoolYear),
-        (window as any).api.attendance.getCanteenSubscribers(schoolYear)
+        window.api.attendance.getBusSubscribers(schoolYear),
+        window.api.attendance.getCanteenSubscribers(schoolYear)
       ])
 
       // 2. Get Today's Attendance
       const [busAtt, canteenAtt] = await Promise.all([
-        (window as any).api.attendance.getBusAttendance(date),
-        (window as any).api.attendance.getCanteenAttendance(date)
+        window.api.attendance.getBusAttendance(date),
+        window.api.attendance.getCanteenAttendance(date)
       ])
 
       // 3. Merge Data (Default to PRESENT if no record exists for the day)
@@ -101,11 +104,11 @@ export default function AttendancePage() {
     setSaving(true)
     try {
       if (activeTab === 'bus') {
-        const records = busStudents.map((s) => ({ studentId: s.id, present: s.present }))
-        await (window as any).api.attendance.recordBus(date, records)
+        const records = busStudents.map((s) => ({ student_id: s.id, status: s.present ? 'present' : 'absent' }))
+        await window.api.attendance.recordBus(date, records)
       } else {
-        const records = canteenStudents.map((s) => ({ studentId: s.id, present: s.present }))
-        await (window as any).api.attendance.recordCanteen(date, records)
+        const records = canteenStudents.map((s) => ({ student_id: s.id, status: s.present ? 'present' : 'absent' }))
+        await window.api.attendance.recordCanteen(date, records)
       }
       // Simple feedback
       alert('Pointage enregistré avec succès !')
@@ -131,6 +134,7 @@ export default function AttendancePage() {
 
   return (
     <div className="p-6 h-full flex flex-col">
+      <ReadOnlyBanner resource="attendance" />
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center">
@@ -188,7 +192,7 @@ export default function AttendancePage() {
                 Absents: {stats.absent}
               </span>
             </div>
-            <Button onClick={handleSave} disabled={saving || loading}>
+            <Button onClick={handleSave} disabled={saving || loading || !canWrite('attendance')}>
               {saving ? (
                 <RefreshCcw className="w-4 h-4 mr-2 animate-spin" />
               ) : (

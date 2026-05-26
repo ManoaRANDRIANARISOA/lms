@@ -6,9 +6,12 @@ import { Input } from '@/components/ui/input'
 import { Search, Plus, User } from 'lucide-react'
 import StudentForm from './StudentForm'
 import StudentDetail from './StudentDetail'
+import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
+import { usePermissions } from '@/lib/usePermissions'
 
 export default function StudentList() {
   const { students, currentStudent, currentFees, loading, fetchStudents } = useStudentStore()
+  const { canWrite } = usePermissions()
   const { prices } = useFinanceStore()
   const [search, setSearch] = useState('')
   const [selectedClass, setSelectedClass] = useState<string>('')
@@ -76,12 +79,15 @@ export default function StudentList() {
 
   return (
     <div className="p-6 w-full h-full">
+      <ReadOnlyBanner resource="students" />
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Gestion des Élèves</h1>
-        <Button onClick={() => setView('create')}>
-          <Plus className="w-4 h-4 mr-2" />
-          Nouvel Élève
-        </Button>
+        {canWrite('students') && (
+          <Button onClick={() => setView('create')}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nouvel Élève
+          </Button>
+        )}
       </div>
 
       <div className="mb-4 flex gap-2">
@@ -145,9 +151,15 @@ export default function StudentList() {
                     <div className="text-gray-500">{student.first_name}</div>
                   </td>
                   <td className="p-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      {student.class}
-                    </span>
+                    {student.class && student.class !== 'Non inscrit' && student.class !== 'Classe non spécifiée' ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {student.class}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                        Non inscrit
+                      </span>
+                    )}
                   </td>
                   <td className="p-4">{student.guardian_contact}</td>
                   <td className="p-4 text-right">

@@ -86,7 +86,7 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
   }, [student.class, availableClasses])
 
   const handleReEnroll = async () => {
-    if (!(window as any).api) {
+    if (!window.api) {
       setError('Erreur système: API non disponible')
       return
     }
@@ -95,7 +95,7 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
     setError(null)
     try {
       // Use the exposed API
-      const result = await (window as any).api.student.reEnroll(student.id, newClass, targetYear)
+      const result = await window.api.student.reEnroll(student.id, newClass, targetYear)
       if (result.success) {
         onSuccess()
         onClose()

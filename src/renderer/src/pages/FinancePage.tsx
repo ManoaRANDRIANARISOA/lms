@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { ArrowUp, ArrowDown, Trash2, Plus, GripVertical, FileText } from 'lucide-react'
 import { defaultPrices, FinancePrices } from '@/lib/finance-settings'
 import { useFinanceStore } from '@/store/useFinanceStore'
+import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 
 export default function FinancePage() {
   const { prices: storedPrices, fetchPrices, savePrices, loading: storeLoading } = useFinanceStore()
@@ -85,8 +86,7 @@ export default function FinancePage() {
     setLoadError(null)
     try {
       console.log('Loading payments with filters:', filters)
-      // @ts-ignore
-      const result = await window.electron.ipcRenderer.invoke('payment:getAll', filters)
+      const result = await window.api.payment.getAll(filters)
       console.log('Payments result:', result)
       if (Array.isArray(result)) {
         setPayments(result)
@@ -262,20 +262,11 @@ export default function FinancePage() {
     return map[type] || type
   }
 
-  const translateMethod = (method: string) => {
-    const map: Record<string, string> = {
-      cash: 'Espèces',
-      check: 'Chèque',
-      transfer: 'Virement',
-      mobile_money: 'Mobile Money'
-    }
-    return map[method] || method
-  }
-
   if (loading) return <div className="p-8">Chargement...</div>
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      <ReadOnlyBanner resource="payments" />
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Module Finance</h1>
       </div>
@@ -823,157 +814,6 @@ export default function FinancePage() {
                   Ajouter
                 </Button>
               </div>
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="global">
-          <div className="space-y-4">
-            <div className="flex flex-wrap gap-4 items-end bg-white p-4 rounded shadow-sm">
-              <div className="flex flex-col space-y-1.5">
-                <Label>Du</Label>
-                <Input
-                  type="date"
-                  value={filters.startDate}
-                  onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-                />
-              </div>
-              <div className="flex flex-col space-y-1.5">
-                <Label>Au</Label>
-                <Input
-                  type="date"
-                  value={filters.endDate}
-                  onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-                />
-              </div>
-              <div className="flex flex-col space-y-1.5 min-w-[200px]">
-                <Label>Type de paiement</Label>
-                <select
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  value={filters.type}
-                  onChange={(e) => setFilters({ ...filters, type: e.target.value })}
-                >
-                  <option value="all">Tous</option>
-                  <option value="tuition">Écolage</option>
-                  <option value="canteen">Cantine</option>
-                  <option value="bus">Bus</option>
-                  <option value="uniform">Uniforme</option>
-                  <option value="enrollment">Inscription</option>
-                  <option value="reenrollment">Réinscription</option>
-                  <option value="event">Événement</option>
-                  <option value="other">Autre</option>
-                </select>
-              </div>
-              <Button onClick={loadPayments} disabled={loadingPayments}>
-                {loadingPayments ? 'Chargement...' : 'Filtrer'}
-              </Button>
-            </div>
-
-            {loadError && (
-              <div className="bg-red-50 text-red-700 p-4 rounded border border-red-200">
-                <p>Erreur: {loadError}</p>
-                <Button variant="outline" size="sm" onClick={loadPayments} className="mt-2">
-                  Réessayer
-                </Button>
-              </div>
-            )}
-
-            <div className="bg-white rounded-md shadow overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Élève
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Classe
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Détails
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Montant
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Méthode
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {payments.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                        {loadingPayments
-                          ? 'Chargement des données...'
-                          : 'Aucun paiement trouvé pour cette période.'}
-                      </td>
-                    </tr>
-                  ) : (
-                    payments.map((p) => (
-                      <tr key={p.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {p.payment_date}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">
-                          {p.first_name} {p.last_name}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {p.class_name || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 capitalize">
-                          <span
-                            className={cn(
-                              'px-2 py-1 rounded-full text-xs font-semibold',
-                              p.payment_type === 'tuition'
-                                ? 'bg-blue-100 text-blue-800'
-                                : p.payment_type === 'canteen'
-                                  ? 'bg-green-100 text-green-800'
-                                  : p.payment_type === 'bus'
-                                    ? 'bg-yellow-100 text-yellow-800'
-                                    : p.payment_type === 'enrollment' ||
-                                        p.payment_type === 'reenrollment'
-                                      ? 'bg-purple-100 text-purple-800'
-                                      : p.payment_type === 'event'
-                                        ? 'bg-red-100 text-red-800'
-                                        : 'bg-gray-100 text-gray-800'
-                            )}
-                          >
-                            {translateType(p.payment_type)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {p.month ? `Mois: ${p.month}` : p.description || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
-                          {p.amount.toLocaleString()} Ar
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
-                          {translateMethod(p.payment_method)}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-                {payments.length > 0 && (
-                  <tfoot className="bg-gray-100">
-                    <tr>
-                      <td colSpan={5} className="px-6 py-3 text-right font-bold text-gray-700">
-                        Total Période
-                      </td>
-                      <td className="px-6 py-3 font-bold text-primary text-lg">
-                        {payments.reduce((sum, p) => sum + p.amount, 0).toLocaleString()} Ar
-                      </td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
             </div>
           </div>
         </TabsContent>

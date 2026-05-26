@@ -187,7 +187,11 @@ export default function StudentForm({
         formData.bus_route = initialFees.bus_route || ''
         formData.canteen_subscribed = Boolean(initialFees.canteen_subscribed)
         formData.canteen_days_per_week = initialFees.canteen_days_per_week || 0
-        formData.canteen_days = initialFees.canteen_days ? JSON.parse(initialFees.canteen_days) : []
+        formData.canteen_days = Array.isArray(initialFees.canteen_days)
+          ? initialFees.canteen_days
+          : initialFees.canteen_days
+            ? JSON.parse(initialFees.canteen_days)
+            : []
 
         formData.uniform_tshirt_purchased = Boolean(initialFees.uniform_tshirt_purchased)
         formData.uniform_apron_purchased = Boolean(initialFees.uniform_apron_purchased)
@@ -207,12 +211,12 @@ export default function StudentForm({
   }, [initialData, initialFees, form])
 
   const loadSiblings = async (siblingIds: string[]) => {
-    if (!window.electron || !window.electron.ipcRenderer) return
+    if (!window.api) return
 
     try {
       const siblings: SiblingDisplay[] = []
       for (const id of siblingIds) {
-        const result = await window.electron.ipcRenderer.invoke('student:get', id)
+        const result = await window.api.student.get(id)
         if (result.success && result.student) {
           siblings.push({
             id: result.student.id,
@@ -236,10 +240,10 @@ export default function StudentForm({
     }
 
     const timer = setTimeout(async () => {
-      if (!window.electron || !window.electron.ipcRenderer) return
+      if (!window.api) return
       setIsSearchingSiblings(true)
       try {
-        const result = await window.electron.ipcRenderer.invoke('student:list', {
+        const result = await window.api.student.list({
           search: siblingQuery,
           limit: 5
         })
@@ -310,6 +314,28 @@ export default function StudentForm({
         {initialData ? "Modifier l'Élève" : 'Nouvel Élève'}
       </h2>
 
+      {!initialData && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-md px-4 py-3 text-sm mb-4 flex items-center gap-2">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-4 w-4 shrink-0"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
+            <path
+              fillRule="evenodd"
+              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+              clipRule="evenodd"
+            />
+          </svg>
+          <span>
+            Créez d'abord le dossier de l'élève. Vous pourrez ensuite l'
+            <strong>inscrire dans une classe</strong> via le bouton "Inscrire" dans la fiche de
+            l'élève.
+          </span>
+        </div>
+      )}
+
       {error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4">{error}</div>}
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -357,11 +383,10 @@ export default function StudentForm({
                       variant="secondary"
                       disabled={isLoadingImage}
                       onClick={async () => {
-                        if (window.electron && window.electron.ipcRenderer) {
+                        if (window.api) {
                           setIsLoadingImage(true)
                           try {
-                            const result =
-                              await window.electron.ipcRenderer.invoke('dialog:openFile')
+                            const result = await window.api.dialog.openFile()
                             if (result) {
                               if (typeof result === 'object' && result.filePath) {
                                 form.setValue('photo_path', result.filePath)

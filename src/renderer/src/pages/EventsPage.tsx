@@ -15,6 +15,8 @@ import {
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useFinanceStore } from '@/store/useFinanceStore'
+import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
+import { usePermissions } from '@/lib/usePermissions'
 
 interface Event {
   id: string
@@ -37,6 +39,7 @@ interface Participation {
 }
 
 export default function EventsPage() {
+  const { canWrite } = usePermissions()
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [participation, setParticipation] = useState<Participation[]>([])
@@ -70,9 +73,9 @@ export default function EventsPage() {
 
   const loadEvents = async () => {
     try {
-      const result = await (window as any).api.event.list()
+      const result = await window.api.event.list()
       if (result.success) {
-        setEvents(result.events)
+        setEvents((result.events || []) as unknown as Event[])
       }
     } catch (error) {
       console.error(error)
@@ -81,9 +84,9 @@ export default function EventsPage() {
 
   const loadParticipation = async (eventId: string) => {
     try {
-      const result = await (window as any).api.event.getById(eventId)
+      const result = await window.api.event.getById(eventId)
       if (result.success) {
-        setParticipation(result.participation)
+        setParticipation((result.participation || []) as unknown as Participation[])
       }
     } catch (error) {
       console.error(error)
@@ -91,7 +94,7 @@ export default function EventsPage() {
   }
 
   const handleCreateEvent = async () => {
-    const result = await (window as any).api.event.create(newEvent)
+    const result = await window.api.event.create(newEvent)
     if (result.success) {
       setIsCreateOpen(false)
       loadEvents()
@@ -115,11 +118,11 @@ export default function EventsPage() {
     const filters: any = { limit: 1000 }
     if (selectedClass !== 'all') filters.class = selectedClass
 
-    const result = await (window as any).api.student.list(filters)
+    const result = await window.api.student.list(filters)
     const studentIds = result.students.map((s: any) => s.id)
 
     if (studentIds.length > 0 && selectedEvent) {
-      await (window as any).api.event.addParticipants(
+      await window.api.event.addParticipants(
         selectedEvent.id,
         studentIds,
         selectedEvent.amount_per_parent
@@ -137,7 +140,7 @@ export default function EventsPage() {
         `Confirmer le paiement de ${selectedEvent.amount_per_parent} Ar pour ${p.first_name} ${p.last_name} ?`
       )
     ) {
-      await (window as any).api.event.recordPayment(
+      await window.api.event.recordPayment(
         selectedEvent.id,
         p.student_id,
         selectedEvent.amount_per_parent,
@@ -150,7 +153,7 @@ export default function EventsPage() {
   const handleDeleteEvent = async () => {
     if (!selectedEvent) return
     if (confirm(`Êtes-vous sûr de vouloir supprimer l'événement "${selectedEvent.name}" ?`)) {
-      await (window as any).api.event.delete(selectedEvent.id)
+      await window.api.event.delete(selectedEvent.id)
       setSelectedEvent(null)
       loadEvents()
     }
@@ -169,7 +172,7 @@ export default function EventsPage() {
 
   const handleUpdateEvent = async () => {
     if (!selectedEvent) return
-    const result = await (window as any).api.event.update(selectedEvent.id, newEvent)
+    const result = await window.api.event.update(selectedEvent.id, newEvent)
     if (result.success) {
       setIsEditOpen(false)
       loadEvents()
@@ -185,25 +188,28 @@ export default function EventsPage() {
 
   return (
     <div className="h-full flex flex-col p-6 space-y-6">
+      <ReadOnlyBanner resource="events" />
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Événements Parents</h1>
           <p className="text-gray-500">Gestion des événements et participations</p>
         </div>
-        <Button
-          onClick={() => {
-            setNewEvent({
-              name: '',
-              event_date: format(new Date(), 'yyyy-MM-dd'),
-              amount_per_parent: 0,
-              description: ''
-            })
-            setIsCreateOpen(true)
-          }}
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Nouvel Événement
-        </Button>
+        {canWrite('events') && (
+          <Button
+            onClick={() => {
+              setNewEvent({
+                name: '',
+                event_date: format(new Date(), 'yyyy-MM-dd'),
+                amount_per_parent: 0,
+                description: ''
+              })
+              setIsCreateOpen(true)
+            }}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Nouvel Événement
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full min-h-0">
@@ -277,22 +283,28 @@ export default function EventsPage() {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={openEditModal}>
-                    <Edit className="w-4 h-4 mr-2" />
-                    Modifier
-                  </Button>
-                  <Button variant="destructive" size="sm" onClick={handleDeleteEvent}>
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Supprimer
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsAddParticipantsOpen(true)}
-                  >
-                    <Users className="w-4 h-4 mr-2" />
-                    Gérer Participants
-                  </Button>
+                  {canWrite('events') && (
+                    <Button variant="outline" size="sm" onClick={openEditModal}>
+                      <Edit className="w-4 h-4 mr-2" />
+                      Modifier
+                    </Button>
+                  )}
+                  {canWrite('events') && (
+                    <Button variant="destructive" size="sm" onClick={handleDeleteEvent}>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Supprimer
+                    </Button>
+                  )}
+                  {canWrite('events') && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsAddParticipantsOpen(true)}
+                    >
+                      <Users className="w-4 h-4 mr-2" />
+                      Gérer Participants
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -329,7 +341,7 @@ export default function EventsPage() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {!p.paid && (
+                          {!p.paid && canWrite('events') && (
                             <Button
                               size="sm"
                               variant="ghost"

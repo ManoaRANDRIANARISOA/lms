@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, protocol } from 'electron'
+import { app, shell, BrowserWindow, protocol } from 'electron'
 import path, { join } from 'path'
 import fs from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -10,7 +10,14 @@ import { registerSettingsHandlers } from './ipc/settings.handler'
 import { registerPaymentHandlers } from './ipc/payment.handler'
 import { registerAttendanceHandlers } from './ipc/attendance.handler'
 import { registerEventHandlers } from './ipc/event.handler'
+import { registerAuthHandlers } from './ipc/auth.handler'
+import { registerDashboardHandlers } from './ipc/dashboard.handler'
+import { registerPersonnelHandlers } from './ipc/personnel.handler'
+import { registerGradeHandlers } from './ipc/grade.handler'
 import { startPeriodicSync } from './services/sync.service'
+import { startSessionMonitor, stopSessionMonitor } from './auth/session.service'
+
+// Auth handlers are now registered via registerAuthHandlers() below
 
 function createWindow(): void {
   // Create the browser window.
@@ -60,15 +67,21 @@ app.whenReady().then(() => {
   })
 
   // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
 
-  // Register Handlers
+
+  // Register Auth & RBAC Handlers
+  registerAuthHandlers()
+
+  // Register other IPC Handlers
   registerStudentHandlers()
   registerDialogHandlers()
   registerSettingsHandlers()
   registerPaymentHandlers()
   registerAttendanceHandlers()
   registerEventHandlers()
+  registerDashboardHandlers()
+  registerPersonnelHandlers()
+  registerGradeHandlers()
 
   // Register custom protocol for local resources
   protocol.handle('local-resource', async (req) => {
@@ -113,31 +126,8 @@ app.whenReady().then(() => {
   // Start Sync
   startPeriodicSync()
 
-  // DIAGNOSTIC LOGGING
-  ;(async () => {
-    try {
-      const { default: db } = await import('./database/db')
-
-      const schoolYearSetting = db
-        .prepare("SELECT value FROM settings WHERE key = 'school_year'")
-        .get() as { value: string } | undefined
-      const fees = db.prepare('SELECT * FROM student_fees LIMIT 5').all()
-
-      const logContent = `
---- DIAGNOSTICS START ---
-Time: ${new Date().toISOString()}
-DIAG: School Year Setting: ${schoolYearSetting?.value}
-DIAG: Sample Fees: ${JSON.stringify(fees, null, 2)}
---- DIAGNOSTICS END ---
-       `
-
-      const fs = await import('fs')
-      fs.writeFileSync('C:/rep/School/lms/diag_log.txt', logContent)
-      console.log('Diagnostic log written to C:/rep/School/lms/diag_log.txt')
-    } catch (e) {
-      console.error('Diagnostic error:', e)
-    }
-  })()
+  // Start Session Monitor (timeout + cleanup)
+  startSessionMonitor()
 
   createWindow()
 
@@ -153,6 +143,7 @@ DIAG: Sample Fees: ${JSON.stringify(fees, null, 2)}
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    stopSessionMonitor()
     app.quit()
   }
 })

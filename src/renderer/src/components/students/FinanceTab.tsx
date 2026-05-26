@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
-  Calendar,
   DollarSign,
   Wallet,
   Bus,
@@ -22,6 +21,7 @@ import {
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useFinanceStore } from '@/store/useFinanceStore'
+import type { Payment } from '@shared/types'
 
 const getTuitionCost = (record: any, prices: any) => {
   if (!record) return 0
@@ -77,9 +77,9 @@ export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps
     setLoading(true)
     try {
       // Fetch status
-      const statusRes = await (window as any).api.payment.getTuitionStatus(studentId, schoolYear)
+      const statusRes = await window.api.payment.getTuitionStatus(studentId, schoolYear)
       // Fetch payments
-      const paymentsRes = await (window as any).api.payment.getByStudent(studentId)
+      const paymentsRes = await window.api.payment.getByStudent(studentId)
       // Fetch configuration
       fetchPrices()
 
@@ -188,7 +188,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps
         student_id: studentId,
         payment_date: new Date().toISOString().split('T')[0],
         amount: amount,
-        payment_type: formData.payment_type,
+        payment_type: formData.payment_type as Payment['payment_type'],
         month: ['tuition', 'canteen', 'bus'].includes(formData.payment_type)
           ? formData.month
           : undefined,
@@ -196,10 +196,10 @@ export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps
           formData.payment_type === 'uniform'
             ? `${formData.item}${formData.description ? ' - ' + formData.description : ''}`
             : formData.description,
-        payment_method: formData.payment_method
+        payment_method: formData.payment_method as Payment['payment_method'],
       }
 
-      const result = await (window as any).api.payment.create(paymentData)
+      const result = await window.api.payment.create(paymentData)
       if (result.success) {
         setIsAddPaymentOpen(false)
         setFormData({
@@ -242,7 +242,9 @@ export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps
     return payments.find((p) => p.payment_type === type)
   }
 
-  // Service Cards Configuration - Only One-Time/Occasional
+  const busFeeRecord = status?.feeRecord || feeRecord
+
+  // Service Cards Configuration
   const services = [
     {
       id: 'enrollment',
@@ -263,6 +265,26 @@ export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps
       enabled: true,
       status: isPaid('reenrollment') ? 'paid' : 'pending',
       isOneTime: true
+    },
+    {
+      id: 'bus',
+      label: 'Transport',
+      icon: Bus,
+      color: 'text-yellow-600',
+      bg: 'bg-yellow-50',
+      enabled: busFeeRecord?.bus_subscribed || false,
+      status: 'any',
+      isOneTime: false
+    },
+    {
+      id: 'canteen',
+      label: 'Cantine',
+      icon: Utensils,
+      color: 'text-orange-600',
+      bg: 'bg-orange-50',
+      enabled: busFeeRecord?.canteen_subscribed || false,
+      status: 'any',
+      isOneTime: false
     },
     {
       id: 'uniform',

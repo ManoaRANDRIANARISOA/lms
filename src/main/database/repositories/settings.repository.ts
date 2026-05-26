@@ -1,4 +1,5 @@
 import db from '../db'
+import { addToSyncQueue } from '../../services/sync.service'
 
 export class SettingsRepository {
   static get(key: string): any {
@@ -43,6 +44,10 @@ export class SettingsRepository {
       `)
 
       stmt.run(key, jsonValue)
+
+      // Sync settings to cloud (optional — settings are lightweight config)
+      addToSyncQueue('settings', key, 'update', { key, value: jsonValue })
+
       return true
     } catch (error) {
       console.error(`Error setting ${key}:`, error)

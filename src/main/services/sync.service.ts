@@ -10,14 +10,9 @@ const envPath = isDev ? path.join(process.cwd(), '.env') : path.join(process.res
 console.log('Trying to load .env from:', envPath)
 dotenv.config({ path: envPath })
 
-// Hardcoded fallback to ensure it works immediately for the user
-// (We prioritize env vars if they exist, but fallback to these specific keys)
-const FALLBACK_URL = 'https://onxnctfgxxgxipehmfqb.supabase.co'
-const FALLBACK_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ueG5jdGZneHhneGlwZWhtZnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3ODg3NjUsImV4cCI6MjA4NjM2NDc2NX0.WuVMhj07pbkuuWFfG-AsOrVJM-LrWmvts0vhvfwVWdc'
-
-const supabaseUrl = process.env.SUPABASE_URL || FALLBACK_URL
-const supabaseKey = process.env.SUPABASE_ANON_KEY || FALLBACK_KEY
+// Supabase credentials from .env file only (no hardcoded fallbacks for security)
+const supabaseUrl = process.env.SUPABASE_URL
+const supabaseKey = process.env.SUPABASE_ANON_KEY
 
 let supabaseClient: any = null
 
@@ -51,17 +46,30 @@ export const supabase = supabaseClient || {
   from: () => ({
     select: () => ({ gt: () => ({ data: [], error: { message: 'Supabase not configured' } }) }),
     upsert: () => ({ error: { message: 'Supabase not configured' } }),
-    update: () => ({ eq: () => ({ error: { message: 'Supabase not configured' } }) })
-  })
+    update: () => ({ eq: () => ({ error: { message: 'Supabase not configured' } }) }),
+    delete: () => ({ neq: () => ({ error: { message: 'Supabase not configured' } }) })
+  }),
+  storage: {
+    getBucket: () => Promise.resolve({ error: { message: 'Supabase not configured' } }),
+    createBucket: () => Promise.resolve({ error: { message: 'Supabase not configured' } }),
+    from: () => ({
+      upload: () => Promise.resolve({ error: { message: 'Supabase not configured' } }),
+      getPublicUrl: () => ({ data: { publicUrl: '' } })
+    })
+  }
 }
 
-// Add record to sync queue
-export async function addToSyncQueue(
+/**
+ * Add a record to the local sync queue.
+ * IMPORTANT: This function is SYNCHRONOUS because it is called inside
+ * better-sqlite3 transactions (db.transaction) which do not support async.
+ */
+export function addToSyncQueue(
   tableName: string,
   recordId: string,
   action: 'create' | 'update' | 'delete',
   data: any
-) {
+): void {
   try {
     db.prepare(
       `
@@ -103,10 +111,12 @@ export async function syncWithCloud() {
 
 // Wipe Remote Data
 export async function wipeRemoteData() {
-  if (!supabase) return { success: false, error: 'Supabase not configured' }
+  if (!supabaseUrl || !supabaseKey) {
+    return { success: false, error: 'Supabase not configured' }
+  }
 
   try {
-    console.log('Wiping remote data...')
+
     // Delete in reverse order of dependencies
 
     // 1. Attendance & Event Payments
@@ -209,9 +219,11 @@ async function pushLocalChanges() {
       }
 
       // FIX: Check for "class" NOT NULL constraint
-      if (item.table_name === 'students' && !payload.class) {
-        // Should not happen if UI validates, but for safety
-        payload.class = 'Classe non spécifiée'
+      // IMPORTANT: Only set default class on CREATE, never on UPDATE.
+      // Partial updates (e.g. address change) do not include 'class' in the payload.
+      // Adding 'class' here would overwrite the existing correct class with the default.
+      if (item.table_name === 'students' && item.action === 'create' && !payload.class) {
+        payload.class = 'Non inscrit'
       }
 
       // FIX: Check for "enrollment_date" NOT NULL constraint
@@ -229,7 +241,7 @@ async function pushLocalChanges() {
         try {
           const localPath = payload.photo_path
           if (fs.existsSync(localPath)) {
-            console.log(`Uploading photo for ${payload.id}: ${localPath}`)
+
 
             const fileBuffer = fs.readFileSync(localPath)
             const fileExt = path.extname(localPath)
@@ -285,7 +297,7 @@ async function pushLocalChanges() {
                   payload.id
                 )
 
-                console.log(`Photo uploaded: ${payload.photo_path}`)
+
               }
             }
           }
@@ -294,8 +306,38 @@ async function pushLocalChanges() {
         }
       }
 
+      // SECURITY: Never push password_hash to the cloud
+      if (item.table_name === 'users') {
+        delete payload.password_hash
+      }
+
       if (item.action === 'create' || item.action === 'update') {
-        const { error } = await supabase.from(item.table_name).upsert(payload)
+        // Convert SQLite booleans (0/1) to PostgreSQL booleans (true/false)
+        const supabasePayload: any = {}
+        for (const key of Object.keys(payload)) {
+          const val = payload[key]
+          if (val === 0 || val === 1) {
+            // Heuristic: common boolean field names
+            const booleanFields = [
+              'deleted', 'active', 'bus_subscribed', 'canteen_subscribed',
+              'uniform_tshirt_purchased', 'uniform_apron_purchased',
+              'uniform_shorts_purchased', 'uniform_badge_purchased',
+              'fram_paid_by_parent', 'manually_edited', 'justified',
+              'present', 'paid', 'repaid', 'has_droit'
+            ]
+            if (booleanFields.includes(key)) {
+              supabasePayload[key] = val === 1
+            } else {
+              supabasePayload[key] = val
+            }
+          } else if (typeof val === 'object' && val !== null && !(val instanceof Date)) {
+            supabasePayload[key] = JSON.stringify(val)
+          } else {
+            supabasePayload[key] = val
+          }
+        }
+
+        const { error } = await supabase.from(item.table_name).upsert(supabasePayload)
 
         if (error) {
           // Handle Duplicate Key Error (23505) for registration_number
@@ -406,12 +448,19 @@ async function pullRemoteChanges() {
     'student_fees',
     'student_payments',
     'personnel',
-    'grades',
+    'time_tracking',
+    'daily_attendance',
+    'personnel_absences',
+    'salary_advances',
+    'custom_deductions',
     'cash_journal',
+    'subjects',
+    'grades',
     'parent_events',
     'event_payments',
     'bus_attendance',
     'canteen_attendance'
+    // Note: 'users' table is synced separately below (password_hash excluded)
   ]
 
   for (const table of tables) {
@@ -510,6 +559,60 @@ async function pullRemoteChanges() {
         }
       }
     }
+  }
+
+  // --------------------------------------------
+  // Pull users from cloud (metadata only — password_hash NEVER synced)
+  // Local passwords always take precedence.
+  // --------------------------------------------
+  try {
+    const { data: remoteUsers, error: usersError } = await supabase
+      .from('users')
+      .select('id, username, role, full_name, email, active, version, updated_at')
+      .gt('updated_at', lastSync)
+
+    if (!usersError && remoteUsers) {
+      for (const remoteUser of remoteUsers) {
+        const localUser = db.prepare('SELECT * FROM users WHERE id = ?').get(remoteUser.id) as any
+
+        // Strip password_hash from remote data — never overwrite local passwords
+        const { ...userData } = remoteUser
+
+        // Sanitize booleans for SQLite
+        if (typeof userData.active === 'boolean') {
+          userData.active = userData.active ? 1 : 0
+        }
+
+        if (!localUser) {
+          // New user from cloud — insert with a random password (must be reset locally)
+          const fields = Object.keys(userData).join(', ')
+          const placeholders = Object.keys(userData).map(() => '?').join(', ')
+          db.prepare(
+            `INSERT INTO users (${fields}, password_hash, sync_status) VALUES (${placeholders}, ?, 'synced')`
+          ).run(
+            ...Object.values(userData),
+            '__CLOUD_IMPORT__' // Placeholder password — must be reset
+          )
+        } else {
+          // Existing user — update metadata only (preserve local password_hash)
+          if (new Date(localUser.updated_at) < new Date(remoteUser.updated_at)) {
+            const updates = Object.entries(userData)
+              .filter(([key]) => key !== 'id')
+              .map(([key]) => `${key} = ?`)
+              .join(', ')
+            const values = Object.entries(userData)
+              .filter(([key]) => key !== 'id')
+              .map(([, val]) => val)
+            db.prepare(`UPDATE users SET ${updates}, sync_status = 'synced' WHERE id = ?`).run(
+              ...values,
+              remoteUser.id
+            )
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error syncing users from cloud:', e)
   }
 
   // Update last sync time

@@ -1,8 +1,33 @@
+/**
+ * dialog.handler.ts — IPC Handlers for System Dialogs
+ *
+ * Manages native file dialogs (photo selection for students).
+ * Access is restricted to users who can write to the 'students' resource,
+ * since file dialogs are only used for uploading student photos.
+ *
+ * Permission resource: 'students' (write access required)
+ *   - admin:        allowed
+ *   - secretariat:  allowed
+ *   - accounting:   denied (read-only on students)
+ *   - direction:    allowed
+ *
+ * @module DialogHandler
+ */
+
 import { ipcMain, dialog } from 'electron'
 import fs from 'fs'
+import { canWrite } from '../auth/rbac.service'
 
-export function registerDialogHandlers() {
+export function registerDialogHandlers(): void {
+  // --------------------------------------------
+  // OPEN FILE DIALOG (photo upload)
+  // --------------------------------------------
   ipcMain.handle('dialog:openFile', async () => {
+    // Only users who can edit students can upload photos
+    if (!canWrite('students')) {
+      return null
+    }
+
     const { canceled, filePaths } = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [{ name: 'Images', extensions: ['jpg', 'png', 'jpeg', 'webp'] }]

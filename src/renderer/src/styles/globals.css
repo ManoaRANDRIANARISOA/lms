@@ -1,0 +1,7 @@
+/*
+ * globals.css — Global styles entry point
+ *
+ * Tailwind CSS est importé via src/renderer/src/assets/main.css.
+ * Ce fichier sert de point d'entrée supplémentaire si besoin
+ * de styles globaux spécifiques au renderer.
+ */
