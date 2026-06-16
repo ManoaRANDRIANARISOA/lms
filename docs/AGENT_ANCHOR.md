@@ -335,6 +335,7 @@ Nouvelle fonctionnalité = Repository + Handler + Preload + Store + Page
 - Toute mutation doit appeler `addToSyncQueue()`
 - Les booleans doivent être convertis (SQLite: 0/1, Supabase: true/false)
 - Les JSON arrays sont stockés en TEXT dans SQLite
+- **CRITIQUE (Schema Sync)** : Toute modification de schéma via `migrations/*.sql` en local SQLite *doit* impérativement s'accompagner d'un script SQL PostgeSQL fourni à l'utilisateur, qu'il devra exécuter dans son Dashboard Supabase. Sinon, le service plantera silencieusement en arrière-plan.
 
 ### Qualité
 - Pas de `console.log` en production (utiliser des gardes `isDev`)
@@ -406,6 +407,11 @@ Nouvelle fonctionnalité = Repository + Handler + Preload + Store + Page
 | 019 | clean_sync_errors.sql | Nettoyage des erreurs de synchro |
 | 020 | fix_class_subjects_fk.sql | Clés étrangères class_subjects |
 | 021 | repair_fees_from_payments.sql | Réparer les frais depuis les paiements |
+| 022 | add_journalier_exam_grades.sql | Ajout des sous-notes |
+| 023 | add_personnel_cnaps_amounts.sql | Ajout montants CNaPS/IRSA |
+| 024 | add_student_gender.sql | Ajout du genre M/F |
+| 025 | add_assessments_table.sql | Table des évaluations/trimestres |
+| 026 | add_uniform_items.sql | Uniformes dynamiques JSON |
 
 ---
 
