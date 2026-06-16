@@ -108,6 +108,7 @@ export interface Student {
   id: string
   first_name: string
   last_name: string
+  gender?: 'M' | 'F'
   photo_path?: string
   date_of_birth?: string
   place_of_birth?: string
@@ -161,6 +162,31 @@ export interface Payment {
   receipt_number?: string
   created_at?: string
   updated_at?: string
+}
+
+export interface CashJournalEntry {
+  id: string
+  transaction_date: string
+  type: 'income' | 'expense'
+  department: 'bus' | 'ecole'
+  category: string
+  subcategory?: string
+  amount: number
+  description?: string
+  payment_method?: string
+  related_student_id?: string
+  related_personnel_id?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CashJournalFilters {
+  startDate?: string
+  endDate?: string
+  type?: string
+  department?: string
+  category?: string
+  search?: string
 }
 
 export interface FeeRecord {
@@ -223,7 +249,9 @@ export interface Personnel {
   has_droit?: boolean
   droit_amount?: number
   cnaps_rate?: number
+  cnaps_amount?: number
   irsa_rate?: number
+  irsa_amount?: number
   // Work schedule (for attendance tracking)
   expected_monthly_hours?: number
   work_pattern?: 'daily' | 'weekly' | 'monthly' | 'custom'
@@ -349,6 +377,8 @@ export interface Grade {
   school_year: string
   term: number
   grade: number
+  grade_journalier?: number
+  grade_exam?: number
   coefficient?: number
   teacher_comment?: string
   behavior_note?: 'none' | 'warning' | 'praise'
@@ -383,4 +413,33 @@ export interface SubjectClassAverage {
   subject_name: string
   average: number
   student_count: number
+}
+
+// --------------------------------------------
+// Class-Subject Mapping (Phase 3)
+// --------------------------------------------
+
+/** Mapping between a class level and a subject with class-specific coefficient */
+export interface ClassSubject {
+  id: string
+  class_name: string
+  subject_id: string
+  coefficient: number
+  position: number
+  created_at?: string
+  updated_at?: string
+  version?: number
+  sync_status?: string
+  deleted?: number
+  // Joined fields (populated when fetched with subject info)
+  subject_name?: string
+  subject_default_coefficient?: number
+}
+
+/** Input for creating/updating a class-subject mapping */
+export interface ClassSubjectInput {
+  class_name: string
+  subject_id: string
+  coefficient?: number
+  position?: number
 }

@@ -63,4 +63,24 @@ export function registerPaymentHandlers(): void {
     }
     return PaymentRepository.getTuitionStatus(studentId, schoolYear)
   })
+
+  // --------------------------------------------
+  // GET UNPAID ALERTS
+  // --------------------------------------------
+  ipcMain.handle('payment:getUnpaidAlerts', async (_, schoolYear) => {
+    if (!canRead('payments')) {
+      return { success: false, error: 'Accès refusé: lecture paiements' }
+    }
+    return PaymentRepository.getUnpaidAlerts(schoolYear)
+  })
+
+  // --------------------------------------------
+  // GET EXPECTED REVENUE
+  // --------------------------------------------
+  ipcMain.handle('payment:getExpectedRevenue', async (_, schoolYear) => {
+    if (!canRead('payments')) {
+      return { success: false, error: 'Accès refusé: lecture paiements' }
+    }
+    return PaymentRepository.getExpectedRevenue(schoolYear)
+  })
 }

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { useFinanceStore } from '@/store/useFinanceStore'
+import { useClasses } from '@/lib/useClasses'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 import { usePermissions } from '@/lib/usePermissions'
 
@@ -57,12 +57,10 @@ export default function EventsPage() {
 
   // Add Participants State
   const [selectedClass, setSelectedClass] = useState<string>('all')
-  const { prices, fetchPrices } = useFinanceStore()
-  const classList = prices.classes || []
+  const { classes: classList } = useClasses()
 
   useEffect(() => {
     loadEvents()
-    fetchPrices()
   }, [])
 
   useEffect(() => {
@@ -78,7 +76,7 @@ export default function EventsPage() {
         setEvents((result.events || []) as unknown as Event[])
       }
     } catch (error) {
-      console.error(error)
+      if (import.meta.env.DEV) console.error(error)
     }
   }
 
@@ -89,7 +87,7 @@ export default function EventsPage() {
         setParticipation((result.participation || []) as unknown as Participation[])
       }
     } catch (error) {
-      console.error(error)
+      if (import.meta.env.DEV) console.error(error)
     }
   }
 
@@ -115,11 +113,11 @@ export default function EventsPage() {
 
   const handleAddParticipants = async () => {
     // 1. Get students for selected class (or all)
-    const filters: any = { limit: 1000 }
+    const filters: Record<string, unknown> = { limit: 1000 }
     if (selectedClass !== 'all') filters.class = selectedClass
 
     const result = await window.api.student.list(filters)
-    const studentIds = result.students.map((s: any) => s.id)
+    const studentIds = result.students.map((s: { id: string }) => s.id)
 
     if (studentIds.length > 0 && selectedEvent) {
       await window.api.event.addParticipants(

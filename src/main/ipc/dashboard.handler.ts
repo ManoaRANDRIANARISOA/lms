@@ -15,6 +15,8 @@
 import { ipcMain } from 'electron'
 import db from '../database/db'
 import { canRead } from '../auth/rbac.service'
+import { PaymentRepository } from '../database/repositories/payment.repository'
+import { SettingsRepository } from '../database/repositories/settings.repository'
 
 export function registerDashboardHandlers(): void {
   // --------------------------------------------
@@ -27,10 +29,14 @@ export function registerDashboardHandlers(): void {
 
     try {
       const today = new Date().toISOString().split('T')[0]
-      const schoolYear = `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`
 
       // 1. Élèves
-      const studentCount = (db.prepare('SELECT COUNT(*) as count FROM students WHERE deleted = 0').get() as { count: number }).count
+      const totalRegistered = (db.prepare('SELECT COUNT(*) as count FROM students WHERE deleted = 0').get() as { count: number }).count
+      const totalEnrolled = (db.prepare(`
+        SELECT COUNT(*) as count FROM students 
+        WHERE deleted = 0 AND class IS NOT NULL AND class != 'Non inscrit' AND class != 'Classe non spécifiée'
+      `).get() as { count: number }).count
+      
       const newStudentsThisMonth = (db.prepare(`
         SELECT COUNT(*) as count FROM students 
         WHERE enrollment_date >= date('now', 'start of month') AND deleted = 0
@@ -38,7 +44,8 @@ export function registerDashboardHandlers(): void {
 
       const studentsByClass = db.prepare(`
         SELECT class, COUNT(*) as count FROM students 
-        WHERE deleted = 0 GROUP BY class ORDER BY count DESC
+        WHERE deleted = 0 AND class != 'Non inscrit' AND class != 'Classe non spécifiée'
+        GROUP BY class ORDER BY count DESC
       `).all() as { class: string; count: number }[]
 
       // 2. Paiements (élèves)
@@ -61,30 +68,15 @@ export function registerDashboardHandlers(): void {
         SELECT COALESCE(SUM(amount), 0) as total FROM student_payments WHERE deleted = 0
       `).get() as { total: number }).total
 
-      // 3. Impayés — approximation via student_fees vs paiements
-      // Total dû = frais fixes annuels + scolarité mensuelle * mois écoulés + bus + cantine + uniformes
-      const monthsElapsed = Math.max(1, new Date().getMonth() + 1) // jan=1, mai=5
-
-      const totalDue = (db.prepare(`
-        SELECT COALESCE(SUM(
-          enrollment_fee + reenrollment_fee + notebook_fee + fram_fee +
-          (CASE WHEN bus_subscribed = 1 THEN bus_monthly_fee * ? ELSE 0 END) +
-          (CASE WHEN canteen_subscribed = 1 THEN canteen_daily_rate * canteen_days_per_week * 4 * ? ELSE 0 END) +
-          (CASE WHEN uniform_tshirt_purchased = 1 THEN 15000 ELSE 0 END) +
-          (CASE WHEN uniform_apron_purchased = 1 THEN 10000 ELSE 0 END) +
-          (CASE WHEN uniform_shorts_purchased = 1 THEN 8000 ELSE 0 END) +
-          (CASE WHEN uniform_badge_purchased = 1 THEN 3000 ELSE 0 END) +
-          monthly_tuition * ?
-        ), 0) as total
-        FROM student_fees WHERE deleted = 0 AND school_year = ?
-      `).get(monthsElapsed, monthsElapsed, monthsElapsed, schoolYear) as { total: number }).total
-
-      const totalPaid = (db.prepare(`
-        SELECT COALESCE(SUM(amount), 0) as total FROM student_payments WHERE deleted = 0
-      `).get() as { total: number }).total
-
-      const balance = totalDue - totalPaid
-      const unpaidCount = balance > 0 ? Math.min(studentCount, Math.ceil(balance / 50000)) : 0 // Approximation
+      // 3. Impayés — depuis la source centralisée PaymentRepository.getUnpaidAlerts
+      const schoolYearSetting = SettingsRepository.get('school_year') as string
+      const targetYear = schoolYearSetting?.replace(/['"]/g, '').trim() || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`
+      const unpaidResult = PaymentRepository.getUnpaidAlerts(targetYear)
+      const unpaidAlerts = (unpaidResult.success && unpaidResult.alerts ? unpaidResult.alerts : []) as Array<{ total_due: number }>
+      const totalUnpaid = unpaidAlerts.reduce((sum: number, a) => sum + (a.total_due || 0), 0)
+      const unpaidCount = unpaidAlerts.length
+      const expectedResult = PaymentRepository.getExpectedRevenue(targetYear)
+      const totalDue = (expectedResult.success ? expectedResult.expected : 0) || 0
 
       // 4. Personnel
       const personnelCount = (db.prepare('SELECT COUNT(*) as count FROM personnel WHERE deleted = 0').get() as { count: number }).count
@@ -122,20 +114,23 @@ export function registerDashboardHandlers(): void {
         enrollment_date: string; created_at: string
       }[]
 
-      // 8. Tendance paiements (30 derniers jours)
+      // 8. Tendance financière (30 derniers jours)
       const paymentTrend = db.prepare(`
-        SELECT payment_date as date, SUM(amount) as total
-        FROM student_payments
-        WHERE payment_date >= date('now', '-30 days') AND deleted = 0
-        GROUP BY payment_date
-        ORDER BY payment_date ASC
+        SELECT transaction_date as date, 
+               COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END), 0) as total
+        FROM cash_journal
+        WHERE transaction_date >= date('now', '-30 days') AND deleted = 0
+        GROUP BY transaction_date
+        ORDER BY transaction_date ASC
       `).all() as { date: string; total: number }[]
 
       return {
         success: true,
         data: {
+          schoolYear: targetYear,
           students: {
-            total: studentCount,
+            totalRegistered,
+            totalEnrolled,
             newThisMonth: newStudentsThisMonth,
             byClass: studentsByClass
           },
@@ -147,8 +142,8 @@ export function registerDashboardHandlers(): void {
           },
           finances: {
             totalDue,
-            totalPaid,
-            balance,
+            totalPaid: totalPaymentsAllTime,
+            balance: totalUnpaid,
             unpaidCount
           },
           personnel: {
@@ -162,8 +157,8 @@ export function registerDashboardHandlers(): void {
           trend: paymentTrend
         }
       }
-    } catch (error: any) {
-      console.error('Dashboard stats error:', error)
+    } catch (error: unknown) {
+      if (import.meta.env.DEV) console.error('Dashboard stats error:', error)
       return { success: false, error: 'Erreur lors du chargement des statistiques' }
     }
   })

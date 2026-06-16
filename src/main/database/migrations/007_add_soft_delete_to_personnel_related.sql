@@ -1,1 +1,12 @@
--- ============================================-- MIGRATION 007: Soft-delete columns for personnel-related tables-- ============================================-- Adds `deleted` column to all personnel sub-tables-- to enforce soft-delete consistency (AGENT_ANCHOR §6).-- Safe to run multiple times (IF NOT EXISTS via ADD COLUMN).ALTER TABLE time_tracking ADD COLUMN deleted BOOLEAN DEFAULT 0;ALTER TABLE personnel_absences ADD COLUMN deleted BOOLEAN DEFAULT 0;ALTER TABLE salary_advances ADD COLUMN deleted BOOLEAN DEFAULT 0;ALTER TABLE custom_deductions ADD COLUMN deleted BOOLEAN DEFAULT 0;ALTER TABLE daily_attendance ADD COLUMN deleted BOOLEAN DEFAULT 0;
+-- ============================================
+-- MIGRATION 007: Soft-delete columns for personnel-related tables
+-- ============================================
+-- Adds `deleted` column to all personnel sub-tables
+-- to enforce soft-delete consistency (AGENT_ANCHOR §6).
+-- Safe to run multiple times (IF NOT EXISTS via ADD COLUMN).
+
+ALTER TABLE time_tracking ADD COLUMN deleted BOOLEAN DEFAULT 0;
+ALTER TABLE personnel_absences ADD COLUMN deleted BOOLEAN DEFAULT 0;
+ALTER TABLE salary_advances ADD COLUMN deleted BOOLEAN DEFAULT 0;
+ALTER TABLE custom_deductions ADD COLUMN deleted BOOLEAN DEFAULT 0;
+ALTER TABLE daily_attendance ADD COLUMN deleted BOOLEAN DEFAULT 0;

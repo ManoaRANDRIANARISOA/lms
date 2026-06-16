@@ -68,7 +68,7 @@ export default function AuditLogPage(): React.JSX.Element {
   const fetchLogs = async () => {
     setLoading(true)
     try {
-      const filters: any = {
+      const filters: Record<string, unknown> = {
         limit: pageSize,
         offset: page * pageSize
       }
@@ -82,7 +82,7 @@ export default function AuditLogPage(): React.JSX.Element {
         setTotal(result.total || 0)
       }
     } catch (e) {
-      console.error('Failed to fetch audit logs:', e)
+      if (import.meta.env.DEV) console.error('Failed to fetch audit logs:', e)
     } finally {
       setLoading(false)
     }

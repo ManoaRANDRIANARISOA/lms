@@ -3,7 +3,7 @@ import { Dialog } from '../ui/dialog'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Loader2 } from 'lucide-react'
-import { useFinanceStore } from '@/store/useFinanceStore'
+import { useClasses } from '@/lib/useClasses'
 
 interface ReEnrollModalProps {
   isOpen: boolean
@@ -52,8 +52,7 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
   currentYear,
   onSuccess
 }) => {
-  const { prices, fetchPrices } = useFinanceStore()
-  const availableClasses = prices.classes || []
+  const { classes: availableClasses } = useClasses()
 
   const isNewStudent = !student.class || student.class === 'Classe non spécifiée'
   const title = isNewStudent ? 'Inscription' : 'Réinscription'
@@ -64,13 +63,6 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
   const [newClass, setNewClass] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  // Fetch prices when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      fetchPrices()
-    }
-  }, [isOpen, fetchPrices])
 
   // Set initial newClass based on student and available classes
   useEffect(() => {
@@ -103,7 +95,7 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
         setError(result.error || "Échec de l'opération")
       }
     } catch (err: any) {
-      console.error('Re-enroll error:', err)
+      if (import.meta.env.DEV) console.error('Re-enroll error:', err)
       setError(err.message || 'Une erreur est survenue')
     } finally {
       setLoading(false)

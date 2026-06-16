@@ -31,7 +31,7 @@ export const ServiceDashboard: React.FC<ServiceDashboardProps> = ({ isOpen, onCl
       const result = await window.api.student.getServiceStats()
       setStats(result as unknown as ServiceStats)
     } catch (error) {
-      console.error('Failed to load stats:', error)
+      if (import.meta.env.DEV) console.error('Failed to load stats:', error)
     } finally {
       setLoading(false)
     }

@@ -10,24 +10,29 @@ import {
   Edit,
   FileText,
   User,
+  Users,
   Phone,
   MapPin,
   School,
-  Users,
+  CheckCircle2,
+  History,
+  XCircle,
+  Calendar,
   Bus,
   Utensils,
   Shirt,
-  History,
-  Calendar,
-  CheckCircle2,
   RefreshCw,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  Download
 } from 'lucide-react'
+import { format } from 'date-fns'
+import { fr } from 'date-fns/locale'
 import { getStudentPhotoUrl } from '@/lib/image-utils'
 import { useNavigate } from 'react-router-dom'
 import { useFinanceStore } from '@/store/useFinanceStore'
 import { usePermissions } from '@/lib/usePermissions'
+import type { FeeRecord } from '@shared/types'
 
 interface StudentDetailProps {
   studentId: string
@@ -49,7 +54,7 @@ const formatCanteenDays = (daysJson: string | string[] | undefined, daysPerWeek:
       Friday: 'Ven'
     }
 
-    return days.map((d: any) => labels[d] || d).join(', ')
+    return days.map((d: string) => labels[d] || d).join(', ')
   } catch {
     return `${daysPerWeek} j/sem`
   }
@@ -70,6 +75,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
   const [imageError, setImageError] = useState(false)
   const [isReEnrollOpen, setIsReEnrollOpen] = useState(false)
   const [selectedYear, setSelectedYear] = useState<string>('')
+  const [events, setEvents] = useState<any[]>([])
 
   const { prices: financePrices, fetchPrices } = useFinanceStore()
   const { canWrite } = usePermissions()
@@ -82,6 +88,15 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
     if (studentId) {
       getStudent(studentId)
       setImageError(false) // Reset error state on new student
+      
+      // Fetch events
+      if (window.api?.event?.getByStudent) {
+        window.api.event.getByStudent(studentId).then(res => {
+          if (res.success && res.events) {
+            setEvents(res.events)
+          }
+        }).catch(err => console.error("Failed to fetch events", err))
+      }
     }
   }, [studentId, getStudent])
 
@@ -131,7 +146,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
     getStudent(studentId)
   }
 
-  const getDisplayClass = (fee: any) => {
+  const getDisplayClass = (fee: FeeRecord | null | undefined) => {
     // Priority 1: Class name stored in the fee record (History)
     if (fee?.class_name && fee.class_name !== 'Classe non spécifiée' && fee.class_name !== 'Non inscrit') {
       return fee.class_name
@@ -190,6 +205,30 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
               <FileText className="w-4 h-4 mr-2" />
               Certificat
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                if (!currentStudent) return
+                const result = await window.api.pdf.generateCertificate({
+                  first_name: currentStudent.first_name,
+                  last_name: currentStudent.last_name,
+                  date_of_birth: currentStudent.date_of_birth,
+                  place_of_birth: currentStudent.place_of_birth,
+                  class_name: currentStudent.class || currentFees?.class_name || '',
+                  school_year: currentFees?.school_year || '',
+                  registration_number: currentStudent.registration_number
+                })
+                if (result.success && result.filePath) {
+                  await window.api.pdf.openFile(result.filePath)
+                } else {
+                  alert(result.error || 'Erreur génération PDF')
+                }
+              }}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              PDF
+            </Button>
             {canWrite('students') && (
               <Button variant="outline" size="sm" onClick={onEdit}>
                 <Edit className="w-4 h-4 mr-2" />
@@ -225,8 +264,13 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                   </div>
                 )}
                 <div>
-                  <h1 className="text-2xl font-bold">
+                  <h1 className="text-2xl font-bold flex items-center gap-2">
                     {currentStudent.last_name} {currentStudent.first_name}
+                    {currentStudent.gender && (
+                      <span className="text-sm font-normal opacity-75 bg-white/20 px-2 py-0.5 rounded-full">
+                        {currentStudent.gender === 'M' ? 'Garçon' : 'Fille'}
+                      </span>
+                    )}
                   </h1>
                   <p className="text-primary-foreground/80 mt-1">
                     Classe: {getDisplayClass(displayedFees)}
@@ -267,10 +311,63 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                 {!currentFeesHistory?.length && <option value="2025-2026">2025-2026</option>}
               </select>
             </div>
+            {events.length > 0 && (
+              <div className="bg-white shadow rounded-lg overflow-hidden mb-6 border border-gray-100">
+                <div className="px-6 py-4 border-b bg-blue-50/50">
+                  <h3 className="text-lg font-semibold flex items-center text-blue-900">
+                    <Calendar className="w-5 h-5 mr-2" />
+                    Événements & Participations
+                  </h3>
+                </div>
+                <div className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {events.map((ev) => (
+                      <div key={ev.id} className="border rounded-lg p-4 bg-white relative overflow-hidden border-blue-100">
+                        {ev.family_payment_status?.is_paid && (
+                          <div className="absolute -right-6 -top-6 w-16 h-16 bg-green-100 rounded-full flex items-end justify-center pb-2 pl-2 shadow-sm">
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                          </div>
+                        )}
+                        <h4 className="font-semibold text-lg pr-6 text-gray-800">{ev.event_name}</h4>
+                        <p className="text-sm text-gray-500 mb-3 capitalize">{format(new Date(ev.event_date), 'dd MMMM yyyy', { locale: fr })}</p>
+                        
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between items-center bg-gray-50 p-2 rounded">
+                            <span className="text-gray-600">Frais (par parent):</span>
+                            <span className="font-semibold">{ev.amount_per_parent.toLocaleString()} Ar</span>
+                          </div>
+                          <div className="flex justify-between items-center bg-gray-50 p-2 rounded">
+                            <span className="text-gray-600">Total payé (fratrie):</span>
+                            <span className={`font-semibold ${ev.family_payment_status?.is_paid ? 'text-green-600' : 'text-orange-600'}`}>
+                              {ev.family_payment_status?.total_paid?.toLocaleString() || 0} Ar
+                            </span>
+                          </div>
+                          
+                          {ev.family_payment_status?.is_paid ? (
+                            <div className="mt-3 flex items-center text-green-700 text-sm font-medium bg-green-50 p-2 rounded justify-center border border-green-100">
+                              <CheckCircle2 className="w-4 h-4 mr-2" />
+                              Participation réglée
+                            </div>
+                          ) : (
+                            <div className="mt-3 flex items-center text-orange-700 text-sm font-medium bg-orange-50 p-2 rounded justify-center border border-orange-100">
+                              Reste à payer: {(ev.amount_per_parent - (ev.family_payment_status?.total_paid || 0)).toLocaleString()} Ar
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-4 italic">
+                    Note: Les événements sont gérés par famille (parent). Si un membre de la fratrie a payé, la participation est validée pour tous les autres membres inscrits à l'événement.
+                  </p>
+                </div>
+              </div>
+            )}
+            
             <FinanceTab
               studentId={studentId}
               schoolYear={selectedYear || '2025-2026'}
-              feeRecord={displayedFees}
+              feeRecord={displayedFees ?? undefined}
             />
           </TabsContent>
 
@@ -346,6 +443,50 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                     <span className="text-gray-500 text-xs">École précédente</span>
                     <p>{currentStudent.previous_school || '-'}</p>
                   </div>
+                </div>
+
+                {/* Departure date */}
+                <div className="mt-4 pt-3 border-t border-gray-200">
+                  {currentStudent.departure_date ? (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-red-600 font-medium">Élève parti(e)</span>
+                        <span className="text-sm font-semibold text-red-700">
+                          {new Date(currentStudent.departure_date).toLocaleDateString('fr-FR')}
+                        </span>
+                      </div>
+                      {canWrite('students') && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs h-7"
+                          onClick={() => {
+                            if (confirm('Réintégrer cet élève ? Sa date de départ sera effacée.')) {
+                              updateStudent(studentId, { departure_date: undefined })
+                            }
+                          }}
+                        >
+                          Réintégrer
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    canWrite('students') && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-7 text-red-600 border-red-200 hover:bg-red-50"
+                        onClick={() => {
+                          const date = prompt('Date de départ (AAAA-MM-JJ) :', new Date().toISOString().split('T')[0])
+                          if (date && confirm(`Confirmer le départ de cet élève au ${new Date(date).toLocaleDateString('fr-FR')} ?\n\nLes impayés après cette date ne seront plus comptabilisés.`)) {
+                            updateStudent(studentId, { departure_date: date })
+                          }
+                        }}
+                      >
+                        Marquer comme ayant quitté
+                      </Button>
+                    )
+                  )}
                 </div>
               </div>
 
@@ -461,33 +602,23 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                         <Shirt className="w-4 h-4 mr-2" />
                         Uniformes & Accessoires
                       </h4>
-                      <ul className="space-y-1 text-sm">
-                        {displayedFees.uniform_tshirt_purchased && (
-                          <li className="flex items-center text-green-600">
-                            <CheckCircle2 className="w-3 h-3 mr-1" /> T-shirt
-                          </li>
-                        )}
-                        {displayedFees.uniform_apron_purchased && (
-                          <li className="flex items-center text-green-600">
-                            <CheckCircle2 className="w-3 h-3 mr-1" /> Tablier
-                          </li>
-                        )}
-                        {displayedFees.uniform_shorts_purchased && (
-                          <li className="flex items-center text-green-600">
-                            <CheckCircle2 className="w-3 h-3 mr-1" /> Short
-                          </li>
-                        )}
-                        {displayedFees.uniform_badge_purchased && (
-                          <li className="flex items-center text-green-600">
-                            <CheckCircle2 className="w-3 h-3 mr-1" /> Badge
-                          </li>
-                        )}
-                        {!displayedFees.uniform_tshirt_purchased &&
-                          !displayedFees.uniform_apron_purchased &&
-                          !displayedFees.uniform_shorts_purchased &&
-                          !displayedFees.uniform_badge_purchased && (
-                            <li className="text-gray-400 italic">Aucun achat</li>
-                          )}
+                      <ul className="space-y-2 text-sm">
+                        <li className={`flex items-center ${displayedFees.uniform_tshirt_purchased ? 'text-green-600' : 'text-gray-400'}`}>
+                          {displayedFees.uniform_tshirt_purchased ? <CheckCircle2 className="w-4 h-4 mr-2" /> : <XCircle className="w-4 h-4 mr-2 opacity-50" />} 
+                          <span className={!displayedFees.uniform_tshirt_purchased ? 'line-through opacity-70' : ''}>T-shirt</span>
+                        </li>
+                        <li className={`flex items-center ${displayedFees.uniform_apron_purchased ? 'text-green-600' : 'text-gray-400'}`}>
+                          {displayedFees.uniform_apron_purchased ? <CheckCircle2 className="w-4 h-4 mr-2" /> : <XCircle className="w-4 h-4 mr-2 opacity-50" />} 
+                          <span className={!displayedFees.uniform_apron_purchased ? 'line-through opacity-70' : ''}>Tablier</span>
+                        </li>
+                        <li className={`flex items-center ${displayedFees.uniform_shorts_purchased ? 'text-green-600' : 'text-gray-400'}`}>
+                          {displayedFees.uniform_shorts_purchased ? <CheckCircle2 className="w-4 h-4 mr-2" /> : <XCircle className="w-4 h-4 mr-2 opacity-50" />} 
+                          <span className={!displayedFees.uniform_shorts_purchased ? 'line-through opacity-70' : ''}>Short</span>
+                        </li>
+                        <li className={`flex items-center ${displayedFees.uniform_badge_purchased ? 'text-green-600' : 'text-gray-400'}`}>
+                          {displayedFees.uniform_badge_purchased ? <CheckCircle2 className="w-4 h-4 mr-2" /> : <XCircle className="w-4 h-4 mr-2 opacity-50" />} 
+                          <span className={!displayedFees.uniform_badge_purchased ? 'line-through opacity-70' : ''}>Badge</span>
+                        </li>
                       </ul>
                     </div>
                   </div>
@@ -495,6 +626,8 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                 </div>
               )}
             </div>
+
+
           </TabsContent>
 
           <TabsContent value="historique">

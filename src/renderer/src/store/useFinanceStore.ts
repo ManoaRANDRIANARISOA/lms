@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { FinancePrices, defaultPrices } from '@/lib/finance-settings'
+import { handleStoreError } from '@/lib/store-utils'
 
 interface FinanceState {
   prices: FinancePrices
@@ -37,9 +38,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         }
         return { loading: false }
       })
-    } catch (error: any) {
-      console.error('Failed to load settings', error)
-      set({ error: error.message || 'Failed to load settings', loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Load settings')
     }
   },
 
@@ -48,9 +48,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     try {
       await window.api.settings.set('finance_prices', newPrices)
       set({ prices: newPrices, loading: false })
-    } catch (error: any) {
-      console.error('Failed to save settings', error)
-      set({ error: error.message || 'Failed to save settings', loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Save settings')
       throw error
     }
   },

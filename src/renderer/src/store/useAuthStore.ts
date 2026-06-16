@@ -13,6 +13,7 @@
 
 import { create } from 'zustand'
 import type { User, Resource, AccessLevel } from '@shared/types'
+import { handleStoreError } from '@/lib/store-utils'
 
 // --------------------------------------------
 // Types
@@ -89,11 +90,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         })
         return false
       }
-    } catch (error: any) {
-      set({
-        loading: false,
-        error: error?.message || 'Erreur de connexion'
-      })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Login')
       return false
     }
   },

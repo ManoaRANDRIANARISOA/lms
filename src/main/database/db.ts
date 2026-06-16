@@ -54,7 +54,7 @@ const runMigrations = () => {
 
     if (alreadyApplied) return
 
-    console.log(`Applying migration: ${migFile}`)
+    if (isDev) console.log(`Applying migration: ${migFile}`)
 
     const migrationPath = isDev
       ? path.join(app.getAppPath(), 'src/main/database/migrations', migFile)
@@ -69,7 +69,7 @@ const runMigrations = () => {
       const migrationSql = fs.readFileSync(migrationPath, 'utf-8')
       db.exec(migrationSql)
       db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migFile)
-      console.log(`Migration ${migFile} applied successfully.`)
+      if (isDev) console.log(`Migration ${migFile} applied successfully.`)
     } catch (err) {
       console.error(`Migration ${migFile} failed:`, err)
     }
@@ -87,7 +87,19 @@ const runMigrations = () => {
     '008_add_deleted_to_grades.sql',
     '009_seed_subjects.sql',
     '010_sync_student_class_from_fees.sql',
-    '011_sync_subscriptions_with_payments.sql'
+    '011_sync_subscriptions_with_payments.sql',
+    '012_class_subjects.sql',
+    '013_college_lycee_subjects.sql',
+    '014_fix_preschool_subjects.sql',
+    '015_seed_classes_setting.sql',
+    '016_add_department_to_cash_journal.sql',
+    '017_add_missing_indexes.sql',
+    '018_fix_subject_uuids.sql',
+    '019_clean_sync_errors.sql',
+    '020_fix_class_subjects_fk.sql',
+    '021_repair_fees_from_payments.sql',
+    '022_add_journalier_exam_grades.sql',
+    '025_add_assessments_table.sql'
   ]
   migrations.forEach(applyMigration)
 }
@@ -104,7 +116,7 @@ function ensureTableColumns(tableName: string, columns: string[]): void {
     const existing = new Set(info.map((c) => c.name))
     for (const col of columns) {
       if (!existing.has(col)) {
-        console.log(`[SchemaRepair] Adding missing column ${col} to ${tableName}`)
+        if (isDev) console.log(`[SchemaRepair] Adding missing column ${col} to ${tableName}`)
         db.prepare(`ALTER TABLE ${tableName} ADD COLUMN ${col} TEXT`).run()
       }
     }
@@ -149,13 +161,39 @@ ensureTableColumns('student_fees', [
   'fram_paid_by_parent'
 ])
 
-// AUTO-CLEANUP: Remove corrupted students (empty registration_number) on startup
+// SCHEMA HEALING: Ensure personnel sub-tables have soft-delete columns
+// (Migration 007 was previously malformed as a single-line comment on some DBs.)
+function ensureDeletedColumn(tableName: string): void {
+  try {
+    const info = db.prepare(`PRAGMA table_info(${tableName})`).all() as { name: string }[]
+    const hasDeleted = info.some((c) => c.name === 'deleted')
+    if (!hasDeleted) {
+      if (isDev) console.log(`[SchemaRepair] Adding missing 'deleted' column to ${tableName}`)
+      db.prepare(`ALTER TABLE ${tableName} ADD COLUMN deleted BOOLEAN DEFAULT 0`).run()
+    }
+  } catch (err) {
+    console.error(`[SchemaRepair] Failed for ${tableName}:`, err)
+  }
+}
+
+ensureDeletedColumn('time_tracking')
+ensureDeletedColumn('personnel_absences')
+ensureDeletedColumn('salary_advances')
+ensureDeletedColumn('custom_deductions')
+ensureDeletedColumn('daily_attendance')
+
+// AUTO-CLEANUP: Soft-delete corrupted students (empty registration_number) on startup
 try {
   const deleted = db
-    .prepare("DELETE FROM students WHERE registration_number IS NULL OR registration_number = ''")
+    .prepare(`
+      UPDATE students 
+      SET deleted = 1, sync_status = 'pending'
+      WHERE (registration_number IS NULL OR registration_number = '')
+      AND deleted = 0
+    `)
     .run()
   if (deleted.changes > 0) {
-    console.log(`Cleanup: Removed ${deleted.changes} invalid student records (missing matricule).`)
+    if (isDev) console.log(`Cleanup: Soft-deleted ${deleted.changes} invalid student records (missing matricule).`)
   }
 } catch (e) {
   console.error('Cleanup error:', e)

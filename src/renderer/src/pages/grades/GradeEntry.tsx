@@ -1,6 +1,8 @@
 /**
  * GradeEntry.tsx — Saisie des notes par classe / matière / trimestre
  *
+ * Uses class_subjects to determine available subjects and default coefficients per class.
+ *
  * @module pages/grades/GradeEntry
  */
 
@@ -8,6 +10,7 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGradeStore } from '@/store/useGradeStore'
 import { useAuthStore } from '@/store/useAuthStore'
+import { useClasses } from '@/lib/useClasses'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,6 +24,8 @@ interface StudentRow {
   class: string
   existingGradeId?: string
   grade: string
+  grade_journalier: string
+  grade_exam: string
   coefficient: string
   comment: string
   behavior: 'none' | 'warning' | 'praise'
@@ -35,10 +40,13 @@ const BEHAVIOR_LABELS: Record<string, string> = {
 export default function GradeEntry(): React.JSX.Element {
   const navigate = useNavigate()
   const canWrite = useAuthStore((s) => s.canWrite)
-  const { subjects, fetchSubjects, createGrade, updateGrade, loading, error } = useGradeStore()
+  const {
+    classSubjects, fetchClassSubjects, createGrade, updateGrade, loading, error
+  } = useGradeStore()
 
-  const [classes, setClasses] = useState<string[]>([])
+  const { classes: ALL_CLASSES } = useClasses()
   const [selectedClass, setSelectedClass] = useState('')
+  const [assessments, setAssessments] = useState<any[]>([])
   const [selectedSubject, setSelectedSubject] = useState('')
   const [selectedTerm, setSelectedTerm] = useState(1)
   const [schoolYear, setSchoolYear] = useState('2025-2026')
@@ -46,23 +54,34 @@ export default function GradeEntry(): React.JSX.Element {
   const [saveMsg, setSaveMsg] = useState('')
 
   useEffect(() => {
-    fetchSubjects()
-    loadClasses()
-  }, [])
+    if (selectedClass) {
+      fetchClassSubjects(selectedClass)
+      loadAssessments()
+    } else {
+      setAssessments([])
+      setStudents([])
+      setSelectedSubject('')
+    }
+  }, [selectedClass])
 
-  const loadClasses = async () => {
+  const loadAssessments = async () => {
+    if (!selectedClass || !window.api) {
+      setAssessments([])
+      return
+    }
     try {
-      const result = await window.api.student.list({})
-      const studentList = result.students || []
-      if (studentList.length > 0) {
-        const allClasses = Array.from(new Set(studentList.map((s: any) => s.class).filter(Boolean)))
-        allClasses.sort()
-        setClasses(allClasses as string[])
+      const result = await window.api.assessment.list(schoolYear, selectedClass)
+      if (result.success && result.assessments) {
+        setAssessments(result.assessments)
+      } else {
+        setAssessments([])
       }
     } catch (e) {
-      if (import.meta.env.DEV) console.error('Load classes error:', e)
+      console.error(e)
     }
   }
+
+
 
   const loadStudents = async () => {
     if (!selectedClass) {
@@ -79,12 +98,13 @@ export default function GradeEntry(): React.JSX.Element {
           last_name: s.last_name,
           class: s.class,
           grade: '',
+          grade_journalier: '',
+          grade_exam: '',
           coefficient: '1',
           comment: '',
           behavior: 'none'
         }))
         setStudents(rows)
-        // Load existing grades for this class/subject/term
         if (selectedSubject) {
           await loadExistingGrades(rows)
         }
@@ -114,7 +134,9 @@ export default function GradeEntry(): React.JSX.Element {
               ...r,
               existingGradeId: existing.id,
               grade: String(existing.grade),
-              coefficient: String(existing.coefficient ?? 1),
+              grade_journalier: existing.grade_journalier != null ? String(existing.grade_journalier) : '',
+              grade_exam: existing.grade_exam != null ? String(existing.grade_exam) : '',
+              coefficient: String(existing.class_coefficient ?? existing.coefficient ?? 1),
               comment: existing.teacher_comment || '',
               behavior: existing.behavior_note || 'none'
             }
@@ -136,7 +158,24 @@ export default function GradeEntry(): React.JSX.Element {
   const updateRow = (index: number, field: keyof StudentRow, value: any) => {
     setStudents((prev) => {
       const next = [...prev]
-      next[index] = { ...next[index], [field]: value }
+      const row = { ...next[index], [field]: value }
+      
+      // Auto-calculate final grade if journalier or exam is changed
+      if (field === 'grade_journalier' || field === 'grade_exam') {
+        const j = parseFloat(row.grade_journalier)
+        const e = parseFloat(row.grade_exam)
+        if (!isNaN(j) && !isNaN(e)) {
+          row.grade = String((j + e) / 2)
+        } else if (!isNaN(j)) {
+          row.grade = String(j)
+        } else if (!isNaN(e)) {
+          row.grade = String(e)
+        } else if (isNaN(j) && isNaN(e)) {
+          row.grade = ''
+        }
+      }
+      
+      next[index] = row
       return next
     })
   }
@@ -147,7 +186,7 @@ export default function GradeEntry(): React.JSX.Element {
     let failed = 0
 
     for (const row of students) {
-      if (row.grade === '') continue // skip empty
+      if (row.grade === '') continue
       const gradeValue = parseFloat(row.grade)
       if (Number.isNaN(gradeValue) || gradeValue < 0 || gradeValue > 20) {
         failed++
@@ -160,6 +199,8 @@ export default function GradeEntry(): React.JSX.Element {
         school_year: schoolYear,
         term: selectedTerm,
         grade: gradeValue,
+        grade_journalier: row.grade_journalier !== '' ? parseFloat(row.grade_journalier) : null,
+        grade_exam: row.grade_exam !== '' ? parseFloat(row.grade_exam) : null,
         coefficient: parseFloat(row.coefficient) || 1,
         teacher_comment: row.comment || null,
         behavior_note: row.behavior
@@ -178,11 +219,16 @@ export default function GradeEntry(): React.JSX.Element {
     }
 
     setSaveMsg(`${saved} note(s) enregistrée(s). ${failed > 0 ? failed + ' erreur(s).' : ''}`)
-    // Reload to get IDs for newly created grades
     if (saved > 0) {
       await loadStudents()
     }
   }
+
+  const selectedSubjectInfo = classSubjects.find(cs => cs.subject_id === selectedSubject)
+
+  const isPrimaryOrPreschool = /^(PS|MS|GS|CP|CE|CM)/i.test(selectedClass)
+  const label1 = isPrimaryOrPreschool ? 'Semi-Trim' : 'Journ.'
+  const label2 = isPrimaryOrPreschool ? 'Trimestriel' : 'Exam'
 
   return (
     <div className="space-y-4">
@@ -204,17 +250,17 @@ export default function GradeEntry(): React.JSX.Element {
           <Label>Classe</Label>
           <select
             value={selectedClass}
-            onChange={(e) => setSelectedClass(e.target.value)}
+            onChange={(e) => { setSelectedClass(e.target.value); setSelectedSubject('') }}
             className="w-full border rounded-md px-3 py-2 text-sm bg-white"
           >
             <option value="">— Choisir —</option>
-            {classes.map((c) => (
+            {ALL_CLASSES.map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
-          {classes.length === 0 && (
+          {ALL_CLASSES.length === 0 && (
             <p className="text-xs text-amber-600 mt-1">
-              Aucune classe trouvée. Assurez-vous que des élèves sont inscrits avec une classe.
+              Aucune classe configurée. Ajoutez des classes dans Paramètres.
             </p>
           )}
         </div>
@@ -226,26 +272,37 @@ export default function GradeEntry(): React.JSX.Element {
             className="w-full border rounded-md px-3 py-2 text-sm bg-white"
           >
             <option value="">— Choisir —</option>
-            {subjects.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
+            {classSubjects.map((cs) => (
+              <option key={cs.subject_id} value={cs.subject_id}>
+                {cs.subject_name} (coef. {cs.coefficient})
+              </option>
             ))}
           </select>
-          {subjects.length === 0 && (
+          {selectedClass && classSubjects.length === 0 && (
             <p className="text-xs text-amber-600 mt-1">
-              Aucune matière. <button onClick={() => navigate('/grades/subjects')} className="underline hover:text-amber-800">Ajouter des matières</button>.
+              Aucune matière configurée pour cette classe.
+              <button onClick={() => navigate('/grades/subjects')} className="underline hover:text-amber-800 ml-1">Configurer les matières</button>.
             </p>
           )}
         </div>
         <div>
-          <Label>Trimestre</Label>
+          <Label>Trimestre/Examen</Label>
           <select
             value={selectedTerm}
             onChange={(e) => setSelectedTerm(Number(e.target.value))}
             className="w-full border rounded-md px-3 py-2 text-sm bg-white"
           >
-            <option value={1}>Trimestre 1</option>
-            <option value={2}>Trimestre 2</option>
-            <option value={3}>Trimestre 3</option>
+            {assessments.length === 0 ? (
+              <>
+                <option value={1}>Trimestre 1</option>
+                <option value={2}>Trimestre 2</option>
+                <option value={3}>Trimestre 3</option>
+              </>
+            ) : (
+              assessments.map(a => (
+                <option key={a.id} value={a.term_value}>{a.name}</option>
+              ))
+            )}
           </select>
         </div>
         <div>
@@ -254,15 +311,26 @@ export default function GradeEntry(): React.JSX.Element {
         </div>
       </div>
 
+      {/* Coefficient info banner */}
+      {selectedSubjectInfo && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+          <span className="font-medium">{selectedSubjectInfo.subject_name}</span>
+          {' — '}Coefficient par défaut: {selectedSubjectInfo.subject_default_coefficient ?? 1}
+          {' | '}Coefficient pour {selectedClass}: <span className="font-bold">{selectedSubjectInfo.coefficient}</span>
+        </div>
+      )}
+
       {/* Tableau de saisie */}
       {students.length > 0 && (
-        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-xl border shadow-sm overflow-hidden overflow-x-auto">
+          <table className="w-full text-sm min-w-max">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Élève</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 w-24">Note /20</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 w-24">Coef.</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 w-24">{label1}</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 w-24">{label2}</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 w-24">Note Déf.</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 w-20">Coef.</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Commentaire</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600 w-32">Comportement</th>
               </tr>
@@ -277,10 +345,34 @@ export default function GradeEntry(): React.JSX.Element {
                       min={0}
                       max={20}
                       step={0.25}
+                      value={row.grade_journalier}
+                      onChange={(e) => updateRow(idx, 'grade_journalier', e.target.value)}
+                      disabled={!canWrite('grades')}
+                      className="w-16"
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={20}
+                      step={0.25}
+                      value={row.grade_exam}
+                      onChange={(e) => updateRow(idx, 'grade_exam', e.target.value)}
+                      disabled={!canWrite('grades')}
+                      className="w-16"
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={20}
+                      step={0.25}
                       value={row.grade}
                       onChange={(e) => updateRow(idx, 'grade', e.target.value)}
                       disabled={!canWrite('grades')}
-                      className="w-20"
+                      className="w-16 font-bold"
                     />
                   </td>
                   <td className="px-4 py-3">
@@ -291,7 +383,7 @@ export default function GradeEntry(): React.JSX.Element {
                       value={row.coefficient}
                       onChange={(e) => updateRow(idx, 'coefficient', e.target.value)}
                       disabled={!canWrite('grades')}
-                      className="w-20"
+                      className="w-16"
                     />
                   </td>
                   <td className="px-4 py-3">

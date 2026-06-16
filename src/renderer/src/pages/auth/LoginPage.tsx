@@ -10,6 +10,7 @@
 
 import React, { useState } from 'react'
 import { useAuthStore } from '@/store/useAuthStore'
+import logo from '@/assets/logo.png'
 
 export default function LoginPage(): React.JSX.Element {
   const [username, setUsername] = useState('')
@@ -32,9 +33,11 @@ export default function LoginPage(): React.JSX.Element {
       <div className="w-full max-w-md mx-4">
         {/* Logo / Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary text-primary-foreground text-2xl font-bold mb-4">
-            M
-          </div>
+          <img 
+            src={logo} 
+            alt="Logo Lycée Manjary Soa" 
+            className="w-24 h-24 mx-auto object-contain bg-white rounded-2xl p-2 shadow-sm mb-4 border" 
+          />
           <h1 className="text-2xl font-bold text-foreground">Lycée Manjary Soa</h1>
           <p className="text-muted-foreground mt-1">Système de gestion scolaire</p>
         </div>

@@ -30,58 +30,51 @@ export class PersonnelRepository {
     'email', 'address', 'status', 'position', 'hire_date', 'departure_date',
     'teacher_level', 'teacher_subjects', 'salary_type', 'monthly_salary',
     'hourly_rate', 'has_droit', 'droit_amount', 'cnaps_rate', 'irsa_rate',
+    'cnaps_amount', 'irsa_amount',
     'expected_monthly_hours', 'work_pattern', 'work_days', 'daily_hours'
   ]
+
+  private static sanitizeValue(key: string, val: unknown): unknown {
+    if (val !== undefined && val !== null && Number.isNaN(val)) return null
+    if (key.includes('date') && val === '') return null
+    if (val !== undefined && val !== null && typeof val === 'object') return JSON.stringify(val)
+    if (typeof val === 'boolean') return val ? 1 : 0
+    return val !== undefined ? val : null
+  }
+
+  private static sanitizePersonnelFields(data: Record<string, unknown>): Record<string, unknown> {
+    const result: Record<string, unknown> = {}
+    for (const [key, val] of Object.entries(data)) {
+      result[key] = this.sanitizeValue(key, val)
+    }
+    return result
+  }
+
+  private static sanitizeForSync(data: Record<string, unknown>): Record<string, unknown> {
+    return this.sanitizePersonnelFields(data)
+  }
 
   static create(person: Omit<Personnel, 'id' | 'created_at' | 'updated_at' | 'version' | 'sync_status' | 'deleted'>) {
     const id = uuidv4()
 
-    const fields: string[] = []
-    const placeholders: string[] = []
-    const values: any[] = []
-
+    const filtered: Record<string, unknown> = {}
     for (const key of Object.keys(person)) {
       if (this.allowedFields.includes(key)) {
-        fields.push(key)
-        placeholders.push('?')
-        let val = (person as any)[key]
-        // SQLite cannot bind NaN — replace with null
-        if (val !== undefined && val !== null && Number.isNaN(val)) {
-          val = null
-        }
-        // Empty strings for date fields should be treated as null
-        if (key.includes('date') && val === '') {
-          val = null
-        }
-        // SQLite cannot bind objects/arrays — serialize to JSON string
-        if (val !== undefined && val !== null && typeof val === 'object') {
-          val = JSON.stringify(val)
-        }
-        // Explicitly convert booleans to 0/1 for SQLite
-        if (typeof val === 'boolean') {
-          val = val ? 1 : 0
-        }
-        values.push(val !== undefined ? val : null)
+        filtered[key] = (person as Record<string, unknown>)[key]
       }
     }
+
+    const sanitized = this.sanitizePersonnelFields(filtered)
+    const fields = Object.keys(sanitized)
+    const placeholders = fields.map(() => '?')
+    const values = Object.values(sanitized)
 
     const stmt = db.prepare(`
       INSERT INTO personnel (id, ${fields.join(', ')}, created_at, updated_at, version, sync_status, deleted)
       VALUES (?, ${placeholders.join(', ')}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, 'pending', 0)
     `)
 
-    // Sanitize person data for sync queue (same logic as DB values)
-    const syncPerson: any = { id }
-    for (const key of Object.keys(person)) {
-      if (this.allowedFields.includes(key)) {
-        let val = (person as any)[key]
-        if (val !== undefined && val !== null && Number.isNaN(val)) val = null
-        if (key.includes('date') && val === '') val = null
-        if (val !== undefined && val !== null && typeof val === 'object') val = JSON.stringify(val)
-        if (typeof val === 'boolean') val = val ? 1 : 0
-        syncPerson[key] = val !== undefined ? val : null
-      }
-    }
+    const syncPerson: Record<string, unknown> = { id, ...this.sanitizeForSync(filtered) }
 
     const transaction = db.transaction(() => {
       stmt.run(id, ...values)
@@ -91,15 +84,16 @@ export class PersonnelRepository {
     try {
       transaction()
       return { success: true, id }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
       console.error('Create personnel error:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: message }
     }
   }
 
   static list(filters: { search?: string; position?: string; status?: string; deleted?: boolean } = {}) {
     let query = 'SELECT * FROM personnel WHERE deleted = 0'
-    const params: any[] = []
+    const params: unknown[] = []
 
     if (filters.position) {
       query += ' AND position = ?'
@@ -124,19 +118,53 @@ export class PersonnelRepository {
     const person = db.prepare('SELECT * FROM personnel WHERE id = ? AND deleted = 0').get(id) as Personnel | undefined
     if (!person) return null
 
-    const timeTracking = db.prepare('SELECT * FROM time_tracking WHERE personnel_id = ? AND deleted = 0 ORDER BY month DESC').all(id) as TimeTracking[]
-    const absences = db.prepare('SELECT * FROM personnel_absences WHERE personnel_id = ? AND deleted = 0 ORDER BY start_date DESC').all(id) as PersonnelAbsence[]
-    const advances = db.prepare('SELECT * FROM salary_advances WHERE personnel_id = ? AND repaid = 0 AND deleted = 0 ORDER BY advance_date DESC').all(id) as SalaryAdvance[]
-    const deductions = db.prepare('SELECT * FROM custom_deductions WHERE personnel_id = ? AND deleted = 0 ORDER BY month DESC').all(id) as CustomDeduction[]
+    // Related queries are optional — don't fail if a sub-table has issues
+    let timeTracking: TimeTracking[] = []
+    let absences: PersonnelAbsence[] = []
+    let advances: SalaryAdvance[] = []
+    let deductions: CustomDeduction[] = []
+
+    try {
+      timeTracking = db.prepare('SELECT * FROM time_tracking WHERE personnel_id = ? AND deleted = 0 ORDER BY month DESC').all(id) as TimeTracking[]
+    } catch (e) {
+      // Fallback if deleted column doesn't exist
+      try {
+        timeTracking = db.prepare('SELECT * FROM time_tracking WHERE personnel_id = ? ORDER BY month DESC').all(id) as TimeTracking[]
+      } catch { /* ignore */ }
+    }
+
+    try {
+      absences = db.prepare('SELECT * FROM personnel_absences WHERE personnel_id = ? AND deleted = 0 ORDER BY start_date DESC').all(id) as PersonnelAbsence[]
+    } catch (e) {
+      try {
+        absences = db.prepare('SELECT * FROM personnel_absences WHERE personnel_id = ? ORDER BY start_date DESC').all(id) as PersonnelAbsence[]
+      } catch { /* ignore */ }
+    }
+
+    try {
+      advances = db.prepare('SELECT * FROM salary_advances WHERE personnel_id = ? AND repaid = 0 AND deleted = 0 ORDER BY advance_date DESC').all(id) as SalaryAdvance[]
+    } catch (e) {
+      try {
+        advances = db.prepare('SELECT * FROM salary_advances WHERE personnel_id = ? AND repaid = 0 ORDER BY advance_date DESC').all(id) as SalaryAdvance[]
+      } catch { /* ignore */ }
+    }
+
+    try {
+      deductions = db.prepare('SELECT * FROM custom_deductions WHERE personnel_id = ? AND deleted = 0 ORDER BY month DESC').all(id) as CustomDeduction[]
+    } catch (e) {
+      try {
+        deductions = db.prepare('SELECT * FROM custom_deductions WHERE personnel_id = ? ORDER BY month DESC').all(id) as CustomDeduction[]
+      } catch { /* ignore */ }
+    }
 
     return { person, timeTracking, absences, advances, deductions }
   }
 
   static update(id: string, updates: Partial<Personnel>) {
-    const allowedUpdates: Record<string, any> = {}
+    const allowedUpdates: Record<string, unknown> = {}
     for (const key of Object.keys(updates)) {
       if (this.allowedFields.includes(key)) {
-        allowedUpdates[key] = (updates as any)[key]
+        allowedUpdates[key] = (updates as Record<string, unknown>)[key]
       }
     }
 
@@ -144,14 +172,9 @@ export class PersonnelRepository {
       return { success: false, error: 'Aucun champ valide à mettre à jour' }
     }
 
-    const fields = Object.keys(allowedUpdates).map((k) => `${k} = ?`).join(', ')
-    const values = Object.entries(allowedUpdates).map(([k, v]) => {
-      if (v !== undefined && v !== null && Number.isNaN(v)) return null
-      if (k.includes('date') && v === '') return null
-      if (v !== undefined && v !== null && typeof v === 'object') return JSON.stringify(v)
-      if (typeof v === 'boolean') return v ? 1 : 0
-      return v
-    })
+    const sanitized = this.sanitizePersonnelFields(allowedUpdates)
+    const fields = Object.keys(sanitized).map((k) => `${k} = ?`).join(', ')
+    const values = Object.values(sanitized)
 
     const stmt = db.prepare(`
       UPDATE personnel
@@ -159,16 +182,7 @@ export class PersonnelRepository {
       WHERE id = ? AND deleted = 0
     `)
 
-    // Sanitize updates for sync queue (same logic as DB values)
-    const syncUpdates: any = { id }
-    for (const key of Object.keys(allowedUpdates)) {
-      let val = allowedUpdates[key]
-      if (val !== undefined && val !== null && Number.isNaN(val)) val = null
-      if (key.includes('date') && val === '') val = null
-      if (val !== undefined && val !== null && typeof val === 'object') val = JSON.stringify(val)
-      if (typeof val === 'boolean') val = val ? 1 : 0
-      syncUpdates[key] = val !== undefined ? val : null
-    }
+    const syncUpdates: Record<string, unknown> = { id, ...this.sanitizeForSync(allowedUpdates) }
 
     const transaction = db.transaction(() => {
       stmt.run(...values, id)
@@ -178,9 +192,10 @@ export class PersonnelRepository {
     try {
       transaction()
       return { success: true }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
       console.error('Update personnel error:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: message }
     }
   }
 
@@ -197,9 +212,10 @@ export class PersonnelRepository {
     try {
       transaction()
       return { success: true }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
       console.error('Delete personnel error:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: message }
     }
   }
 
@@ -229,14 +245,19 @@ export class PersonnelRepository {
     try {
       transaction()
       return { success: true, id }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
       console.error('Set time tracking error:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: message }
     }
   }
 
   static getTimeTracking(personnelId: string) {
-    return db.prepare('SELECT * FROM time_tracking WHERE personnel_id = ? AND deleted = 0 ORDER BY month DESC').all(personnelId) as TimeTracking[]
+    try {
+      return db.prepare('SELECT * FROM time_tracking WHERE personnel_id = ? AND deleted = 0 ORDER BY month DESC').all(personnelId) as TimeTracking[]
+    } catch {
+      return db.prepare('SELECT * FROM time_tracking WHERE personnel_id = ? ORDER BY month DESC').all(personnelId) as TimeTracking[]
+    }
   }
 
   // ============================================
@@ -257,14 +278,19 @@ export class PersonnelRepository {
     try {
       transaction()
       return { success: true, id }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
       console.error('Create absence error:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: message }
     }
   }
 
   static getAbsences(personnelId: string) {
-    return db.prepare('SELECT * FROM personnel_absences WHERE personnel_id = ? AND deleted = 0 ORDER BY start_date DESC').all(personnelId) as PersonnelAbsence[]
+    try {
+      return db.prepare('SELECT * FROM personnel_absences WHERE personnel_id = ? AND deleted = 0 ORDER BY start_date DESC').all(personnelId) as PersonnelAbsence[]
+    } catch {
+      return db.prepare('SELECT * FROM personnel_absences WHERE personnel_id = ? ORDER BY start_date DESC').all(personnelId) as PersonnelAbsence[]
+    }
   }
 
   static deleteAbsence(id: string) {
@@ -276,8 +302,9 @@ export class PersonnelRepository {
     try {
       transaction()
       return { success: true }
-    } catch (error: any) {
-      return { success: false, error: error.message }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { success: false, error: message }
     }
   }
 
@@ -299,14 +326,19 @@ export class PersonnelRepository {
     try {
       transaction()
       return { success: true, id }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
       console.error('Create advance error:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: message }
     }
   }
 
   static getAdvances(personnelId: string) {
-    return db.prepare('SELECT * FROM salary_advances WHERE personnel_id = ? AND deleted = 0 ORDER BY advance_date DESC').all(personnelId) as SalaryAdvance[]
+    try {
+      return db.prepare('SELECT * FROM salary_advances WHERE personnel_id = ? AND deleted = 0 ORDER BY advance_date DESC').all(personnelId) as SalaryAdvance[]
+    } catch {
+      return db.prepare('SELECT * FROM salary_advances WHERE personnel_id = ? ORDER BY advance_date DESC').all(personnelId) as SalaryAdvance[]
+    }
   }
 
   static markAdvanceRepaid(id: string, repaymentDate: string) {
@@ -321,8 +353,9 @@ export class PersonnelRepository {
     try {
       transaction()
       return { success: true }
-    } catch (error: any) {
-      return { success: false, error: error.message }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { success: false, error: message }
     }
   }
 
@@ -344,17 +377,26 @@ export class PersonnelRepository {
     try {
       transaction()
       return { success: true, id }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
       console.error('Create deduction error:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: message }
     }
   }
 
   static getDeductions(personnelId: string, month?: string) {
     if (month) {
-      return db.prepare('SELECT * FROM custom_deductions WHERE personnel_id = ? AND month = ? AND deleted = 0').all(personnelId, month) as CustomDeduction[]
+      try {
+        return db.prepare('SELECT * FROM custom_deductions WHERE personnel_id = ? AND month = ? AND deleted = 0').all(personnelId, month) as CustomDeduction[]
+      } catch {
+        return db.prepare('SELECT * FROM custom_deductions WHERE personnel_id = ? AND month = ?').all(personnelId, month) as CustomDeduction[]
+      }
     }
-    return db.prepare('SELECT * FROM custom_deductions WHERE personnel_id = ? AND deleted = 0 ORDER BY month DESC').all(personnelId) as CustomDeduction[]
+    try {
+      return db.prepare('SELECT * FROM custom_deductions WHERE personnel_id = ? AND deleted = 0 ORDER BY month DESC').all(personnelId) as CustomDeduction[]
+    } catch {
+      return db.prepare('SELECT * FROM custom_deductions WHERE personnel_id = ? ORDER BY month DESC').all(personnelId) as CustomDeduction[]
+    }
   }
 
   static deleteDeduction(id: string) {
@@ -366,8 +408,9 @@ export class PersonnelRepository {
     try {
       transaction()
       return { success: true }
-    } catch (error: any) {
-      return { success: false, error: error.message }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { success: false, error: message }
     }
   }
 
@@ -377,15 +420,74 @@ export class PersonnelRepository {
 
   static getMonthlyAttendance(personnelId: string, year: number, month: number) {
     const monthStr = `${year}-${String(month).padStart(2, '0')}`
-    return db.prepare(
-      'SELECT * FROM daily_attendance WHERE personnel_id = ? AND attendance_date LIKE ? AND deleted = 0 ORDER BY attendance_date'
-    ).all(personnelId, `${monthStr}%`) as DailyAttendance[]
+    try {
+      return db.prepare(
+        'SELECT * FROM daily_attendance WHERE personnel_id = ? AND attendance_date LIKE ? AND deleted = 0 ORDER BY attendance_date'
+      ).all(personnelId, `${monthStr}%`) as DailyAttendance[]
+    } catch {
+      return db.prepare(
+        'SELECT * FROM daily_attendance WHERE personnel_id = ? AND attendance_date LIKE ? ORDER BY attendance_date'
+      ).all(personnelId, `${monthStr}%`) as DailyAttendance[]
+    }
+  }
+
+  static getDailyAttendance(date: string) {
+    try {
+      return db.prepare('SELECT * FROM daily_attendance WHERE attendance_date = ? AND deleted = 0').all(date) as DailyAttendance[]
+    } catch {
+      return db.prepare('SELECT * FROM daily_attendance WHERE attendance_date = ?').all(date) as DailyAttendance[]
+    }
+  }
+
+  static setBulkAttendance(records: Omit<DailyAttendance, 'id' | 'created_at' | 'updated_at' | 'version' | 'sync_status'>[]) {
+    const transaction = db.transaction(() => {
+      for (const data of records) {
+        let existing: { id: string } | undefined
+        try {
+          existing = db.prepare('SELECT id FROM daily_attendance WHERE personnel_id = ? AND attendance_date = ? AND deleted = 0').get(data.personnel_id, data.attendance_date) as { id: string } | undefined
+        } catch {
+          existing = db.prepare('SELECT id FROM daily_attendance WHERE personnel_id = ? AND attendance_date = ?').get(data.personnel_id, data.attendance_date) as { id: string } | undefined
+        }
+
+        if (existing) {
+          db.prepare(`
+            UPDATE daily_attendance
+            SET status = ?, hours_worked = ?, expected_hours = ?, notes = ?, session_info = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending'
+            WHERE id = ?
+          `).run(data.status, data.hours_worked, data.expected_hours || 0, data.notes || null, data.session_info || null, existing.id)
+          addToSyncQueue('daily_attendance', existing.id, 'update', { id: existing.id, ...data })
+        } else {
+          const id = uuidv4()
+          db.prepare(`
+            INSERT INTO daily_attendance (id, personnel_id, attendance_date, status, hours_worked, expected_hours, notes, session_info, created_at, updated_at, version, sync_status, deleted)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, 'pending', 0)
+          `).run(id, data.personnel_id, data.attendance_date, data.status, data.hours_worked, data.expected_hours || 0, data.notes || null, data.session_info || null)
+          addToSyncQueue('daily_attendance', id, 'create', { id, ...data })
+        }
+      }
+    })
+
+    try {
+      transaction()
+      return { success: true }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.error('Set bulk attendance error:', error)
+      return { success: false, error: message }
+    }
   }
 
   static setAttendance(data: Omit<DailyAttendance, 'id' | 'created_at' | 'updated_at' | 'version' | 'sync_status'>) {
-    const existing = db.prepare(
-      'SELECT id FROM daily_attendance WHERE personnel_id = ? AND attendance_date = ? AND deleted = 0'
-    ).get(data.personnel_id, data.attendance_date) as { id: string } | undefined
+    let existing: { id: string } | undefined
+    try {
+      existing = db.prepare(
+        'SELECT id FROM daily_attendance WHERE personnel_id = ? AND attendance_date = ? AND deleted = 0'
+      ).get(data.personnel_id, data.attendance_date) as { id: string } | undefined
+    } catch {
+      existing = db.prepare(
+        'SELECT id FROM daily_attendance WHERE personnel_id = ? AND attendance_date = ?'
+      ).get(data.personnel_id, data.attendance_date) as { id: string } | undefined
+    }
 
     const transaction = db.transaction(() => {
       if (existing) {
@@ -408,9 +510,10 @@ export class PersonnelRepository {
     try {
       transaction()
       return { success: true, id: existing?.id }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
       console.error('Set attendance error:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: message }
     }
   }
 
@@ -423,9 +526,10 @@ export class PersonnelRepository {
     try {
       transaction()
       return { success: true }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
       console.error('Delete attendance error:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: message }
     }
   }
 
@@ -477,9 +581,10 @@ export class PersonnelRepository {
     try {
       transaction()
       return { success: true, id }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
       console.error('Create salary expense error:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: message }
     }
   }
 
@@ -528,32 +633,39 @@ export class PersonnelRepository {
     let totalAbsenceDays = 0
 
     if (person.salary_type === 'hourly' && person.hourly_rate) {
-      // Hourly: hours × rate. Fallback to time_tracking if no daily attendance.
-      if (totalHoursWorked > 0) {
-        baseSalary = totalHoursWorked * person.hourly_rate
-        grossSalary = baseSalary
-        hourlyEquivalentRate = person.hourly_rate
+      // Hourly: Calendar hours by default, but manual tracking overrides if set
+      const tracking = db.prepare('SELECT * FROM time_tracking WHERE personnel_id = ? AND month = ?').get(personnelId, month) as TimeTracking | undefined
+      
+      if (tracking && tracking.manually_edited) {
+        hoursWorked = tracking.hours_worked
       } else {
-        const tracking = db.prepare('SELECT * FROM time_tracking WHERE personnel_id = ? AND month = ?').get(personnelId, month) as TimeTracking | undefined
-        if (tracking) {
-          hoursWorked = tracking.hours_worked
-          baseSalary = hoursWorked * person.hourly_rate
-          grossSalary = baseSalary
-          hourlyEquivalentRate = person.hourly_rate
-        }
+        hoursWorked = totalHoursWorked
       }
+      
+      baseSalary = hoursWorked * person.hourly_rate
+      grossSalary = baseSalary
+      hourlyEquivalentRate = person.hourly_rate
     } else if (person.salary_type === 'monthly' && person.monthly_salary) {
-      // Monthly hybrid: quota-based calculation
+      // Monthly: Exception-based calculation. Full salary minus explicitly recorded missing hours.
       baseSalary = person.monthly_salary
       expectedHours = this.getExpectedHoursForMonth(year, mon, person)
       hourlyEquivalentRate = expectedHours > 0 ? person.monthly_salary / expectedHours : 0
 
-      const diff = totalHoursWorked - expectedHours
-      if (diff < 0) {
-        absencesDeduction = Math.abs(diff) * hourlyEquivalentRate
-      } else if (diff > 0) {
-        overtimePay = diff * hourlyEquivalentRate
+      let totalAbsentHours = 0
+      let totalOvertimeHours = 0
+      for (const a of attendance) {
+        const expectedForDay = a.expected_hours || person.daily_hours || 8
+        const workedForDay = a.status === 'paid_leave' ? expectedForDay : (a.hours_worked || 0)
+        if (workedForDay < expectedForDay) {
+          totalAbsentHours += (expectedForDay - workedForDay)
+        } else if (workedForDay > expectedForDay) {
+          totalOvertimeHours += (workedForDay - expectedForDay)
+        }
       }
+
+      hoursWorked = Math.max(0, expectedHours - totalAbsentHours + totalOvertimeHours)
+      absencesDeduction = totalAbsentHours * hourlyEquivalentRate
+      overtimePay = totalOvertimeHours * hourlyEquivalentRate
 
       grossSalary = baseSalary - absencesDeduction + overtimePay
     }
@@ -577,12 +689,22 @@ export class PersonnelRepository {
     grossSalary = Math.max(0, grossSalary)
 
     // CNAPS (retraite)
-    const cnapsRate = person.cnaps_rate || 0.01
-    const cnapsDeduction = grossSalary * cnapsRate
+    let cnapsDeduction = 0
+    if (person.cnaps_amount !== undefined && person.cnaps_amount !== null) {
+      cnapsDeduction = person.cnaps_amount
+    } else {
+      const cnapsRate = person.cnaps_rate || 0.01
+      cnapsDeduction = grossSalary * cnapsRate
+    }
 
     // IRSA (impôt revenu)
-    const irsaRate = person.irsa_rate || 0.01
-    const irsaDeduction = grossSalary * irsaRate
+    let irsaDeduction = 0
+    if (person.irsa_amount !== undefined && person.irsa_amount !== null) {
+      irsaDeduction = person.irsa_amount
+    } else {
+      const irsaRate = person.irsa_rate || 0.01
+      irsaDeduction = grossSalary * irsaRate
+    }
 
     // Droit (if applicable)
     const droitDeduction = person.has_droit && person.droit_amount ? person.droit_amount : 0
@@ -605,13 +727,13 @@ export class PersonnelRepository {
       netSalary,
       details: {
         baseSalary,
-        hoursWorked: hoursWorked || undefined,
-        expectedHours: expectedHours || undefined,
+        hoursWorked: hoursWorked !== null ? hoursWorked : undefined,
+        expectedHours: expectedHours !== null ? expectedHours : undefined,
         hourlyRate: person.hourly_rate || undefined,
-        hourlyEquivalentRate: hourlyEquivalentRate || undefined,
-        absencesDeduction: absencesDeduction || undefined,
-        overtimePay: overtimePay || undefined,
-        totalAbsenceDays: totalAbsenceDays || undefined
+        hourlyEquivalentRate: hourlyEquivalentRate !== null ? hourlyEquivalentRate : undefined,
+        absencesDeduction: absencesDeduction !== null ? absencesDeduction : undefined,
+        overtimePay: overtimePay !== null ? overtimePay : undefined,
+        totalAbsenceDays: totalAbsenceDays !== null ? totalAbsenceDays : undefined
       }
     }
   }

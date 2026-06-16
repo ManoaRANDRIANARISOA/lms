@@ -15,6 +15,15 @@ import { canRead, canWrite } from '../auth/rbac.service'
 import { PersonnelRepository } from '../database/repositories/personnel.repository'
 import { logAction } from '../auth/audit.service'
 import { getCurrentUser } from '../auth/rbac.service'
+import db from '../database/db'
+import type {
+  Personnel,
+  TimeTracking,
+  PersonnelAbsence,
+  SalaryAdvance,
+  CustomDeduction,
+  DailyAttendance
+} from '../../shared/types'
 
 export function registerPersonnelHandlers(): void {
   // --------------------------------------------
@@ -32,8 +41,7 @@ export function registerPersonnelHandlers(): void {
         logAction(user?.id || null, 'create', 'personnel', result.id, null, JSON.stringify(data))
       }
       return result
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors de la création du personnel' }
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors de la création du personnel' }
     }
   })
 
@@ -48,8 +56,7 @@ export function registerPersonnelHandlers(): void {
     try {
       const personnel = PersonnelRepository.list(filters)
       return { success: true, personnel }
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors du chargement du personnel' }
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors du chargement du personnel' }
     }
   })
 
@@ -64,10 +71,16 @@ export function registerPersonnelHandlers(): void {
     try {
       const result = PersonnelRepository.getById(id)
       if (!result) {
+        // Diagnostic: check if person exists without deleted filter
+        const raw = db.prepare('SELECT id, first_name, last_name, deleted FROM personnel WHERE id = ?').get(id) as { id: string; first_name: string; last_name: string; deleted: number } | undefined
+        if (raw) {
+          console.warn(`[Personnel] Record exists but deleted=${raw.deleted} for id=${id}`)
+          return { success: false, error: `Personnel marqué comme supprimé (deleted=${raw.deleted})` }
+        }
         return { success: false, error: 'Personnel introuvable' }
       }
       return { success: true, ...result }
-    } catch (error: any) {
+    } catch (error: unknown) {      console.error('[Personnel:get] Error:', error)
       return { success: false, error: 'Erreur lors du chargement du personnel' }
     }
   })
@@ -75,7 +88,7 @@ export function registerPersonnelHandlers(): void {
   // --------------------------------------------
   // UPDATE
   // --------------------------------------------
-  ipcMain.handle('personnel:update', async (_, id: string, updates: any) => {
+  ipcMain.handle('personnel:update', async (_, id: string, updates: Partial<Personnel>) => {
     if (!canWrite('personnel')) {
       return { success: false, error: 'Accès refusé: modification personnel' }
     }
@@ -87,8 +100,7 @@ export function registerPersonnelHandlers(): void {
         logAction(user?.id || null, 'update', 'personnel', id, null, JSON.stringify(updates))
       }
       return result
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors de la mise à jour' }
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors de la mise à jour' }
     }
   })
 
@@ -107,23 +119,26 @@ export function registerPersonnelHandlers(): void {
         logAction(user?.id || null, 'delete', 'personnel', id, null, null)
       }
       return result
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors de la suppression' }
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors de la suppression' }
     }
   })
 
   // --------------------------------------------
   // TIME TRACKING
   // --------------------------------------------
-  ipcMain.handle('personnel:setTimeTracking', async (_, data: any) => {
+  ipcMain.handle('personnel:setTimeTracking', async (_, data: Omit<TimeTracking, 'id' | 'created_at' | 'updated_at' | 'version' | 'sync_status'>) => {
     if (!canWrite('personnel')) {
       return { success: false, error: 'Accès refusé' }
     }
 
     try {
-      return PersonnelRepository.setTimeTracking(data)
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors de la saisie des heures' }
+      const result = PersonnelRepository.setTimeTracking(data)
+      if (result.success) {
+        const user = getCurrentUser()
+        logAction(user?.id || null, 'update', 'personnel', data.personnel_id, null, JSON.stringify(data))
+      }
+      return result
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors de la saisie des heures' }
     }
   })
 
@@ -135,15 +150,14 @@ export function registerPersonnelHandlers(): void {
     try {
       const records = PersonnelRepository.getTimeTracking(personnelId)
       return { success: true, records }
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors du chargement des heures' }
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors du chargement des heures' }
     }
   })
 
   // --------------------------------------------
   // ABSENCES
   // --------------------------------------------
-  ipcMain.handle('personnel:createAbsence', async (_, data: any) => {
+  ipcMain.handle('personnel:createAbsence', async (_, data: Omit<PersonnelAbsence, 'id' | 'created_at' | 'updated_at' | 'version' | 'sync_status'>) => {
     if (!canWrite('personnel')) {
       return { success: false, error: 'Accès refusé' }
     }
@@ -155,8 +169,7 @@ export function registerPersonnelHandlers(): void {
         logAction(user?.id || null, 'create', 'personnel_absences', result.id, null, JSON.stringify(data))
       }
       return result
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors de la création de l\'absence' }
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors de la création de l\'absence' }
     }
   })
 
@@ -168,8 +181,7 @@ export function registerPersonnelHandlers(): void {
     try {
       const records = PersonnelRepository.getAbsences(personnelId)
       return { success: true, records }
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors du chargement des absences' }
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors du chargement des absences' }
     }
   })
 
@@ -179,16 +191,20 @@ export function registerPersonnelHandlers(): void {
     }
 
     try {
-      return PersonnelRepository.deleteAbsence(id)
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors de la suppression' }
+      const result = PersonnelRepository.deleteAbsence(id)
+      if (result.success) {
+        const user = getCurrentUser()
+        logAction(user?.id || null, 'delete', 'personnel_absences', id, null, null)
+      }
+      return result
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors de la suppression' }
     }
   })
 
   // --------------------------------------------
   // SALARY ADVANCES
   // --------------------------------------------
-  ipcMain.handle('personnel:createAdvance', async (_, data: any) => {
+  ipcMain.handle('personnel:createAdvance', async (_, data: Omit<SalaryAdvance, 'id' | 'created_at' | 'updated_at' | 'version' | 'sync_status'>) => {
     if (!canWrite('personnel')) {
       return { success: false, error: 'Accès refusé' }
     }
@@ -200,8 +216,7 @@ export function registerPersonnelHandlers(): void {
         logAction(user?.id || null, 'create', 'salary_advances', result.id, null, JSON.stringify(data))
       }
       return result
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors de la création de l\'avance' }
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors de la création de l\'avance' }
     }
   })
 
@@ -213,8 +228,7 @@ export function registerPersonnelHandlers(): void {
     try {
       const records = PersonnelRepository.getAdvances(personnelId)
       return { success: true, records }
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors du chargement des avances' }
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors du chargement des avances' }
     }
   })
 
@@ -224,16 +238,20 @@ export function registerPersonnelHandlers(): void {
     }
 
     try {
-      return PersonnelRepository.markAdvanceRepaid(id, repaymentDate)
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors du remboursement' }
+      const result = PersonnelRepository.markAdvanceRepaid(id, repaymentDate)
+      if (result.success) {
+        const user = getCurrentUser()
+        logAction(user?.id || null, 'update', 'salary_advances', id, null, JSON.stringify({ repaymentDate }))
+      }
+      return result
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors du remboursement' }
     }
   })
 
   // --------------------------------------------
   // CUSTOM DEDUCTIONS
   // --------------------------------------------
-  ipcMain.handle('personnel:createDeduction', async (_, data: any) => {
+  ipcMain.handle('personnel:createDeduction', async (_, data: Omit<CustomDeduction, 'id' | 'created_at' | 'updated_at' | 'version' | 'sync_status'>) => {
     if (!canWrite('personnel')) {
       return { success: false, error: 'Accès refusé' }
     }
@@ -245,8 +263,7 @@ export function registerPersonnelHandlers(): void {
         logAction(user?.id || null, 'create', 'custom_deductions', result.id, null, JSON.stringify(data))
       }
       return result
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors de la création de la déduction' }
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors de la création de la déduction' }
     }
   })
 
@@ -258,8 +275,7 @@ export function registerPersonnelHandlers(): void {
     try {
       const records = PersonnelRepository.getDeductions(personnelId, month)
       return { success: true, records }
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors du chargement des déductions' }
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors du chargement des déductions' }
     }
   })
 
@@ -269,9 +285,13 @@ export function registerPersonnelHandlers(): void {
     }
 
     try {
-      return PersonnelRepository.deleteDeduction(id)
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors de la suppression' }
+      const result = PersonnelRepository.deleteDeduction(id)
+      if (result.success) {
+        const user = getCurrentUser()
+        logAction(user?.id || null, 'delete', 'custom_deductions', id, null, null)
+      }
+      return result
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors de la suppression' }
     }
   })
 
@@ -286,12 +306,39 @@ export function registerPersonnelHandlers(): void {
     try {
       const records = PersonnelRepository.getMonthlyAttendance(personnelId, year, month)
       return { success: true, records }
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors du chargement du pointage' }
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors du chargement du pointage' }
     }
   })
 
-  ipcMain.handle('personnel:setAttendance', async (_, data: any) => {
+  ipcMain.handle('personnel:getDailyAttendance', async (_, date: string) => {
+    if (!canRead('personnel')) {
+      return { success: false, error: 'Accès refusé' }
+    }
+
+    try {
+      const records = PersonnelRepository.getDailyAttendance(date)
+      return { success: true, records }
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors du chargement du pointage journalier' }
+    }
+  })
+
+  ipcMain.handle('personnel:setBulkAttendance', async (_, records: Omit<DailyAttendance, 'id' | 'created_at' | 'updated_at' | 'version' | 'sync_status'>[]) => {
+    if (!canWrite('personnel')) {
+      return { success: false, error: 'Accès refusé' }
+    }
+
+    try {
+      const result = PersonnelRepository.setBulkAttendance(records)
+      if (result.success) {
+        const user = getCurrentUser()
+        logAction(user?.id || null, 'create', 'daily_attendance_bulk', null, null, JSON.stringify({ count: records.length }))
+      }
+      return result
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors de la sauvegarde du pointage en masse' }
+    }
+  })
+
+  ipcMain.handle('personnel:setAttendance', async (_, data: Omit<DailyAttendance, 'id' | 'created_at' | 'updated_at' | 'version' | 'sync_status'>) => {
     if (!canWrite('personnel')) {
       return { success: false, error: 'Accès refusé' }
     }
@@ -303,8 +350,7 @@ export function registerPersonnelHandlers(): void {
         logAction(user?.id || null, 'create', 'daily_attendance', result.id, null, JSON.stringify(data))
       }
       return result
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors de la sauvegarde du pointage' }
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors de la sauvegarde du pointage' }
     }
   })
 
@@ -314,9 +360,13 @@ export function registerPersonnelHandlers(): void {
     }
 
     try {
-      return PersonnelRepository.deleteAttendance(id)
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors de la suppression' }
+      const result = PersonnelRepository.deleteAttendance(id)
+      if (result.success) {
+        const user = getCurrentUser()
+        logAction(user?.id || null, 'delete', 'daily_attendance', id, null, null)
+      }
+      return result
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors de la suppression' }
     }
   })
 
@@ -335,8 +385,7 @@ export function registerPersonnelHandlers(): void {
         logAction(user?.id || null, 'create', 'cash_journal', result.id, null, JSON.stringify({ personnelId, month, netAmount }))
       }
       return result
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors de la création de la dépense' }
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors de la création de la dépense' }
     }
   })
 
@@ -354,8 +403,7 @@ export function registerPersonnelHandlers(): void {
         return { success: false, error: 'Personnel introuvable' }
       }
       return { success: true, calculation }
-    } catch (error: any) {
-      return { success: false, error: 'Erreur lors du calcul du salaire' }
+    } catch (error: unknown) {      return { success: false, error: 'Erreur lors du calcul du salaire' }
     }
   })
 }

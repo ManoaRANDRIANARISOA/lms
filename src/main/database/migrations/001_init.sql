@@ -15,6 +15,7 @@ CREATE TABLE students (
     -- Identification
     first_name TEXT NOT NULL,
     last_name TEXT NOT NULL,
+    gender TEXT CHECK(gender IN ('M', 'F')),
     photo_path TEXT,                    -- Local file path or cloud URL
     date_of_birth DATE,
     place_of_birth TEXT,

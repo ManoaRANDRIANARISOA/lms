@@ -19,6 +19,8 @@ interface StudentAttendance {
   present: boolean
 }
 
+
+
 import { ServiceDashboard } from '@/components/students/ServiceDashboard'
 
 export default function AttendancePage() {
@@ -26,6 +28,7 @@ export default function AttendancePage() {
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [busStudents, setBusStudents] = useState<StudentAttendance[]>([])
   const [canteenStudents, setCanteenStudents] = useState<StudentAttendance[]>([])
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('bus')
@@ -38,7 +41,7 @@ export default function AttendancePage() {
         const year = await window.api.settings.get('school_year')
         if (year) setSchoolYear((year as string).replace(/"/g, ''))
       } catch (e) {
-        console.error('Failed to load settings', e)
+        if (import.meta.env.DEV) console.error('Failed to load settings', e)
       }
     }
     loadSettings()
@@ -71,29 +74,31 @@ export default function AttendancePage() {
       // Usually for "Pointage", we mark who is ABSENT. So default TRUE is better.
       // But let's check if record exists.
 
-      const mapStudents = (subs: any[], records: any[]) => {
-        return subs.map((s: any) => {
-          const record = records.find((a: any) => a.student_id === s.id)
+      const mapStudents = (subs: Array<Omit<StudentAttendance, 'present'>>, records: Array<{ student_id: string; status: string }>) => {
+        return subs.map((s: Omit<StudentAttendance, 'present'>) => {
+          const record = records.find((a: { student_id: string }) => a.student_id === s.id)
           return {
             ...s,
-            present: record ? record.present === 1 : true // Default Present
+            present: record ? record.status === 'present' : true // Default Present
           }
         })
       }
 
       setBusStudents(mapStudents(busSubs || [], busAtt || []))
       setCanteenStudents(mapStudents(canteenSubs || [], canteenAtt || []))
+
+
     } catch (e) {
-      console.error(e)
+      if (import.meta.env.DEV) console.error(e)
     } finally {
       setLoading(false)
     }
   }
 
-  const handleToggle = (id: string, listType: 'bus' | 'canteen') => {
+  const handleToggle = (id: string, listType: 'bus' | 'canteen' | 'personnel') => {
     if (listType === 'bus') {
       setBusStudents((prev) => prev.map((s) => (s.id === id ? { ...s, present: !s.present } : s)))
-    } else {
+    } else if (listType === 'canteen') {
       setCanteenStudents((prev) =>
         prev.map((s) => (s.id === id ? { ...s, present: !s.present } : s))
       )
@@ -106,14 +111,14 @@ export default function AttendancePage() {
       if (activeTab === 'bus') {
         const records = busStudents.map((s) => ({ student_id: s.id, status: s.present ? 'present' : 'absent' }))
         await window.api.attendance.recordBus(date, records)
-      } else {
+      } else if (activeTab === 'canteen') {
         const records = canteenStudents.map((s) => ({ student_id: s.id, status: s.present ? 'present' : 'absent' }))
         await window.api.attendance.recordCanteen(date, records)
       }
       // Simple feedback
       alert('Pointage enregistré avec succès !')
-    } catch (e: any) {
-      alert('Erreur: ' + e.message)
+    } catch (e: unknown) {
+      alert('Erreur: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setSaving(false)
     }
@@ -179,6 +184,7 @@ export default function AttendancePage() {
               <Utensils className="w-4 h-4 mr-2" />
               Cantine ({canteenStudents.length})
             </TabsTrigger>
+
           </TabsList>
 
           <div className="flex items-center gap-4">
@@ -298,6 +304,8 @@ export default function AttendancePage() {
                 )}
               </div>
             </TabsContent>
+
+
           </>
         )}
       </Tabs>

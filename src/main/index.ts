@@ -14,8 +14,14 @@ import { registerAuthHandlers } from './ipc/auth.handler'
 import { registerDashboardHandlers } from './ipc/dashboard.handler'
 import { registerPersonnelHandlers } from './ipc/personnel.handler'
 import { registerGradeHandlers } from './ipc/grade.handler'
+import { registerCashJournalHandlers } from './ipc/cashjournal.handler'
+import { registerPdfHandlers } from './ipc/pdf.handler'
+import { registerAssessmentHandlers } from './ipc/assessment.handler'
+import { registerEmailHandlers } from './ipc/email.handler'
+import { registerReportHandlers } from './ipc/report.handler'
 import { startPeriodicSync } from './services/sync.service'
 import { startSessionMonitor, stopSessionMonitor } from './auth/session.service'
+import { EmailService } from './services/email.service'
 
 // Auth handlers are now registered via registerAuthHandlers() below
 
@@ -82,6 +88,11 @@ app.whenReady().then(() => {
   registerDashboardHandlers()
   registerPersonnelHandlers()
   registerGradeHandlers()
+  registerCashJournalHandlers()
+  registerAssessmentHandlers()
+  registerPdfHandlers()
+  registerEmailHandlers()
+  registerReportHandlers()
 
   // Register custom protocol for local resources
   protocol.handle('local-resource', async (req) => {
@@ -128,6 +139,9 @@ app.whenReady().then(() => {
 
   // Start Session Monitor (timeout + cleanup)
   startSessionMonitor()
+
+  // Start Email Scheduler (daily report at 18h)
+  EmailService.startScheduler()
 
   createWindow()
 

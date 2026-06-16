@@ -13,7 +13,7 @@
 
 import { UserRepository } from '../database/repositories/user.repository'
 import { setCurrentUser, getCurrentUser as getRBACCurrentUser, type User } from './rbac.service'
-import { createSession, destroySession, validateSession, cleanExpiredSessions } from './session.service'
+import { createSession, destroySession, validateSession } from './session.service'
 import db from '../database/db'
 
 // --------------------------------------------
@@ -181,14 +181,6 @@ export function resetPassword(
   newPassword: string
 ): { success: boolean; error?: string } {
   return UserRepository.resetPassword(userId, newPassword)
-}
-
-/**
- * Perform cleanup of expired sessions.
- * Called periodically by the session monitor.
- */
-export function cleanupSessions(): void {
-  cleanExpiredSessions()
 }
 
 /**

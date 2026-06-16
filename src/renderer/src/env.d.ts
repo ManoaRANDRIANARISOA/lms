@@ -5,7 +5,8 @@ import type {
   Student, Payment, FeeRecord, FinancePrices,
   Personnel, TimeTracking, PersonnelAbsence, SalaryAdvance, CustomDeduction, DailyAttendance, SalaryCalculation,
   Subject, Grade, GradeWithSubject, StudentTermAverage, SubjectClassAverage,
-  SchoolConfig
+  ClassSubject, ClassSubjectInput,
+  SchoolConfig, CashJournalEntry, CashJournalFilters
 } from '../../shared/types'
 
 // --------------------------------------------
@@ -117,6 +118,13 @@ interface GradeInput {
   behavior_note?: 'none' | 'warning' | 'praise'
 }
 
+interface ClassSubjectPayload {
+  class_name: string
+  subject_id: string
+  coefficient?: number
+  position?: number
+}
+
 // --------------------------------------------
 // Full API Type
 // --------------------------------------------
@@ -137,6 +145,22 @@ interface APIType {
     getByStudent: (studentId: string) => Promise<Payment[]>
     getAll: (filters?: PaymentFilters) => Promise<Payment[]>
     getTuitionStatus: (studentId: string, schoolYear: string) => Promise<{ success: boolean; feeRecord?: FeeRecord; monthlyStatus?: Record<string, unknown>; totalPaid?: number; totalDue?: number; error?: string }>
+    getUnpaidAlerts: (schoolYear: string) => Promise<{
+      success: boolean
+      alerts?: Array<{
+        student_id: string
+        first_name: string
+        last_name: string
+        class_name: string
+        monthly_tuition: number
+        paid_months: string[]
+        unpaid_months: string[]
+        unpaid_count: number
+        total_due: number
+      }>
+      error?: string
+    }>
+    getExpectedRevenue: (schoolYear: string) => Promise<{ success: boolean; expected?: number; error?: string }>
   }
   attendance: {
     recordBus: (date: string, records: Array<{ student_id: string; status: string }>) => Promise<{ success: boolean; error?: string }>
@@ -154,6 +178,7 @@ interface APIType {
     delete: (id: string) => Promise<{ success: boolean; error?: string }>
     addParticipants: (eventId: string, studentIds: string[], amountDue?: number) => Promise<{ success: boolean; error?: string }>
     recordPayment: (eventId: string, studentId: string, amount: number, paymentMethod?: string) => Promise<{ success: boolean; error?: string }>
+    getByStudent: (studentId: string) => Promise<{ success: boolean; events?: any[]; error?: string }>
   }
   settings: {
     get: (key: string) => Promise<unknown>
@@ -179,6 +204,8 @@ interface APIType {
     deleteDeduction: (id: string) => Promise<{ success: boolean; error?: string }>
     calculateSalary: (personnelId: string, month: string) => Promise<{ success: boolean; calculation?: SalaryCalculation; error?: string }>
     getMonthlyAttendance: (personnelId: string, year: number, month: number) => Promise<{ success: boolean; records?: DailyAttendance[]; error?: string }>
+    getDailyAttendance: (date: string) => Promise<{ success: boolean; records?: DailyAttendance[]; error?: string }>
+    setBulkAttendance: (records: Partial<DailyAttendance>[]) => Promise<{ success: boolean; error?: string }>
     setAttendance: (data: Partial<DailyAttendance>) => Promise<{ success: boolean; id?: string; error?: string }>
     deleteAttendance: (id: string) => Promise<{ success: boolean; error?: string }>
     createSalaryExpense: (personnelId: string, month: string, netAmount: number, description?: string) => Promise<{ success: boolean; id?: string; error?: string }>
@@ -192,13 +219,63 @@ interface APIType {
     updateGrade: (id: string, updates: Partial<GradeInput>) => Promise<{ success: boolean; error?: string }>
     deleteGrade: (id: string) => Promise<{ success: boolean; error?: string }>
     getGradesByStudent: (studentId: string, schoolYear: string, term?: number) => Promise<{ success: boolean; grades?: GradeWithSubject[]; error?: string }>
-    getGradesByClass: (className: string, schoolYear: string, term: number) => Promise<{ success: boolean; grades?: (GradeWithSubject & { first_name: string; last_name: string; class: string })[]; error?: string }>
+    getGradesByClass: (className: string, schoolYear: string, term: number) => Promise<{ success: boolean; grades?: (GradeWithSubject & { first_name: string; last_name: string; class: string; class_coefficient: number })[]; error?: string }>
     getStudentAverage: (studentId: string, schoolYear: string, term: number) => Promise<{ success: boolean; average?: { average: number; totalCoefficient: number } | null; error?: string }>
     getClassAverages: (className: string, schoolYear: string, term: number) => Promise<{ success: boolean; averages?: SubjectClassAverage[]; error?: string }>
     getClassRanking: (className: string, schoolYear: string, term: number) => Promise<{ success: boolean; ranking?: StudentTermAverage[]; error?: string }>
+    // Class Subjects (Phase 3)
+    getClassSubjects: (className: string) => Promise<{ success: boolean; subjects?: ClassSubject[]; error?: string }>
+    getAllClassSubjects: () => Promise<{ success: boolean; subjects?: ClassSubject[]; error?: string }>
+    createClassSubject: (data: ClassSubjectPayload) => Promise<{ success: boolean; id?: string; error?: string }>
+    updateClassSubject: (id: string, updates: Partial<ClassSubjectPayload>) => Promise<{ success: boolean; error?: string }>
+    deleteClassSubject: (id: string) => Promise<{ success: boolean; error?: string }>
+    getClassesWithSubjects: () => Promise<{ success: boolean; classes?: string[]; error?: string }>
+    getClassSubjectAverages: (className: string, schoolYear: string, term: number) => Promise<{ success: boolean; averages?: SubjectClassAverage[]; error?: string }>
   }
   dashboard: {
     getStats: () => Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }>
+  }
+  cashJournal: {
+    create: (data: Omit<CashJournalEntry, 'id' | 'created_at' | 'updated_at'>) => Promise<{ success: boolean; id?: string; error?: string }>
+    list: (filters?: CashJournalFilters) => Promise<{ success: boolean; entries?: CashJournalEntry[]; error?: string }>
+    get: (id: string) => Promise<{ success: boolean; entry?: CashJournalEntry; error?: string }>
+    update: (id: string, updates: Partial<CashJournalEntry>) => Promise<{ success: boolean; error?: string }>
+    delete: (id: string) => Promise<{ success: boolean; error?: string }>
+    getDailyBalance: (date: string) => Promise<{ success: boolean; balance?: { total_income: number; total_expense: number; balance: number }; error?: string }>
+    getMonthlyBalance: (year: number, month: number) => Promise<{ success: boolean; balance?: { total_income: number; total_expense: number; balance: number }; error?: string }>
+    getBalanceSummary: (startDate: string, endDate: string) => Promise<{ success: boolean; summary?: Array<{ department: string; type: string; category: string; entry_count: number; total: number }>; error?: string }>
+    getTotalBalance: () => Promise<{ success: boolean; balance?: { total_income: number; total_expense: number; balance: number }; error?: string }>
+  }
+  report: {
+    monthlyFinance: (year: number, month: number) => Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }>
+    unpaid: (schoolYear: string) => Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }>
+    payroll: (year: number, month: number) => Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }>
+    tuition: (schoolYear: string) => Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }>
+  }
+  assessment: {
+    create: (data: any) => Promise<{ success: boolean; id?: string; error?: string }>
+    list: (schoolYear: string, className?: string) => Promise<{ success: boolean; assessments?: any[]; error?: string }>
+    update: (id: string, updates: any) => Promise<{ success: boolean; error?: string }>
+    delete: (id: string) => Promise<{ success: boolean; error?: string }>
+  }
+  export: {
+    csv: (data: Record<string, unknown>[], columns: Array<{ key: string; label: string }>, filename: string) => Promise<{ success: boolean; filePath?: string; error?: string }>
+  }
+  email: {
+    configure: (config: { enabled: boolean; gmail_address: string; gmail_app_password: string; recipient_email: string; auto_send_daily: boolean }) => Promise<{ success: boolean; error?: string }>
+    testConnection: () => Promise<{ success: boolean; error?: string }>
+    sendNow: (to: string, subject: string, body: string) => Promise<{ success: boolean; error?: string }>
+    getStatus: () => Promise<{ success: boolean; configured?: boolean; enabled?: boolean; auto_send?: boolean; error?: string }>
+    getLogs: () => Promise<{ success: boolean; logs?: Array<{ sent_at: string; recipient: string; subject: string; success: boolean; error?: string }>; error?: string }>
+    sendDailyReport: () => Promise<{ success: boolean; error?: string }>
+  }
+  pdf: {
+    generateReceipt: (data: { student_name: string; class_name: string; amount: number; payment_type: string; payment_date: string; month?: string; receipt_number?: string; payment_method?: string }) => Promise<{ success: boolean; filePath?: string; error?: string }>
+    generateCertificate: (data: { first_name: string; last_name: string; date_of_birth?: string; place_of_birth?: string; class_name: string; school_year: string; registration_number?: string }) => Promise<{ success: boolean; filePath?: string; error?: string }>
+    generateReportCard: (studentData: { first_name: string; last_name: string; class_name: string; school_year: string; term: number; termName?: string }, grades: Array<{ subject: string; grade: number; coefficient: number; average: number }>, generalAverage: number) => Promise<{ success: boolean; filePath?: string; error?: string }>
+    generatePayslip: (personnelData: { first_name: string; last_name: string; position: string; month: string }, salaryCalc: { gross_salary: number; cnaps: number; ostie: number; irsa: number; total_deductions: number; net_salary: number }) => Promise<{ success: boolean; filePath?: string; error?: string }>
+    generateDailyReport: (data: { date: string; total_income: number; total_expense: number; balance: number; entries: Array<{ type: string; department: string; category: string; amount: number; description?: string }> }) => Promise<{ success: boolean; filePath?: string; error?: string }>
+    openFile: (filePath: string) => Promise<{ success: boolean; error?: string }>
   }
   auth: AuthAPI
   dialog: DialogAPI

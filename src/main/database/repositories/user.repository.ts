@@ -34,7 +34,7 @@ export interface UserRow {
   version: number
   sync_status: string
   deleted: number
-  [key: string]: any // Allow dynamic access for sanitizeUser spread
+  [key: string]: unknown // Allow dynamic access for sanitizeUser spread
 }
 
 /** Data needed to create a new user */
@@ -92,9 +92,9 @@ export class UserRepository {
   /**
    * Strip password_hash from a user row for safe return to IPC/renderers.
    */
-  private static sanitizeUser(row: any): UserRow {
-    if (!row) return row
-    const { password_hash, ...safe } = row
+  private static sanitizeUser(row: unknown): UserRow {
+    if (!row) return row as UserRow
+    const { password_hash, ...safe } = row as Record<string, unknown>
     return safe as UserRow
   }
 
@@ -174,9 +174,10 @@ export class UserRepository {
       // Return the created user (without password)
       const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id)
       return { success: true, user: this.sanitizeUser(user) ?? undefined }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
       console.error('UserRepository.create error:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: message }
     }
   }
 
@@ -192,10 +193,10 @@ export class UserRepository {
    * Get a user by username (WITH password_hash for auth verification).
    * Only used internally by auth.service — never exposed via IPC.
    */
-  static getByUsernameWithHash(username: string): (any & { password_hash: string }) | null {
+  static getByUsernameWithHash(username: string): (UserRow & { password_hash: string }) | null {
     return db
       .prepare('SELECT * FROM users WHERE username = ? AND deleted = 0 AND active = 1')
-      .get(username) as any
+      .get(username) as (UserRow & { password_hash: string }) | null
   }
 
   /**
@@ -204,7 +205,7 @@ export class UserRepository {
   static list(): UserRow[] {
     const rows = db
       .prepare('SELECT * FROM users WHERE deleted = 0 ORDER BY created_at ASC')
-      .all() as any[]
+      .all() as UserRow[]
     return rows.map((r) => this.sanitizeUser(r))
   }
 
@@ -231,7 +232,7 @@ export class UserRepository {
       }
 
       const updates: string[] = []
-      const values: any[] = []
+      const values: unknown[] = []
 
       if (input.username !== undefined) {
         updates.push('username = ?')
@@ -270,9 +271,10 @@ export class UserRepository {
       addToSyncQueue('users', id, 'update', input)
 
       return { success: true, user: this.getById(id) ?? undefined }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
       console.error('UserRepository.update error:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: message }
     }
   }
 
@@ -305,9 +307,10 @@ export class UserRepository {
       addToSyncQueue('users', id, 'update', { active: 0, deleted: 1 })
 
       return { success: true }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
       console.error('UserRepository.deactivate error:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: message }
     }
   }
 
@@ -360,9 +363,10 @@ export class UserRepository {
       `).run(newHash, userId)
 
       return { success: true }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
       console.error('UserRepository.changePassword error:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: message }
     }
   }
 
@@ -394,9 +398,10 @@ export class UserRepository {
       `).run(newHash, userId)
 
       return { success: true }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
       console.error('UserRepository.resetPassword error:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: message }
     }
   }
 

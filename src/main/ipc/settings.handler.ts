@@ -44,7 +44,7 @@ export function registerSettingsHandlers(): void {
   // --------------------------------------------
   // SET SETTING (admin only)
   // --------------------------------------------
-  ipcMain.handle('settings:set', (_, key: string, value: any) => {
+  ipcMain.handle('settings:set', (_, key: string, value: unknown) => {
     if (!canWrite('settings')) {
       return { success: false, error: 'Accès refusé: modification paramètres' }
     }

@@ -1,9 +1,12 @@
 import { create } from 'zustand'
+import type { FeeRecord, Payment } from '@shared/types'
+import { handleStoreError } from '@/lib/store-utils'
 
 export interface Student {
   id: string
   first_name: string
   last_name: string
+  gender?: 'M' | 'F'
   photo_path?: string
   date_of_birth?: string
   place_of_birth?: string
@@ -46,13 +49,13 @@ export interface Student {
 interface StudentStore {
   students: Student[]
   currentStudent: Student | null
-  currentFees: any | null
-  currentFeesHistory: any[] | null
-  currentPayments: any[] | null
+  currentFees: FeeRecord | null
+  currentFeesHistory: FeeRecord[] | null
+  currentPayments: Payment[] | null
   loading: boolean
   error: string | null
 
-  fetchStudents: (filters?: any) => Promise<void>
+  fetchStudents: (filters?: Record<string, unknown>) => Promise<void>
   getStudent: (id: string) => Promise<void>
   createStudent: (data: Partial<Student>) => Promise<void>
   updateStudent: (id: string, data: Partial<Student>) => Promise<void>
@@ -73,9 +76,8 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
     try {
       const result = await window.api.student.list(filters)
       set({ students: result.students, loading: false })
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Fetch error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Fetch students')
     }
   },
 
@@ -94,9 +96,8 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
       } else {
         set({ error: result.error, loading: false })
       }
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Get student error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Get student')
     }
   },
 
@@ -109,9 +110,8 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
       } else {
         set({ error: result.error, loading: false })
       }
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Create student error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Create student')
     }
   },
 
@@ -128,9 +128,8 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
       } else {
         set({ error: result.error, loading: false })
       }
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Update student error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Update student')
     }
   },
 
@@ -143,9 +142,8 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
       } else {
         set({ error: result.error, loading: false })
       }
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Delete student error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Delete student')
     }
   }
 }))

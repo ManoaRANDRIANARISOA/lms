@@ -1,31 +1,33 @@
 import { create } from 'zustand'
-import type { Personnel, SalaryCalculation } from '@shared/types'
+import type { Personnel, SalaryCalculation, TimeTracking, PersonnelAbsence, SalaryAdvance, CustomDeduction, DailyAttendance } from '@shared/types'
+import { handleStoreError } from '@/lib/store-utils'
 
 interface PersonnelStore {
   personnel: Personnel[]
   currentPerson: Personnel | null
-  timeTracking: any[]
-  absences: any[]
-  advances: any[]
-  deductions: any[]
-  dailyAttendance: any[]
+  timeTracking: TimeTracking[]
+  absences: PersonnelAbsence[]
+  advances: SalaryAdvance[]
+  deductions: CustomDeduction[]
+  dailyAttendance: DailyAttendance[]
   salaryCalculation: SalaryCalculation | null
   loading: boolean
   error: string | null
 
-  fetchPersonnel: (filters?: any) => Promise<void>
+  fetchPersonnel: (filters?: Record<string, unknown>) => Promise<void>
   getPerson: (id: string) => Promise<void>
   createPerson: (data: Partial<Personnel>) => Promise<boolean>
   updatePerson: (id: string, data: Partial<Personnel>) => Promise<boolean>
   deletePerson: (id: string) => Promise<void>
   calculateSalary: (personnelId: string, month: string) => Promise<void>
-  setTimeTracking: (data: any) => Promise<boolean>
-  createAbsence: (data: any) => Promise<boolean>
-  createAdvance: (data: any) => Promise<boolean>
-  createDeduction: (data: any) => Promise<boolean>
+  setTimeTracking: (data: Partial<TimeTracking> & { personnel_id: string }) => Promise<boolean>
+  createAbsence: (data: Partial<PersonnelAbsence> & { personnel_id: string }) => Promise<boolean>
+  createAdvance: (data: Partial<SalaryAdvance> & { personnel_id: string }) => Promise<boolean>
+  createDeduction: (data: Partial<CustomDeduction> & { personnel_id: string }) => Promise<boolean>
+  deleteDeduction: (id: string) => Promise<boolean>
   markAdvanceRepaid: (id: string, repaymentDate: string) => Promise<boolean>
   fetchMonthlyAttendance: (personnelId: string, year: number, month: number) => Promise<void>
-  setAttendance: (data: any) => Promise<boolean>
+  setAttendance: (data: { personnel_id: string; attendance_date: string; status: string; hours_worked: number; expected_hours?: number; notes?: string }) => Promise<boolean>
   deleteAttendance: (id: string) => Promise<boolean>
   createSalaryExpense: (personnelId: string, month: string, netAmount: number, description?: string) => Promise<boolean>
 }
@@ -51,9 +53,8 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
       } else {
         set({ error: result.error, loading: false })
       }
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Fetch personnel error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Fetch personnel')
     }
   },
 
@@ -74,9 +75,8 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
       } else {
         set({ error: result.error, loading: false })
       }
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Get person error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Get person')
     }
   },
 
@@ -92,9 +92,8 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
         set({ error: result.error, loading: false })
         return false
       }
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Create person error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Create person')
       return false
     }
   },
@@ -114,9 +113,8 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
         set({ error: result.error, loading: false })
         return false
       }
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Update person error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Update person')
       return false
     }
   },
@@ -133,9 +131,8 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
       } else {
         set({ error: result.error, loading: false })
       }
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Delete person error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Delete person')
     }
   },
 
@@ -148,9 +145,8 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
       } else {
         set({ error: result.error, loading: false })
       }
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Calculate salary error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Calculate salary')
     }
   },
 
@@ -166,9 +162,8 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
         set({ error: result.error, loading: false })
         return false
       }
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Set time tracking error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Set time tracking')
       return false
     }
   },
@@ -185,9 +180,8 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
         set({ error: result.error, loading: false })
         return false
       }
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Create absence error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Create absence')
       return false
     }
   },
@@ -204,9 +198,8 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
         set({ error: result.error, loading: false })
         return false
       }
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Create advance error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Create advance')
       return false
     }
   },
@@ -223,9 +216,27 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
         set({ error: result.error, loading: false })
         return false
       }
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Create deduction error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Create deduction')
+      return false
+    }
+  },
+
+  deleteDeduction: async (id) => {
+    set({ loading: true, error: null })
+    try {
+      const result = await window.api.personnel.deleteDeduction(id)
+      if (result.success) {
+        const currentId = get().currentPerson?.id
+        if (currentId) await get().getPerson(currentId)
+        set({ loading: false })
+        return true
+      } else {
+        set({ error: result.error, loading: false })
+        return false
+      }
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Delete deduction')
       return false
     }
   },
@@ -243,9 +254,8 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
         set({ error: result.error, loading: false })
         return false
       }
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Mark advance repaid error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Mark advance repaid')
       return false
     }
   },
@@ -259,16 +269,15 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
       } else {
         set({ error: result.error, loading: false })
       }
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Fetch attendance error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Fetch attendance')
     }
   },
 
   setAttendance: async (data) => {
     set({ loading: true, error: null })
     try {
-      const result = await window.api.personnel.setAttendance(data)
+      const result = await window.api.personnel.setAttendance(data as Parameters<typeof window.api.personnel.setAttendance>[0])
       if (result.success) {
         await get().fetchMonthlyAttendance(data.personnel_id, new Date(data.attendance_date).getFullYear(), new Date(data.attendance_date).getMonth() + 1)
         set({ loading: false })
@@ -277,9 +286,8 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
         set({ error: result.error, loading: false })
         return false
       }
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Set attendance error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Set attendance')
       return false
     }
   },
@@ -300,9 +308,8 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
         set({ error: result.error, loading: false })
         return false
       }
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Delete attendance error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Delete attendance')
       return false
     }
   },
@@ -313,9 +320,8 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
       const result = await window.api.personnel.createSalaryExpense(personnelId, month, netAmount, description)
       set({ loading: false })
       return result.success
-    } catch (error: any) {
-      if (import.meta.env.DEV) console.error('Create salary expense error:', error)
-      set({ error: error.message, loading: false })
+    } catch (error: unknown) {
+      handleStoreError(error, set, 'Create salary expense')
       return false
     }
   }

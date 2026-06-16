@@ -13,21 +13,9 @@ import { usePersonnelStore } from '@/store/usePersonnelStore'
 import { useAuthStore } from '@/store/useAuthStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search, Plus, Trash2, Eye, Edit } from 'lucide-react'
+import { Search, Plus, Trash2, Eye, Edit, Download, Receipt } from 'lucide-react'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
-
-const POSITION_LABELS: Record<string, string> = {
-  teacher: 'Enseignant',
-  admin: 'Administration',
-  direction: 'Direction',
-  maintenance: 'Maintenance',
-  other: 'Autre'
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  fulltime: 'Temps plein',
-  parttime: 'Temps partiel'
-}
+import { POSITION_LABELS, STATUS_LABELS } from '@/lib/personnel-constants'
 
 export default function PersonnelList(): React.JSX.Element {
   const navigate = useNavigate()
@@ -36,10 +24,32 @@ export default function PersonnelList(): React.JSX.Element {
 
   const [search, setSearch] = useState('')
   const [positionFilter, setPositionFilter] = useState('')
+  const [currentMonth, setCurrentMonth] = useState(new Date().toISOString().substring(0, 7))
+  const [paidPersonnelIds, setPaidPersonnelIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetchPersonnel()
   }, [fetchPersonnel])
+
+  useEffect(() => {
+    const checkPaie = async () => {
+      try {
+        const res = await window.api.cashJournal.list({ category: 'salaire', search: currentMonth })
+        if (res.success && res.entries) {
+          const ids = new Set<string>()
+          res.entries.forEach(e => {
+            if (e.related_personnel_id && e.description?.includes(currentMonth)) {
+              ids.add(e.related_personnel_id)
+            }
+          })
+          setPaidPersonnelIds(ids)
+        }
+      } catch (e) {
+        console.error('Erreur chargement paie:', e)
+      }
+    }
+    checkPaie()
+  }, [currentMonth, personnel])
 
   const handleSearch = () => {
     fetchPersonnel({ search, position: positionFilter })
@@ -61,12 +71,43 @@ export default function PersonnelList(): React.JSX.Element {
 
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold tracking-tight">Gestion du Personnel</h1>
-        {canWrite('personnel') && (
-          <Button onClick={() => navigate('/personnel/new')}>
-            <Plus className="w-4 h-4 mr-2" />
-            Nouveau membre
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              const result = await window.api.personnel.list()
+              const personnel = result?.personnel || []
+              await window.api.export.csv(
+                personnel as unknown as Record<string, unknown>[],
+                [
+                  { key: 'last_name', label: 'Nom' },
+                  { key: 'first_name', label: 'Prénom' },
+                  { key: 'position', label: 'Poste' },
+                  { key: 'salary_type', label: 'Type salaire' },
+                  { key: 'monthly_salary', label: 'Salaire mensuel' },
+                  { key: 'phone', label: 'Téléphone' }
+                ],
+                'personnel_export.csv'
+              )
+            }}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            CSV
           </Button>
-        )}
+          {canWrite('personnel') && (
+            <>
+              <Button onClick={() => navigate('/personnel/payroll')} variant="outline" className="border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+                <Receipt className="w-4 h-4 mr-2" />
+                Paie Globale
+              </Button>
+              <Button onClick={() => navigate('/personnel/new')}>
+                <Plus className="w-4 h-4 mr-2" />
+                Nouveau membre
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-2">
@@ -88,6 +129,15 @@ export default function PersonnelList(): React.JSX.Element {
           <option value="maintenance">Maintenance</option>
           <option value="other">Autre</option>
         </select>
+        <div className="flex items-center gap-2 border rounded-md px-3 py-1 bg-white ml-auto">
+          <span className="text-sm text-gray-500 whitespace-nowrap">Mois de paie :</span>
+          <Input 
+            type="month" 
+            value={currentMonth}
+            onChange={(e) => setCurrentMonth(e.target.value)}
+            className="w-40 h-8 border-none shadow-none focus-visible:ring-0 p-0"
+          />
+        </div>
         <Button variant="outline" onClick={handleSearch}>
           <Search className="w-4 h-4" />
         </Button>
@@ -105,11 +155,14 @@ export default function PersonnelList(): React.JSX.Element {
               <th className="px-4 py-3 text-left font-medium text-gray-600">Statut</th>
               <th className="px-4 py-3 text-left font-medium text-gray-600">Contact</th>
               <th className="px-4 py-3 text-left font-medium text-gray-600">Salaire</th>
+              <th className="px-4 py-3 text-center font-medium text-gray-600">Paie ({currentMonth})</th>
               <th className="px-4 py-3 text-right font-medium text-gray-600">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y">
-            {filtered.map((p) => (
+            {filtered.map((p) => {
+              const isPaid = paidPersonnelIds.has(p.id!)
+              return (
               <tr key={p.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3">
                   <div className="font-medium">{p.last_name} {p.first_name}</div>
@@ -123,6 +176,17 @@ export default function PersonnelList(): React.JSX.Element {
                     : p.salary_type === 'hourly' && p.hourly_rate
                       ? `${p.hourly_rate.toLocaleString('fr-MG')} Ar/h`
                       : '-'}
+                </td>
+                <td className="px-4 py-3 text-center">
+                  {isPaid ? (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      Payé
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      Non Payé
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex justify-end gap-1">
@@ -146,10 +210,11 @@ export default function PersonnelList(): React.JSX.Element {
                   </div>
                 </td>
               </tr>
-            ))}
+            );
+            })}
             {filtered.length === 0 && !loading && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                   Aucun membre du personnel trouvé.
                 </td>
               </tr>

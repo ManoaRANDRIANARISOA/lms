@@ -55,36 +55,37 @@ export class AttendanceRepository {
       .all(date)
   }
 
-  static recordBusAttendance(date: string, records: { studentId: string; present: boolean }[]) {
+  private static recordAttendance(
+    tableName: string,
+    date: string,
+    records: { studentId: string; present: boolean }[]
+  ) {
     const transaction = db.transaction(() => {
-      // Clear existing for this date? Or upsert?
-      // Since we send full list, we can upsert.
-
       for (const record of records) {
         const existing = db
-          .prepare('SELECT id FROM bus_attendance WHERE student_id = ? AND attendance_date = ?')
+          .prepare(`SELECT id FROM ${tableName} WHERE student_id = ? AND attendance_date = ?`)
           .get(record.studentId, date) as { id: string }
 
         if (existing) {
           db.prepare(
             `
-            UPDATE bus_attendance 
+            UPDATE ${tableName} 
             SET present = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending'
             WHERE id = ?
           `
           ).run(record.present ? 1 : 0, existing.id)
 
-          addToSyncQueue('bus_attendance', existing.id, 'update', { present: record.present })
+          addToSyncQueue(tableName, existing.id, 'update', { present: record.present })
         } else {
           const id = uuidv4()
           db.prepare(
             `
-            INSERT INTO bus_attendance (id, student_id, attendance_date, present)
+            INSERT INTO ${tableName} (id, student_id, attendance_date, present)
             VALUES (?, ?, ?, ?)
           `
           ).run(id, record.studentId, date, record.present ? 1 : 0)
 
-          addToSyncQueue('bus_attendance', id, 'create', {
+          addToSyncQueue(tableName, id, 'create', {
             id,
             student_id: record.studentId,
             attendance_date: date,
@@ -97,54 +98,18 @@ export class AttendanceRepository {
     try {
       transaction()
       return { success: true }
-    } catch (error: any) {
-      console.error('Bus attendance error:', error)
-      return { success: false, error: error.message }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.error(`${tableName} attendance error:`, error)
+      return { success: false, error: message }
     }
   }
 
+  static recordBusAttendance(date: string, records: { studentId: string; present: boolean }[]) {
+    return this.recordAttendance('bus_attendance', date, records)
+  }
+
   static recordCanteenAttendance(date: string, records: { studentId: string; present: boolean }[]) {
-    const transaction = db.transaction(() => {
-      for (const record of records) {
-        const existing = db
-          .prepare('SELECT id FROM canteen_attendance WHERE student_id = ? AND attendance_date = ?')
-          .get(record.studentId, date) as { id: string }
-
-        if (existing) {
-          db.prepare(
-            `
-            UPDATE canteen_attendance 
-            SET present = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending'
-            WHERE id = ?
-          `
-          ).run(record.present ? 1 : 0, existing.id)
-
-          addToSyncQueue('canteen_attendance', existing.id, 'update', { present: record.present })
-        } else {
-          const id = uuidv4()
-          db.prepare(
-            `
-            INSERT INTO canteen_attendance (id, student_id, attendance_date, present)
-            VALUES (?, ?, ?, ?)
-          `
-          ).run(id, record.studentId, date, record.present ? 1 : 0)
-
-          addToSyncQueue('canteen_attendance', id, 'create', {
-            id,
-            student_id: record.studentId,
-            attendance_date: date,
-            present: record.present
-          })
-        }
-      }
-    })
-
-    try {
-      transaction()
-      return { success: true }
-    } catch (error: any) {
-      console.error('Canteen attendance error:', error)
-      return { success: false, error: error.message }
-    }
+    return this.recordAttendance('canteen_attendance', date, records)
   }
 }

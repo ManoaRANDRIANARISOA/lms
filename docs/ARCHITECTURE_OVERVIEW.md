@@ -26,6 +26,9 @@ This document presents the architecture of the **Lycée Manjary Soa School Manag
 - **Session Management**: 60-minute timeout with activity tracking
 - **Audit Logging**: Complete audit trail for all sensitive operations
 - **Conflict Resolution**: Last-write-wins strategy with manual conflict handling
+- **PDF Generation**: Receipts, certificates, report cards, payslips via jsPDF
+- **Email Automation**: SMTP Gmail with scheduled daily reports
+- **Reports & Export**: Financial, unpaid, payroll reports + CSV export
 
 ---
 
@@ -41,27 +44,39 @@ lms/
 │   │   │   ├── session.service.ts # Session lifecycle & timeout
 │   │   │   └── audit.service.ts   # Audit log management
 │   │   ├── database/              # Database Layer
-│   │   │   ├── db.ts              # SQLite initialization & migrations
-│   │   │   ├── migrations/        # SQL migration files (001-006)
+│   │   │   ├── db.ts              # SQLite initialization & migrations (001-021)
+│   │   │   ├── migrations/        # SQL migration files
 │   │   │   └── repositories/      # Data access layer
 │   │   │       ├── student.repository.ts
 │   │   │       ├── payment.repository.ts
-│   │   │       ├── attendance.repository.ts    # Bus/canteen attendance
-│   │   │       ├── personnel.repository.ts      # Personnel CRUD + salary + daily attendance
+│   │   │       ├── attendance.repository.ts
+│   │   │       ├── personnel.repository.ts
+│   │   │       ├── grade.repository.ts
 │   │   │       ├── event.repository.ts
 │   │   │       ├── settings.repository.ts
-│   │   │       └── user.repository.ts
+│   │   │       ├── user.repository.ts
+│   │   │       └── cashjournal.repository.ts
 │   │   ├── ipc/                   # IPC Handlers
-│   │   │   ├── auth.handler.ts    # Auth & user management
-│   │   │   ├── student.handler.ts # Student CRUD
-│   │   │   ├── payment.handler.ts # Payment operations
+│   │   │   ├── auth.handler.ts
+│   │   │   ├── student.handler.ts
+│   │   │   ├── payment.handler.ts
 │   │   │   ├── attendance.handler.ts
-│   │   │   ├── personnel.handler.ts   # Personnel CRUD + salary + daily attendance
+│   │   │   ├── personnel.handler.ts
+│   │   │   ├── grade.handler.ts
+│   │   │   ├── dashboard.handler.ts
 │   │   │   ├── event.handler.ts
 │   │   │   ├── settings.handler.ts
-│   │   │   └── dialog.handler.ts
+│   │   │   ├── dialog.handler.ts
+│   │   │   ├── cashjournal.handler.ts
+│   │   │   ├── pdf.handler.ts
+│   │   │   ├── email.handler.ts
+│   │   │   └── report.handler.ts
 │   │   ├── services/
-│   │   │   └── sync.service.ts    # Supabase sync engine
+│   │   │   ├── sync.service.ts    # Supabase sync engine + SYNCABLE_TABLES
+│   │   │   ├── pdf.service.ts     # PDF generation (jsPDF)
+│   │   │   ├── email.service.ts   # SMTP email + scheduler
+│   │   │   ├── report.service.ts  # Financial/payroll/unpaid reports
+│   │   │   └── export.service.ts  # CSV export
 │   │   └── index.ts               # Main process entry point
 │   │
 │   ├── preload/                   # Secure Bridge Layer
@@ -79,22 +94,45 @@ lms/
 │   │       │   │   └── ReadOnlyBanner.tsx
 │   │       │   ├── students/      # Student-specific components
 │   │       │   ├── personnel/     # Personnel-specific components
-│   │       │   │   └── AttendanceCalendar.tsx  # Daily attendance grid
+│   │       │   │   └── AttendanceCalendar.tsx
 │   │       │   └── ui/            # Base UI components
 │   │       ├── lib/
 │   │       │   ├── utils.ts
 │   │       │   ├── finance-settings.ts
-│   │       │   └── usePermissions.ts
+│   │       │   ├── usePermissions.ts
+│   │       │   ├── useClasses.ts
+│   │       │   └── image-utils.ts
 │   │       ├── pages/
-│   │       │   ├── auth/          # Auth-related pages
+│   │       │   ├── auth/
 │   │       │   │   ├── LoginPage.tsx
 │   │       │   │   ├── UserManagementPage.tsx
 │   │       │   │   └── AuditLogPage.tsx
-│   │       │   ├── students/      # Student management
-│   │       │   ├── personnel/     # Personnel management
+│   │       │   ├── students/
+│   │       │   │   ├── StudentList.tsx
+│   │       │   │   ├── StudentForm.tsx
+│   │       │   │   ├── StudentDetail.tsx
+│   │       │   │   └── CertificatePage.tsx
+│   │       │   ├── personnel/
 │   │       │   │   ├── PersonnelList.tsx
 │   │       │   │   ├── PersonnelForm.tsx
 │   │       │   │   └── PersonnelDetail.tsx
+│   │       │   ├── grades/
+│   │       │   │   ├── GradesPage.tsx
+│   │       │   │   ├── GradeEntry.tsx
+│   │       │   │   ├── GradeBook.tsx
+│   │       │   │   ├── ReportCardView.tsx
+│   │       │   │   └── SubjectManager.tsx
+│   │       │   ├── finance/
+│   │       │   │   ├── CashJournalPage.tsx
+│   │       │   │   ├── FinanceOverview.tsx
+│   │       │   │   ├── PaymentAlerts.tsx
+│   │       │   │   ├── PaymentJournal.tsx
+│   │       │   │   └── FinanceConfig.tsx
+│   │       │   ├── settings/
+│   │       │   │   └── EmailSettings.tsx
+│   │       │   ├── reports/
+│   │       │   │   └── ReportsPage.tsx
+│   │       │   ├── DashboardPage.tsx
 │   │       │   ├── AttendancePage.tsx
 │   │       │   ├── EventsPage.tsx
 │   │       │   ├── FinancePage.tsx
@@ -103,31 +141,26 @@ lms/
 │   │       │   ├── useAuthStore.ts
 │   │       │   ├── useStudentStore.ts
 │   │       │   ├── usePersonnelStore.ts
-│   │       │   └── useFinanceStore.ts
+│   │       │   ├── useGradeStore.ts
+│   │       │   ├── useFinanceStore.ts
+│   │       │   └── useCashJournalStore.ts
 │   │       └── env.d.ts           # Environment type declarations
 │   │
 │   └── shared/                    # Shared Types
 │       └── types.ts               # Cross-process type definitions
 │
 ├── docs/                          # Documentation
-│   ├── rbac/                      # RBAC specification
-│   ├── supabase_migration_003.sql
-│   └── supabase_schema.sql
+│   ├── AGENT_ANCHOR.md            # IA anchor point
+│   ├── ARCHITECTURE_OVERVIEW.md   # This file
+│   ├── COMPTES_UTILISATEURS.md    # User accounts guide
+│   └── FINAL_PLAN.md              # Finition plan
 │
 ├── database.sqlite                # Local SQLite database
 ├── .env                           # Environment variables
 ├── electron.vite.config.ts        # Vite configuration
-├── tailwind.config.js             # TailwindCSS config
+├── tailwind.config.js             # TailwindCSS config (IDE autocompletion)
 └── package.json                   # Dependencies & scripts
 ```
-
-### Primary Areas
-
-**Main process**: Electron bootstrap, IPC registration, database initialization, authentication (bcrypt + RBAC), session management, audit logging, and cloud synchronization.
-
-**Preload scripts**: Secure IPC API exposure to the renderer process via `contextBridge`. All channels are explicitly defined and typed.
-
-**Renderer process**: React application with TypeScript, HashRouter-based routing, Zustand stores for state management, TailwindCSS styling, and role-based UI rendering.
 
 ---
 
@@ -138,54 +171,22 @@ lms/
 **Location**: `src/main/auth/`
 
 #### auth.service.ts
-- **Purpose**: Handles user login/logout using local SQLite and bcrypt
-- **Features**:
-  - Password verification with bcryptjs (cost factor 10)
-  - Session creation and validation
-  - First-login password change detection
-  - Offline-only (no network dependency)
+- Password verification with bcryptjs (cost factor 10)
+- Session creation and validation
+- First-login password change detection
 
 #### rbac.service.ts
-- **Purpose**: Implements the Avenant N°1 RBAC permission matrix
-- **Roles**:
-  - `admin`: Full access to everything
-  - `secretariat`: Student management, attendance, grades
-  - `accounting`: Payments, finance, personnel (read students)
-  - `direction`: Read access to most, full on reports/settings
-  
-- **Permission Matrix**:
-  ```
-  Resource         | Admin | Secretariat | Accounting | Direction
-  -----------------|-------|-------------|------------|----------
-  students         | full  | full        | read       | full
-  payments         | full  | read        | full       | full
-  attendance       | full  | full        | read       | read
-  grades           | full  | full        | none       | read
-  cash_journal     | full  | none        | full       | read
-  personnel        | full  | none        | full       | read
-  reports          | full  | none        | full       | full
-  settings         | full  | none        | none       | read
-  users            | full  | none        | none       | none
-  audit            | full  | none        | none       | read
-  events           | full  | full        | read       | full
-  ```
+- 4 roles: admin, secretariat, accounting, direction
+- 11 resources with granular permissions (full/read/none)
 
 #### session.service.ts
-- **Purpose**: Manages user sessions with timeout and cleanup
-- **Features**:
-  - 60-minute configurable timeout
-  - Auto-renewal on activity
-  - Periodic cleanup (every 10 minutes)
-  - Inactivity monitoring (every 1 minute)
-  - Session persistence across app restarts
+- 60-minute configurable timeout
+- Auto-renewal on activity
+- Periodic cleanup (every 10 minutes)
 
 #### audit.service.ts
-- **Purpose**: Records all sensitive actions in audit_logs table
-- **Logged Actions**: login, logout, create, update, delete, deactivate, password changes
-- **Features**:
-  - Configurable via `rbac_offer_level` setting
-  - Critical actions (login/logout) always logged
-  - Filterable queries with pagination
+- Records all sensitive actions in audit_logs table
+- Logged: login, logout, create, update, delete, password changes
 
 ### 2. Database Layer
 
@@ -193,17 +194,20 @@ lms/
 
 #### db.ts
 - Initializes better-sqlite3 with WAL journal mode
-- Runs migrations sequentially (001_init → 004_rbac)
-- Auto-cleans corrupted student records on startup
+- Runs 21 migrations sequentially
+- Schema healing mechanism (`ensureDeletedColumn`)
+- Soft-delete on startup for corrupted records
 
 #### Repositories
-Repository pattern for clean separation of data access:
 - `StudentRepository`: CRUD, re-enrollment, service stats, enrollment repair
-- `PaymentRepository`: Payment creation, student payments, tuition status
+- `PaymentRepository`: Payment creation, tuition status, unpaid alerts (optimized JOIN)
 - `AttendanceRepository`: Bus/canteen attendance tracking
+- `PersonnelRepository`: CRUD, salary calculation (hybrid quota/hours), daily attendance
+- `GradeRepository`: Subjects, grades, weighted averages, class ranking, class_subjects
 - `EventRepository`: Parent event management and payments
 - `SettingsRepository`: Key-value settings with JSON values
-- `UserRepository`: User CRUD with bcrypt password hashing, never exposes password_hash
+- `UserRepository`: User CRUD with bcrypt, never exposes password_hash
+- `CashJournalRepository`: Cash journal CRUD, daily/monthly balances, category summaries
 
 ### 3. IPC Handlers
 
@@ -215,93 +219,100 @@ All handlers follow the same pattern:
 3. Audit log (for write operations)
 4. Return result
 
-```typescript
-// Example pattern
-ipcMain.handle('student:create', async (_, studentData) => {
-  if (!canWrite('students')) {
-    return { success: false, error: 'Accès refusé: création élève' }
-  }
-  const result = StudentRepository.create(studentData)
-  if (result.success && result.id) {
-    logAction(getCurrentUser()?.id, 'create', 'students', result.id, null, JSON.stringify(studentData))
-  }
-  return result
-})
-```
+14 handler files covering: auth, student, payment, attendance, personnel, grade, dashboard, event, settings, dialog, cashjournal, pdf, email, report.
 
-### 4. Synchronization Engine
+### 4. Services
 
-**Location**: `src/main/services/sync.service.ts`
+**Location**: `src/main/services/`
 
-#### Push Local Changes
-- Reads from `sync_queue` table (status: pending/error)
-- Sanitizes data for Supabase
-- Handles photo uploads to Supabase Storage
-- Conflict resolution for duplicate registration numbers
-- **Security**: Excludes `password_hash` when syncing users
+#### sync.service.ts
+- Bidirectional push/pull with Supabase every 5 minutes
+- `SYNCABLE_TABLES` whitelist prevents SQL injection
+- Excludes `password_hash` when syncing users
+- Boolean conversion SQLite (0/1) ↔ PostgreSQL (true/false)
 
-#### Pull Remote Changes
-- Fetches changes since last sync timestamp
-- Time-based conflict resolution (newer wins)
-- Handles registration_number collisions
-- Sanitizes booleans/objects for SQLite
+#### pdf.service.ts
+- jsPDF-based generation: receipt, certificate, report card, payslip, daily report
+- `sanitizeFilename()` for accented/special characters
+- Multi-page pagination with correct page numbering
 
-#### Sync Cycle
-- Runs every 5 minutes
-- Initial sync 5 seconds after app startup
-- Graceful degradation when offline
+#### email.service.ts
+- nodemailer SMTP Gmail configuration
+- Scheduled daily report at 18h
+- Email logging in settings
+
+#### report.service.ts
+- Monthly finance report, unpaid report, payroll report, tuition report
+- SQL-based aggregation with school_year filtering
+
+#### export.service.ts
+- Generic CSV export with UTF-8 BOM for Excel compatibility
 
 ### 5. Preload Bridge
 
 **Location**: `src/preload/`
 
 Exposes type-safe API to renderer:
-- `api.student.*` — Student CRUD operations
-- `api.payment.*` — Payment management
+- `api.student.*` — Student CRUD
+- `api.payment.*` — Payment management + getUnpaidAlerts
 - `api.attendance.*` — Bus/canteen attendance
+- `api.personnel.*` — Personnel CRUD, salary, daily attendance
+- `api.grade.*` — Grades, subjects, class_subjects, averages
+- `api.dashboard.*` — Dashboard KPIs
 - `api.event.*` — Event management
 - `api.settings.*` — Settings management
 - `api.auth.*` — Auth, user management, audit logs
 - `api.dialog.*` — Native file dialogs
+- `api.cashJournal.*` — Cash journal CRUD + balances
+- `api.pdf.*` — PDF generation + openFile (path-validated)
+- `api.email.*` — SMTP config, test, send
+- `api.report.*` — Report generation
+- `api.export.*` — CSV export
 
 ### 6. Frontend State Management
 
 **Location**: `src/renderer/src/store/`
 
-#### useAuthStore
-- Manages authentication state
-- Login/logout with localStorage token persistence
-- Permission matrix from backend
-- `canRead()` and `canWrite()` helpers
-- Session activity tracking
+| Store | Purpose |
+|-------|---------|
+| `useAuthStore` | Authentication, permissions, session activity |
+| `useStudentStore` | Student list, detail, filters |
+| `usePersonnelStore` | Personnel list, attendance, salary, absences |
+| `useGradeStore` | Subjects, grades, averages, ranking |
+| `useFinanceStore` | Finance prices configuration |
+| `useCashJournalStore` | Cash journal entries, balances |
 
-#### useStudentStore
-- Student list with filters
-- Current student detail view
-- Dual-mode: Electron IPC or Supabase direct (web mode)
+### 7. Frontend Pages
 
-#### useFinanceStore
-- Finance prices configuration
-- Tuition, bus, canteen, uniform pricing
-
-### 7. Frontend Components
-
-**Pages**:
-- `LoginPage.tsx` — Authentication form
-- `StudentList.tsx` — Student management with search/filter
-- `StudentForm.tsx` — Create/edit student
-- `StudentDetail.tsx` — Full student view with tabs
-- `FinancePage.tsx` — Finance management (prices, payments)
-- `AttendancePage.tsx` — Bus/canteen daily tracking
-- `EventsPage.tsx` — Parent event management
-- `UserManagementPage.tsx` — Admin user CRUD
-- `AuditLogPage.tsx` — Audit log viewer with filters
-- `Settings.tsx` — Application settings
-
-**Shared Components**:
-- `ProtectedRoute.tsx` — Route guard with resource checks
-- `ReadOnlyBanner.tsx` — Read-only mode indicator
-- UI components (button, input, dialog, tabs, checkbox)
+| Page | Module | Description |
+|------|--------|-------------|
+| `DashboardPage` | Dashboard | KPIs + activity + payment trend chart |
+| `LoginPage` | Auth | Authentication form |
+| `UserManagementPage` | Auth | Admin user CRUD |
+| `AuditLogPage` | Auth | Audit log viewer with filters |
+| `StudentList` | Students | Search/filter student management |
+| `StudentForm` | Students | Create/edit student |
+| `StudentDetail` | Students | Full student view with tabs |
+| `CertificatePage` | Students | Certificate generation |
+| `PersonnelList` | Personnel | Personnel management with filters |
+| `PersonnelForm` | Personnel | Create/edit personnel |
+| `PersonnelDetail` | Personnel | 4 tabs: Info, Attendance, Absences, Salary |
+| `GradesPage` | Grades | Module hub |
+| `GradeEntry` | Grades | Grade entry by class/subject/term |
+| `GradeBook` | Grades | Cross-table view (students × subjects) |
+| `ReportCardView` | Grades | Individual report card |
+| `SubjectManager` | Grades | Subject CRUD |
+| `FinancePage` | Finance | Tabs wrapper (overview, journal, config) |
+| `FinanceOverview` | Finance | KPI cards + recovery rate |
+| `PaymentJournal` | Finance | Payment history with receipt PDF |
+| `CashJournalPage` | Finance | Cash journal CRUD |
+| `PaymentAlerts` | Finance | Unpaid alerts (optimized backend query) |
+| `FinanceConfig` | Finance | Tariff configuration |
+| `AttendancePage` | Attendance | Bus/canteen daily tracking |
+| `EventsPage` | Events | Parent event management |
+| `EmailSettings` | Settings | SMTP configuration |
+| `ReportsPage` | Reports | Report generation + CSV export |
+| `Settings` | Settings | Application settings + class management |
 
 ---
 
@@ -333,13 +344,12 @@ Exposes type-safe API to renderer:
 │         │               │                                  │
 │  ┌──────┴───────┐       │                                  │
 │  │ SQLite DB    │       │                                  │
-│  │ (better-     │       │                                  │
-│  │  sqlite3)    │       │                                  │
 │  └──────┬───────┘       │                                  │
 │         │               │                                  │
 │  ┌──────┴───────┐       │                                  │
-│  │ Sync Service │───────┼──► Supabase Cloud                │
-│  │ (5 min)      │       │                                  │
+│  │ Services     │───────┼──► Supabase Cloud                │
+│  │ sync/pdf/    │       │   SMTP Gmail                     │
+│  │ email/report │       │   File System (PDF)              │
 │  └──────────────┘       │                                  │
 └──────────────────────────┴──────────────────────────────────┘
 ```
@@ -361,71 +371,8 @@ Local SQLite ──Push──► Supabase Cloud
      └──────Pull───────────┘
 
 Queue → sync_queue table tracks pending changes
+Whitelist → SYNCABLE_TABLES validates table names
 Conflict Resolution → Last-write-wins with manual overrides
-```
-
----
-
-## Detailed Component Analysis
-
-### Authentication Flow
-
-```
-1. User enters username/password on LoginPage
-   ↓
-2. useAuthStore.login() → api.auth.login()
-   ↓
-3. IPC → auth.handler.ts → loginWithPassword()
-   ↓
-4. UserRepository.getByUsernameWithHash()
-   ↓
-5. bcrypt.compare(password, hash)
-   ↓
-6. session.service.createSession() → UUID token
-   ↓
-7. RBAC.setCurrentUser() → In-memory user
-   ↓
-8. Return { ok: true, user, token, requirePasswordChange }
-   ↓
-9. Frontend stores token in localStorage
-   ↓
-10. fetchPermissions() → Get permission matrix
-   ↓
-11. Redirect to dashboard
-```
-
-### Session Lifecycle
-
-```
-Login → Create session (expires in 60 min)
-   ↓
-User active → Validate/renew session on each IPC call
-   ↓
-5 min interval → Activity ping from frontend
-   ↓
-10 min interval → Clean expired sessions (backend)
-   ↓
-1 min interval → Check inactivity timeout (backend)
-   ↓
-Logout → Destroy session → Clear in-memory user
-```
-
-### Permission Check Flow
-
-```
-Frontend renders page
-   ↓
-Sidebar checks useAuthStore.canRead(resource)
-   ↓
-Nav items hidden if no access
-   ↓
-Page loads with <ReadOnlyBanner resource="X" />
-   ↓
-User clicks write button → Disabled if !canWrite
-   ↓
-If bypassed → IPC handler RBAC check blocks it
-   ↓
-Returns { success: false, error: 'Accès refusé' }
 ```
 
 ---
@@ -439,6 +386,8 @@ Returns { success: false, error: 'Accès refusé' }
 - `@supabase/supabase-js` — Cloud sync client
 - `dotenv` — Environment variables
 - `uuid` — Session token generation
+- `jspdf` — PDF generation
+- `nodemailer` — SMTP email
 
 ### Renderer Process Dependencies
 - `react` + `react-dom` — UI framework
@@ -453,24 +402,6 @@ Returns { success: false, error: 'Accès refusé' }
 - `electron-vite` — Build tooling
 - `@electron-toolkit/*` — Electron utilities
 
-### Dependency Graph
-
-```
-index.ts
-  ├─ db.ts
-  │   └─ migrations/001-004
-  ├─ auth.handler.ts
-  │   ├─ auth.service.ts → rbac.service.ts, session.service.ts, UserRepository
-  │   ├─ audit.service.ts
-  │   └─ user.repository.ts
-  ├─ student.handler.ts → StudentRepository, sync.service.ts
-  ├─ payment.handler.ts → PaymentRepository
-  ├─ attendance.handler.ts → AttendanceRepository
-  ├─ event.handler.ts → EventRepository
-  ├─ settings.handler.ts → SettingsRepository
-  └─ sync.service.ts → Supabase
-```
-
 ---
 
 ## Performance Considerations
@@ -478,21 +409,16 @@ index.ts
 ### Database Optimizations
 - **WAL Mode**: Write-ahead logging for concurrent reads
 - **Indexes**: Created on frequently queried columns (class, search_text, sync_status)
-- **Prepared Statements**: All queries use prepared statements (prevents SQL injection, improves performance)
-- **Pagination**: Student list supports pagination for large datasets
-
-### Memory Management
-- **In-Memory RBAC**: Current user stored in memory for fast permission checks
-- **Session Cleanup**: Automatic removal of expired sessions prevents table bloat
-- **SQLite Auto-Vacuum**: WAL mode auto-manages database size
+- **Prepared Statements**: All queries use prepared statements
+- **Pagination**: Student list supports pagination
+- **Optimized Queries**: PaymentAlerts uses a single JOIN query instead of N+1
 
 ### Sync Performance
 - **Incremental Sync**: Only pulls changes since last sync timestamp
 - **Batch Processing**: Pushes up to 100 queue items per sync cycle
-- **Offline Resilience**: Graceful degradation when offline, retries on reconnect
+- **Offline Resilience**: Graceful degradation when offline
 
 ### UI Performance
-- **Virtual Scrolling**: Not implemented yet (future optimization for large student lists)
 - **Lazy Loading**: Routes not loaded until accessed
 - **State Colocation**: Zustand stores minimize re-renders
 
@@ -503,103 +429,28 @@ index.ts
 ### Common Issues
 
 #### 1. Login Fails
-**Symptom**: "Identifiants incorrects" error
-
-**Causes**:
-- Wrong username/password
-- Account deactivated
-- Database not initialized
-
-**Solution**:
 ```bash
 # Check if admin user exists
 sqlite3 database.sqlite "SELECT id, username, active FROM users WHERE role='admin';"
-
-# Verify migration 004 applied
-sqlite3 database.sqlite "SELECT * FROM migrations WHERE name='004_add_rbac.sql';"
-
 # Reset admin password (in Node REPL)
 node -e "console.log(require('bcryptjs').hashSync('admin123', 10))"
-# Update with new hash
 ```
 
 #### 2. Sync Fails
-**Symptom**: Console shows sync errors
-
-**Causes**:
-- Supabase credentials missing in `.env`
-- Network connectivity issues
-- Bucket not created in Supabase Storage
-
-**Solution**:
 ```bash
-# Verify .env file exists
-cat .env
-
 # Check sync queue for stuck items
 sqlite3 database.sqlite "SELECT * FROM sync_queue WHERE status='error' LIMIT 5;"
-
-# Force manual sync (in main process)
-await syncWithCloud()
 ```
 
-#### 3. Permission Denied Errors
-**Symptom**: "Accès refusé" on valid operations
-
-**Causes**:
-- User role doesn't have required permission
-- RBAC service not initialized with current user
-
-**Solution**:
+#### 3. Permission Denied
 ```bash
 # Check user role
 sqlite3 database.sqlite "SELECT username, role FROM users WHERE username='admin';"
-
-# Check permission matrix (in code)
-# See rbac.service.ts PERMISSION_MATRIX
 ```
 
 #### 4. Database Corruption
-**Symptom**: SQLite errors on startup
-
-**Solution**:
 ```bash
-# Check database integrity
 sqlite3 database.sqlite "PRAGMA integrity_check;"
-
-# Backup and recreate
-cp database.sqlite database.sqlite.backup
-# Re-run migrations
-```
-
-#### 5. Session Timeout Issues
-**Symptom**: User logged out unexpectedly
-
-**Causes**:
-- Session expired (60 min inactivity)
-- App restarted without valid session
-
-**Solution**:
-```bash
-# Check session timeout setting
-sqlite3 database.sqlite "SELECT value FROM settings WHERE key='auth_session_timeout_minutes';"
-
-# View active sessions
-sqlite3 database.sqlite "SELECT * FROM sessions WHERE expires_at > datetime('now');"
-```
-
-### Debugging Tips
-
-```bash
-# Enable verbose logging (in development)
-# Add to index.ts
-console.log('IPC call:', channel, args)
-
-# Monitor sync queue
-sqlite3 database.sqlite "SELECT table_name, action, status, created_at FROM sync_queue ORDER BY created_at DESC LIMIT 10;"
-
-# Check audit logs
-sqlite3 database.sqlite "SELECT action, table_name, timestamp FROM audit_logs ORDER BY timestamp DESC LIMIT 20;"
 ```
 
 ---
@@ -608,18 +459,10 @@ sqlite3 database.sqlite "SELECT action, table_name, timestamp FROM audit_logs OR
 
 The School Management System follows a robust architecture with clear separation of concerns:
 
-1. **Security**: RBAC with 4 roles, bcrypt password hashing, session management, audit logging
+1. **Security**: RBAC with 4 roles, bcrypt password hashing, session management, audit logging, SQL injection prevention via SYNCABLE_TABLES whitelist
 2. **Reliability**: Offline-first SQLite with automatic cloud sync and conflict resolution
 3. **Maintainability**: Repository pattern, typed IPC bridges, modular components
 4. **Scalability**: Zustand state management, prepared statements, incremental sync
-5. **User Experience**: Role-based UI, read-only mode indicators, clean login flow
+5. **User Experience**: Role-based UI, read-only mode indicators, PDF generation, email automation
 
-The system is designed to work seamlessly in low-connectivity environments (common in Madagascar) while providing cloud backup when available. The RBAC system ensures that different user types (admin, secretariat, accounting, direction) only see and modify what they're authorized to access.
-
-### Future Enhancements
-- Virtual scrolling for large student lists
-- Export to PDF/Excel for reports
-- Push notifications for sync conflicts
-- Multi-device session management
-- Advanced audit log analytics
-- Automated backup scheduling
+All 8 development phases (0-8) are fully implemented. The `FINAL_PLAN.md` document details the completed project finalization tasks.

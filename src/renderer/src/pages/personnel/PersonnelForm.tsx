@@ -37,12 +37,18 @@ export default function PersonnelForm(): React.JSX.Element {
     has_droit: false,
     droit_amount: '',
     cnaps_rate: 0.01,
+    cnaps_amount: '',
     irsa_rate: 0.01,
+    irsa_amount: '',
     expected_monthly_hours: '',
     work_pattern: 'daily',
     work_days: '["Monday","Tuesday","Wednesday","Thursday","Friday"]',
     daily_hours: ''
   })
+
+  // UI state for toggles
+  const [cnapsType, setCnapsType] = useState<'rate' | 'amount'>('rate')
+  const [irsaType, setIrsaType] = useState<'rate' | 'amount'>('rate')
 
   useEffect(() => {
     if (isEdit && id) {
@@ -59,11 +65,15 @@ export default function PersonnelForm(): React.JSX.Element {
         hourly_rate: currentPerson.hourly_rate || '',
         droit_amount: currentPerson.droit_amount || '',
         has_droit: currentPerson.has_droit ? true : false,
+        cnaps_amount: currentPerson.cnaps_amount || '',
+        irsa_amount: currentPerson.irsa_amount || '',
         expected_monthly_hours: currentPerson.expected_monthly_hours || '',
         work_pattern: currentPerson.work_pattern || 'daily',
         work_days: JSON.stringify(currentPerson.work_days || ["Monday","Tuesday","Wednesday","Thursday","Friday"]),
         daily_hours: currentPerson.daily_hours || ''
       })
+      if (currentPerson.cnaps_amount !== undefined && currentPerson.cnaps_amount !== null) setCnapsType('amount')
+      if (currentPerson.irsa_amount !== undefined && currentPerson.irsa_amount !== null) setIrsaType('amount')
     }
   }, [isEdit, currentPerson])
 
@@ -87,8 +97,25 @@ export default function PersonnelForm(): React.JSX.Element {
     payload.monthly_salary = payload.monthly_salary ? parseFloat(payload.monthly_salary) : null
     payload.hourly_rate = payload.hourly_rate ? parseFloat(payload.hourly_rate) : null
     payload.droit_amount = payload.droit_amount ? parseFloat(payload.droit_amount) : null
-    payload.cnaps_rate = payload.cnaps_rate ? parseFloat(payload.cnaps_rate) : 0.01
-    payload.irsa_rate = payload.irsa_rate ? parseFloat(payload.irsa_rate) : 0.01
+    
+    // CNAPS
+    if (cnapsType === 'rate') {
+      payload.cnaps_rate = payload.cnaps_rate ? parseFloat(payload.cnaps_rate) : 0.01
+      payload.cnaps_amount = null
+    } else {
+      payload.cnaps_amount = payload.cnaps_amount ? parseFloat(payload.cnaps_amount) : 0
+      payload.cnaps_rate = null
+    }
+
+    // IRSA
+    if (irsaType === 'rate') {
+      payload.irsa_rate = payload.irsa_rate ? parseFloat(payload.irsa_rate) : 0.01
+      payload.irsa_amount = null
+    } else {
+      payload.irsa_amount = payload.irsa_amount ? parseFloat(payload.irsa_amount) : 0
+      payload.irsa_rate = null
+    }
+
     payload.has_droit = payload.has_droit ? true : false
     payload.expected_monthly_hours = payload.expected_monthly_hours ? parseFloat(payload.expected_monthly_hours) : null
     payload.daily_hours = payload.daily_hours ? parseFloat(payload.daily_hours) : null
@@ -303,12 +330,41 @@ export default function PersonnelForm(): React.JSX.Element {
             </div>
 
             <div>
-              <Label htmlFor="cnaps_rate">Taux CNAPS</Label>
-              <Input id="cnaps_rate" type="number" step="0.01" value={formData.cnaps_rate} onChange={(e) => handleChange('cnaps_rate', e.target.value)} />
+              <div className="flex justify-between items-center mb-2">
+                <Label htmlFor="cnaps_rate">Déduction CNaPS</Label>
+                <select 
+                  className="text-xs border rounded p-1"
+                  value={cnapsType}
+                  onChange={(e) => setCnapsType(e.target.value as 'rate' | 'amount')}
+                >
+                  <option value="rate">Pourcentage (%)</option>
+                  <option value="amount">Montant Fixe (Ar)</option>
+                </select>
+              </div>
+              {cnapsType === 'rate' ? (
+                <Input id="cnaps_rate" type="number" step="0.01" value={formData.cnaps_rate} onChange={(e) => handleChange('cnaps_rate', e.target.value)} placeholder="ex: 0.01 pour 1%" />
+              ) : (
+                <Input id="cnaps_amount" type="number" value={formData.cnaps_amount} onChange={(e) => handleChange('cnaps_amount', e.target.value)} placeholder="Montant en Ar" />
+              )}
             </div>
+            
             <div>
-              <Label htmlFor="irsa_rate">Taux IRSA</Label>
-              <Input id="irsa_rate" type="number" step="0.01" value={formData.irsa_rate} onChange={(e) => handleChange('irsa_rate', e.target.value)} />
+              <div className="flex justify-between items-center mb-2">
+                <Label htmlFor="irsa_rate">Déduction IRSA</Label>
+                <select 
+                  className="text-xs border rounded p-1"
+                  value={irsaType}
+                  onChange={(e) => setIrsaType(e.target.value as 'rate' | 'amount')}
+                >
+                  <option value="rate">Pourcentage (%)</option>
+                  <option value="amount">Montant Fixe (Ar)</option>
+                </select>
+              </div>
+              {irsaType === 'rate' ? (
+                <Input id="irsa_rate" type="number" step="0.01" value={formData.irsa_rate} onChange={(e) => handleChange('irsa_rate', e.target.value)} placeholder="ex: 0.01 pour 1%" />
+              ) : (
+                <Input id="irsa_amount" type="number" value={formData.irsa_amount} onChange={(e) => handleChange('irsa_amount', e.target.value)} placeholder="Montant en Ar" />
+              )}
             </div>
             <div className="flex items-center gap-2">
               <input

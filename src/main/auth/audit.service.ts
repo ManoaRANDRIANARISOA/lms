@@ -115,6 +115,35 @@ export function logLogout(userId: string | null): void {
   logAction(userId, 'logout', 'users', userId)
 }
 
+function buildAuditFilterWhere(filters: AuditLogFilters): { where: string; params: unknown[] } {
+  const conditions: string[] = []
+  const params: unknown[] = []
+
+  if (filters.user_id) {
+    conditions.push('user_id = ?')
+    params.push(filters.user_id)
+  }
+  if (filters.action) {
+    conditions.push('action = ?')
+    params.push(filters.action)
+  }
+  if (filters.table_name) {
+    conditions.push('table_name = ?')
+    params.push(filters.table_name)
+  }
+  if (filters.startDate) {
+    conditions.push('timestamp >= ?')
+    params.push(filters.startDate)
+  }
+  if (filters.endDate) {
+    conditions.push('timestamp <= ?')
+    params.push(filters.endDate)
+  }
+
+  const where = conditions.length > 0 ? ' WHERE ' + conditions.join(' AND ') : ''
+  return { where, params }
+}
+
 /**
  * Query audit logs with filters.
  *
@@ -123,35 +152,9 @@ export function logLogout(userId: string | null): void {
  */
 export function getAuditLogs(filters: AuditLogFilters = {}): AuditLog[] {
   try {
-    const conditions: string[] = []
-    const params: any[] = []
+    const { where, params } = buildAuditFilterWhere(filters)
 
-    if (filters.user_id) {
-      conditions.push('user_id = ?')
-      params.push(filters.user_id)
-    }
-    if (filters.action) {
-      conditions.push('action = ?')
-      params.push(filters.action)
-    }
-    if (filters.table_name) {
-      conditions.push('table_name = ?')
-      params.push(filters.table_name)
-    }
-    if (filters.startDate) {
-      conditions.push('timestamp >= ?')
-      params.push(filters.startDate)
-    }
-    if (filters.endDate) {
-      conditions.push('timestamp <= ?')
-      params.push(filters.endDate)
-    }
-
-    let query = 'SELECT * FROM audit_logs'
-    if (conditions.length > 0) {
-      query += ' WHERE ' + conditions.join(' AND ')
-    }
-    query += ' ORDER BY timestamp DESC'
+    let query = 'SELECT * FROM audit_logs' + where + ' ORDER BY timestamp DESC'
 
     const limit = filters.limit || 100
     const offset = filters.offset || 0
@@ -170,34 +173,9 @@ export function getAuditLogs(filters: AuditLogFilters = {}): AuditLog[] {
  */
 export function getAuditLogCount(filters: AuditLogFilters = {}): number {
   try {
-    const conditions: string[] = []
-    const params: any[] = []
+    const { where, params } = buildAuditFilterWhere(filters)
 
-    if (filters.user_id) {
-      conditions.push('user_id = ?')
-      params.push(filters.user_id)
-    }
-    if (filters.action) {
-      conditions.push('action = ?')
-      params.push(filters.action)
-    }
-    if (filters.table_name) {
-      conditions.push('table_name = ?')
-      params.push(filters.table_name)
-    }
-    if (filters.startDate) {
-      conditions.push('timestamp >= ?')
-      params.push(filters.startDate)
-    }
-    if (filters.endDate) {
-      conditions.push('timestamp <= ?')
-      params.push(filters.endDate)
-    }
-
-    let query = 'SELECT COUNT(*) as count FROM audit_logs'
-    if (conditions.length > 0) {
-      query += ' WHERE ' + conditions.join(' AND ')
-    }
+    const query = 'SELECT COUNT(*) as count FROM audit_logs' + where
 
     const result = db.prepare(query).get(...params) as { count: number }
     return result.count

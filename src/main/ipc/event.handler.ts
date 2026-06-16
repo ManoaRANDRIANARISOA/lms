@@ -139,4 +139,14 @@ export function registerEventHandlers(): void {
     }
     return result
   })
+
+  // --------------------------------------------
+  // GET EVENTS BY STUDENT
+  // --------------------------------------------
+  ipcMain.handle('event:getByStudent', async (_, studentId) => {
+    if (!canRead('events')) {
+      return { success: false, error: 'Accès refusé: lecture événements' }
+    }
+    return EventRepository.getByStudent(studentId)
+  })
 }

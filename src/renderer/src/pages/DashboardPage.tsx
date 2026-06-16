@@ -18,8 +18,10 @@ import {
 
 // Types locaux (seront déplacés dans shared/types.ts si réutilisés)
 interface DashboardStats {
+  schoolYear: string
   students: {
-    total: number
+    totalRegistered: number
+    totalEnrolled: number
     newThisMonth: number
     byClass: { class: string; count: number }[]
   }
@@ -91,7 +93,7 @@ function KpiCard({
   icon: React.ElementType
   label: string
   value: string
-  subValue?: string
+  subValue?: React.ReactNode
   colorClass?: string
 }) {
   return (
@@ -102,7 +104,7 @@ function KpiCard({
       <div>
         <p className="text-sm text-muted-foreground font-medium">{label}</p>
         <p className="text-2xl font-bold mt-1">{value}</p>
-        {subValue && <p className="text-xs text-green-600 mt-1">{subValue}</p>}
+        {subValue && <div className="text-xs mt-1">{subValue}</div>}
       </div>
     </div>
   )
@@ -114,32 +116,92 @@ function KpiCard({
 function PaymentTrendChart({ data }: { data: { date: string; total: number }[] }) {
   if (!data || data.length === 0) return null
 
-  const max = Math.max(...data.map((d) => d.total), 1)
-  const height = 120
-  const barWidth = Math.max(4, 280 / data.length)
+  // Pour le dashboard, la norme est de pouvoir tout voir d'un coup d'oeil sans scroller.
+  // On ne garde que les jours actifs (data) pour éviter les espaces vides inutiles,
+  // et on les aligne simplement (justify-start) au lieu de les écarter.
+
+  const minVal = Math.min(...data.map((d) => d.total), 0)
+  const maxVal = Math.max(...data.map((d) => d.total), 0)
+  const range = Math.max(maxVal - minVal, 1)
+
+  // Position du zéro (en pourcentage)
+  const zeroPercent = (Math.abs(minVal) / range) * 100
 
   return (
-    <div className="bg-white rounded-xl border shadow-sm p-5">
-      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+    <div className="bg-white rounded-xl border shadow-sm p-5 flex flex-col h-[280px]">
+      <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 flex-shrink-0">
         <TrendingUp className="w-5 h-5 text-primary" />
-        Tendance des paiements (30 jours)
+        Tendance financière (30 jours)
       </h3>
-      <div className="flex items-end gap-1 h-[140px] overflow-x-auto no-scrollbar">
-        {data.map((item, i) => {
-          const barHeight = (item.total / max) * height
-          return (
-            <div key={i} className="flex flex-col items-center gap-1" style={{ minWidth: barWidth }}>
-              <div
-                className="bg-primary/80 rounded-t-sm w-full"
-                style={{ height: `${barHeight}px` }}
-                title={`${formatDate(item.date)} : ${formatMGA(item.total)}`}
-              />
-              <span className="text-[10px] text-muted-foreground rotate-45 origin-left translate-y-2">
-                {formatDate(item.date)}
-              </span>
-            </div>
-          )
-        })}
+      <div className="flex-1 overflow-x-auto custom-scrollbar">
+        {/* Changement : justify-start et gap-6 pour que les barres s'alignent proprement à gauche */}
+        <div className="flex justify-start gap-8 px-1 relative h-full min-w-full pt-6">
+          
+          {/* Zero Line dynamique */}
+          <div 
+            className="absolute left-0 right-0 border-t border-dashed border-border z-0" 
+            style={{ bottom: `calc(${zeroPercent}% * 0.8 + 30px)` }} 
+          />
+
+          {data.map((item, i) => {
+            const barHeightPct = (Math.abs(item.total) / range) * 80 // max 80% de l'espace pour ne pas déborder
+            const isNegative = item.total < 0
+            const d = new Date(item.date)
+            // N'afficher la date que tous les 3 jours ou si c'est le dernier pour ne pas surcharger si c'est trop serré,
+            // Mais avec le scroll, on peut l'afficher. On va l'afficher au format très court.
+            const shortDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+            const compactVal = new Intl.NumberFormat('fr-MG', { notation: 'compact' }).format(item.total)
+            
+            // On cache le texte de la date pour la moitié des jours si l'écran est petit, mais comme on a min-w-[30px], ça devrait aller.
+            return (
+              <div key={i} className="flex flex-col h-full flex-1 max-w-[50px] min-w-[30px] group relative z-10 flex-shrink-0">
+                
+                {/* Zone Graphique */}
+                <div className="flex-1 relative w-full">
+                  
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-secondary text-secondary-foreground text-xs font-semibold py-1 px-2 rounded-md whitespace-nowrap z-50 pointer-events-none shadow-md">
+                    {formatMGA(item.total)}
+                  </div>
+                  
+                  <div 
+                    className="absolute w-full flex flex-col items-center"
+                    style={{ 
+                      height: `${Math.max(barHeightPct, 1)}%`,
+                      bottom: isNegative 
+                        ? `calc(${zeroPercent * 0.8}% - ${Math.max(barHeightPct, 1)}%)` 
+                        : `${zeroPercent * 0.8}%`
+                    }}
+                  >
+                    {!isNegative ? (
+                      <>
+                        {item.total > 0 && (
+                          <span className="text-[10px] text-primary/80 font-bold whitespace-nowrap absolute -top-4">
+                            {compactVal}
+                          </span>
+                        )}
+                        <div className="bg-primary/50 group-hover:bg-primary transition-colors rounded-t-sm w-full h-full cursor-pointer" />
+                      </>
+                    ) : (
+                      <>
+                        <div className="bg-destructive/50 group-hover:bg-destructive transition-colors rounded-b-sm w-full h-full cursor-pointer" />
+                        <span className="text-[10px] text-destructive/80 font-bold whitespace-nowrap absolute -bottom-4">
+                          {compactVal}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Zone Date */}
+                <div className="h-[30px] flex items-center justify-center flex-shrink-0">
+                  <span className="text-[10px] text-muted-foreground font-medium">
+                    {shortDate}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -206,16 +268,21 @@ export default function DashboardPage(): React.JSX.Element {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <KpiCard
           icon={Users}
-          label="Élèves inscrits"
-          value={stats.students.total.toString()}
-          subValue={`+${stats.students.newThisMonth} ce mois`}
+          label={`Élèves inscrits (${stats.schoolYear})`}
+          value={stats.students.totalEnrolled.toString()}
+          subValue={
+            <div className="flex flex-col gap-0.5 mt-0.5">
+              <span className="text-blue-600 font-medium">{stats.students.totalRegistered} enregistrés au total</span>
+              <span className="text-green-600">+{stats.students.newThisMonth} inscrits ce mois</span>
+            </div>
+          }
           colorClass="bg-blue-600"
         />
         <KpiCard
           icon={Wallet}
           label="Paiements aujourd'hui"
           value={formatMGA(stats.payments.today)}
-          subValue={`Semaine : ${formatMGA(stats.payments.thisWeek)}`}
+          subValue={<span className="text-green-600">Semaine : {formatMGA(stats.payments.thisWeek)}</span>}
           colorClass="bg-emerald-600"
         />
         <KpiCard
@@ -228,7 +295,7 @@ export default function DashboardPage(): React.JSX.Element {
           icon={AlertTriangle}
           label="Impayés"
           value={formatMGA(stats.finances.balance)}
-          subValue={`${stats.finances.unpaidCount} élèves concernés`}
+          subValue={<span className="text-amber-700">{stats.finances.unpaidCount} élèves concernés</span>}
           colorClass="bg-amber-600"
         />
         <KpiCard

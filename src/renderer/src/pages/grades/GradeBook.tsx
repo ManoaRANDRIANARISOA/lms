@@ -2,6 +2,7 @@
  * GradeBook.tsx — Carnet de notes (Vue par classe)
  *
  * Affiche un tableau croisé : élèves en lignes, matières en colonnes.
+ * Utilise class_subjects pour déterminer les matières de la classe sélectionnée.
  * Dernière colonne = moyenne générale + rang.
  *
  * @module pages/grades/GradeBook
@@ -10,11 +11,13 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGradeStore } from '@/store/useGradeStore'
-import type { StudentTermAverage } from '@shared/types'
+import { useClasses } from '@/lib/useClasses'
+import type { StudentTermAverage, ClassSubject } from '@shared/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ArrowLeft, BookOpen, TrendingUp, Award } from 'lucide-react'
+import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 
 interface GradeCell {
   grade: number
@@ -25,43 +28,46 @@ interface GradeCell {
 export default function GradeBook(): React.JSX.Element {
   const navigate = useNavigate()
   const {
-    subjects,
-    classGrades,
-    classAverages,
-    classRanking,
-    fetchSubjects,
-    fetchGradesByClass,
-    fetchClassAverages,
-    fetchClassRanking,
+    classSubjects, fetchClassSubjects,
+    classGrades, classAverages, classRanking,
+    fetchGradesByClass, fetchClassSubjectAverages, fetchClassRanking,
     loading
   } = useGradeStore()
 
-  const [classes, setClasses] = useState<string[]>([])
+  const { classes: ALL_CLASSES } = useClasses()
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedTerm, setSelectedTerm] = useState(1)
   const [schoolYear, setSchoolYear] = useState('2025-2026')
 
-  useEffect(() => {
-    fetchSubjects()
-    loadClasses()
-  }, [])
+  const [assessments, setAssessments] = useState<any[]>([])
 
-  const loadClasses = async () => {
+  useEffect(() => {
+    if (selectedClass) {
+      fetchClassSubjects(selectedClass)
+      loadAssessments()
+    } else {
+      setAssessments([])
+    }
+  }, [selectedClass])
+
+  const loadAssessments = async () => {
+    if (!selectedClass || !window.api) return
     try {
-      const result = await window.api.student.list({})
-      const studentList = result.students || []
-      if (studentList.length > 0) {
-        const allClasses = Array.from(new Set(studentList.map((s: any) => s.class).filter(Boolean)))
-        allClasses.sort()
-        setClasses(allClasses as string[])
+      const result = await window.api.assessment.list(schoolYear, selectedClass)
+      if (result.success && result.assessments) {
+        setAssessments(result.assessments)
+      } else {
+        setAssessments([])
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   useEffect(() => {
     if (selectedClass) {
       fetchGradesByClass(selectedClass, schoolYear, selectedTerm)
-      fetchClassAverages(selectedClass, schoolYear, selectedTerm)
+      fetchClassSubjectAverages(selectedClass, schoolYear, selectedTerm)
       fetchClassRanking(selectedClass, schoolYear, selectedTerm)
     }
   }, [selectedClass, selectedTerm, schoolYear])
@@ -73,7 +79,7 @@ export default function GradeBook(): React.JSX.Element {
       if (!map[g.student_id]) map[g.student_id] = {}
       map[g.student_id][g.subject_id] = {
         grade: g.grade,
-        coefficient: g.coefficient ?? 1,
+        coefficient: g.class_coefficient ?? g.coefficient ?? 1,
         gradeId: g.id
       }
     }
@@ -92,21 +98,26 @@ export default function GradeBook(): React.JSX.Element {
     return list
   }, [classGrades])
 
+  // Use class_subjects for the subject list (ordered by position)
   const subjectList = useMemo(() => {
+    if (classSubjects.length > 0) {
+      return classSubjects.map((cs: ClassSubject) => ({
+        id: cs.subject_id,
+        name: cs.subject_name || '',
+        coefficient: cs.coefficient
+      }))
+    }
+    // Fallback: derive from grades if no class_subjects yet
     const seen = new Set<string>()
-    const list: { id: string; name: string }[] = []
+    const list: { id: string; name: string; coefficient: number }[] = []
     for (const g of classGrades) {
       if (!seen.has(g.subject_id)) {
         seen.add(g.subject_id)
-        list.push({ id: g.subject_id, name: g.subject_name || '' })
+        list.push({ id: g.subject_id, name: g.subject_name || '', coefficient: g.class_coefficient ?? g.coefficient ?? 1 })
       }
     }
-    // If no grades yet, show all subjects anyway
-    if (list.length === 0) {
-      return subjects.map((s) => ({ id: s.id, name: s.name }))
-    }
     return list
-  }, [classGrades, subjects])
+  }, [classSubjects, classGrades])
 
   const rankingMap = useMemo(() => {
     const map: Record<string, StudentTermAverage> = {}
@@ -118,6 +129,8 @@ export default function GradeBook(): React.JSX.Element {
 
   return (
     <div className="space-y-4">
+      <ReadOnlyBanner resource="grades" />
+
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="sm" onClick={() => navigate('/grades')}>
           <ArrowLeft className="w-4 h-4" />
@@ -135,24 +148,32 @@ export default function GradeBook(): React.JSX.Element {
             className="w-full border rounded-md px-3 py-2 text-sm bg-white"
           >
             <option value="">— Choisir —</option>
-            {classes.map((c) => (
+            {ALL_CLASSES.map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
-          {classes.length === 0 && (
-            <p className="text-xs text-amber-600 mt-1">Aucune classe. Vérifiez que des élèves sont inscrits.</p>
+          {ALL_CLASSES.length === 0 && (
+            <p className="text-xs text-amber-600 mt-1">Aucune classe configurée. Ajoutez des classes dans Paramètres.</p>
           )}
         </div>
         <div>
-          <Label>Trimestre</Label>
+          <Label>Trimestre/Examen</Label>
           <select
             value={selectedTerm}
             onChange={(e) => setSelectedTerm(Number(e.target.value))}
             className="w-full border rounded-md px-3 py-2 text-sm bg-white"
           >
-            <option value={1}>Trimestre 1</option>
-            <option value={2}>Trimestre 2</option>
-            <option value={3}>Trimestre 3</option>
+            {assessments.length === 0 ? (
+              <>
+                <option value={1}>Trimestre 1</option>
+                <option value={2}>Trimestre 2</option>
+                <option value={3}>Trimestre 3</option>
+              </>
+            ) : (
+              assessments.map(a => (
+                <option key={a.id} value={a.term_value}>{a.name}</option>
+              ))
+            )}
           </select>
         </div>
         <div>
@@ -176,7 +197,10 @@ export default function GradeBook(): React.JSX.Element {
               <tr>
                 <th className="px-3 py-3 text-left font-medium text-gray-600 sticky left-0 bg-gray-50 z-10">Élève</th>
                 {subjectList.map((s) => (
-                  <th key={s.id} className="px-3 py-3 text-center font-medium text-gray-600 min-w-[80px]">{s.name}</th>
+                  <th key={s.id} className="px-3 py-3 text-center font-medium text-gray-600 min-w-[80px]">
+                    {s.name}
+                    <span className="block text-xs text-muted-foreground font-normal">coef. {s.coefficient}</span>
+                  </th>
                 ))}
                 <th className="px-3 py-3 text-center font-medium text-gray-600 bg-blue-50">
                   <TrendingUp className="w-4 h-4 inline mr-1" />
@@ -189,7 +213,7 @@ export default function GradeBook(): React.JSX.Element {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {studentsInClass.length === 0 && (
+              {studentsInClass.length === 0 && classSubjects.length === 0 && (
                 <tr>
                   <td colSpan={subjectList.length + 3} className="px-3 py-8 text-center text-muted-foreground">
                     Aucune note enregistrée pour cette classe.<br />
@@ -199,6 +223,13 @@ export default function GradeBook(): React.JSX.Element {
                     >
                       Aller à la saisie des notes →
                     </button>
+                  </td>
+                </tr>
+              )}
+              {studentsInClass.length === 0 && classSubjects.length > 0 && (
+                <tr>
+                  <td colSpan={subjectList.length + 3} className="px-3 py-8 text-center text-muted-foreground">
+                    Aucun élève avec des notes dans cette classe.
                   </td>
                 </tr>
               )}

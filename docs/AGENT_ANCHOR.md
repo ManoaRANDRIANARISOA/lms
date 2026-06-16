@@ -1,4 +1,4 @@
-# 🎯 AGENT ANCHOR — Lycée Manjary Soa LMS
+# AGENT ANCHOR — Lycée Manjary Soa LMS
 
 > **Ce document est le point d'ancrage pour tout agent IA travaillant sur ce projet.**
 > Lire INTÉGRALEMENT avant de coder quoi que ce soit.
@@ -10,7 +10,7 @@
 **But** : Application backoffice de gestion scolaire pour le Lycée Manjary Soa (Madagascar).
 **Stack** : Electron 39 + React 19 + TypeScript 5.9 + Vite (electron-vite) + SQLite (better-sqlite3) + Supabase (cloud sync) + Tailwind CSS 4 + Zustand 5 + Shadcn/ui pattern.
 **Capacité** : 1000 élèves, 4 rôles RBAC, 2-4 utilisateurs simultanés, 100% offline-first.
-**Livraison** : Mi-mai 2026.
+**Livraison** : Juin 2026.
 
 ### Architecture
 ```
@@ -18,22 +18,23 @@ Electron Main Process (Node.js)
 ├── Auth (bcrypt, RBAC, sessions, audit)
 ├── Database (SQLite + migrations + repositories)
 ├── IPC Handlers (RBAC-protected CRUD)
-├── Services (sync.service.ts → Supabase)
+├── Services (sync, pdf, email, report, export)
 │
 Preload Bridge (contextBridge, typed channels)
 │
 Renderer Process (React + Zustand)
-├── Pages (auth, students, finance, attendance, events, settings)
-├── Stores (useAuthStore, useStudentStore, useFinanceStore)
-├── Components (ui/, shared/, students/, layout/)
+├── Pages (auth, students, finance, attendance, events, grades, personnel, reports, settings)
+├── Stores (useAuthStore, useStudentStore, useFinanceStore, usePersonnelStore, useGradeStore, useCashJournalStore)
+├── Components (ui/, shared/, students/, personnel/, layout/)
 ```
 
 ### Supabase
 - **URL** : configuré dans `.env` (SUPABASE_URL + SUPABASE_ANON_KEY)
 - **Sync** : bidirectionnel, push/pull toutes les 5 minutes
-- **Tables sync** : students, student_fees, student_payments, personnel, grades, cash_journal, parent_events, event_payments, bus_attendance, canteen_attendance, users (sans password_hash)
+- **Tables sync** : students, student_fees, student_payments, personnel, time_tracking, daily_attendance, personnel_absences, salary_advances, custom_deductions, grades, subjects, class_subjects, cash_journal, parent_events, event_payments, bus_attendance, canteen_attendance, users (sans password_hash)
 - **Storage** : bucket `student-photos` pour les photos élèves
 - **Conflit** : last-write-wins + server authority pour matricules
+- **Sécurité** : Whitelist `SYNCABLE_TABLES` dans sync.service.ts pour prévenir les injections SQL
 
 ---
 
@@ -45,105 +46,157 @@ lms/
 │   ├── main/                           # Electron Main Process
 │   │   ├── index.ts                    # Entry point, IPC registration, protocol handler
 │   │   ├── auth/
-│   │   │   ├── auth.service.ts         # ✅ Login/logout bcrypt
-│   │   │   ├── rbac.service.ts         # ✅ Permission matrix (4 rôles × 11 resources)
-│   │   │   ├── session.service.ts      # ✅ Session lifecycle 60min
-│   │   │   └── audit.service.ts        # ✅ Audit logging
+│   │   │   ├── auth.service.ts         # Login/logout bcrypt
+│   │   │   ├── rbac.service.ts         # Permission matrix (4 rôles × 11 resources)
+│   │   │   ├── session.service.ts      # Session lifecycle 60min
+│   │   │   └── audit.service.ts        # Audit logging
 │   │   ├── database/
-│   │   │   ├── db.ts                   # ✅ SQLite init + migrations + schema healing
+│   │   │   ├── db.ts                   # SQLite init + migrations + schema healing
 │   │   │   ├── migrations/
-│   │   │   │   ├── 001_init.sql        # ✅ All tables
+│   │   │   │   ├── 001_init.sql
 │   │   │   │   ├── 002_add_parent_details.sql
 │   │   │   │   ├── 003_add_class_history.sql
-│   │   │   │   ├── 004_add_rbac.sql    # ✅ Sessions + admin seed
-│   │   │   │   ├── 005_add_personnel_tables.sql  # ✅ Personnel module tables
-│   │   │   │   └── 006_add_daily_attendance.sql  # ✅ Daily attendance + work schedule fields
+│   │   │   │   ├── 004_add_rbac.sql    # Sessions + admin seed
+│   │   │   │   ├── 005_add_personnel_tables.sql
+│   │   │   │   ├── 006_add_daily_attendance.sql
+│   │   │   │   ├── 007_add_soft_delete_to_personnel_related.sql
+│   │   │   │   ├── 008_add_deleted_to_grades.sql
+│   │   │   │   ├── 009_seed_subjects.sql
+│   │   │   │   ├── 010_sync_student_class_from_fees.sql
+│   │   │   │   ├── 011_sync_subscriptions_with_payments.sql
+│   │   │   │   ├── 012_class_subjects.sql
+│   │   │   │   ├── 013_college_lycee_subjects.sql
+│   │   │   │   ├── 014_fix_preschool_subjects.sql
+│   │   │   │   ├── 015_seed_classes_setting.sql
+│   │   │   │   ├── 016_add_department_to_cash_journal.sql
+│   │   │   │   ├── 017_add_missing_indexes.sql
+│   │   │   │   ├── 018_fix_subject_uuids.sql
+│   │   │   │   ├── 019_clean_sync_errors.sql
+│   │   │   │   ├── 020_fix_class_subjects_fk.sql
+│   │   │   │   └── 021_repair_fees_from_payments.sql
 │   │   │   └── repositories/
-│   │   │       ├── student.repository.ts    # ✅ CRUD + re-enrollment + stats
-│   │   │       ├── payment.repository.ts    # ✅ CRUD + filters + tuition status
-│   │   │       ├── attendance.repository.ts # ✅ Bus/canteen tracking
-│   │   │       ├── event.repository.ts      # ✅ Events + participants + payments
-│   │   │       ├── settings.repository.ts   # ✅ Key-value store
-│   │   │       └── user.repository.ts       # ✅ User CRUD + bcrypt
+│   │   │       ├── student.repository.ts
+│   │   │       ├── payment.repository.ts
+│   │   │       ├── attendance.repository.ts
+│   │   │       ├── event.repository.ts
+│   │   │       ├── settings.repository.ts
+│   │   │       ├── user.repository.ts
+│   │   │       ├── personnel.repository.ts
+│   │   │       ├── grade.repository.ts
+│   │   │       └── cashjournal.repository.ts
 │   │   ├── ipc/
-│   │   │   ├── auth.handler.ts         # ✅ Auth/user management
-│   │   │   ├── student.handler.ts      # ✅ Student CRUD
-│   │   │   ├── payment.handler.ts      # ✅ Payment operations
-│   │   │   ├── attendance.handler.ts   # ✅ Bus/canteen attendance
-│   │   │   ├── event.handler.ts        # ✅ Event management
-│   │   │   ├── settings.handler.ts     # ✅ Settings get/set
-│   │   │   └── dialog.handler.ts       # ✅ Native file dialogs
+│   │   │   ├── auth.handler.ts
+│   │   │   ├── student.handler.ts
+│   │   │   ├── payment.handler.ts
+│   │   │   ├── attendance.handler.ts
+│   │   │   ├── event.handler.ts
+│   │   │   ├── settings.handler.ts
+│   │   │   ├── dialog.handler.ts
+│   │   │   ├── personnel.handler.ts
+│   │   │   ├── grade.handler.ts
+│   │   │   ├── dashboard.handler.ts
+│   │   │   ├── cashjournal.handler.ts
+│   │   │   ├── pdf.handler.ts
+│   │   │   ├── email.handler.ts
+│   │   │   └── report.handler.ts
 │   │   └── services/
-│   │       └── sync.service.ts         # ✅ Supabase push/pull + conflict resolution
+│   │       ├── sync.service.ts         # Supabase push/pull + SYNCABLE_TABLES whitelist
+│   │       ├── pdf.service.ts          # jsPDF generation (reçu, certificat, bulletin, fiche paie)
+│   │       ├── email.service.ts        # nodemailer SMTP Gmail + scheduler 18h
+│   │       ├── report.service.ts       # Rapports financiers, impayés, paie, tuition
+│   │       └── export.service.ts       # Export CSV générique
 │   │
 │   ├── preload/
-│   │   ├── index.ts                    # ✅ All IPC channels exposed
-│   │   └── index.d.ts                  # ✅ TypeScript declarations
+│   │   ├── index.ts                    # All IPC channels exposed
+│   │   └── index.d.ts                  # TypeScript declarations
 │   │
 │   ├── renderer/
 │   │   └── src/
-│   │       ├── App.tsx                 # ✅ Auth flow + routes + sidebar (inline)
-│   │       ├── main.tsx                # ✅ React entry
-│   │       ├── env.d.ts                # ✅ Type declarations
+│   │       ├── App.tsx                 # Auth flow + routes
+│   │       ├── main.tsx                # React entry
+│   │       ├── env.d.ts                # Type declarations
 │   │       ├── components/
-│   │       │   ├── layout/             # ❌ VIDE (layout inline dans App.tsx)
+│   │       │   ├── layout/
+│   │       │   │   ├── MainLayout.tsx
+│   │       │   │   └── Sidebar.tsx
 │   │       │   ├── shared/
-│   │       │   │   ├── ProtectedRoute.tsx   # ✅
-│   │       │   │   └── ReadOnlyBanner.tsx   # ✅
+│   │       │   │   ├── ErrorBoundary.tsx
+│   │       │   │   ├── ProtectedRoute.tsx
+│   │       │   │   └── ReadOnlyBanner.tsx
 │   │       │   ├── students/
-│   │       │   │   ├── FinanceTab.tsx       # ✅ Student finance tab
-│   │       │   │   ├── ReEnrollModal.tsx    # ✅ Re-enrollment
-│   │       │   │   └── ServiceDashboard.tsx # ✅ Service stats
+│   │       │   │   ├── FinanceTab.tsx
+│   │       │   │   ├── ReEnrollModal.tsx
+│   │       │   │   └── ServiceDashboard.tsx
+│   │       │   ├── personnel/
+│   │       │   │   └── AttendanceCalendar.tsx
 │   │       │   └── ui/
 │   │       │       ├── button.tsx, checkbox.tsx, dialog.tsx
 │   │       │       ├── input.tsx, label.tsx, tabs.tsx
 │   │       ├── lib/
-│   │       │   ├── utils.ts                # ✅ cn() helper
-│   │       │   ├── finance-settings.ts     # ✅ Default prices
-│   │       │   └── usePermissions.ts       # ✅ Permission hook
+│   │       │   ├── utils.ts                # cn() helper
+│   │       │   ├── finance-settings.ts     # Default prices
+│   │       │   ├── usePermissions.ts       # Permission hook
+│   │       │   ├── useClasses.ts           # Shared classes hook
+│   │       │   ├── image-utils.ts          # Photo URL helper
+│   │       │   ├── store-utils.ts          # Zustand store error helper
+│   │       │   └── personnel-constants.ts   # Shared personnel labels
 │   │       ├── pages/
 │   │       │   ├── auth/
-│   │       │   │   ├── LoginPage.tsx            # ✅
-│   │       │   │   ├── UserManagementPage.tsx   # ✅
-│   │       │   │   └── AuditLogPage.tsx         # ✅
+│   │       │   │   ├── LoginPage.tsx
+│   │       │   │   ├── UserManagementPage.tsx
+│   │       │   │   └── AuditLogPage.tsx
 │   │       │   ├── students/
-│   │       │   │   ├── StudentList.tsx          # ✅
-│   │       │   │   ├── StudentForm.tsx          # ✅
-│   │       │   │   ├── StudentDetail.tsx        # ✅
-│   │       │   │   └── CertificatePage.tsx      # ✅
-│   │       │   ├── finance/                     # ❌ VIDE
-│   │       │   ├── personnel/                   # ❌ VIDE
-│   │       │   ├── grades/                      # ✅ GradeEntry, GradeBook, ReportCardView, GradesPage, SubjectManager
-│   │       │   ├── settings/                    # ❌ VIDE
-│   │       │   ├── AttendancePage.tsx            # ✅
-│   │       │   ├── EventsPage.tsx               # ✅
-│   │       │   ├── FinancePage.tsx               # ✅ (KPI overview vide)
-│   │       │   └── Settings.tsx                 # ✅
+│   │       │   │   ├── StudentList.tsx
+│   │       │   │   ├── StudentForm.tsx
+│   │       │   │   ├── StudentDetail.tsx
+│   │       │   │   └── CertificatePage.tsx
+│   │       │   ├── personnel/
+│   │       │   │   ├── PersonnelList.tsx
+│   │       │   │   ├── PersonnelForm.tsx
+│   │       │   │   └── PersonnelDetail.tsx
+│   │       │   ├── grades/
+│   │       │   │   ├── GradesPage.tsx
+│   │       │   │   ├── GradeEntry.tsx
+│   │       │   │   ├── GradeBook.tsx
+│   │       │   │   ├── ReportCardView.tsx
+│   │       │   │   └── SubjectManager.tsx
+│   │       │   ├── finance/
+│   │       │   │   ├── CashJournalPage.tsx     # Journal de caisse
+│   │       │   │   ├── FinanceOverview.tsx     # KPIs finance
+│   │       │   │   ├── PaymentAlerts.tsx       # Alertes impayés
+│   │       │   │   ├── PaymentJournal.tsx      # Suivi paiements
+│   │       │   │   └── FinanceConfig.tsx       # Configuration tarifs
+│   │       │   ├── settings/
+│   │       │   │   └── EmailSettings.tsx       # Config SMTP
+│   │       │   ├── reports/
+│   │       │   │   └── ReportsPage.tsx         # Rapports & export
+│   │       │   ├── DashboardPage.tsx
+│   │       │   ├── AttendancePage.tsx
+│   │       │   ├── EventsPage.tsx
+│   │       │   ├── FinancePage.tsx             # Wrapper tabs (36 lignes)
+│   │       │   └── Settings.tsx
 │   │       ├── store/
-│   │       │   ├── useAuthStore.ts              # ✅
-│   │       │   ├── useStudentStore.ts           # ✅
-│   │       │   └── useFinanceStore.ts           # ✅
-│   │       ├── styles/                          # ❌ VIDE
-│   │       └── types/                           # ❌ VIDE
+│   │       │   ├── useAuthStore.ts
+│   │       │   ├── useStudentStore.ts
+│   │       │   ├── useFinanceStore.ts
+│   │       │   ├── usePersonnelStore.ts
+│   │       │   ├── useGradeStore.ts
+│   │       │   └── useCashJournalStore.ts
+│   │       ├── styles/
+│   │       │   └── globals.css
+│   │       └── types/
 │   │
 │   └── shared/
-│       └── types.ts                    # ✅ Cross-process types
+│       └── types.ts                    # Cross-process types
 │
 ├── docs/
-│   ├── ARCHITECTURE_OVERVIEW.md        # ✅ Documentation complète
-│   ├── COMPTES_UTILISATEURS.md         # ✅ Guide comptes
-│   ├── RBAC_IMPLEMENTATION_PLAN.md     # ✅ Plan RBAC (terminé)
-│   └── SUPABASE_MIGRATION.sql          # ✅ Schema Supabase
-├── RBAC_IMPLEMENTATION_TRACKER.md      # ✅ Toutes les phases complétées
-├── database.sqlite                     # ✅ Base locale avec données existantes
-├── .env                                # ✅ Credentials Supabase configurés
-└── package.json                        # ✅ Toutes les deps installées
-```
-
-### Fichiers à nettoyer (Phase 0)
-```
-❌ check_email.js, check_fees.js, debug_fees.js, debug_fees_repro.ts
-❌ diag_log.txt, nul, output.txt
+│   ├── AGENT_ANCHOR.md                 # Ce fichier
+│   ├── ARCHITECTURE_OVERVIEW.md        # Documentation architecture
+│   ├── COMPTES_UTILISATEURS.md         # Guide comptes utilisateurs
+│   └── FINAL_PLAN.md                   # Plan de finition (tâches restantes)
+├── database.sqlite
+├── .env
+└── package.json
 ```
 
 ---
@@ -172,109 +225,42 @@ lms/
 
 ## 4. ÉTAT D'AVANCEMENT
 
-### ✅ Modules OPÉRATIONNELS
-1. **Auth/RBAC/Sessions** — Complet (7 phases, toutes terminées)
-2. **Élèves** — CRUD complet + re-enrollment + photo + certificat + sync Supabase
-3. **Paiements** — CRUD + journal + filtres + tuition status
-4. **Pointage Bus/Cantine** — Enregistrement quotidien + listes abonnés
-5. **Événements parents** — CRUD + participants + paiements événementiels
-6. **Paramètres** — Configuration tarifs (classes, bus, cantine, uniformes)
-7. **User Management** — CRUD admin + reset password
-8. **Audit Logs** — Visualisation avec filtres
-9. **Cloud Sync** — Push/Pull bidirectionnel Supabase (toutes tables)
-
-### ❌ Modules MANQUANTS
+### Modules OPÉRATIONNELS (tous implémentés)
 
 | # | Module | Backend | Frontend | Tables DB |
 |---|--------|---------|----------|-----------|
-| 1 | **Dashboard** | ✅ Handler + SQL | ✅ DashboardPage | N/A (agrégation) |
-| 2 | **Personnel** | ✅ Repo + Handler | ✅ List, Form, Detail | ✅ Existent |
-| 3 | **Notes/Bulletins** | ✅ Repo + Handler | ✅ Entry, Book, Report | ✅ Existent |
-| 4 | **Journal de Caisse** | ❌ Pas de handler dédié | ❌ Pas de page | ✅ Existe |
-| 5 | **Rapports financiers** | ❌ Aucun service | ❌ Pas de page | N/A |
-| 6 | **PDF Generation** | ❌ Pas de service | ❌ — | N/A |
-| 7 | **Email Automation** | ❌ Pas de service | ❌ — | N/A |
+| 1 | **Auth/RBAC/Sessions** | Complet | LoginPage, UserManagement, AuditLog | users, sessions, audit_logs |
+| 2 | **Élèves** | CRUD + re-enrollment + photo + certificat | StudentList/Form/Detail, CertificatePage | students, student_fees |
+| 3 | **Paiements** | CRUD + journal + filtres + tuition status | FinancePage (tabs), PaymentJournal | student_payments |
+| 4 | **Journal de Caisse** | CRUD + balances | CashJournalPage | cash_journal |
+| 5 | **KPIs Finance** | Requêtes agrégées | FinanceOverview | — |
+| 6 | **Alertes Impayés** | Endpoint optimisé (JOIN) | PaymentAlerts | — |
+| 7 | **Configuration Tarifs** | Settings CRUD | FinanceConfig | settings |
+| 8 | **Pointage Bus/Cantine** | Enregistrement quotidien | AttendancePage | bus_attendance, canteen_attendance |
+| 9 | **Événements parents** | CRUD + participants + paiements | EventsPage | parent_events, event_payments |
+| 10 | **Paramètres** | Key-value store | Settings.tsx | settings |
+| 11 | **User Management** | CRUD admin + reset password | UserManagementPage | users |
+| 12 | **Audit Logs** | Visualisation avec filtres | AuditLogPage | audit_logs |
+| 13 | **Cloud Sync** | Push/Pull bidirectionnel + whitelist | — | sync_queue |
+| 14 | **Dashboard** | KPIs SQL agrégés | DashboardPage | — |
+| 15 | **Personnel** | CRUD + pointage + salaire hybride | PersonnelList/Form/Detail, AttendanceCalendar | personnel, time_tracking, daily_attendance, personnel_absences, salary_advances, custom_deductions |
+| 16 | **Notes/Bulletins** | CRUD subjects/grades + moyennes + classement | GradesPage, GradeEntry, GradeBook, ReportCardView, SubjectManager | subjects, grades, class_subjects |
+| 17 | **PDF Generation** | jsPDF (reçu, certificat, bulletin, fiche paie, bilan) | Boutons dans pages existantes | — |
+| 18 | **Email Automation** | nodemailer SMTP + scheduler 18h | EmailSettings | — |
+| 19 | **Rapports & Export** | 4 types de rapports + CSV | ReportsPage | — |
 
-### ⚠️ Faiblesses corrigées ✅
-1. ✅ Dashboard = placeholder vide → DashboardPage.tsx fonctionnel avec KPIs
-2. ✅ Layout inline dans App.tsx → extrait dans MainLayout.tsx + Sidebar.tsx + ErrorBoundary.tsx
-3. ✅ Fichiers debug à la racine → supprimés
-4. ✅ `components/layout/` vide → Sidebar.tsx + MainLayout.tsx créés
-5. ✅ `styles/` vide → globals.css créé, main.css nettoyé
-6. ✅ useStudentStore.ts mode web Supabase direct → supprimé (sécurité + offline)
-7. ✅ Conversion booléens push SQLite→PostgreSQL → ajoutée dans sync.service.ts
-8. ✅ Settings.tsx ipcRenderer brut → window.api typé
-9. ✅ settings.repository.ts sans sync → addToSyncQueue ajouté
+### Corrections de sécurité appliquées
 
-### ⚠️ Faiblesses restantes
-1. FinancePage onglet "Vue d'ensemble" = KPI cards vides
-2. Finance : mélange paiements + config → **séparer en sous-pages** (best practice)
-3. Pas de stores Zustand pour attendance, events (personnel ✅, grades ✅)
-
----
-
-## 5. PLAN D'IMPLÉMENTATION (PHASES)
-
-### Phase 0 : Nettoyage & Consolidation
-- [x] Supprimer fichiers debug racine
-- [x] Extraire Sidebar → `components/layout/Sidebar.tsx`
-- [x] Extraire Layout → `components/layout/MainLayout.tsx`
-- [x] Extraire ErrorBoundary → `components/shared/ErrorBoundary.tsx`
-- [x] Vérifier imports CSS Tailwind
-
-### Phase 1 : Dashboard fonctionnel
-- [x] `src/main/ipc/dashboard.handler.ts` — KPI agrégés (SQL)
-- [x] `src/renderer/src/pages/DashboardPage.tsx` — Cards KPI + activité récente
-- [x] Preload channel `dashboard:getStats`
-- [x] Route dans `MainLayout.tsx`
-
-### Phase 2 : Module Personnel complet
-- [x] `repositories/personnel.repository.ts` — CRUD + salary calc hybride (quota/heures pour mensuels)
-- [x] `ipc/personnel.handler.ts` — Tous les channels + `daily_attendance` + `createSalaryExpense`
-- [x] `pages/personnel/PersonnelList.tsx`
-- [x] `pages/personnel/PersonnelForm.tsx` (ajout champs planning: work_pattern, work_days, daily_hours, expected_monthly_hours)
-- [x] `pages/personnel/PersonnelDetail.tsx` (onglets: Informations, Pointage, Absences, Salaire)
-- [x] `components/personnel/AttendanceCalendar.tsx` (pointage journalier mensuel avec grille + barre de progression)
-- [x] `store/usePersonnelStore.ts` (dailyAttendance + createSalaryExpense)
-- [x] Preload channels + routes (daily_attendance + salary_expense)
-- [x] Sync Supabase (push/pull pour toutes les tables personnel)
-- [x] Lien Finance : `createSalaryExpense` → entrée `cash_journal` (dépense salaire)
-
-### Phase 3 : Module Notes & Bulletins
-- [x] `repositories/grade.repository.ts` — CRUD + moyennes + classement
-- [x] `ipc/grade.handler.ts`
-- [x] `pages/grades/GradeEntry.tsx` — Saisie par classe/matière
-- [x] `pages/grades/GradeBook.tsx` — Vue par élève/classe
-- [x] `pages/grades/ReportCardView.tsx` — Aperçu bulletin
-- [x] `store/useGradeStore.ts`
-- [x] Preload + routes
-
-### Phase 4 : Finance — Compléter
-- [ ] KPI cards dans FinancePage (Vue d'ensemble)
-- [ ] `repositories/cashjournal.repository.ts`
-- [ ] `ipc/cashjournal.handler.ts`
-- [ ] `pages/finance/CashJournalPage.tsx`
-- [ ] `pages/finance/PaymentAlerts.tsx`
-- [ ] Séparer configuration tarifs en sous-route distincte
-
-### Phase 5 : PDF Generation
-- [ ] `services/pdf.service.ts` (jsPDF — déjà installé)
-- [ ] Certificat de scolarité, Bulletin, Fiche de paie, Reçu, Bilan journalier
-- [ ] Preload channels `pdf:*`
-
-### Phase 6 : Email Automation
-- [ ] `services/email.service.ts` (nodemailer — déjà installé)
-- [ ] Config SMTP Gmail + envoi automatique 18h
-- [ ] `pages/settings/EmailSettings.tsx`
-
-### Phase 7 : Rapports & Export
-- [ ] Rapports financiers mensuels
-- [ ] Export CSV/Excel
-- [ ] Rapports personnel
+1. SQL Injection : whitelist `SYNCABLE_TABLES` dans sync.service.ts
+2. Path traversal : validation du répertoire dans pdf:openFile
+3. Hard delete → soft-delete au démarrage dans db.ts
+4. N+1 query → endpoint `getUnpaidAlerts` optimisé (JOIN unique)
+5. `sanitizeFilename` + pagination PDF corrigée
+6. `logAction` dans 8 handlers personnel.handler.ts
 
 ---
 
-## 6. CONVENTIONS DE CODE & BONNES PRATIQUES
+## 5. CONVENTIONS DE CODE & BONNES PRATIQUES
 
 ### Architecture pattern
 ```
@@ -309,6 +295,13 @@ Nouvelle fonctionnalité = Repository + Handler + Preload + Store + Page
    - `ReadOnlyBanner` pour RBAC read-only
    - UI en **français** (labels, messages, placeholders)
 
+### Classes — Source unique de vérité
+**IMPORTANT** : Les classes sont centralisées dans la table `settings` sous la clé `classes` (JSON array).
+- **Hook** : `src/renderer/src/lib/useClasses.ts` — tous les modules doivent l'utiliser
+- **Settings** : `Settings.tsx` → section "Gestion des Classes"
+- **NE JAMAIS** hardcoder une liste de classes dans un composant
+- **NE JAMAIS** utiliser `prices.classes` pour autre chose que les tarifs de tuition
+
 ### Style & UI
 - Tailwind CSS 4 (utility classes)
 - Shadcn/ui pattern pour les composants de base
@@ -319,7 +312,6 @@ Nouvelle fonctionnalité = Repository + Handler + Preload + Store + Page
 
 ### TypeScript
 - Types partagés dans `src/shared/types.ts`
-- Types frontend-only dans `src/renderer/src/types/`
 - Toujours typer les retours IPC (pas de `any` en production)
 - Interfaces pour les props de composants
 
@@ -339,7 +331,7 @@ Nouvelle fonctionnalité = Repository + Handler + Preload + Store + Page
 - Audit log pour toutes les actions d'écriture
 
 ### Sync Supabase
-- Toute nouvelle table doit être ajoutée dans `pullRemoteChanges()` array
+- Toute nouvelle table doit être ajoutée dans `pullRemoteChanges()` array ET dans `SYNCABLE_TABLES`
 - Toute mutation doit appeler `addToSyncQueue()`
 - Les booleans doivent être convertis (SQLite: 0/1, Supabase: true/false)
 - Les JSON arrays sont stockés en TEXT dans SQLite
@@ -349,70 +341,91 @@ Nouvelle fonctionnalité = Repository + Handler + Preload + Store + Page
 - Pas de `any` sauf cas temporaire documenté
 - **Types IPC** : `preload/index.d.ts` et `env.d.ts` doivent utiliser les types partagés (`shared/types.ts`), jamais `any` aux frontières IPC
 - **Renderer** : utiliser `window.api` directement (typé), jamais `(window as any).api`
-- Commenter les décisions d'architecture non évidentes
 - Tester le flux complet : créer → lire → modifier → supprimer → sync
 
 ---
 
-## 7. TABLES DB EXISTANTES (référence rapide)
+## 6. TABLES DB EXISTANTES
 
-### Utilisées par des modules existants
+### Tables principales
 | Table | Module | Repo | Handler |
 |-------|--------|------|---------|
-| students | Élèves | ✅ | ✅ |
-| student_fees | Élèves/Finance | ✅ (dans student) | ✅ |
-| student_payments | Finance | ✅ | ✅ |
-| bus_attendance | Pointage | ✅ | ✅ |
-| canteen_attendance | Pointage | ✅ | ✅ |
-| parent_events | Événements | ✅ | ✅ |
-| event_payments | Événements | ✅ | ✅ |
-| users | Auth | ✅ | ✅ |
-| sessions | Auth | ✅ (service) | ✅ |
-| settings | Paramètres | ✅ | ✅ |
-| audit_logs | Audit | ✅ (service) | ✅ |
-| sync_queue | Sync | ✅ (service) | — |
-| migrations | DB | ✅ (db.ts) | — |
+| students | Élèves | student.repository | student.handler |
+| student_fees | Élèves/Finance | student.repository | student.handler |
+| student_payments | Finance | payment.repository | payment.handler |
+| bus_attendance | Pointage | attendance.repository | attendance.handler |
+| canteen_attendance | Pointage | attendance.repository | attendance.handler |
+| parent_events | Événements | event.repository | event.handler |
+| event_payments | Événements | event.repository | event.handler |
+| users | Auth | user.repository | auth.handler |
+| sessions | Auth | session.service | auth.handler |
+| settings | Paramètres | settings.repository | settings.handler |
+| audit_logs | Audit | audit.service | auth.handler |
+| sync_queue | Sync | sync.service | — |
+| migrations | DB | db.ts | — |
 
-### Tables implémentées (Module Personnel)
-| Table | Module cible | Repo | Handler | Notes |
-|-------|-------------|------|---------|-------|
-| personnel | Personnel | ✅ | ✅ | CRUD complet + champs planning de travail |
-| time_tracking | Personnel | ✅ | ✅ | Fallback legacy si pas de daily_attendance |
-| daily_attendance | Personnel | ✅ | ✅ | Pointage journalier (jour × status × heures) |
-| personnel_absences | Personnel | ✅ | ✅ | Périodes d'absence (informationnel + impact salaire) |
-| salary_advances | Personnel | ✅ | ✅ | Avances sur salaire |
-| custom_deductions | Personnel | ✅ | ✅ | Déductions personnalisées mensuelles |
-| cash_journal | Finance | ✅ (via Personnel) | ✅ (via Personnel) | Création auto via `createSalaryExpense` |
+### Tables Personnel
+| Table | Repo | Handler |
+|-------|------|---------|
+| personnel | personnel.repository | personnel.handler |
+| time_tracking | personnel.repository | personnel.handler |
+| daily_attendance | personnel.repository | personnel.handler |
+| personnel_absences | personnel.repository | personnel.handler |
+| salary_advances | personnel.repository | personnel.handler |
+| custom_deductions | personnel.repository | personnel.handler |
+| cash_journal | cashjournal.repository | cashjournal.handler |
 
-### Tables en attente
-| Table | Module cible | Repo | Handler |
-|-------|-------------|------|---------|
-| subjects | Notes | ✅ | ✅ |
-| grades | Notes | ✅ | ✅ |
+### Tables Notes & Bulletins
+| Table | Repo | Handler |
+|-------|------|---------|
+| subjects | grade.repository | grade.handler |
+| grades | grade.repository | grade.handler |
+| class_subjects | grade.repository | grade.handler |
+
+### Migrations (21 au total)
+| # | Nom | Contenu |
+|---|-----|---------|
+| 001 | init.sql | Tables de base |
+| 002 | add_parent_details.sql | Colonnes parents |
+| 003 | add_class_history.sql | Historique classes |
+| 004 | add_rbac.sql | Sessions + admin seed |
+| 005 | add_personnel_tables.sql | Tables personnel |
+| 006 | add_daily_attendance.sql | Pointage journalier |
+| 007 | add_soft_delete_to_personnel_related.sql | Colonne deleted |
+| 008 | add_deleted_to_grades.sql | Soft-delete grades |
+| 009 | seed_subjects.sql | Matières par défaut |
+| 010 | sync_student_class_from_fees.sql | Sync classe |
+| 011 | sync_subscriptions_with_payments.sql | Sync bus/cantine flags |
+| 012 | class_subjects.sql | Matières par classe |
+| 013 | college_lycee_subjects.sql | Seed collège/lycée |
+| 014 | fix_preschool_subjects.sql | Fix FK order |
+| 015 | seed_classes_setting.sql | Seed setting classes |
+| 016 | add_department_to_cash_journal.sql | Colonne department |
+| 017 | add_missing_indexes.sql | Index sur 6 clés étrangères |
+| 018 | fix_subject_uuids.sql | Fix subject UUID references |
+| 019 | clean_sync_errors.sql | Nettoyage des erreurs de synchro |
+| 020 | fix_class_subjects_fk.sql | Clés étrangères class_subjects |
+| 021 | repair_fees_from_payments.sql | Réparer les frais depuis les paiements |
 
 ---
 
-## 8. FINANCE — BEST PRACTICE ORGANISATION
+## 7. FINANCE — ORGANISATION
 
-**Décision** : Séparer le module Finance en sous-pages avec navigation par onglets/routes.
+Le module Finance est organisé en sous-pages avec navigation par onglets dans `FinancePage.tsx` (wrapper) :
 
 ```
-/finance                → Vue d'ensemble (KPI cards, graphiques)
-/finance/journal        → Suivi des paiements élèves (actuel onglet "Journal")
-/finance/caisse         → Journal de caisse (recettes/dépenses école)
-/finance/alertes        → Alertes impayés
-/finance/configuration  → Configuration tarifs (actuel onglet "Configuration")
-```
+/finance                → FinancePage (tabs wrapper)
+  ├── Onglet "Vue d'ensemble"    → FinanceOverview.tsx (KPIs)
+  ├── Onglet "Suivi Global"      → PaymentJournal.tsx (paiements élèves)
+  └── Onglet "Configuration"     → FinanceConfig.tsx (tarifs)
 
-Cela permet :
-- Chaque sous-page a une responsabilité unique
-- La configuration est séparée du suivi quotidien
-- Le journal de caisse (cash_journal) est distinct des paiements élèves (student_payments)
-- Les KPIs ont leur propre espace pour être riches
+/finance/caisse         → CashJournalPage.tsx (via sidebar)
+/finance/alertes        → PaymentAlerts.tsx (via sidebar)
+```
 
 ---
 
-## 9. DONNÉES EXISTANTES
+## 8. DONNÉES EXISTANTES
 
 La base SQLite contient déjà des données (élèves, paiements, etc.) synchronisées avec Supabase.
 - **Ne PAS supprimer ou recréer** la base de données
@@ -421,9 +434,9 @@ La base SQLite contient déjà des données (élèves, paiements, etc.) synchron
 
 ---
 
-## 10. CHECKLIST PRÉ-COMMIT
+## 9. CHECKLIST PRÉ-COMMIT
 
-Avant chaque livraison de phase :
+Avant chaque livraison :
 - [ ] `npm run typecheck` passe sans erreur
 - [ ] `npm run dev` démarre l'app sans crash
 - [ ] Les nouvelles fonctionnalités sont testées manuellement
@@ -435,5 +448,11 @@ Avant chaque livraison de phase :
 
 ---
 
-*Dernière mise à jour : 26 mai 2026*
-*Phase en cours : Phase 4 (Finance — Compléter)*
+## 10. TÂCHES RESTANTES
+
+Voir `docs/FINAL_PLAN.md` pour le plan de finition détaillé avec toutes les corrections restantes à effectuer (RBAC frontend, audit logs, bugs, types, DRY, documentation).
+
+---
+
+*Dernière mise à jour : 10 juin 2026*
+*État : Toutes les phases (0-8) implémentées. Projet de finition achevé.*

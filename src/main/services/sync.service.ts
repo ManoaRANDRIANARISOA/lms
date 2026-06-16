@@ -7,7 +7,6 @@ import { app } from 'electron' // Load env vars
 const isDev = !app.isPackaged
 const envPath = isDev ? path.join(process.cwd(), '.env') : path.join(process.resourcesPath, '.env')
 
-console.log('Trying to load .env from:', envPath)
 dotenv.config({ path: envPath })
 
 // Supabase credentials from .env file only (no hardcoded fallbacks for security)
@@ -59,6 +58,27 @@ export const supabase = supabaseClient || {
   }
 }
 
+const SYNCABLE_TABLES = new Set([
+  'students',
+  'student_fees',
+  'student_payments',
+  'personnel',
+  'time_tracking',
+  'daily_attendance',
+  'personnel_absences',
+  'salary_advances',
+  'custom_deductions',
+  'cash_journal',
+  'subjects',
+  'grades',
+  'class_subjects',
+  'parent_events',
+  'event_payments',
+  'bus_attendance',
+  'canteen_attendance',
+  'users'
+])
+
 /**
  * Add a record to the local sync queue.
  * IMPORTANT: This function is SYNCHRONOUS because it is called inside
@@ -70,6 +90,10 @@ export function addToSyncQueue(
   action: 'create' | 'update' | 'delete',
   data: any
 ): void {
+  if (!SYNCABLE_TABLES.has(tableName)) {
+    console.error(`Rejected unauthorized table for sync: ${tableName}`)
+    return
+  }
   try {
     db.prepare(
       `
@@ -162,13 +186,40 @@ export async function wipeRemoteData() {
   }
 }
 
+// Table sync priority: parent tables must be pushed before child tables
+// to avoid FK violations on Supabase.
+// This ordering is inlined in the SQL query below.
+
 async function pushLocalChanges() {
   const queue = db
     .prepare(
       `
     SELECT * FROM sync_queue
     WHERE status IN ('pending', 'error')
-    ORDER BY created_at ASC
+    ORDER BY
+      CASE table_name
+        WHEN 'subjects' THEN 1
+        WHEN 'students' THEN 2
+        WHEN 'personnel' THEN 2
+        WHEN 'student_fees' THEN 3
+        WHEN 'class_subjects' THEN 3
+        WHEN 'grades' THEN 4
+        WHEN 'time_tracking' THEN 4
+        WHEN 'daily_attendance' THEN 4
+        WHEN 'personnel_absences' THEN 4
+        WHEN 'salary_advances' THEN 4
+        WHEN 'custom_deductions' THEN 4
+        WHEN 'student_payments' THEN 5
+        WHEN 'cash_journal' THEN 5
+        WHEN 'parent_events' THEN 5
+        WHEN 'event_payments' THEN 6
+        WHEN 'bus_attendance' THEN 6
+        WHEN 'canteen_attendance' THEN 6
+        WHEN 'users' THEN 7
+        WHEN 'settings' THEN 8
+        ELSE 99
+      END,
+      created_at ASC
     LIMIT 100
   `
     )
@@ -176,6 +227,11 @@ async function pushLocalChanges() {
 
   for (const item of queue) {
     try {
+      if (!SYNCABLE_TABLES.has(item.table_name)) {
+        console.error(`Skipping unauthorized table in sync queue: ${item.table_name}`)
+        db.prepare(`UPDATE sync_queue SET status = 'skipped', error_message = 'Forbidden table name' WHERE id = ?`).run(item.id)
+        continue
+      }
       // If status is error, we should retry.
       // But maybe check if we exceeded max retries? For now, infinite retry.
 
@@ -185,6 +241,27 @@ async function pushLocalChanges() {
       // Now data is already in snake_case coming from frontend/repository
 
       const payload = { ...data }
+
+      // FIX: Sanitize empty date strings for PostgreSQL
+      // PostgreSQL rejects "" as date, must be NULL
+      const dateFields = ['date_of_birth', 'departure_date', 'hire_date', 'start_date', 'end_date', 'payment_date', 'attendance_date', 'advance_date', 'repayment_date']
+      for (const field of dateFields) {
+        if (payload[field] === '') {
+          payload[field] = null
+        }
+      }
+
+      // FIX: Skip records with missing required foreign keys
+      if (item.table_name === 'student_fees' && !payload.student_id) {
+        console.warn(`Skipping student_fees ${payload.id}: missing student_id`)
+        db.prepare(`UPDATE sync_queue SET status = 'skipped', error_message = 'Missing student_id' WHERE id = ?`).run(item.id)
+        continue
+      }
+      if (item.table_name === 'student_fees' && !payload.school_year) {
+        console.warn(`Skipping student_fees ${payload.id}: missing school_year`)
+        db.prepare(`UPDATE sync_queue SET status = 'skipped', error_message = 'Missing school_year' WHERE id = ?`).run(item.id)
+        continue
+      }
 
       if (item.table_name === 'students') {
         // Remove undefined fields
@@ -330,6 +407,8 @@ async function pushLocalChanges() {
             } else {
               supabasePayload[key] = val
             }
+          } else if (typeof val === 'boolean') {
+            supabasePayload[key] = val
           } else if (typeof val === 'object' && val !== null && !(val instanceof Date)) {
             supabasePayload[key] = JSON.stringify(val)
           } else {
@@ -337,11 +416,26 @@ async function pushLocalChanges() {
           }
         }
 
-        const { error } = await supabase.from(item.table_name).upsert(supabasePayload)
+        // Handle tables with composite unique constraints that differ from PK
+        let upsertError: any
+        if (item.table_name === 'time_tracking') {
+          const { error } = await supabase
+            .from(item.table_name)
+            .upsert(supabasePayload, { onConflict: 'personnel_id,month' })
+          upsertError = error
+        } else if (item.table_name === 'grades') {
+          const { error } = await supabase
+            .from(item.table_name)
+            .upsert(supabasePayload, { onConflict: 'student_id,subject_id,school_year,term' })
+          upsertError = error
+        } else {
+          const { error } = await supabase.from(item.table_name).upsert(supabasePayload)
+          upsertError = error
+        }
 
-        if (error) {
+        if (upsertError) {
           // Handle Duplicate Key Error (23505) for registration_number
-          if (error.code === '23505' && error.message?.includes('registration_number')) {
+          if (upsertError.code === '23505' && upsertError.message?.includes('registration_number')) {
             console.warn(
               `Duplicate registration_number detected for ${payload.id}. Regenerating...`
             )
@@ -382,8 +476,8 @@ async function pushLocalChanges() {
               throw retryError
             }
           } else {
-            console.error(`Supabase Push Error [${item.table_name}]:`, error)
-            throw error
+            console.error(`Supabase Push Error [${item.table_name}]:`, upsertError)
+            throw upsertError
           }
         }
       } else if (item.action === 'delete') {
@@ -456,6 +550,7 @@ async function pullRemoteChanges() {
     'cash_journal',
     'subjects',
     'grades',
+    'class_subjects',
     'parent_events',
     'event_payments',
     'bus_attendance',
@@ -464,6 +559,10 @@ async function pullRemoteChanges() {
   ]
 
   for (const table of tables) {
+    if (!SYNCABLE_TABLES.has(table)) {
+      console.error(`Skipping unauthorized table in pull: ${table}`)
+      continue
+    }
     const { data, error } = await supabase.from(table).select('*').gt('updated_at', lastSync)
 
     if (error) {

@@ -13,32 +13,12 @@ import { useAuthStore } from '@/store/useAuthStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, Edit, Trash2, Save } from 'lucide-react'
+import { ArrowLeft, Edit, Trash2, Save, Download, User, Briefcase, CreditCard, Mail, Phone, MapPin, CalendarDays, DollarSign, Info } from 'lucide-react'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 import AttendanceCalendar from '@/components/personnel/AttendanceCalendar'
+import { POSITION_LABELS, STATUS_LABELS, LEVEL_LABELS } from '@/lib/personnel-constants'
 
-const POSITION_LABELS: Record<string, string> = {
-  teacher: 'Enseignant',
-  admin: 'Administration',
-  direction: 'Direction',
-  maintenance: 'Maintenance',
-  other: 'Autre'
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  fulltime: 'Temps plein',
-  parttime: 'Temps partiel'
-}
-
-const LEVEL_LABELS: Record<string, string> = {
-  preschool: 'Préscolaire',
-  primary: 'Primaire',
-  middle: 'Collège',
-  high: 'Lycée',
-  multi: 'Multi-niveaux'
-}
-
-const TABS = ['Informations', 'Pointage', 'Absences', 'Salaire']
+const TABS = ['Informations', 'Pointage', 'Salaire']
 
 export default function PersonnelDetail(): React.JSX.Element {
   const { id } = useParams<{ id: string }>()
@@ -46,9 +26,9 @@ export default function PersonnelDetail(): React.JSX.Element {
   const canWrite = useAuthStore((s) => s.canWrite)
 
   const {
-    currentPerson, timeTracking, absences, advances, deductions,
+    currentPerson, timeTracking, advances, deductions,
     salaryCalculation, loading, getPerson, calculateSalary,
-    createAbsence, createAdvance, createDeduction, markAdvanceRepaid, createSalaryExpense
+    createAdvance, createDeduction, deleteDeduction, markAdvanceRepaid, createSalaryExpense
   } = usePersonnelStore()
 
   const [activeTab, setActiveTab] = useState('Informations')
@@ -57,27 +37,15 @@ export default function PersonnelDetail(): React.JSX.Element {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   })
 
-  // Formulaire avances
-  const [advanceAmount, setAdvanceAmount] = useState('')
-  const [advanceDate, setAdvanceDate] = useState(() => new Date().toISOString().split('T')[0])
-  const [advanceReason, setAdvanceReason] = useState('')
-  const [advanceMsg, setAdvanceMsg] = useState('')
-
-  // Formulaire déductions personnalisées
-  const [deductionMonth, setDeductionMonth] = useState(() => {
+  // Formulaire Ajustements sur salaire (Avances & Déductions)
+  const [adjustmentType, setAdjustmentType] = useState<'advance'|'deduction'>('advance')
+  const [adjustmentAmount, setAdjustmentAmount] = useState('')
+  const [adjustmentReason, setAdjustmentReason] = useState('')
+  const [adjustmentDate, setAdjustmentDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [adjustmentMonth, setAdjustmentMonth] = useState(() => {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   })
-  const [deductionLabel, setDeductionLabel] = useState('')
-  const [deductionAmount, setDeductionAmount] = useState('')
-  const [deductionMsg, setDeductionMsg] = useState('')
-
-  // Formulaire absences
-  const [absenceStart, setAbsenceStart] = useState('')
-  const [absenceEnd, setAbsenceEnd] = useState('')
-  const [absenceReason, setAbsenceReason] = useState('leave')
-  const [absenceJustified, setAbsenceJustified] = useState(true)
-  const [absenceMsg, setAbsenceMsg] = useState('')
 
   useEffect(() => {
     if (id) getPerson(id)
@@ -147,36 +115,61 @@ export default function PersonnelDetail(): React.JSX.Element {
       {/* Contenu onglet */}
       <div className="bg-white rounded-xl border shadow-sm p-6">
         {activeTab === 'Informations' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h3 className="text-sm font-semibold text-muted-foreground mb-2">Identité</h3>
-              <div className="space-y-2 text-sm">
-                <p><span className="font-medium">Nom :</span> {p.last_name}</p>
-                <p><span className="font-medium">Prénom :</span> {p.first_name}</p>
-                <p><span className="font-medium">Téléphone :</span> {p.contact || '-'}</p>
-                <p><span className="font-medium">Email :</span> {p.email || '-'}</p>
-                <p><span className="font-medium">Adresse :</span> {p.address || '-'}</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-blue-50/50 rounded-xl p-5 border border-blue-100">
+              <div className="flex items-center gap-2 mb-4">
+                <User className="w-5 h-5 text-blue-600" />
+                <h3 className="font-semibold text-blue-900">Identité</h3>
+              </div>
+              <div className="space-y-3 text-sm">
+                <p className="flex justify-between"><span className="text-blue-700/70">Nom</span> <span className="font-medium text-blue-950">{p.last_name}</span></p>
+                <p className="flex justify-between"><span className="text-blue-700/70">Prénom</span> <span className="font-medium text-blue-950">{p.first_name}</span></p>
+                <p className="flex items-center gap-2 text-blue-950 mt-4"><Phone className="w-4 h-4 text-blue-500" /> {p.contact || '-'}</p>
+                <p className="flex items-center gap-2 text-blue-950"><Mail className="w-4 h-4 text-blue-500" /> {p.email || '-'}</p>
+                <p className="flex items-center gap-2 text-blue-950"><MapPin className="w-4 h-4 text-blue-500" /> {p.address || '-'}</p>
               </div>
             </div>
-            <div>
-              <h3 className="text-sm font-semibold text-muted-foreground mb-2">Professionnel</h3>
-              <div className="space-y-2 text-sm">
-                <p><span className="font-medium">Poste :</span> {POSITION_LABELS[p.position || ''] || p.position || '-'}</p>
-                <p><span className="font-medium">Statut :</span> {STATUS_LABELS[p.status || ''] || p.status || '-'}</p>
-                <p><span className="font-medium">Date d'embauche :</span> {p.hire_date || '-'}</p>
-                {p.departure_date && <p><span className="font-medium">Date de départ :</span> {p.departure_date}</p>}
-                {p.teacher_level && <p><span className="font-medium">Niveau :</span> {LEVEL_LABELS[p.teacher_level] || p.teacher_level}</p>}
+
+            <div className="bg-amber-50/50 rounded-xl p-5 border border-amber-100">
+              <div className="flex items-center gap-2 mb-4">
+                <Briefcase className="w-5 h-5 text-amber-600" />
+                <h3 className="font-semibold text-amber-900">Professionnel</h3>
+              </div>
+              <div className="space-y-3 text-sm">
+                <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 mb-2">
+                  {STATUS_LABELS[p.status || ''] || p.status || '-'}
+                </div>
+                <p className="flex justify-between"><span className="text-amber-700/70">Poste</span> <span className="font-medium text-amber-950">{POSITION_LABELS[p.position || ''] || p.position || '-'}</span></p>
+                <p className="flex justify-between items-center"><span className="text-amber-700/70">Date d'embauche</span> <span className="flex items-center gap-1 font-medium text-amber-950"><CalendarDays className="w-3 h-3" /> {p.hire_date || '-'}</span></p>
+                {p.departure_date && <p className="flex justify-between items-center"><span className="text-amber-700/70">Date de départ</span> <span className="flex items-center gap-1 font-medium text-red-600"><CalendarDays className="w-3 h-3" /> {p.departure_date}</span></p>}
+                {p.teacher_level && <p className="flex justify-between"><span className="text-amber-700/70">Niveau</span> <span className="font-medium text-amber-950">{LEVEL_LABELS[p.teacher_level] || p.teacher_level}</span></p>}
               </div>
             </div>
-            <div>
-              <h3 className="text-sm font-semibold text-muted-foreground mb-2">Rémunération</h3>
-              <div className="space-y-2 text-sm">
-                <p><span className="font-medium">Type :</span> {p.salary_type === 'monthly' ? 'Mensuel' : p.salary_type === 'hourly' ? 'Horaire' : '-'}</p>
-                {p.monthly_salary && <p><span className="font-medium">Salaire mensuel :</span> {p.monthly_salary.toLocaleString('fr-MG')} Ar</p>}
-                {p.hourly_rate && <p><span className="font-medium">Taux horaire :</span> {p.hourly_rate.toLocaleString('fr-MG')} Ar</p>}
-                <p><span className="font-medium">CNAPS :</span> {(p.cnaps_rate || 0) * 100}%</p>
-                <p><span className="font-medium">IRSA :</span> {(p.irsa_rate || 0) * 100}%</p>
-                {p.has_droit && <p><span className="font-medium">Droit :</span> {(p.droit_amount || 0).toLocaleString('fr-MG')} Ar</p>}
+
+            <div className="bg-emerald-50/50 rounded-xl p-5 border border-emerald-100">
+              <div className="flex items-center gap-2 mb-4">
+                <CreditCard className="w-5 h-5 text-emerald-600" />
+                <h3 className="font-semibold text-emerald-900">Rémunération</h3>
+              </div>
+              <div className="space-y-3 text-sm">
+                <p className="flex justify-between"><span className="text-emerald-700/70">Type</span> <span className="font-medium text-emerald-950">{p.salary_type === 'monthly' ? 'Mensuel' : p.salary_type === 'hourly' ? 'Horaire' : '-'}</span></p>
+                
+                {p.monthly_salary && (
+                  <div className="p-3 bg-white rounded-lg border border-emerald-100 my-2">
+                    <p className="text-xs text-emerald-600 mb-1">Salaire de base</p>
+                    <p className="font-bold text-lg text-emerald-950 flex items-center gap-1"><DollarSign className="w-4 h-4" /> {p.monthly_salary.toLocaleString('fr-MG')} Ar</p>
+                  </div>
+                )}
+                {p.hourly_rate && (
+                  <div className="p-3 bg-white rounded-lg border border-emerald-100 my-2">
+                    <p className="text-xs text-emerald-600 mb-1">Taux horaire</p>
+                    <p className="font-bold text-lg text-emerald-950 flex items-center gap-1"><DollarSign className="w-4 h-4" /> {p.hourly_rate.toLocaleString('fr-MG')} Ar/h</p>
+                  </div>
+                )}
+                
+                <p className="flex justify-between"><span className="text-emerald-700/70">CNAPS</span> <span className="font-medium text-emerald-950">{p.cnaps_amount ? p.cnaps_amount.toLocaleString('fr-MG') + ' Ar' : ((p.cnaps_rate || 0) * 100) + '%'}</span></p>
+                <p className="flex justify-between"><span className="text-emerald-700/70">IRSA</span> <span className="font-medium text-emerald-950">{p.irsa_amount ? p.irsa_amount.toLocaleString('fr-MG') + ' Ar' : ((p.irsa_rate || 0) * 100) + '%'}</span></p>
+                {p.has_droit && <p className="flex justify-between"><span className="text-emerald-700/70">Droit divers</span> <span className="font-medium text-emerald-950">{(p.droit_amount || 0).toLocaleString('fr-MG')} Ar</span></p>}
               </div>
             </div>
           </div>
@@ -184,12 +177,27 @@ export default function PersonnelDetail(): React.JSX.Element {
 
         {activeTab === 'Pointage' && (
           <div className="space-y-6">
+            {/* Infos sur la logique de pointage */}
+            {p.salary_type === 'monthly' ? (
+              <div className="bg-blue-50 text-blue-800 p-4 rounded-lg flex gap-3 text-sm">
+                <Info className="w-5 h-5 flex-shrink-0" />
+                <div>
+                  <p className="font-semibold">Pointage par exception</p>
+                  <p>L'employé est payé à temps plein par défaut. Utilisez le calendrier uniquement pour enregistrer les <b>absences</b> et <b>retards</b>.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-blue-50 text-blue-800 p-4 rounded-lg flex gap-3 text-sm">
+                <Info className="w-5 h-5 flex-shrink-0" />
+                <div>
+                  <p className="font-semibold">Pointage Hybride</p>
+                  <p>Vous pouvez enregistrer les heures jour par jour dans le calendrier, <b>ou</b> saisir directement le total mensuel manuellement ci-dessous.</p>
+                </div>
+              </div>
+            )}
+
             <div className="bg-gray-50 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Pointage journalier</h3>
-              <p className="text-xs text-gray-500 mb-4">
-                Cliquez sur un jour pour marquer la présence ou l'absence. Le calcul du salaire se base sur les heures réellement pointées.
-                {currentPerson?.salary_type === 'monthly' && ' Pour les mensuels, le salaire est calculé sur un quota d\'heures : les heures manquantes sont déduites, les heures supplémentaires sont payées.'}
-              </p>
+              <h3 className="text-sm font-semibold text-gray-700 mb-4">Calendrier de pointage</h3>
               <AttendanceCalendar
                 personnelId={id!}
                 salaryType={currentPerson?.salary_type}
@@ -201,431 +209,370 @@ export default function PersonnelDetail(): React.JSX.Element {
               />
             </div>
 
-            {/* Historique time_tracking (legacy display for reference) */}
-            {timeTracking.length > 0 && (
-              <div>
-                <h3 className="text-lg font-semibold mb-3">Ancien historique mensuel (time tracking)</h3>
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left">Mois</th>
-                      <th className="px-4 py-2 text-left">Heures travaillées</th>
-                      <th className="px-4 py-2 text-left">Commentaire</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {timeTracking.map((t) => (
-                      <tr key={t.id}>
-                        <td className="px-4 py-2">{t.month}</td>
-                        <td className="px-4 py-2">{t.hours_worked}h</td>
-                        <td className="px-4 py-2">{t.edit_reason || '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'Absences' && (
-          <div className="space-y-6">
-            {/* Formulaire nouvelle absence */}
-            {canWrite('personnel') && (
-              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <h3 className="text-sm font-semibold text-gray-700">Nouvelle absence</h3>
-                <div className="bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-800">
-                  <p className="font-medium">Impact sur le salaire :</p>
-                  {currentPerson?.salary_type === 'monthly' && currentPerson?.monthly_salary ? (
-                    <p>Chaque jour d'absence sera automatiquement déduit du salaire mensuel ({(currentPerson.monthly_salary / 30).toLocaleString('fr-MG')} Ar/jour estimé).</p>
-                  ) : currentPerson?.salary_type === 'hourly' && currentPerson?.hourly_rate ? (
-                    <p>Pour les employés horaires, réduisez le nombre d'heures saisies dans l'onglet "Heures" pour refléter l'absence (estimation : {currentPerson.hourly_rate * 8} Ar/jour).</p>
-                  ) : (
-                    <p>Cette absence impactera automatiquement le calcul du salaire.</p>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            {/* Section Forçage Horaire (seulement pour les employés horaires) */}
+            {p.salary_type === 'hourly' && canWrite('personnel') && (
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Total mensuel manuel (Optionnel)</h3>
+                <p className="text-xs text-gray-500 mb-4">
+                  Si vous n'utilisez pas le calendrier, vous pouvez forcer le total d'heures effectuées pour le mois en cours. Cette valeur écrase le total du calendrier.
+                </p>
+                <div className="flex items-end gap-4">
                   <div>
-                    <Label className="text-xs">Date de début *</Label>
-                    <Input type="date" value={absenceStart} onChange={(e) => setAbsenceStart(e.target.value)} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Date de fin *</Label>
-                    <Input type="date" value={absenceEnd} onChange={(e) => setAbsenceEnd(e.target.value)} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Motif</Label>
-                    <select
-                      value={absenceReason}
-                      onChange={(e) => setAbsenceReason(e.target.value)}
-                      className="w-full border rounded-md px-3 py-2 text-sm bg-white"
-                    >
-                      <option value="leave">Congé</option>
-                      <option value="sick">Maladie</option>
-                      <option value="unjustified">Non justifiée</option>
-                      <option value="other">Autre</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-2 pt-5">
-                    <input
-                      id="justified"
-                      type="checkbox"
-                      checked={absenceJustified}
-                      onChange={(e) => setAbsenceJustified(e.target.checked)}
-                      className="h-4 w-4"
+                    <Label className="text-xs">Heures totales du mois</Label>
+                    <Input 
+                      type="number" 
+                      placeholder="Ex: 45" 
+                      id="manualHoursInput"
+                      className="w-32 bg-white" 
                     />
-                    <Label htmlFor="justified" className="text-xs mb-0">Justifiée</Label>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
                   <Button size="sm" onClick={async () => {
-                    if (!absenceStart || !absenceEnd) {
-                      setAbsenceMsg('Dates requises.')
-                      return
-                    }
-                    if (new Date(absenceEnd) < new Date(absenceStart)) {
-                      setAbsenceMsg('La date de fin doit être après la date de début.')
-                      return
-                    }
-                    const success = await createAbsence({
-                      personnel_id: id,
-                      start_date: absenceStart,
-                      end_date: absenceEnd,
-                      reason: absenceReason,
-                      justified: absenceJustified
+                    const inputEl = document.getElementById('manualHoursInput') as HTMLInputElement
+                    const val = inputEl?.value
+                    if (!val) return
+                    const d = new Date()
+                    const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+                    const success = await window.api.personnel.setTimeTracking({
+                      personnel_id: id!,
+                      month: monthStr,
+                      hours_worked: Number(val),
+                      manually_edited: true,
+                      edit_reason: 'Saisie manuelle'
                     })
                     if (success) {
-                      setAbsenceMsg('Absence enregistrée.')
-                      setAbsenceStart('')
-                      setAbsenceEnd('')
+                      alert('Total enregistré avec succès.')
+                      if (inputEl) inputEl.value = ''
+                      await getPerson(id!)
                     } else {
-                      setAbsenceMsg('Erreur.')
+                      alert('Erreur lors de l\'enregistrement.')
                     }
                   }}>
-                    <Save className="w-4 h-4 mr-1" />
-                    Enregistrer
+                    <Save className="w-4 h-4 mr-1" /> Enregistrer le total
                   </Button>
-                  {absenceMsg && <span className={`text-sm ${absenceMsg.includes('enregistrée') ? 'text-green-600' : 'text-red-600'}`}>{absenceMsg}</span>}
                 </div>
+                {/* Historique time_tracking */}
+                {timeTracking.length > 0 && (
+                  <div className="mt-4 border-t pt-4">
+                    <h4 className="text-xs font-semibold mb-2 text-gray-600">Historique des saisies manuelles</h4>
+                    <ul className="text-xs text-gray-600 space-y-1">
+                      {timeTracking.filter(t => t.manually_edited).map(t => (
+                        <li key={t.id} className="flex justify-between max-w-sm">
+                          <span>Mois : {t.month}</span>
+                          <span className="font-semibold">{t.hours_worked}h</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
-
-            {/* Historique des absences */}
-            <div>
-              <h3 className="text-lg font-semibold mb-3">Historique des absences</h3>
-              {absences.length === 0 ? (
-                <p className="text-muted-foreground">Aucune absence enregistrée.</p>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left">Début</th>
-                      <th className="px-4 py-2 text-left">Fin</th>
-                      <th className="px-4 py-2 text-left">Motif</th>
-                      <th className="px-4 py-2 text-left">Justifiée</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {absences.map((a) => (
-                      <tr key={a.id}>
-                        <td className="px-4 py-2">{a.start_date}</td>
-                        <td className="px-4 py-2">{a.end_date}</td>
-                        <td className="px-4 py-2">{a.reason || '-'}</td>
-                        <td className="px-4 py-2">{a.justified ? 'Oui' : 'Non'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
           </div>
         )}
-
+        
         {activeTab === 'Salaire' && (
           <div className="space-y-6">
-            {/* Calcul du salaire */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <h3 className="text-lg font-semibold">Calcul du salaire</h3>
-                <div className="flex items-center gap-2">
-                  <Label>Mois :</Label>
-                  <Input
-                    type="month"
-                    value={currentMonth}
-                    onChange={(e) => setCurrentMonth(e.target.value)}
-                    className="w-40"
-                  />
-                </div>
+            {/* Header and Month Selector */}
+            <div className="flex items-center justify-between bg-white p-4 rounded-lg border shadow-sm">
+              <h3 className="text-xl font-bold tracking-tight text-gray-800">Fiche de Paie & Calcul</h3>
+              <div className="flex items-center gap-3">
+                <Label className="font-medium text-gray-700">Mois de paie :</Label>
+                <Input
+                  type="month"
+                  value={currentMonth}
+                  onChange={(e) => setCurrentMonth(e.target.value)}
+                  className="w-48 bg-gray-50 border-gray-300 focus:bg-white"
+                />
               </div>
-
-              {salaryCalculation ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <div className="flex justify-between border-b pb-2">
-                      <span>Salaire brut de base</span>
-                      <span className="font-medium">{salaryCalculation.details.baseSalary.toLocaleString('fr-MG')} Ar</span>
-                    </div>
-                    {salaryCalculation.details.hoursWorked && (
-                      <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>Heures travaillées</span>
-                        <span>{salaryCalculation.details.hoursWorked}h × {salaryCalculation.details.hourlyRate?.toLocaleString('fr-MG')} Ar</span>
-                      </div>
-                    )}
-                    {salaryCalculation.details.absencesDeduction && salaryCalculation.details.absencesDeduction > 0 && (
-                      <div className="flex justify-between text-red-600">
-                        <span>Déduction absences</span>
-                        <span>-{salaryCalculation.details.absencesDeduction.toLocaleString('fr-MG')} Ar</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between font-semibold text-lg pt-2">
-                      <span>Salaire brut</span>
-                      <span>{salaryCalculation.grossSalary.toLocaleString('fr-MG')} Ar</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-red-600">
-                      <span>CNAPS ({((p.cnaps_rate || 0.01) * 100).toFixed(0)}%)</span>
-                      <span>-{salaryCalculation.cnapsDeduction.toLocaleString('fr-MG')} Ar</span>
-                    </div>
-                    <div className="flex justify-between text-red-600">
-                      <span>IRSA ({((p.irsa_rate || 0.01) * 100).toFixed(0)}%)</span>
-                      <span>-{salaryCalculation.irsaDeduction.toLocaleString('fr-MG')} Ar</span>
-                    </div>
-                    {salaryCalculation.droitDeduction > 0 && (
-                      <div className="flex justify-between text-red-600">
-                        <span>Droit</span>
-                        <span>-{salaryCalculation.droitDeduction.toLocaleString('fr-MG')} Ar</span>
-                      </div>
-                    )}
-                    {salaryCalculation.advancesTotal > 0 && (
-                      <div className="flex justify-between text-red-600">
-                        <span>Avances non remboursées</span>
-                        <span>-{salaryCalculation.advancesTotal.toLocaleString('fr-MG')} Ar</span>
-                      </div>
-                    )}
-                    {salaryCalculation.customDeductionsTotal > 0 && (
-                      <div className="flex justify-between text-red-600">
-                        <span>Déductions personnalisées</span>
-                        <span>-{salaryCalculation.customDeductionsTotal.toLocaleString('fr-MG')} Ar</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between font-bold text-xl text-green-700 pt-2 border-t">
-                      <span>Salaire net</span>
-                      <span>{salaryCalculation.netSalary.toLocaleString('fr-MG')} Ar</span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-muted-foreground">Sélectionnez un mois pour voir le calcul.</p>
-              )}
             </div>
 
-            {/* Explications déductions auto */}
-            <div className="bg-blue-50 rounded-lg p-4 text-sm text-blue-800">
-              <p className="font-semibold mb-1">Comment est calculé le salaire :</p>
-              {p.salary_type === 'monthly' && p.monthly_salary ? (
-                <div className="space-y-2">
-                  <p><strong>Type mensuel (calcul hybride)</strong> : le salaire est basé sur un <strong>quota d'heures</strong> fixé sur le profil ({p.expected_monthly_hours || 'non défini'}h/mois).</p>
-                  <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li>Taux horaire équivalent = {salaryCalculation?.details.hourlyEquivalentRate ? salaryCalculation.details.hourlyEquivalentRate.toLocaleString('fr-MG') : '...'} Ar/h</li>
-                    <li>Heures faites ce mois = {salaryCalculation?.details.hoursWorked || 0}h</li>
-                    <li>Heures attendues = {salaryCalculation?.details.expectedHours || p.expected_monthly_hours || '...'}h</li>
-                    {salaryCalculation && salaryCalculation.details.absencesDeduction ? (
-                      <li><strong>Déduction (sous-quota)</strong> : -{salaryCalculation.details.absencesDeduction.toLocaleString('fr-MG')} Ar</li>
-                    ) : salaryCalculation && salaryCalculation.details.overtimePay ? (
-                      <li><strong>Heures supplémentaires</strong> : +{salaryCalculation.details.overtimePay.toLocaleString('fr-MG')} Ar</li>
-                    ) : (
-                      <li>Pas de déduction ni d'heures supplémentaires.</li>
-                    )}
-                  </ul>
-                  <p className="text-xs text-blue-700">Les heures sont comptabilisées depuis le <strong>pointage journalier</strong> (onglet Pointage). Chaque jour pointé comme "Présent", "En retard" ou "Demi-journée" compte ses heures. Les jours "Absents" ou non pointés comptent 0h.</p>
-                </div>
-              ) : p.salary_type === 'hourly' && p.hourly_rate ? (
-                <div className="space-y-2">
-                  <p><strong>Type horaire</strong> : salaire = heures travaillées × taux horaire ({p.hourly_rate.toLocaleString('fr-MG')} Ar/h).</p>
-                  <p className="text-xs text-blue-700">Les heures sont comptabilisées depuis le <strong>pointage journalier</strong> (onglet Pointage). Si aucun pointage n'existe pour un mois, l'ancien total mensuel (time tracking) est utilisé comme fallback.</p>
-                </div>
-              ) : (
-                <p>Type de salaire non défini.</p>
-              )}
-              <p className="mt-2 font-semibold">Déductions automatiques : CNAPS ({((p.cnaps_rate || 0.01) * 100).toFixed(0)}%), IRSA ({((p.irsa_rate || 0.01) * 100).toFixed(0)}%) {p.has_droit ? ', Droit' : ''}</p>
-            </div>
-
-            {/* Validation paiement → Finance */}
-            {salaryCalculation && canWrite('personnel') && (
-              <div className="bg-green-50 rounded-lg p-4 space-y-3">
-                <h3 className="text-sm font-semibold text-green-800">Validation du paiement</h3>
-                <p className="text-xs text-green-700">En validant, une entrée sera créée automatiquement dans le <strong>Journal de Caisse</strong> (module Finance) comme une dépense "Salaire". Vous pourrez l'éditer ensuite dans Finance.</p>
-                <Button
-                  size="sm"
-                  onClick={async () => {
-                    if (!confirm(`Valider le paiement de ${salaryCalculation.netSalary.toLocaleString('fr-MG')} Ar pour ${currentMonth} ?\n\nUne dépense sera créée dans le Journal de Caisse.`)) return
-                    await createSalaryExpense(id!, currentMonth, salaryCalculation.netSalary, `Salaire ${p.first_name} ${p.last_name} - ${currentMonth}`)
-                  }}
-                >
-                  <Save className="w-4 h-4 mr-1" />
-                  Valider et payer
-                </Button>
-              </div>
-            )}
-
-            {/* Section Avances */}
-            {canWrite('personnel') && (
-              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <h3 className="text-sm font-semibold text-gray-700">Nouvelle avance sur salaire</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <Label className="text-xs">Montant (Ar)</Label>
-                    <Input type="number" value={advanceAmount} onChange={(e) => setAdvanceAmount(e.target.value)} placeholder="50000" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Date</Label>
-                    <Input type="date" value={advanceDate} onChange={(e) => setAdvanceDate(e.target.value)} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Motif</Label>
-                    <Input value={advanceReason} onChange={(e) => setAdvanceReason(e.target.value)} placeholder="Urgence médicale..." />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" onClick={async () => {
-                    if (!advanceAmount || parseFloat(advanceAmount) <= 0) {
-                      setAdvanceMsg('Montant invalide.')
-                      return
-                    }
-                    const success = await createAdvance({
-                      personnel_id: id,
-                      amount: parseFloat(advanceAmount),
-                      advance_date: advanceDate,
-                      reason: advanceReason || null
-                    })
-                    if (success) {
-                      setAdvanceMsg('Avance enregistrée.')
-                      setAdvanceAmount('')
-                      setAdvanceReason('')
-                    } else {
-                      setAdvanceMsg('Erreur.')
-                    }
-                  }}>
-                    <Save className="w-4 h-4 mr-1" />
-                    Enregistrer avance
-                  </Button>
-                  {advanceMsg && <span className={`text-sm ${advanceMsg.includes('succès') || advanceMsg.includes('enregistrée') ? 'text-green-600' : 'text-red-600'}`}>{advanceMsg}</span>}
-                </div>
-              </div>
-            )}
-
-            {/* Liste avances non remboursées */}
-            <div>
-              <h3 className="text-sm font-semibold mb-2">Avances non remboursées</h3>
-              {advances.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Aucune avance en cours.</p>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Date</th>
-                      <th className="px-3 py-2 text-left">Montant</th>
-                      <th className="px-3 py-2 text-left">Motif</th>
-                      {canWrite('personnel') && <th className="px-3 py-2 text-right">Action</th>}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {advances.map((a) => (
-                      <tr key={a.id}>
-                        <td className="px-3 py-2">{a.advance_date}</td>
-                        <td className="px-3 py-2 font-medium">{a.amount.toLocaleString('fr-MG')} Ar</td>
-                        <td className="px-3 py-2">{a.reason || '-'}</td>
-                        {canWrite('personnel') && (
-                          <td className="px-3 py-2 text-right">
-                            <Button size="sm" variant="outline" onClick={async () => {
-                              if (confirm(`Marquer l'avance de ${a.amount.toLocaleString('fr-MG')} Ar comme remboursée ?`)) {
-                                await markAdvanceRepaid(a.id, new Date().toISOString().split('T')[0])
-                              }
-                            }}>
-                              Rembourser
-                            </Button>
-                          </td>
+            {/* Main Calculation & Explication */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left Column: Calculation Details */}
+              <div className="lg:col-span-2 space-y-6">
+                {salaryCalculation ? (
+                  <div className="bg-white rounded-xl border shadow-sm p-6">
+                    <h4 className="text-lg font-semibold mb-4 border-b pb-2">Détails du Calcul</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center text-gray-600">
+                          <span>Salaire brut de base</span>
+                          <span className="font-medium">{salaryCalculation.details.baseSalary.toLocaleString('fr-MG')} Ar</span>
+                        </div>
+                        {salaryCalculation.details.hoursWorked && (
+                          <div className="flex justify-between items-center text-sm text-gray-500">
+                            <span>Heures travaillées ({salaryCalculation.details.hoursWorked}h)</span>
+                            <span>{salaryCalculation.details.hourlyRate?.toLocaleString('fr-MG')} Ar/h</span>
+                          </div>
                         )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+                        {salaryCalculation.details.absencesDeduction && salaryCalculation.details.absencesDeduction > 0 ? (
+                          <div className="flex justify-between items-center text-red-600">
+                            <span>Déduction absences</span>
+                            <span>-{salaryCalculation.details.absencesDeduction.toLocaleString('fr-MG')} Ar</span>
+                          </div>
+                        ) : null}
+                        <div className="flex justify-between items-center font-semibold text-lg pt-3 border-t">
+                          <span>Salaire brut</span>
+                          <span>{salaryCalculation.grossSalary.toLocaleString('fr-MG')} Ar</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center text-red-600">
+                          <span>CNAPS ({((p.cnaps_rate || 0.01) * 100).toFixed(0)}%)</span>
+                          <span>-{salaryCalculation.cnapsDeduction.toLocaleString('fr-MG')} Ar</span>
+                        </div>
+                        <div className="flex justify-between items-center text-red-600">
+                          <span>IRSA ({((p.irsa_rate || 0.01) * 100).toFixed(0)}%)</span>
+                          <span>-{salaryCalculation.irsaDeduction.toLocaleString('fr-MG')} Ar</span>
+                        </div>
+                        {salaryCalculation.droitDeduction > 0 && (
+                          <div className="flex justify-between items-center text-red-600">
+                            <span>Droit</span>
+                            <span>-{salaryCalculation.droitDeduction.toLocaleString('fr-MG')} Ar</span>
+                          </div>
+                        )}
+                        {salaryCalculation.advancesTotal > 0 && (
+                          <div className="flex justify-between items-center text-amber-600">
+                            <span>Avances non remboursées</span>
+                            <span>-{salaryCalculation.advancesTotal.toLocaleString('fr-MG')} Ar</span>
+                          </div>
+                        )}
+                        {salaryCalculation.customDeductionsTotal > 0 && (
+                          <div className="flex justify-between items-center text-amber-600">
+                            <span>Déductions personnalisées</span>
+                            <span>-{salaryCalculation.customDeductionsTotal.toLocaleString('fr-MG')} Ar</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center font-bold text-2xl text-green-700 pt-3 border-t-2 border-green-200">
+                          <span>Salaire net</span>
+                          <span>{salaryCalculation.netSalary.toLocaleString('fr-MG')} Ar</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Validation paiement → Finance */}
+                    {canWrite('personnel') && (
+                      <div className="mt-8 pt-6 border-t flex flex-col md:flex-row gap-4 justify-between items-center bg-gray-50 p-4 rounded-lg">
+                        <div className="text-sm">
+                          <p className="font-semibold text-gray-800">Validation & Paie</p>
+                          <p className="text-gray-500">Génère le PDF et enregistre la dépense en Finance.</p>
+                        </div>
+                        <div className="flex gap-3">
+                          <Button
+                            variant="outline"
+                            onClick={async () => {
+                              const result = await window.api.pdf.generatePayslip(
+                                { first_name: p.first_name, last_name: p.last_name, position: p.position || '', month: currentMonth },
+                                {
+                                  gross_salary: salaryCalculation.grossSalary,
+                                  cnaps: salaryCalculation.cnapsDeduction,
+                                  ostie: 0,
+                                  irsa: salaryCalculation.irsaDeduction,
+                                  total_deductions: salaryCalculation.grossSalary - salaryCalculation.netSalary,
+                                  net_salary: salaryCalculation.netSalary
+                                }
+                              )
+                              if (result.success && result.filePath) {
+                                await window.api.pdf.openFile(result.filePath)
+                              } else {
+                                alert(result.error || 'Erreur génération PDF')
+                              }
+                            }}
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Fiche PDF
+                          </Button>
+                          <Button
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            onClick={async () => {
+                              if (!confirm(`Valider le paiement de ${salaryCalculation.netSalary.toLocaleString('fr-MG')} Ar pour ${currentMonth} ?\n\nUne dépense sera créée dans le Journal de Caisse.`)) return
+                              const success = await createSalaryExpense(id!, currentMonth, salaryCalculation.netSalary, `Paiement Salaire (${currentMonth}) - ${p.first_name} ${p.last_name}`)
+                              if (success) {
+                                alert('Paiement enregistré avec succès dans la finance.')
+                              } else {
+                                alert('Erreur lors de l\'enregistrement du paiement.')
+                              }
+                            }}
+                          >
+                            <Save className="w-4 h-4 mr-2" />
+                            Valider le paiement
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl border p-12 text-center text-gray-500">
+                    Sélectionnez un mois valide pour voir le calcul du salaire.
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Explications */}
+              <div className="bg-blue-50/50 rounded-xl border border-blue-100 p-6 text-sm text-blue-900 shadow-sm h-fit">
+                <h4 className="font-bold text-blue-800 mb-3 flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-blue-200 flex items-center justify-center text-blue-800">i</div>
+                  Règles de calcul
+                </h4>
+                {p.salary_type === 'monthly' && p.monthly_salary ? (
+                  <div className="space-y-3">
+                    <p><strong>Type mensuel (Hybride)</strong><br/>Basé sur un quota de {p.expected_monthly_hours || '...'}h/mois.</p>
+                    <ul className="space-y-2 bg-white/60 p-3 rounded-lg border border-blue-100">
+                      <li className="flex justify-between"><span>Taux équivalent</span> <span className="font-medium">{salaryCalculation?.details.hourlyEquivalentRate?.toLocaleString('fr-MG') || '...'} Ar/h</span></li>
+                      <li className="flex justify-between"><span>Heures faites</span> <span className="font-medium">{salaryCalculation?.details.hoursWorked || 0}h</span></li>
+                      <li className="flex justify-between"><span>Heures attendues</span> <span className="font-medium">{salaryCalculation?.details.expectedHours || p.expected_monthly_hours || '...'}h</span></li>
+                    </ul>
+                    <p className="text-xs opacity-80 mt-2">Les jours "Absents" non justifiés déduisent des heures du quota de base.</p>
+                  </div>
+                ) : p.salary_type === 'hourly' && p.hourly_rate ? (
+                  <div className="space-y-3">
+                    <p><strong>Type horaire</strong><br/>Salaire = Heures travaillées × Taux ({p.hourly_rate.toLocaleString('fr-MG')} Ar/h).</p>
+                    <p className="text-xs opacity-80">Les heures sont issues du pointage journalier.</p>
+                  </div>
+                ) : (
+                  <p>Type de salaire non défini.</p>
+                )}
+              </div>
             </div>
 
-            {/* Section Déductions personnalisées */}
-            {canWrite('personnel') && (
-              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <h3 className="text-sm font-semibold text-gray-700">Nouvelle déduction personnalisée</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <Label className="text-xs">Mois</Label>
-                    <Input type="month" value={deductionMonth} onChange={(e) => setDeductionMonth(e.target.value)} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Libellé</Label>
-                    <Input value={deductionLabel} onChange={(e) => setDeductionLabel(e.target.value)} placeholder="Retard, dommage..." />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Montant (Ar)</Label>
-                    <Input type="number" value={deductionAmount} onChange={(e) => setDeductionAmount(e.target.value)} placeholder="10000" />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" onClick={async () => {
-                    if (!deductionLabel || !deductionAmount || parseFloat(deductionAmount) <= 0) {
-                      setDeductionMsg('Libellé et montant requis.')
-                      return
-                    }
-                    const success = await createDeduction({
-                      personnel_id: id,
-                      month: deductionMonth,
-                      label: deductionLabel,
-                      amount: parseFloat(deductionAmount)
-                    })
-                    if (success) {
-                      setDeductionMsg('Déduction enregistrée.')
-                      setDeductionLabel('')
-                      setDeductionAmount('')
-                    } else {
-                      setDeductionMsg('Erreur.')
-                    }
-                  }}>
-                    <Save className="w-4 h-4 mr-1" />
-                    Enregistrer déduction
-                  </Button>
-                  {deductionMsg && <span className={`text-sm ${deductionMsg.includes('enregistrée') ? 'text-green-600' : 'text-red-600'}`}>{deductionMsg}</span>}
+            {/* Bottom section: Ajustements sur Salaire */}
+            <div className="bg-white rounded-xl border shadow-sm mt-6 overflow-hidden flex flex-col">
+              <div className="bg-indigo-50 p-4 border-b border-indigo-100 flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-bold text-indigo-900">Ajustements sur Salaire</h3>
+                  <p className="text-xs text-indigo-700">Avances sur salaire et déductions personnalisées (cantine, dommages, etc.)</p>
                 </div>
               </div>
-            )}
+              <div className="p-4 space-y-6">
+                {canWrite('personnel') && (
+                  <div className="bg-gray-50 rounded-lg p-4 border grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                    <div className="md:col-span-2">
+                      <Label className="text-xs text-gray-500">Type</Label>
+                      <select 
+                        value={adjustmentType} 
+                        onChange={(e) => setAdjustmentType(e.target.value as 'advance'|'deduction')}
+                        className="w-full h-9 border rounded-md px-3 text-sm"
+                      >
+                        <option value="advance">Avance</option>
+                        <option value="deduction">Déduction</option>
+                      </select>
+                    </div>
+                    {adjustmentType === 'advance' ? (
+                      <div className="md:col-span-2">
+                        <Label className="text-xs text-gray-500">Date</Label>
+                        <Input type="date" value={adjustmentDate} onChange={(e) => setAdjustmentDate(e.target.value)} className="h-9 text-sm" />
+                      </div>
+                    ) : (
+                      <div className="md:col-span-2">
+                        <Label className="text-xs text-gray-500">Mois d'impact</Label>
+                        <Input type="month" value={adjustmentMonth} onChange={(e) => setAdjustmentMonth(e.target.value)} className="h-9 text-sm" />
+                      </div>
+                    )}
+                    <div className="md:col-span-3">
+                      <Label className="text-xs text-gray-500">Motif / Libellé</Label>
+                      <Input value={adjustmentReason} onChange={(e) => setAdjustmentReason(e.target.value)} placeholder={adjustmentType === 'advance' ? 'Raison...' : 'Cantine, dommage...'} className="h-9 text-sm" />
+                    </div>
+                    <div className="md:col-span-3">
+                      <Label className="text-xs text-gray-500">Montant (Ar)</Label>
+                      <Input type="number" value={adjustmentAmount} onChange={(e) => setAdjustmentAmount(e.target.value)} placeholder="Montant..." className="h-9 text-sm" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Button size="sm" className="w-full h-9 bg-indigo-600 hover:bg-indigo-700 text-white" onClick={async () => {
+                        if (!adjustmentAmount || parseFloat(adjustmentAmount) <= 0) return alert('Erreur : montant invalide')
+                        if (adjustmentType === 'advance') {
+                          const success = await createAdvance({ personnel_id: id!, amount: parseFloat(adjustmentAmount), advance_date: adjustmentDate!, reason: adjustmentReason || undefined })
+                          if (success) { setAdjustmentAmount(''); setAdjustmentReason('') }
+                        } else {
+                          if (!adjustmentReason) return alert('Erreur : libellé requis pour une déduction')
+                          const success = await createDeduction({ personnel_id: id!, month: adjustmentMonth!, label: adjustmentReason!, amount: parseFloat(adjustmentAmount) })
+                          if (success) { setAdjustmentAmount(''); setAdjustmentReason('') }
+                        }
+                      }}>
+                        <Save className="w-4 h-4 mr-2" />
+                        Ajouter
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
-            {/* Liste déductions */}
-            <div>
-              <h3 className="text-sm font-semibold mb-2">Déductions personnalisées enregistrées</h3>
-              {deductions.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Aucune déduction.</p>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Mois</th>
-                      <th className="px-3 py-2 text-left">Libellé</th>
-                      <th className="px-3 py-2 text-left">Montant</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {deductions.map((d) => (
-                      <tr key={d.id}>
-                        <td className="px-3 py-2">{d.month}</td>
-                        <td className="px-3 py-2">{d.label}</td>
-                        <td className="px-3 py-2 font-medium text-red-600">-{d.amount.toLocaleString('fr-MG')} Ar</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  {/* Liste Avances */}
+                  <div>
+                    <h4 className="font-semibold text-gray-700 mb-2 flex items-center justify-between">
+                      <span>Avances non remboursées</span>
+                      <span className="text-sm bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">{advances.reduce((acc, a) => acc + a.amount, 0).toLocaleString('fr-MG')} Ar</span>
+                    </h4>
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full text-sm text-left">
+                        <thead className="bg-gray-50 text-gray-600">
+                          <tr>
+                            <th className="px-3 py-2 font-medium">Date</th>
+                            <th className="px-3 py-2 font-medium">Motif</th>
+                            <th className="px-3 py-2 font-medium">Montant</th>
+                            <th className="px-3 py-2 font-medium text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {advances.length === 0 ? (
+                            <tr><td colSpan={4} className="px-3 py-4 text-center text-gray-400">Aucune avance en cours.</td></tr>
+                          ) : advances.map((a) => (
+                            <tr key={a.id} className="hover:bg-gray-50">
+                              <td className="px-3 py-2">{a.advance_date}</td>
+                              <td className="px-3 py-2 text-gray-600">{a.reason || '-'}</td>
+                              <td className="px-3 py-2 font-semibold text-amber-700">{a.amount.toLocaleString('fr-MG')}</td>
+                              <td className="px-3 py-2 text-right">
+                                {canWrite('personnel') && (
+                                  <Button size="sm" variant="ghost" className="h-7 text-xs text-green-600 hover:text-green-700" onClick={async () => {
+                                    if (confirm(`Marquer l'avance de ${a.amount} Ar comme remboursée ?`)) await markAdvanceRepaid(a.id, new Date().toISOString().split('T')[0])
+                                  }}>Rembourser</Button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Liste Déductions */}
+                  <div>
+                    <h4 className="font-semibold text-gray-700 mb-2 flex items-center justify-between">
+                      <span>Déductions personnalisées ({currentMonth})</span>
+                      <span className="text-sm bg-red-100 text-red-800 px-2 py-0.5 rounded-full">{deductions.reduce((acc, d) => acc + d.amount, 0).toLocaleString('fr-MG')} Ar</span>
+                    </h4>
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full text-sm text-left">
+                        <thead className="bg-gray-50 text-gray-600">
+                          <tr>
+                            <th className="px-3 py-2 font-medium">Libellé</th>
+                            <th className="px-3 py-2 font-medium text-right">Montant</th>
+                            <th className="px-3 py-2 font-medium text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {deductions.length === 0 ? (
+                            <tr><td colSpan={3} className="px-3 py-4 text-center text-gray-400">Aucune déduction ce mois.</td></tr>
+                          ) : deductions.map((d) => (
+                            <tr key={d.id} className="hover:bg-gray-50">
+                              <td className="px-3 py-2 text-gray-600">{d.label}</td>
+                              <td className="px-3 py-2 font-semibold text-red-600 text-right">{d.amount.toLocaleString('fr-MG')}</td>
+                              <td className="px-3 py-2 text-right">
+                                {canWrite('personnel') && (
+                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={async () => {
+                                    if (confirm('Supprimer cette déduction ?')) await deleteDeduction(d.id)
+                                  }}>
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}

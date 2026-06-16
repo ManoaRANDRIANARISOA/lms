@@ -24,7 +24,7 @@ export default function CertificatePage() {
           if (year) setSchoolYear(year as string)
           if (name) setSchoolName(name as string)
         })
-        .catch(console.error)
+        .catch((err) => { if (import.meta.env.DEV) console.error(err) })
     }
   }, [studentId, getStudent])
 

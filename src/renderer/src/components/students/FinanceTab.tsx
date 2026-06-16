@@ -21,9 +21,37 @@ import {
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useFinanceStore } from '@/store/useFinanceStore'
-import type { Payment } from '@shared/types'
+import { usePermissions } from '@/lib/usePermissions'
+import type { Payment, FeeRecord, FinancePrices } from '@shared/types'
 
-const getTuitionCost = (record: any, prices: any) => {
+interface MonthStatus {
+  key: string
+  month: string
+  status: string
+  paid: number
+  balance: number
+  cost: number
+  expected?: number
+}
+
+interface TuitionStatusResult {
+  success: boolean
+  feeRecord?: FeeRecord
+  status?: MonthStatus[]
+}
+
+interface ServiceCard {
+  id: string
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  color: string
+  bg: string
+  enabled: boolean
+  status: string
+  isOneTime: boolean
+}
+
+const getTuitionCost = (record: FeeRecord | undefined | null, prices: FinancePrices | null) => {
   if (!record) return 0
   if (record.tuition_level && prices?.tuition?.[record.tuition_level]) {
     return prices.tuition[record.tuition_level]
@@ -31,12 +59,12 @@ const getTuitionCost = (record: any, prices: any) => {
   return record.monthly_tuition || 0
 }
 
-const getBusCost = (record: any, prices: any) => {
+const getBusCost = (record: FeeRecord | undefined | null, prices: FinancePrices | null) => {
   if (!record?.bus_subscribed || !record?.bus_route) return 0
   return prices?.bus?.[record.bus_route] || 0
 }
 
-const getCanteenCost = (record: any, prices: any) => {
+const getCanteenCost = (record: FeeRecord | undefined | null, prices: FinancePrices | null) => {
   if (!record?.canteen_subscribed) return 0
 
   let daysCount = record.canteen_days_per_week || 0
@@ -53,16 +81,17 @@ const getCanteenCost = (record: any, prices: any) => {
 interface FinanceTabProps {
   studentId: string
   schoolYear: string
-  feeRecord?: any
+  feeRecord?: FeeRecord
 }
 
 export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps) {
-  const [status, setStatus] = useState<any>(null)
-  const [payments, setPayments] = useState<any[]>([])
+  const [status, setStatus] = useState<TuitionStatusResult | null>(null)
+  const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
   const [isAddPaymentOpen, setIsAddPaymentOpen] = useState(false)
   const { prices: configPrices, fetchPrices } = useFinanceStore()
-  const [selectedPayment, setSelectedPayment] = useState<any>(null)
+  const { canWrite } = usePermissions()
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
   const [isViewPaymentOpen, setIsViewPaymentOpen] = useState(false)
   const [formData, setFormData] = useState({
     amount: '',
@@ -88,7 +117,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps
       }
       setPayments(paymentsRes || [])
     } catch (error) {
-      console.error('Failed to load finance data:', error)
+      if (import.meta.env.DEV) console.error('Failed to load finance data:', error)
     } finally {
       setLoading(false)
     }
@@ -214,8 +243,8 @@ export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps
       } else {
         alert('Erreur lors du paiement: ' + result.error)
       }
-    } catch (error: any) {
-      alert('Erreur: ' + error.message)
+    } catch (error: unknown) {
+      alert('Erreur: ' + (error instanceof Error ? error.message : String(error)))
     }
   }
 
@@ -318,7 +347,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps
     }
   ]
 
-  const handleCardClick = (service: any) => {
+  const handleCardClick = (service: ServiceCard) => {
     if (!service.enabled) return
 
     if (service.isOneTime && service.status === 'paid') {
@@ -332,14 +361,14 @@ export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps
     }
   }
 
-  const handleMonthClick = (type: string, monthData: any) => {
+  const handleMonthClick = (type: string, monthData: MonthStatus) => {
     if (monthData.status === 'paid') {
       const payment = payments.find((p) => p.payment_type === type && p.month === monthData.key)
       if (payment) {
         setSelectedPayment(payment)
         setIsViewPaymentOpen(true)
       }
-    } else {
+    } else if (canWrite('payments')) {
       setFormData((prev) => ({
         ...prev,
         payment_type: type,
@@ -359,7 +388,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps
   const getServiceMonthlyStatus = (type: 'bus' | 'canteen', monthlyCost: number) => {
     if (!status?.status || !monthlyCost) return []
 
-    return status.status.map((month: any) => {
+    return status.status.map((month: MonthStatus) => {
       // Find payments for this service and month
       const monthPayments = payments.filter((p) => p.payment_type === type && p.month === month.key)
 
@@ -394,7 +423,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps
     return status?.status || [] // Default to tuition/global status
   }
 
-  const renderMonthGrid = (title: string, type: string, data: any[]) => {
+  const renderMonthGrid = (title: string, type: string, data: MonthStatus[]) => {
     if (!data || data.length === 0) return null
     return (
       <div className="bg-white p-6 rounded-lg shadow border border-gray-100 mt-6">
@@ -461,10 +490,10 @@ export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps
           </div>
           <p
             className="text-2xl font-bold text-gray-900 truncate"
-            title={`${(configPrices?.tuition?.[status?.feeRecord?.tuition_level] || status?.feeRecord?.monthly_tuition || 0).toLocaleString()} Ar`}
+            title={`${(configPrices?.tuition?.[status?.feeRecord?.tuition_level ?? ''] || status?.feeRecord?.monthly_tuition || 0).toLocaleString()} Ar`}
           >
             {(
-              configPrices?.tuition?.[status?.feeRecord?.tuition_level] ||
+              configPrices?.tuition?.[status?.feeRecord?.tuition_level ?? ''] ||
               status?.feeRecord?.monthly_tuition ||
               0
             ).toLocaleString()}{' '}
@@ -538,7 +567,12 @@ export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps
         onClose={() => setIsAddPaymentOpen(false)}
         title="Enregistrer un paiement"
         footer={
-          <Button type="submit" form="payment-form">
+          <Button
+            type="submit"
+            form="payment-form"
+            disabled={!canWrite('payments')}
+            title={!canWrite('payments') ? 'Accès refusé' : undefined}
+          >
             Enregistrer le paiement
           </Button>
         }
@@ -576,8 +610,8 @@ export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps
               >
                 <option value="">Sélectionner un mois</option>
                 {getMonthsForPaymentType()
-                  .filter((m: any) => m.status !== 'paid')
-                  .map((m: any) => (
+                  .filter((m: MonthStatus) => m.status !== 'paid')
+                  .map((m: MonthStatus) => (
                     <option key={m.key} value={m.key}>
                       {m.month} (
                       {m.status === 'partial'
@@ -676,9 +710,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps
                 <p className="text-sm font-medium capitalize">
                   {selectedPayment.payment_type === 'enrollment'
                     ? "Frais d'inscription"
-                    : selectedPayment.payment_type === 'reenrollment'
-                      ? 'Réinscription'
-                      : selectedPayment.payment_type}
+                    : selectedPayment.payment_type}
                 </p>
               </div>
             </div>
@@ -698,7 +730,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps
       </Dialog>
 
       {/* Monthly Tracking Grid (Tuition) */}
-      {renderMonthGrid(`Suivi des Écolages (${schoolYear})`, 'tuition', status?.status)}
+      {renderMonthGrid(`Suivi des Écolages (${schoolYear})`, 'tuition', status?.status ?? [])}
 
       {/* Monthly Tracking Grid (Bus) */}
       {status?.feeRecord?.bus_subscribed &&
@@ -743,15 +775,13 @@ export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps
                       <span className="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded capitalize">
                         {payment.payment_type === 'tuition'
                           ? 'Écolage'
-                          : payment.payment_type === 'reenrollment'
-                            ? 'Réinscription'
-                            : payment.payment_type === 'enrollment'
-                              ? 'Inscription'
-                              : payment.payment_type === 'bus'
-                                ? 'Transport'
-                                : payment.payment_type === 'canteen'
-                                  ? 'Cantine'
-                                  : payment.payment_type}
+                          : payment.payment_type === 'enrollment'
+                            ? 'Inscription'
+                            : payment.payment_type === 'bus'
+                              ? 'Transport'
+                              : payment.payment_type === 'canteen'
+                                ? 'Cantine'
+                                : payment.payment_type}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-gray-500">

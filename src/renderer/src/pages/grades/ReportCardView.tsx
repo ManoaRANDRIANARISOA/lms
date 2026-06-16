@@ -9,7 +9,8 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useGradeStore } from '@/store/useGradeStore'
 import { useStudentStore } from '@/store/useStudentStore'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Printer, Award, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Printer, Award, AlertCircle, Download } from 'lucide-react'
+import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 
 function getMention(average: number): string {
   if (average >= 16) return 'Très Bien'
@@ -40,6 +41,24 @@ export default function ReportCardView(): React.JSX.Element {
 
   const student = currentStudent
 
+  const [assessments, setAssessments] = useState<any[]>([])
+
+  useEffect(() => {
+    if (student?.class && window.api) {
+      const load = async () => {
+        try {
+          const result = await window.api.assessment.list(schoolYear, student.class)
+          if (result.success && result.assessments) {
+            setAssessments(result.assessments)
+          }
+        } catch (e) {
+          console.error(e)
+        }
+      }
+      load()
+    }
+  }, [student?.class, schoolYear])
+
   if (!student) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -55,6 +74,8 @@ export default function ReportCardView(): React.JSX.Element {
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
+      <ReadOnlyBanner resource="grades" />
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => navigate('/grades')}>
@@ -62,10 +83,44 @@ export default function ReportCardView(): React.JSX.Element {
           </Button>
           <h1 className="text-2xl font-bold tracking-tight">Bulletin scolaire</h1>
         </div>
-        <Button variant="outline" size="sm" onClick={() => window.print()}>
-          <Printer className="w-4 h-4 mr-2" />
-          Imprimer
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => window.print()}>
+            <Printer className="w-4 h-4 mr-2" />
+            Imprimer
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              const gradesData = grades.map((g) => ({
+                subject: g.subject_name || '—',
+                grade: g.grade,
+                coefficient: g.coefficient ?? 1,
+                average: 0
+              }))
+              const result = await window.api.pdf.generateReportCard(
+                {
+                  first_name: student.first_name,
+                  last_name: student.last_name,
+                  class_name: student.class || '',
+                  school_year: schoolYear,
+                  term,
+                  termName: assessments.find(a => a.term_value === term)?.name || `Trimestre ${term}`
+                },
+                gradesData,
+                average
+              )
+              if (result.success && result.filePath) {
+                await window.api.pdf.openFile(result.filePath)
+              } else {
+                alert(result.error || 'Erreur génération PDF')
+              }
+            }}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            PDF
+          </Button>
+        </div>
       </div>
 
       {/* Sélecteurs */}
@@ -85,9 +140,17 @@ export default function ReportCardView(): React.JSX.Element {
             onChange={(e) => setTerm(Number(e.target.value))}
             className="w-full border rounded-md px-3 py-2 text-sm mt-1 bg-white"
           >
-            <option value={1}>Trimestre 1</option>
-            <option value={2}>Trimestre 2</option>
-            <option value={3}>Trimestre 3</option>
+            {assessments.length === 0 ? (
+              <>
+                <option value={1}>Trimestre 1</option>
+                <option value={2}>Trimestre 2</option>
+                <option value={3}>Trimestre 3</option>
+              </>
+            ) : (
+              assessments.map(a => (
+                <option key={a.id} value={a.term_value}>{a.name}</option>
+              ))
+            )}
           </select>
         </div>
       </div>
@@ -96,7 +159,7 @@ export default function ReportCardView(): React.JSX.Element {
       <div className="bg-white rounded-xl border shadow-sm p-6 space-y-2">
         <div className="text-center">
           <h2 className="text-xl font-bold">Lycée Manjary Soa</h2>
-          <p className="text-sm text-muted-foreground">Bulletin de notes — {schoolYear} — Trimestre {term}</p>
+          <p className="text-sm text-muted-foreground">Bulletin de notes — {schoolYear} — {assessments.find(a => a.term_value === term)?.name || `Trimestre ${term}`}</p>
         </div>
         <div className="border-t pt-4 grid grid-cols-2 gap-4 text-sm">
           <div>

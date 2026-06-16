@@ -149,10 +149,7 @@ export function destroyAllUserSessions(userId: string): void {
  */
 export function cleanExpiredSessions(): void {
   try {
-    const result = db.prepare("DELETE FROM sessions WHERE datetime(expires_at) <= datetime('now')").run()
-    if (result.changes > 0) {
-      console.log(`Cleaned up ${result.changes} expired session(s)`)
-    }
+    db.prepare("DELETE FROM sessions WHERE datetime(expires_at) <= datetime('now')").run()
   } catch (error) {
     console.error('SessionService.cleanExpiredSessions error:', error)
   }
@@ -214,13 +211,10 @@ function checkInactivity(): void {
 
     // Expire sessions where last_activity is older than the cutoff.
     // We wrap both sides with datetime() so ISO-8601 strings are parsed correctly.
-    const result = db.prepare(`
+    db.prepare(`
       DELETE FROM sessions WHERE datetime(last_activity) < datetime(?)
     `).run(cutoff)
 
-    if (result.changes > 0) {
-      console.log(`Inactivity timeout: expired ${result.changes} session(s)`)
-    }
   } catch (error) {
     console.error('SessionService.checkInactivity error:', error)
   }

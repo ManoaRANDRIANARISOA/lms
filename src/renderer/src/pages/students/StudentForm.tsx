@@ -6,15 +6,17 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useStudentStore, Student } from '@/store/useStudentStore'
+import type { FeeRecord } from '@shared/types'
 import { useState, useEffect } from 'react'
 import { getStudentPhotoUrl } from '@/lib/image-utils'
 import { Search, X, Plus } from 'lucide-react'
-import { defaultPrices } from '@/lib/finance-settings'
 import { useFinanceStore } from '@/store/useFinanceStore'
+import { useClasses } from '@/lib/useClasses'
 
 const studentSchema = z.object({
   first_name: z.string().min(2, 'Le prénom est requis'),
   last_name: z.string().min(2, 'Le nom est requis'),
+  gender: z.enum(['M', 'F']).optional(),
   date_of_birth: z.string().optional(),
   place_of_birth: z.string().optional(),
   class: z.string().optional(),
@@ -70,7 +72,7 @@ interface StudentFormProps {
   onSuccess?: () => void
   onCancel?: () => void
   initialData?: Student | null
-  initialFees?: any | null
+  initialFees?: FeeRecord | null
 }
 
 interface SiblingDisplay {
@@ -95,8 +97,7 @@ export default function StudentForm({
   const [selectedSiblings, setSelectedSiblings] = useState<SiblingDisplay[]>([])
   const [isSearchingSiblings, setIsSearchingSiblings] = useState(false)
   const { prices, fetchPrices } = useFinanceStore()
-  const availableClasses =
-    prices.classes && prices.classes.length > 0 ? prices.classes : defaultPrices.classes
+  const { classes: availableClasses } = useClasses()
   const availableBusRoutes =
     prices.busRoutes && prices.busRoutes.length > 0
       ? prices.busRoutes
@@ -127,6 +128,7 @@ export default function StudentForm({
       guardian_contact: '',
       guardian_profession: '',
 
+      gender: undefined,
       date_of_birth: '',
       place_of_birth: '',
       address: '',
@@ -154,12 +156,12 @@ export default function StudentForm({
     if (initialData) {
       setPreviewUrl(initialData.photo_path || null)
 
-      const formData: any = {
+      const formData: StudentFormValues = {
         first_name: initialData.first_name,
         last_name: initialData.last_name,
         class: initialData.class,
         enrollment_date: initialData.enrollment_date,
-        email: (initialData as any).email || '',
+        email: (initialData as unknown as { email?: string }).email || '',
 
         father_name: initialData.father_name || '',
         father_contact: initialData.father_contact || '',
@@ -173,12 +175,24 @@ export default function StudentForm({
         guardian_contact: initialData.guardian_contact || '',
         guardian_profession: initialData.guardian_profession || '',
 
+        gender: initialData.gender,
         date_of_birth: initialData.date_of_birth || '',
         place_of_birth: initialData.place_of_birth || '',
         address: initialData.address || '',
         previous_school: initialData.previous_school || '',
         photo_path: initialData.photo_path || '',
-        siblings: initialData.siblings || []
+        siblings: initialData.siblings || [],
+
+        bus_subscribed: false,
+        bus_route: '',
+        canteen_subscribed: false,
+        canteen_days_per_week: 0,
+        canteen_days: [],
+        uniform_tshirt_purchased: false,
+        uniform_apron_purchased: false,
+        uniform_shorts_purchased: false,
+        uniform_badge_purchased: false,
+        fram_paid_by_parent: false
       }
 
       // Load Fees if available
@@ -228,7 +242,7 @@ export default function StudentForm({
       }
       setSelectedSiblings(siblings)
     } catch (err) {
-      console.error('Failed to load siblings', err)
+      if (import.meta.env.DEV) console.error('Failed to load siblings', err)
     }
   }
 
@@ -249,11 +263,11 @@ export default function StudentForm({
         })
         // Filter out current student (if editing) and already selected siblings
         const filtered = result.students.filter(
-          (s: any) => s.id !== initialData?.id && !selectedSiblings.some((sel) => sel.id === s.id)
+          (s: Student) => s.id !== initialData?.id && !selectedSiblings.some((sel) => sel.id === s.id)
         )
         setSiblingResults(filtered)
       } catch (err) {
-        console.error('Search failed', err)
+        if (import.meta.env.DEV) console.error('Search failed', err)
       } finally {
         setIsSearchingSiblings(false)
       }
@@ -283,26 +297,20 @@ export default function StudentForm({
   }
 
   const onSubmit = async (data: StudentFormValues) => {
-    console.log('Submitting form data:', data)
     setIsSubmitting(true)
     try {
-      // Prepare payload
       const payload = { ...data }
-
-      // Handle siblings
       payload.siblings = selectedSiblings.map((s) => s.id)
 
       if (initialData) {
-        console.log('Updating student:', initialData.id, payload)
         await updateStudent(initialData.id, payload)
       } else {
-        console.log('Creating student:', payload)
         await createStudent(payload)
       }
 
       if (onSuccess) onSuccess()
     } catch (err) {
-      console.error('Error submitting form:', err)
+      if (import.meta.env.DEV) console.error('Error submitting form:', err)
     } finally {
       setIsSubmitting(false)
     }
@@ -401,7 +409,7 @@ export default function StudentForm({
                               }
                             }
                           } catch (err) {
-                            console.error('Failed to open file dialog', err)
+                            if (import.meta.env.DEV) console.error('Failed to open file dialog', err)
                           } finally {
                             setIsLoadingImage(false)
                           }
@@ -439,9 +447,25 @@ export default function StudentForm({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
+                <label className="text-sm font-medium">Sexe</label>
+                <div className="flex items-center gap-4 mt-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" value="M" {...form.register('gender')} className="w-4 h-4" />
+                    <span className="text-sm">Garçon</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" value="F" {...form.register('gender')} className="w-4 h-4" />
+                    <span className="text-sm">Fille</span>
+                  </label>
+                </div>
+              </div>
+              <div className="space-y-2">
                 <label className="text-sm font-medium">Date de naissance</label>
                 <Input type="date" {...form.register('date_of_birth')} />
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Lieu de naissance</label>
                 <Input {...form.register('place_of_birth')} placeholder="Ville/Commune" />

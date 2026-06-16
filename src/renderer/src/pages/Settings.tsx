@@ -4,6 +4,10 @@ import { Label } from '@/components/ui/label'
 import { useState, useEffect } from 'react'
 import { getStudentPhotoUrl } from '../lib/image-utils'
 import { useAuthStore } from '@/store/useAuthStore'
+import { useClasses } from '@/lib/useClasses'
+import { ArrowUp, ArrowDown, Trash2, Plus } from 'lucide-react'
+import EmailSettings from '@/pages/settings/EmailSettings'
+import AssessmentSettings from '@/pages/settings/AssessmentSettings'
 
 export default function Settings() {
   const canRead = useAuthStore((s) => s.canRead)
@@ -17,6 +21,11 @@ export default function Settings() {
   const [schoolLogo, setSchoolLogo] = useState('')
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [isLoadingImage, setIsLoadingImage] = useState(false)
+
+  const { classes, addClass, removeClass, reorderClasses, renameClass } = useClasses()
+  const [newClassName, setNewClassName] = useState('')
+  const [editingClass, setEditingClass] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
 
   // If user cannot read settings at all, show access denied
   if (!canRead('settings')) {
@@ -47,7 +56,7 @@ export default function Settings() {
             setLogoPreview(logo as string | null)
           }
         } catch (e) {
-          console.error('Failed to load settings', e)
+          if (import.meta.env.DEV) console.error('Failed to load settings', e)
         }
       }
     }
@@ -94,7 +103,7 @@ export default function Settings() {
         }
       }
     } catch (err) {
-      console.error('Failed to open file dialog', err)
+      if (import.meta.env.DEV) console.error('Failed to open file dialog', err)
     } finally {
       setIsLoadingImage(false)
     }
@@ -136,6 +145,46 @@ export default function Settings() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleAddClass = async () => {
+    if (!newClassName.trim()) return
+    const ok = await addClass(newClassName.trim())
+    if (ok) {
+      setNewClassName('')
+      setMessage('Classe ajoutée.')
+    } else {
+      setMessage('Cette classe existe déjà.')
+    }
+  }
+
+  const handleRemoveClass = async (name: string) => {
+    if (!confirm(`Supprimer la classe "${name}" ?\n\nLes élèves dans cette classe ne seront pas supprimés, mais il faudra les réassigner.`)) return
+    await removeClass(name)
+    setMessage('Classe supprimée.')
+  }
+
+  const handleMoveClass = async (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= classes.length) return
+    await reorderClasses(index, targetIndex)
+  }
+
+  const handleStartRename = (cls: string) => {
+    setEditingClass(cls)
+    setEditValue(cls)
+  }
+
+  const handleConfirmRename = async () => {
+    if (!editingClass || !editValue.trim()) return
+    const ok = await renameClass(editingClass, editValue.trim())
+    if (ok) {
+      setMessage(`Classe renommée en "${editValue.trim()}".`)
+    } else {
+      setMessage('Erreur: ce nom existe déjà ou est invalide.')
+    }
+    setEditingClass(null)
+    setEditValue('')
   }
 
   return (
@@ -216,21 +265,107 @@ export default function Settings() {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded shadow max-w-xl">
-          <h2 className="text-lg font-semibold mb-4 text-blue-600">Maintenance des Données</h2>
-          <p className="text-gray-600 mb-4">
-            Utilisez cette option si vous voyez des élèves avec une classe mais sans inscription
-            validée (pas de bande verte).
+        {/* Class Management */}
+        <div className="bg-white p-6 rounded shadow max-w-xl border border-gray-100">
+          <h2 className="text-lg font-semibold mb-4 text-gray-800">Gestion des Classes</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Liste unique utilisée par tous les modules (Élèves, Finance, Notes).
+            Ajoutez, supprimez ou réordonnez les classes ici.
           </p>
-          <Button
-            onClick={handleRepair}
-            disabled={loading}
-            variant="outline"
-            className="border-blue-200 text-blue-700 hover:bg-blue-50"
-          >
-            {loading ? 'Traitement...' : 'Réparer les Inscriptions Manquantes'}
-          </Button>
+
+          {canWrite('settings') && (
+            <div className="flex gap-2 mb-4">
+              <Input
+                placeholder="Nouvelle classe (ex: CP1)"
+                value={newClassName}
+                onChange={(e) => setNewClassName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddClass()}
+              />
+              <Button onClick={handleAddClass} disabled={!newClassName.trim()}>
+                <Plus className="w-4 h-4 mr-1" />
+                Ajouter
+              </Button>
+            </div>
+          )}
+
+          <div className="space-y-1">
+            {classes.map((cls, index) => (
+              <div
+                key={cls}
+                className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded border"
+              >
+                {editingClass === cls ? (
+                  <div className="flex items-center gap-2 flex-1">
+                    <Input
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleConfirmRename()}
+                      className="h-7 text-sm"
+                      autoFocus
+                    />
+                    <Button size="sm" variant="ghost" className="h-7 text-green-600" onClick={handleConfirmRename}>
+                      OK
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7" onClick={() => setEditingClass(null)}>
+                      Annuler
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <span className="font-medium text-sm">{cls}</span>
+                    {canWrite('settings') && (
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => handleStartRename(cls)}
+                        >
+                          Renommer
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0"
+                          disabled={index === 0}
+                          onClick={() => handleMoveClass(index, 'up')}
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0"
+                          disabled={index === classes.length - 1}
+                          onClick={() => handleMoveClass(index, 'down')}
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-red-500 hover:text-red-700"
+                          onClick={() => handleRemoveClass(cls)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
+
+
+
+        <div className="max-w-2xl">
+          <h2 className="text-lg font-semibold mb-4 text-gray-800">📧 Service Email</h2>
+          <EmailSettings />
+        </div>
+
+        <AssessmentSettings />
 
         <div className="bg-white p-6 rounded shadow max-w-xl border-red-100 border">
           <h2 className="text-lg font-semibold mb-4 text-red-600">Zone de Danger</h2>

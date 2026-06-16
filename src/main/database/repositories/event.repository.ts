@@ -44,9 +44,10 @@ export class EventRepository {
       addToSyncQueue('parent_events', id, 'create', { id, ...event })
 
       return { success: true, id }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
       console.error('Error creating event:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: message }
     }
   }
 
@@ -56,8 +57,9 @@ export class EventRepository {
         .prepare('SELECT * FROM parent_events WHERE deleted = 0 ORDER BY event_date DESC')
         .all()
       return { success: true, events }
-    } catch (error: any) {
-      return { success: false, error: error.message }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { success: false, error: message }
     }
   }
 
@@ -81,8 +83,9 @@ export class EventRepository {
         .all(id)
 
       return { success: true, event, participation }
-    } catch (error: any) {
-      return { success: false, error: error.message }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { success: false, error: message }
     }
   }
 
@@ -104,8 +107,9 @@ export class EventRepository {
       addToSyncQueue('parent_events', id, 'update', updates)
 
       return { success: true }
-    } catch (error: any) {
-      return { success: false, error: error.message }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { success: false, error: message }
     }
   }
 
@@ -122,8 +126,9 @@ export class EventRepository {
       addToSyncQueue('parent_events', id, 'delete', { deleted: true })
 
       return { success: true }
-    } catch (error: any) {
-      return { success: false, error: error.message }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { success: false, error: message }
     }
   }
 
@@ -160,8 +165,9 @@ export class EventRepository {
     try {
       transaction()
       return { success: true }
-    } catch (error: any) {
-      return { success: false, error: error.message }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { success: false, error: message }
     }
   }
 
@@ -175,13 +181,13 @@ export class EventRepository {
       // 1. Get or Create Event Payment Record
       let paymentRecord = db
         .prepare('SELECT * FROM event_payments WHERE event_id = ? AND student_id = ?')
-        .get(eventId, studentId) as any
+        .get(eventId, studentId) as Record<string, unknown> | undefined
 
       if (!paymentRecord) {
         // Create if not exists (adhoc participation)
         const event = db
           .prepare('SELECT amount_per_parent FROM parent_events WHERE id = ?')
-          .get(eventId) as any
+          .get(eventId) as { amount_per_parent: number } | undefined
         const amountDue = event ? event.amount_per_parent : amount
 
         const id = uuidv4()
@@ -205,8 +211,8 @@ export class EventRepository {
       }
 
       // 2. Update Event Payment Record
-      const newAmountPaid = paymentRecord.amount_paid + amount
-      const isPaid = newAmountPaid >= paymentRecord.amount_due
+      const newAmountPaid = (paymentRecord.amount_paid as number) + amount
+      const isPaid = newAmountPaid >= (paymentRecord.amount_due as number)
       const paymentDate = new Date().toISOString().split('T')[0]
 
       db.prepare(
@@ -215,9 +221,9 @@ export class EventRepository {
         SET amount_paid = ?, paid = ?, payment_date = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending'
         WHERE id = ?
       `
-      ).run(newAmountPaid, isPaid ? 1 : 0, paymentDate, paymentRecord.id)
+      ).run(newAmountPaid, isPaid ? 1 : 0, paymentDate, paymentRecord.id as string)
 
-      addToSyncQueue('event_payments', paymentRecord.id, 'update', {
+      addToSyncQueue('event_payments', paymentRecord.id as string, 'update', {
         amount_paid: newAmountPaid,
         paid: isPaid,
         payment_date: paymentDate
@@ -254,8 +260,66 @@ export class EventRepository {
     try {
       transaction()
       return { success: true }
-    } catch (error: any) {
-      return { success: false, error: error.message }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { success: false, error: message }
+    }
+  }
+  static getByStudent(studentId: string) {
+    try {
+      // Get student and siblings
+      const student = db.prepare('SELECT siblings FROM students WHERE id = ?').get(studentId) as { siblings: string } | undefined
+      if (!student) return { success: false, error: 'Student not found' }
+
+      const siblings = student.siblings ? JSON.parse(student.siblings) : []
+      const familyIds = [studentId, ...siblings]
+      const placeholders = familyIds.map(() => '?').join(', ')
+
+      // Get all event payments for this family
+      const payments = db.prepare(`
+        SELECT 
+          ep.event_id, ep.amount_due, ep.amount_paid, ep.paid, ep.payment_date, ep.student_id,
+          s.first_name, s.last_name
+        FROM event_payments ep
+        JOIN students s ON ep.student_id = s.id
+        WHERE ep.student_id IN (${placeholders})
+      `).all(...familyIds) as any[]
+
+      if (payments.length === 0) {
+        return { success: true, events: [] }
+      }
+
+      const eventIds = [...new Set(payments.map(p => p.event_id))]
+      const eventPlaceholders = eventIds.map(() => '?').join(', ')
+
+      // Get event details
+      const events = db.prepare(`
+        SELECT * FROM parent_events 
+        WHERE id IN (${eventPlaceholders})
+        ORDER BY event_date DESC
+      `).all(...eventIds) as any[]
+
+      // Combine
+      const result = events.map(ev => {
+        const familyPayments = payments.filter(p => p.event_id === ev.id)
+        const totalPaid = familyPayments.reduce((sum, p) => sum + p.amount_paid, 0)
+        // If any sibling is fully paid, the event is considered paid for the family
+        const isPaid = familyPayments.some(p => p.paid === 1) || totalPaid >= ev.amount_per_parent
+
+        return {
+          ...ev,
+          family_payment_status: {
+            total_paid: totalPaid,
+            is_paid: isPaid,
+            payments: familyPayments
+          }
+        }
+      })
+
+      return { success: true, events: result }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { success: false, error: message }
     }
   }
 }

@@ -1,18 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ChangeEvent } from 'react'
 import { useStudentStore } from '@/store/useStudentStore'
-import { useFinanceStore } from '@/store/useFinanceStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search, Plus, User } from 'lucide-react'
+import { Search, Plus, User, Download } from 'lucide-react'
 import StudentForm from './StudentForm'
 import StudentDetail from './StudentDetail'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 import { usePermissions } from '@/lib/usePermissions'
+import { useClasses } from '@/lib/useClasses'
 
 export default function StudentList() {
   const { students, currentStudent, currentFees, loading, fetchStudents } = useStudentStore()
   const { canWrite } = usePermissions()
-  const { prices } = useFinanceStore()
+  const { classes } = useClasses()
   const [search, setSearch] = useState('')
   const [selectedClass, setSelectedClass] = useState<string>('')
   const [view, setView] = useState<'list' | 'create' | 'edit' | 'detail'>('list')
@@ -82,19 +82,43 @@ export default function StudentList() {
       <ReadOnlyBanner resource="students" />
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Gestion des Élèves</h1>
-        {canWrite('students') && (
-          <Button onClick={() => setView('create')}>
-            <Plus className="w-4 h-4 mr-2" />
-            Nouvel Élève
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              const result = await window.api.student.list({ limit: 10000 })
+              const students = result?.students || []
+              await window.api.export.csv(
+                students as unknown as Record<string, unknown>[],
+                [
+                  { key: 'registration_number', label: 'Matricule' },
+                  { key: 'last_name', label: 'Nom' },
+                  { key: 'first_name', label: 'Prénom' },
+                  { key: 'class', label: 'Classe' },
+                  { key: 'enrollment_date', label: "Date d'inscription" }
+                ],
+                'eleves_export.csv'
+              )
+            }}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            CSV
           </Button>
-        )}
+          {canWrite('students') && (
+            <Button onClick={() => setView('create')}>
+              <Plus className="w-4 h-4 mr-2" />
+              Nouvel Élève
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="mb-4 flex gap-2">
         <Input
           placeholder="Rechercher un élève (Nom, Matricule)..."
           value={search}
-          onChange={(e: any) => setSearch(e.target.value)}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
           className="max-w-md"
         />
         <select
@@ -103,7 +127,7 @@ export default function StudentList() {
           className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <option value="">Toutes les classes</option>
-          {prices?.classes?.map((cls) => (
+          {classes.map((cls) => (
             <option key={cls} value={cls}>
               {cls}
             </option>
@@ -163,7 +187,15 @@ export default function StudentList() {
                   </td>
                   <td className="p-4">{student.guardian_contact}</td>
                   <td className="p-4 text-right">
-                    <Button variant="ghost" size="sm">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedStudentId(student.id)
+                        setView('detail')
+                      }}
+                    >
                       <User className="w-4 h-4" />
                     </Button>
                   </td>

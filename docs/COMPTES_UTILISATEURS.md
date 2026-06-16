@@ -138,10 +138,13 @@ Poste A (Electron)          Cloud (Supabase)          Poste B (Electron)
 
 ### Données synchronisées
 - `students`, `student_fees`, `student_payments`
-- `personnel`, `grades`, `cash_journal`
+- `personnel`, `time_tracking`, `daily_attendance`, `personnel_absences`, `salary_advances`, `custom_deductions`
+- `grades`, `subjects`, `class_subjects`
+- `cash_journal`
 - `parent_events`, `event_payments`
 - `bus_attendance`, `canteen_attendance`
 - `users` (métadonnées uniquement — `password_hash` JAMAIS synchronisé)
+- `settings` (push uniquement, pas de pull)
 
 ### Données NON synchronisées
 - `sessions` (locales uniquement, ne persistent pas entre postes)
@@ -155,14 +158,24 @@ Poste A (Electron)          Cloud (Supabase)          Poste B (Electron)
 
 ---
 
-## Modules en cours de développement
+## Modules opérationnels
 
-Les modules suivants sont planifiés mais pas encore implémentés :
+Tous les modules sont implémentés et protégés dans la sidebar par le système RBAC existant :
 
-| Module | Statut | Ressource RBAC |
-|--------|--------|----------------|
-| Tableau de bord | 🚧 En construction | — |
-| Personnel & Salaires | 🚧 En construction | `personnel` |
-| Notes & Bulletins | 🚧 En construction | `grades` |
-
-Ces modules sont protégés dans la sidebar par le système RBAC existant : les entrées de menu seront visibles uniquement pour les rôles ayant accès à la ressource correspondante dès leur implémentation.
+| Module | Ressource RBAC | Statut |
+|--------|----------------|--------|
+| Dashboard | — | ✅ Opérationnel |
+| Fiches Élèves | `students` | ✅ Opérationnel |
+| Paiements & Finance | `payments` | ✅ Opérationnel |
+| Journal de Caisse | `cash_journal` | ✅ Opérationnel |
+| Alertes Impayés | `payments` | ✅ Opérationnel |
+| Pointage Bus/Cantine | `attendance` | ✅ Opérationnel |
+| Notes & Bulletins | `grades` | ✅ Opérationnel |
+| Personnel & Salaires | `personnel` | ✅ Opérationnel |
+| Événements Parents | `events` | ✅ Opérationnel |
+| Génération PDF | — | ✅ Opérationnel |
+| Rapports & Export | `reports` | ✅ Opérationnel |
+| Email Automation | `settings` | ✅ Opérationnel |
+| Paramètres Système | `settings` | ✅ Opérationnel |
+| Gestion Utilisateurs | `users` | ✅ Opérationnel |
+| Journal d'Audit | `audit` | ✅ Opérationnel |

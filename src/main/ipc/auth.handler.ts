@@ -64,8 +64,9 @@ export function registerAuthHandlers(): void {
       }
 
       return result
-    } catch (e: any) {
-      return { ok: false, error: e?.message ?? 'Erreur de connexion' }
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Erreur de connexion'
+      return { ok: false, error: message }
     }
   })
 
@@ -79,8 +80,9 @@ export function registerAuthHandlers(): void {
       logLogout(user?.id || null)
       authLogout(token)
       return { ok: true }
-    } catch (e: any) {
-      return { ok: false, error: e?.message ?? 'Erreur de déconnexion' }
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Erreur de déconnexion'
+      return { ok: false, error: message }
     }
   })
 
@@ -298,5 +300,4 @@ export function registerAuthHandlers(): void {
     }
   })
 
-  console.log('Auth IPC handlers registered.')
 }
