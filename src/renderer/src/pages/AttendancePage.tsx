@@ -1,3 +1,4 @@
+import { useAppStore } from '@/store/useAppStore'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -32,7 +33,7 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('bus')
-  const [schoolYear, setSchoolYear] = useState('2025-2026')
+  const [schoolYear, setSchoolYear] = useState(useAppStore.getState().currentYear)
   const [isServiceDashboardOpen, setIsServiceDashboardOpen] = useState(false)
 
   useEffect(() => {

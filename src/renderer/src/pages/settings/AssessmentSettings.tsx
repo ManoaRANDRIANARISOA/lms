@@ -1,3 +1,4 @@
+import { useAppStore } from '@/store/useAppStore'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,7 +31,7 @@ export default function AssessmentSettings() {
     try {
       setLoading(true)
       setError('')
-      const schoolYear = await window.api.settings.get('current_year') as string || '2025-2026'
+      const schoolYear = await window.api.settings.get('current_year') as string || useAppStore.getState().currentYear
       const result = await window.api.assessment.list(schoolYear, selectedClass)
       
       if (result.success && result.assessments) {
@@ -50,7 +51,7 @@ export default function AssessmentSettings() {
     
     try {
       setLoading(true)
-      const schoolYear = await window.api.settings.get('current_year') as string || '2025-2026'
+      const schoolYear = await window.api.settings.get('current_year') as string || useAppStore.getState().currentYear
       
       const data = {
         school_year: schoolYear,

@@ -1,3 +1,4 @@
+import { useAppStore } from '@/store/useAppStore'
 import { useEffect, useState } from 'react'
 import { useStudentStore } from '@/store/useStudentStore'
 import { Button } from '@/components/ui/button'
@@ -26,8 +27,6 @@ import {
   ToggleRight,
   Download
 } from 'lucide-react'
-import { format } from 'date-fns'
-import { fr } from 'date-fns/locale'
 import { getStudentPhotoUrl } from '@/lib/image-utils'
 import { useNavigate } from 'react-router-dom'
 import { useFinanceStore } from '@/store/useFinanceStore'
@@ -108,7 +107,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
     } else if (currentFees?.school_year) {
       setSelectedYear(currentFees.school_year)
     } else {
-      setSelectedYear('2025-2026') // Fallback
+      setSelectedYear(useAppStore.getState().currentYear) // Fallback
     }
   }, [currentFees, currentFeesHistory])
 
@@ -311,63 +310,13 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                 {!currentFeesHistory?.length && <option value="2025-2026">2025-2026</option>}
               </select>
             </div>
-            {events.length > 0 && (
-              <div className="bg-white shadow rounded-lg overflow-hidden mb-6 border border-gray-100">
-                <div className="px-6 py-4 border-b bg-blue-50/50">
-                  <h3 className="text-lg font-semibold flex items-center text-blue-900">
-                    <Calendar className="w-5 h-5 mr-2" />
-                    Événements & Participations
-                  </h3>
-                </div>
-                <div className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {events.map((ev) => (
-                      <div key={ev.id} className="border rounded-lg p-4 bg-white relative overflow-hidden border-blue-100">
-                        {ev.family_payment_status?.is_paid && (
-                          <div className="absolute -right-6 -top-6 w-16 h-16 bg-green-100 rounded-full flex items-end justify-center pb-2 pl-2 shadow-sm">
-                            <CheckCircle2 className="w-4 h-4 text-green-600" />
-                          </div>
-                        )}
-                        <h4 className="font-semibold text-lg pr-6 text-gray-800">{ev.event_name}</h4>
-                        <p className="text-sm text-gray-500 mb-3 capitalize">{format(new Date(ev.event_date), 'dd MMMM yyyy', { locale: fr })}</p>
-                        
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between items-center bg-gray-50 p-2 rounded">
-                            <span className="text-gray-600">Frais (par parent):</span>
-                            <span className="font-semibold">{ev.amount_per_parent.toLocaleString()} Ar</span>
-                          </div>
-                          <div className="flex justify-between items-center bg-gray-50 p-2 rounded">
-                            <span className="text-gray-600">Total payé (fratrie):</span>
-                            <span className={`font-semibold ${ev.family_payment_status?.is_paid ? 'text-green-600' : 'text-orange-600'}`}>
-                              {ev.family_payment_status?.total_paid?.toLocaleString() || 0} Ar
-                            </span>
-                          </div>
-                          
-                          {ev.family_payment_status?.is_paid ? (
-                            <div className="mt-3 flex items-center text-green-700 text-sm font-medium bg-green-50 p-2 rounded justify-center border border-green-100">
-                              <CheckCircle2 className="w-4 h-4 mr-2" />
-                              Participation réglée
-                            </div>
-                          ) : (
-                            <div className="mt-3 flex items-center text-orange-700 text-sm font-medium bg-orange-50 p-2 rounded justify-center border border-orange-100">
-                              Reste à payer: {(ev.amount_per_parent - (ev.family_payment_status?.total_paid || 0)).toLocaleString()} Ar
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-4 italic">
-                    Note: Les événements sont gérés par famille (parent). Si un membre de la fratrie a payé, la participation est validée pour tous les autres membres inscrits à l'événement.
-                  </p>
-                </div>
-              </div>
-            )}
+
             
             <FinanceTab
               studentId={studentId}
-              schoolYear={selectedYear || '2025-2026'}
+              schoolYear={selectedYear || useAppStore.getState().currentYear}
               feeRecord={displayedFees ?? undefined}
+              events={events}
             />
           </TabsContent>
 
@@ -600,25 +549,21 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                     <div>
                       <h4 className="font-medium text-sm mb-2 flex items-center">
                         <Shirt className="w-4 h-4 mr-2" />
-                        Uniformes & Accessoires
+                        Uniformes & Divers
                       </h4>
                       <ul className="space-y-2 text-sm">
-                        <li className={`flex items-center ${displayedFees.uniform_tshirt_purchased ? 'text-green-600' : 'text-gray-400'}`}>
-                          {displayedFees.uniform_tshirt_purchased ? <CheckCircle2 className="w-4 h-4 mr-2" /> : <XCircle className="w-4 h-4 mr-2 opacity-50" />} 
-                          <span className={!displayedFees.uniform_tshirt_purchased ? 'line-through opacity-70' : ''}>T-shirt</span>
-                        </li>
-                        <li className={`flex items-center ${displayedFees.uniform_apron_purchased ? 'text-green-600' : 'text-gray-400'}`}>
-                          {displayedFees.uniform_apron_purchased ? <CheckCircle2 className="w-4 h-4 mr-2" /> : <XCircle className="w-4 h-4 mr-2 opacity-50" />} 
-                          <span className={!displayedFees.uniform_apron_purchased ? 'line-through opacity-70' : ''}>Tablier</span>
-                        </li>
-                        <li className={`flex items-center ${displayedFees.uniform_shorts_purchased ? 'text-green-600' : 'text-gray-400'}`}>
-                          {displayedFees.uniform_shorts_purchased ? <CheckCircle2 className="w-4 h-4 mr-2" /> : <XCircle className="w-4 h-4 mr-2 opacity-50" />} 
-                          <span className={!displayedFees.uniform_shorts_purchased ? 'line-through opacity-70' : ''}>Short</span>
-                        </li>
-                        <li className={`flex items-center ${displayedFees.uniform_badge_purchased ? 'text-green-600' : 'text-gray-400'}`}>
-                          {displayedFees.uniform_badge_purchased ? <CheckCircle2 className="w-4 h-4 mr-2" /> : <XCircle className="w-4 h-4 mr-2 opacity-50" />} 
-                          <span className={!displayedFees.uniform_badge_purchased ? 'line-through opacity-70' : ''}>Badge</span>
-                        </li>
+                        {Object.keys(financePrices?.uniforms || {}).map((item) => {
+                          const isPurchased = displayedFees.uniform_items_purchased?.includes(item)
+                          return (
+                            <li key={item} className={`flex items-center ${isPurchased ? 'text-green-600' : 'text-gray-400'}`}>
+                              {isPurchased ? <CheckCircle2 className="w-4 h-4 mr-2" /> : <XCircle className="w-4 h-4 mr-2 opacity-50" />} 
+                              <span className={!isPurchased ? 'line-through opacity-70' : ''}>{item}</span>
+                            </li>
+                          )
+                        })}
+                        {Object.keys(financePrices?.uniforms || {}).length === 0 && (
+                          <li className="text-gray-400 italic">Aucun article configuré</li>
+                        )}
                       </ul>
                     </div>
                   </div>
@@ -686,32 +631,15 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                           <div>
                             <span className="text-gray-500 block mb-1">Uniformes</span>
                             <div className="flex flex-wrap gap-2">
-                              {!!Number(fee.uniform_tshirt_purchased) && (
-                                <span className="px-2 py-0.5 bg-white border rounded text-xs">
-                                  T-shirt
-                                </span>
+                              {fee.uniform_items_purchased && fee.uniform_items_purchased.length > 0 ? (
+                                fee.uniform_items_purchased.map((item) => (
+                                  <span key={item} className="px-2 py-0.5 bg-white border rounded text-xs">
+                                    {item}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-gray-400 italic">Aucun achat</span>
                               )}
-                              {!!Number(fee.uniform_apron_purchased) && (
-                                <span className="px-2 py-0.5 bg-white border rounded text-xs">
-                                  Tablier
-                                </span>
-                              )}
-                              {!!Number(fee.uniform_shorts_purchased) && (
-                                <span className="px-2 py-0.5 bg-white border rounded text-xs">
-                                  Short
-                                </span>
-                              )}
-                              {!!Number(fee.uniform_badge_purchased) && (
-                                <span className="px-2 py-0.5 bg-white border rounded text-xs">
-                                  Écusson
-                                </span>
-                              )}
-                              {!Number(fee.uniform_tshirt_purchased) &&
-                                !Number(fee.uniform_apron_purchased) &&
-                                !Number(fee.uniform_shorts_purchased) &&
-                                !Number(fee.uniform_badge_purchased) && (
-                                  <span className="text-gray-400 italic">Aucun achat</span>
-                                )}
                             </div>
                           </div>
                           <div>
@@ -755,7 +683,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
           isOpen={isReEnrollOpen}
           onClose={() => setIsReEnrollOpen(false)}
           student={currentStudent}
-          currentYear={displayedFees?.school_year || currentFees?.school_year || '2025-2026'}
+          currentYear={displayedFees?.school_year || currentFees?.school_year || useAppStore.getState().currentYear}
           onSuccess={handleReEnrollSuccess}
         />
       </div>

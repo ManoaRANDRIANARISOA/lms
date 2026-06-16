@@ -16,13 +16,25 @@ import {
   GraduationCap,
   FileText,
   MoreHorizontal,
-  Lock
+  Lock,
+  Calendar
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { useFinanceStore } from '@/store/useFinanceStore'
 import { usePermissions } from '@/lib/usePermissions'
 import type { Payment, FeeRecord, FinancePrices } from '@shared/types'
+
+interface EventWithPayment {
+  id: string
+  event_name: string
+  event_date: string
+  amount_per_parent: number
+  family_payment_status?: {
+    is_paid: boolean
+    total_paid: number
+  }
+}
 
 interface MonthStatus {
   key: string
@@ -82,9 +94,10 @@ interface FinanceTabProps {
   studentId: string
   schoolYear: string
   feeRecord?: FeeRecord
+  events?: EventWithPayment[]
 }
 
-export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps) {
+export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: FinanceTabProps) {
   const [status, setStatus] = useState<TuitionStatusResult | null>(null)
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
@@ -747,6 +760,60 @@ export function FinanceTab({ studentId, schoolYear, feeRecord }: FinanceTabProps
           'canteen',
           canteenStatus
         )}
+
+      {/* Events Tracking */}
+      {events && events.length > 0 && (
+        <div className="bg-white shadow rounded-lg overflow-hidden border border-gray-100 mt-6">
+          <div className="px-6 py-4 border-b bg-blue-50/50">
+            <h3 className="text-lg font-semibold flex items-center text-blue-900">
+              <Calendar className="w-5 h-5 mr-2" />
+              Événements & Participations
+            </h3>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {events.map((ev) => (
+                <div key={ev.id} className="border rounded-lg p-4 bg-white relative overflow-hidden border-blue-100">
+                  {ev.family_payment_status?.is_paid && (
+                    <div className="absolute -right-6 -top-6 w-16 h-16 bg-green-100 rounded-full flex items-end justify-center pb-2 pl-2 shadow-sm">
+                      <CheckCircle2 className="w-4 h-4 text-green-600" />
+                    </div>
+                  )}
+                  <h4 className="font-semibold text-lg pr-6 text-gray-800">{ev.event_name}</h4>
+                  <p className="text-sm text-gray-500 mb-3 capitalize">{format(new Date(ev.event_date), 'dd MMMM yyyy', { locale: fr })}</p>
+                  
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between items-center bg-gray-50 p-2 rounded">
+                      <span className="text-gray-600">Frais (par parent):</span>
+                      <span className="font-semibold">{ev.amount_per_parent.toLocaleString()} Ar</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-gray-50 p-2 rounded">
+                      <span className="text-gray-600">Total payé (fratrie):</span>
+                      <span className={`font-semibold ${ev.family_payment_status?.is_paid ? 'text-green-600' : 'text-orange-600'}`}>
+                        {ev.family_payment_status?.total_paid?.toLocaleString() || 0} Ar
+                      </span>
+                    </div>
+                    
+                    {ev.family_payment_status?.is_paid ? (
+                      <div className="mt-3 flex items-center text-green-700 text-sm font-medium bg-green-50 p-2 rounded justify-center border border-green-100">
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        Participation réglée
+                      </div>
+                    ) : (
+                      <div className="mt-3 flex items-center text-orange-700 text-sm font-medium bg-orange-50 p-2 rounded justify-center border border-orange-100">
+                        Reste à payer: {(ev.amount_per_parent - (ev.family_payment_status?.total_paid || 0)).toLocaleString()} Ar
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 mt-4 italic">
+              Note: Les événements sont gérés par famille (parent). Si un membre de la fratrie a payé, la participation est validée pour tous les autres membres inscrits à l'événement.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Payment History List */}
       <div className="bg-white rounded-lg shadow border border-gray-100 overflow-hidden">

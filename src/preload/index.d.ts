@@ -73,6 +73,7 @@ interface DialogAPI {
 interface StudentFilters {
   search?: string
   class?: string
+  schoolYear?: string
   limit?: number
   offset?: number
 }
@@ -149,10 +150,7 @@ interface APIType {
         first_name: string
         last_name: string
         class_name: string
-        monthly_tuition: number
-        paid_months: string[]
-        unpaid_months: string[]
-        unpaid_count: number
+        unpaid_items: Array<{ type: string; description: string; amount: number }>
         total_due: number
       }>
       error?: string

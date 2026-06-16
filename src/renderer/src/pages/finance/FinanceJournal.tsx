@@ -15,6 +15,7 @@ import { usePermissions } from '@/lib/usePermissions'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 import { cn } from '@/lib/utils'
 import { Plus, X, Check, Download, FileText, TrendingUp, TrendingDown, Wallet, Percent, Trash2 } from 'lucide-react'
+import { useAppStore } from '@/store/useAppStore'
 import type { CashJournalEntry } from '@shared/types'
 
 // --------------------------------------------
@@ -245,7 +246,7 @@ export default function FinanceJournal() {
     const fetchRecoveryRate = async () => {
       try {
         const schoolYear = await window.api.settings.get('school_year')
-        const yearStr = (schoolYear as string) || '2025-2026'
+        const yearStr = (schoolYear as string) || useAppStore.getState().currentYear
         const result = await window.api.report.tuition(yearStr)
         if (result.success && result.data) {
           const data = result.data as { by_class?: Record<string, { total: number }> }

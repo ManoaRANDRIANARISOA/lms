@@ -1,3 +1,4 @@
+import { useAppStore } from '@/store/useAppStore'
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useStudentStore } from '@/store/useStudentStore'
@@ -8,7 +9,7 @@ export default function CertificatePage() {
   const { studentId } = useParams<{ studentId: string }>()
   const navigate = useNavigate()
   const { currentStudent, getStudent, loading } = useStudentStore()
-  const [schoolYear, setSchoolYear] = useState('2025-2026')
+  const [schoolYear, setSchoolYear] = useState(useAppStore.getState().currentYear)
   const [schoolName, setSchoolName] = useState('Lycée Manjary Soa')
   const [certType, setCertType] = useState<'scolarite' | 'radiation' | 'assiduite'>('scolarite')
 

@@ -55,7 +55,7 @@ interface StudentStore {
   loading: boolean
   error: string | null
 
-  fetchStudents: (filters?: Record<string, unknown>) => Promise<void>
+  fetchStudents: (filters?: { search?: string; class?: string; schoolYear?: string }) => Promise<void>
   getStudent: (id: string) => Promise<void>
   createStudent: (data: Partial<Student>) => Promise<void>
   updateStudent: (id: string, data: Partial<Student>) => Promise<void>

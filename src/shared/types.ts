@@ -206,10 +206,7 @@ export interface FeeRecord {
   canteen_days_per_week: number
   canteen_days: string[]
 
-  uniform_tshirt_purchased: boolean
-  uniform_apron_purchased: boolean
-  uniform_shorts_purchased: boolean
-  uniform_badge_purchased: boolean
+  uniform_items_purchased?: string[]
 
   monthly_tuition: number
   fram_paid_by_parent: boolean

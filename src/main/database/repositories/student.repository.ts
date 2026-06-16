@@ -12,10 +12,7 @@ export class StudentRepository {
     'canteen_subscribed',
     'canteen_days_per_week',
     'canteen_days',
-    'uniform_tshirt_purchased',
-    'uniform_apron_purchased',
-    'uniform_shorts_purchased',
-    'uniform_badge_purchased',
+    'uniform_items_purchased',
     'fram_paid_by_parent'
   ]
 
@@ -346,9 +343,9 @@ export class StudentRepository {
                     id, student_id, school_year, tuition_level, monthly_tuition, class_name,
                     bus_subscribed, bus_route, 
                     canteen_subscribed, canteen_days_per_week,
-                    uniform_tshirt_purchased, uniform_apron_purchased, uniform_shorts_purchased, uniform_badge_purchased,
+                    uniform_items_purchased,
                     fram_paid_by_parent
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `
         ).run(
           feeId,
@@ -361,10 +358,7 @@ export class StudentRepository {
           feeData.bus_route || null,
           feeData.canteen_subscribed ? 1 : 0,
           feeData.canteen_days_per_week || 0,
-          feeData.uniform_tshirt_purchased ? 1 : 0,
-          feeData.uniform_apron_purchased ? 1 : 0,
-          feeData.uniform_shorts_purchased ? 1 : 0,
-          feeData.uniform_badge_purchased ? 1 : 0,
+          feeData.uniform_items_purchased ? JSON.stringify(feeData.uniform_items_purchased) : '[]',
           feeData.fram_paid_by_parent ? 1 : 0
         )
 
@@ -400,8 +394,8 @@ export class StudentRepository {
     }
   }
 
-  static list(filters: { search?: string; class?: string; limit?: number; offset?: number } = {}) {
-    const { search, class: className, limit = 50, offset = 0 } = filters
+  static list(filters: { search?: string; class?: string; schoolYear?: string; limit?: number; offset?: number } = {}) {
+    const { search, class: className, schoolYear, limit = 50, offset = 0 } = filters
 
     // Build WHERE clause incrementally (same conditions for data and count)
     const conditions = ['s.deleted = 0']
@@ -414,18 +408,35 @@ export class StudentRepository {
 
     const whereClause = conditions.join(' AND ')
 
-    // Sub-query that resolves class with fallback to student_fees
-    const resolvedSubQuery = `
-      SELECT s.*,
-        COALESCE(NULLIF(s.class, 'Classe non spécifiée'),
-                 (SELECT class_name FROM student_fees sf
-                  WHERE sf.student_id = s.id AND sf.class_name IS NOT NULL AND sf.class_name != ''
-                  ORDER BY sf.school_year DESC LIMIT 1),
-                 'Non inscrit'
-        ) as resolved_class
-      FROM students s
-      WHERE ${whereClause}
-    `
+    let resolvedSubQuery = ''
+    let subQueryParams: unknown[] = []
+
+    if (schoolYear) {
+      resolvedSubQuery = `
+        SELECT s.*,
+          COALESCE(
+            (SELECT class_name FROM student_fees sf
+             WHERE sf.student_id = s.id AND sf.school_year = ? AND sf.class_name IS NOT NULL AND sf.class_name != ''),
+            'Non inscrit'
+          ) as resolved_class
+        FROM students s
+        WHERE ${whereClause}
+      `
+      subQueryParams = [schoolYear, ...params]
+    } else {
+      resolvedSubQuery = `
+        SELECT s.*,
+          COALESCE(NULLIF(s.class, 'Classe non spécifiée'),
+                   (SELECT class_name FROM student_fees sf
+                    WHERE sf.student_id = s.id AND sf.class_name IS NOT NULL AND sf.class_name != ''
+                    ORDER BY sf.school_year DESC LIMIT 1),
+                   'Non inscrit'
+          ) as resolved_class
+        FROM students s
+        WHERE ${whereClause}
+      `
+      subQueryParams = params
+    }
 
     // Apply class filter post-resolution if needed
     const classFilter = className ? "WHERE resolved_class = ?" : ''
@@ -437,13 +448,13 @@ export class StudentRepository {
       ORDER BY last_name, first_name
       LIMIT ? OFFSET ?
     `
-    const dataParams = [...params, ...classParam, limit, offset]
+    const dataParams = [...subQueryParams, ...classParam, limit, offset]
 
     const countQuery = `
       SELECT COUNT(*) as total FROM (${resolvedSubQuery})
       ${classFilter}
     `
-    const countParams = [...params, ...classParam]
+    const countParams = [...subQueryParams, ...classParam]
 
     const students = db
       .prepare(dataQuery)
@@ -501,6 +512,9 @@ export class StudentRepository {
       try {
         if (typeof fees.canteen_days === 'string') {
           fees.canteen_days = JSON.parse(fees.canteen_days as string)
+        }
+        if (typeof fees.uniform_items_purchased === 'string') {
+          fees.uniform_items_purchased = JSON.parse(fees.uniform_items_purchased as string)
         }
         if (typeof fees.tuition_paid_months === 'string') {
           fees.tuition_paid_months = JSON.parse(fees.tuition_paid_months as string)

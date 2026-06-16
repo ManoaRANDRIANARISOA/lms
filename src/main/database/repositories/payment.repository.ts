@@ -102,25 +102,30 @@ export class PaymentRepository {
       if (payment.payment_type === 'uniform' && payment.description) {
         const schoolYear = StudentRepository.getSetting('school_year') || '2025-2026'
         const targetYear = schoolYear.replace(/['"]/g, '').trim()
-        const desc = (payment.description as string).toLowerCase()
+        const itemName = (payment.description as string).split(' - ')[0].trim()
 
-        let uniformField: string | null = null
-        if (desc.includes('tablier') || desc.includes('blouse')) uniformField = 'uniform_apron_purchased'
-        else if (desc.includes('t-shirt') || desc.includes('tshirt') || desc.includes('polo') || desc.includes('maillot')) uniformField = 'uniform_tshirt_purchased'
-        else if (desc.includes('short') || desc.includes('pantalon') || desc.includes('bermuda')) uniformField = 'uniform_shorts_purchased'
-        else if (desc.includes('badge') || desc.includes('écusson') || desc.includes('ecusson')) uniformField = 'uniform_badge_purchased'
-
-        if (uniformField) {
+        if (itemName) {
           const feeRecord = db.prepare(
-            `SELECT id, ${uniformField} FROM student_fees WHERE student_id = ? AND school_year = ?`
-          ).get(payment.student_id, targetYear) as Record<string, unknown> | undefined
+            `SELECT id, uniform_items_purchased FROM student_fees WHERE student_id = ? AND school_year = ?`
+          ).get(payment.student_id, targetYear) as { id: string, uniform_items_purchased: string | null } | undefined
 
-          if (feeRecord && !feeRecord[uniformField]) {
-            db.prepare(
-              `UPDATE student_fees SET ${uniformField} = 1, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending' WHERE id = ?`
-            ).run(feeRecord.id as string)
+          if (feeRecord) {
+            let purchased: string[] = []
+            try {
+              if (feeRecord.uniform_items_purchased) {
+                purchased = JSON.parse(feeRecord.uniform_items_purchased)
+              }
+            } catch (e) {}
 
-            addToSyncQueue('student_fees', feeRecord.id as string, 'update', { [uniformField]: 1, student_id: payment.student_id })
+            if (!purchased.includes(itemName)) {
+              purchased.push(itemName)
+              const newPurchasedStr = JSON.stringify(purchased)
+              db.prepare(
+                `UPDATE student_fees SET uniform_items_purchased = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending' WHERE id = ?`
+              ).run(newPurchasedStr, feeRecord.id)
+
+              addToSyncQueue('student_fees', feeRecord.id, 'update', { uniform_items_purchased: newPurchasedStr, student_id: payment.student_id })
+            }
           }
         }
       }
@@ -308,84 +313,142 @@ export class PaymentRepository {
         `${endYear}-05`, `${endYear}-06`
       ]
       const terminaleMonths = [...months, `${endYear}-07`]
-      // Query payments for all possible months (inc July) to cover Terminale
-      const allMonths = [...months, `${endYear}-07`]
 
-      // 1. Get all active students with tuition fee record
+      // 1. Fetch Finance Config (prices)
+      let prices: any = {}
+      try {
+        const settingsRecord = db.prepare("SELECT value FROM settings WHERE key = 'finance_prices'").get() as { value: string } | undefined
+        if (settingsRecord?.value) {
+          prices = JSON.parse(settingsRecord.value)
+        }
+      } catch (e) {}
+
+      // 2. Fetch Active Students & Fees
       const students = db.prepare(`
-        SELECT s.id, s.first_name, s.last_name, s.class, sf.monthly_tuition, s.departure_date
+        SELECT s.id, s.first_name, s.last_name, s.class, s.departure_date,
+               sf.monthly_tuition, sf.bus_subscribed, sf.bus_route, 
+               sf.canteen_subscribed, sf.canteen_days_per_week, sf.canteen_days
         FROM students s
         JOIN student_fees sf ON sf.student_id = s.id
         WHERE sf.school_year = ? 
           AND s.deleted = 0 
-          AND sf.deleted = 0 
-          AND sf.monthly_tuition > 0
-      `).all(targetYear) as Array<{ id: string; first_name: string; last_name: string; class: string; monthly_tuition: number; departure_date: string | null }>
+          AND sf.deleted = 0
+      `).all(targetYear) as Array<any>
 
       if (students.length === 0) {
         return { success: true, alerts: [] }
       }
 
-      // 2. Get all tuition payments for these students and months
-      const placeholders = allMonths.map(() => '?').join(', ')
+      // 3. Fetch Payments
       const payments = db.prepare(`
-        SELECT student_id, month, SUM(amount) as total_paid
+        SELECT student_id, payment_type, month, SUM(amount) as total_paid
         FROM student_payments
-        WHERE payment_type = 'tuition' 
-          AND deleted = 0 
-          AND month IN (${placeholders})
-        GROUP BY student_id, month
-      `).all(...allMonths) as Array<{ student_id: string; month: string; total_paid: number }>
+        WHERE deleted = 0 
+          AND payment_type IN ('tuition', 'bus', 'canteen')
+        GROUP BY student_id, payment_type, month
+      `).all() as Array<{ student_id: string; payment_type: string; month: string; total_paid: number }>
 
-      // Create a lookup map for quick access
       const paymentMap = new Map<string, number>()
       payments.forEach((p) => {
-        paymentMap.set(`${p.student_id}_${p.month}`, p.total_paid)
+        paymentMap.set(`${p.student_id}_${p.payment_type}_${p.month}`, p.total_paid)
       })
 
-      // 3. Process and build alert list
-      // Only count months up to the current month (future months are not yet due)
+      // 4. Fetch Unpaid Events
+      const unpaidEvents = db.prepare(`
+        SELECT ep.student_id, e.name as event_name, ep.amount_due, ep.amount_paid
+        FROM event_payments ep
+        JOIN parent_events e ON ep.event_id = e.id
+        WHERE ep.paid = 0 AND e.deleted = 0
+      `).all() as Array<{ student_id: string; event_name: string; amount_due: number; amount_paid: number }>
+
+      const eventsMap = new Map<string, any[]>()
+      unpaidEvents.forEach(ev => {
+        if (!eventsMap.has(ev.student_id)) eventsMap.set(ev.student_id, [])
+        eventsMap.get(ev.student_id)!.push(ev)
+      })
+
       const now = new Date()
       const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
       const alerts: Array<Record<string, unknown>> = []
+
       students.forEach((student) => {
-        // Terminale (TA/TD) goes until July, others stop in June
         const isTerminale = student.class === 'TA' || student.class === 'TD' || student.class === 'Terminale'
         const studentMonths = isTerminale ? terminaleMonths : months
+        
+        let totalDue = 0
+        const unpaidItems: Array<{ type: string, description: string, amount: number }> = []
 
-        const paidMonths: string[] = []
-        const unpaidMonths: string[] = []
+        // Helper to check monthly subscriptions
+        const checkMonthlyService = (type: string, monthlyCost: number, labelPrefix: string) => {
+          if (monthlyCost <= 0) return
+          studentMonths.forEach((m) => {
+            if (m > currentMonth) return // Not yet due
+            if (student.departure_date && m > student.departure_date.substring(0, 7)) return // After departure
 
-        studentMonths.forEach((m) => {
-          // Skip months that haven't happened yet
-          if (m > currentMonth) return
+            const paidAmount = paymentMap.get(`${student.id}_${type}_${m}`) || 0
+            const balance = monthlyCost - paidAmount
+            if (balance > 0) {
+              unpaidItems.push({
+                type,
+                description: `${labelPrefix} (${m})`,
+                amount: balance
+              })
+              totalDue += balance
+            }
+          })
+        }
 
-          // Skip months after departure date
-          if (student.departure_date) {
-            const departureMonth = student.departure_date.substring(0, 7)
-            if (m > departureMonth) return
+        // --- Tuition ---
+        checkMonthlyService('tuition', student.monthly_tuition || 0, 'Écolage')
+
+        // --- Bus ---
+        if (student.bus_subscribed && student.bus_route) {
+          const busCost = prices?.bus?.[student.bus_route] || 0
+          checkMonthlyService('bus', busCost, 'Transport')
+        }
+
+        // --- Canteen ---
+        if (student.canteen_subscribed) {
+          let canteenCost = 0
+          let daysCount = student.canteen_days_per_week || 0
+          if (typeof student.canteen_days === 'string') {
+            try {
+              const parsed = JSON.parse(student.canteen_days)
+              if (Array.isArray(parsed) && parsed.length > 0) daysCount = parsed.length
+            } catch (e) {}
           }
-
-          const paidAmount = paymentMap.get(`${student.id}_${m}`) || 0
-          if (paidAmount >= student.monthly_tuition) {
-            paidMonths.push(m)
+          const effectiveDays = daysCount === 0 ? 5 : daysCount
+          if (effectiveDays >= 5) {
+            canteenCost = prices?.canteen?.monthly || 0
           } else {
-            unpaidMonths.push(m)
+            canteenCost = (prices?.canteen?.daily || 0) * effectiveDays * 4
+          }
+          checkMonthlyService('canteen', canteenCost, 'Cantine')
+        }
+
+        // --- Events ---
+        const sEvents = eventsMap.get(student.id) || []
+        sEvents.forEach(ev => {
+          const balance = ev.amount_due - ev.amount_paid
+          if (balance > 0) {
+            unpaidItems.push({
+              type: 'event',
+              description: `Événement: ${ev.event_name}`,
+              amount: balance
+            })
+            totalDue += balance
           }
         })
 
-        if (unpaidMonths.length > 0) {
+        if (unpaidItems.length > 0) {
           alerts.push({
             student_id: student.id,
             first_name: student.first_name,
             last_name: student.last_name,
             class_name: student.class || '-',
-            monthly_tuition: student.monthly_tuition,
-            paid_months: paidMonths,
-            unpaid_months: unpaidMonths,
-            unpaid_count: unpaidMonths.length,
-            total_due: unpaidMonths.length * student.monthly_tuition
+            unpaid_items: unpaidItems,
+            total_due: totalDue
           })
         }
       })

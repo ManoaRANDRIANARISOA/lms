@@ -1,3 +1,4 @@
+import { useAppStore } from '@/store/useAppStore'
 /**
  * GradeBook.tsx — Carnet de notes (Vue par classe)
  *
@@ -37,7 +38,7 @@ export default function GradeBook(): React.JSX.Element {
   const { classes: ALL_CLASSES } = useClasses()
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedTerm, setSelectedTerm] = useState(1)
-  const [schoolYear, setSchoolYear] = useState('2025-2026')
+  const [schoolYear, setSchoolYear] = useState(useAppStore.getState().currentYear)
 
   const [assessments, setAssessments] = useState<any[]>([])
 

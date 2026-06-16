@@ -3,6 +3,7 @@ import { useStudentStore } from '@/store/useStudentStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Search, Plus, User, Download } from 'lucide-react'
+import { useAppStore } from '@/store/useAppStore'
 import StudentForm from './StudentForm'
 import StudentDetail from './StudentDetail'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
@@ -11,6 +12,7 @@ import { useClasses } from '@/lib/useClasses'
 
 export default function StudentList() {
   const { students, currentStudent, currentFees, loading, fetchStudents } = useStudentStore()
+  const currentYear = useAppStore((s) => s.currentYear)
   const { canWrite } = usePermissions()
   const { classes } = useClasses()
   const [search, setSearch] = useState('')
@@ -23,11 +25,11 @@ export default function StudentList() {
   }, [])
 
   useEffect(() => {
-    fetchStudents({ search, class: selectedClass })
-  }, [selectedClass])
+    fetchStudents({ search, class: selectedClass, schoolYear: currentYear })
+  }, [selectedClass, currentYear])
 
   const handleSearch = () => {
-    fetchStudents({ search, class: selectedClass })
+    fetchStudents({ search, class: selectedClass, schoolYear: currentYear })
   }
 
   if (view === 'create') {
@@ -87,7 +89,7 @@ export default function StudentList() {
             variant="outline"
             size="sm"
             onClick={async () => {
-              const result = await window.api.student.list({ limit: 10000 })
+              const result = await window.api.student.list({ limit: 10000, schoolYear: currentYear })
               const students = result?.students || []
               await window.api.export.csv(
                 students as unknown as Record<string, unknown>[],

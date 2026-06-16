@@ -11,7 +11,7 @@ import { Routes, Route, useParams, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/useAuthStore'
 import Sidebar from '@/components/layout/Sidebar'
 import ProtectedRoute from '@/components/shared/ProtectedRoute'
-
+import { useAppStore } from '@/store/useAppStore'
 // Pages
 import StudentList from '@/pages/students/StudentList'
 import StudentDetail from '@/pages/students/StudentDetail'
@@ -44,7 +44,13 @@ function StudentDetailRoute(): React.JSX.Element | null {
 
 export default function MainLayout(): React.JSX.Element {
   const token = useAuthStore((s) => s.token)
+  const fetchSettings = useAppStore((s) => s.fetchSettings)
+  const globalYear = useAppStore((s) => s.currentYear)
   const activityPingInterval = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    fetchSettings()
+  }, [])
 
   // Ping d'activité toutes les 5 min pour maintenir la session
   useEffect(() => {
@@ -64,6 +70,14 @@ export default function MainLayout(): React.JSX.Element {
       }
     }
   }, [token])
+
+  if (!globalYear) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background text-foreground">
+        Chargement de la configuration...
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-screen bg-background text-foreground font-sans">

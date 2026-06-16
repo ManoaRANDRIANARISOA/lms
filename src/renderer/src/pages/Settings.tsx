@@ -1,3 +1,4 @@
+import { useAppStore } from '@/store/useAppStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,7 +18,7 @@ export default function Settings() {
   const [wipeCloud, setWipeCloud] = useState(false)
 
   const [schoolName, setSchoolName] = useState('')
-  const [currentYear, setCurrentYear] = useState('2025-2026')
+  const [currentYear, setCurrentYear] = useState(useAppStore.getState().currentYear)
   const [schoolLogo, setSchoolLogo] = useState('')
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [isLoadingImage, setIsLoadingImage] = useState(false)
@@ -121,22 +122,6 @@ export default function Settings() {
       const result = await window.api.student.resetDatabase(wipeCloud)
       if (result.success) {
         setMessage('Base de données réinitialisée avec succès.')
-      } else {
-        setMessage('Erreur: ' + result.error)
-      }
-    } catch (e: any) {
-      setMessage('Erreur: ' + e.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleRepair = async () => {
-    setLoading(true)
-    try {
-      const result = await window.api.student.repair('2025-2026')
-      if (result.success) {
-        setMessage(`Réparation terminée. ${result.fixedCount} inscriptions créées.`)
       } else {
         setMessage('Erreur: ' + result.error)
       }

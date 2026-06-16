@@ -1,3 +1,4 @@
+import { useAppStore } from '@/store/useAppStore'
 /**
  * ReportCardView.tsx — Aperçu du bulletin individuel
  *
@@ -25,7 +26,7 @@ export default function ReportCardView(): React.JSX.Element {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
-  const [schoolYear, setSchoolYear] = useState(searchParams.get('year') || '2025-2026')
+  const [schoolYear, setSchoolYear] = useState(searchParams.get('year') || useAppStore.getState().currentYear)
   const [term, setTerm] = useState(Number(searchParams.get('term') || 1))
 
   const { grades, studentAverage, fetchGradesByStudent, fetchStudentAverage } = useGradeStore()

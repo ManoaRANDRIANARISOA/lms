@@ -58,10 +58,7 @@ const studentSchema = z.object({
     .transform((val) => (isNaN(val) ? 0 : val)),
   canteen_days: z.array(z.string()).optional(),
 
-  uniform_tshirt_purchased: z.boolean().optional(),
-  uniform_apron_purchased: z.boolean().optional(),
-  uniform_shorts_purchased: z.boolean().optional(),
-  uniform_badge_purchased: z.boolean().optional(),
+  uniform_items_purchased: z.array(z.string()).optional(),
 
   fram_paid_by_parent: z.boolean().optional()
 })
@@ -140,10 +137,7 @@ export default function StudentForm({
       bus_route: '',
       canteen_subscribed: false,
       canteen_days_per_week: 0,
-      uniform_tshirt_purchased: false,
-      uniform_apron_purchased: false,
-      uniform_shorts_purchased: false,
-      uniform_badge_purchased: false,
+      uniform_items_purchased: [],
       fram_paid_by_parent: false
     }
   })
@@ -188,10 +182,7 @@ export default function StudentForm({
         canteen_subscribed: false,
         canteen_days_per_week: 0,
         canteen_days: [],
-        uniform_tshirt_purchased: false,
-        uniform_apron_purchased: false,
-        uniform_shorts_purchased: false,
-        uniform_badge_purchased: false,
+        uniform_items_purchased: [],
         fram_paid_by_parent: false
       }
 
@@ -207,10 +198,7 @@ export default function StudentForm({
             ? JSON.parse(initialFees.canteen_days)
             : []
 
-        formData.uniform_tshirt_purchased = Boolean(initialFees.uniform_tshirt_purchased)
-        formData.uniform_apron_purchased = Boolean(initialFees.uniform_apron_purchased)
-        formData.uniform_shorts_purchased = Boolean(initialFees.uniform_shorts_purchased)
-        formData.uniform_badge_purchased = Boolean(initialFees.uniform_badge_purchased)
+        formData.uniform_items_purchased = initialFees.uniform_items_purchased || []
 
         formData.fram_paid_by_parent = Boolean(initialFees.fram_paid_by_parent)
       }
@@ -752,54 +740,31 @@ export default function StudentForm({
             <div className="border p-4 rounded-md mt-4">
               <h3 className="font-semibold mb-3">Tenues & Accessoires</h3>
               <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="uniform_tshirt"
-                    checked={form.watch('uniform_tshirt_purchased')}
-                    onCheckedChange={(checked) =>
-                      form.setValue('uniform_tshirt_purchased', checked as boolean)
-                    }
-                  />
-                  <label htmlFor="uniform_tshirt" className="text-sm">
-                    T-shirt Sport
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="uniform_apron"
-                    checked={form.watch('uniform_apron_purchased')}
-                    onCheckedChange={(checked) =>
-                      form.setValue('uniform_apron_purchased', checked as boolean)
-                    }
-                  />
-                  <label htmlFor="uniform_apron" className="text-sm">
-                    Tablier
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="uniform_shorts"
-                    checked={form.watch('uniform_shorts_purchased')}
-                    onCheckedChange={(checked) =>
-                      form.setValue('uniform_shorts_purchased', checked as boolean)
-                    }
-                  />
-                  <label htmlFor="uniform_shorts" className="text-sm">
-                    Short Sport
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="uniform_badge"
-                    checked={form.watch('uniform_badge_purchased')}
-                    onCheckedChange={(checked) =>
-                      form.setValue('uniform_badge_purchased', checked as boolean)
-                    }
-                  />
-                  <label htmlFor="uniform_badge" className="text-sm">
-                    Écusson
-                  </label>
-                </div>
+                {Object.keys(prices?.uniforms || {}).map((item) => {
+                  const itemsPurchased = form.watch('uniform_items_purchased') || []
+                  const isChecked = itemsPurchased.includes(item)
+                  return (
+                    <div key={item} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`uniform_${item}`}
+                        checked={isChecked}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            form.setValue('uniform_items_purchased', [...itemsPurchased, item])
+                          } else {
+                            form.setValue('uniform_items_purchased', itemsPurchased.filter(i => i !== item))
+                          }
+                        }}
+                      />
+                      <label htmlFor={`uniform_${item}`} className="text-sm">
+                        {item}
+                      </label>
+                    </div>
+                  )
+                })}
+                {Object.keys(prices?.uniforms || {}).length === 0 && (
+                  <p className="text-sm text-gray-500 italic">Aucun article configuré</p>
+                )}
               </div>
             </div>
 

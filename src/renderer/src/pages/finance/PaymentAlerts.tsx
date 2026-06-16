@@ -5,16 +5,13 @@ import { useClasses } from '@/lib/useClasses'
 import { cn } from '@/lib/utils'
 import { ExternalLink } from 'lucide-react'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
-
+import { useAppStore } from '@/store/useAppStore'
 interface UnpaidStudent {
   student_id: string
   first_name: string
   last_name: string
   class_name: string
-  monthly_tuition: number
-  paid_months: string[]
-  unpaid_months: string[]
-  unpaid_count: number
+  unpaid_items: Array<{ type: string; description: string; amount: number }>
   total_due: number
 }
 
@@ -33,7 +30,7 @@ export default function PaymentAlerts() {
     setLoading(true)
     try {
       const schoolYear = await window.api.settings.get('school_year')
-      const year = (schoolYear as string) || '2025-2026'
+      const year = (schoolYear as string) || useAppStore.getState().currentYear
 
       const result = await window.api.payment.getUnpaidAlerts(year)
       if (result.success && Array.isArray(result.alerts)) {
@@ -49,7 +46,7 @@ export default function PaymentAlerts() {
   }
 
   const filtered = alerts.filter(
-    (a) => (selectedClass === 'all' || a.class_name === selectedClass) && a.unpaid_count >= minMonths
+    (a) => (selectedClass === 'all' || a.class_name === selectedClass) && a.unpaid_items?.length >= minMonths
   )
 
   const totalUnpaid = filtered.reduce((sum, a) => sum + a.total_due, 0)
@@ -148,24 +145,26 @@ export default function PaymentAlerts() {
                     <td className="px-6 py-4 text-center">
                       <span className={cn(
                         'px-2 py-1 rounded text-xs font-medium',
-                        student.unpaid_count >= 3
+                        student.unpaid_items?.length >= 3
                           ? 'bg-red-100 text-red-800'
-                          : student.unpaid_count >= 2
+                          : student.unpaid_items?.length >= 2
                             ? 'bg-orange-100 text-orange-800'
                             : 'bg-yellow-100 text-yellow-800'
                       )}>
-                        {student.unpaid_count} mois
+                        {student.unpaid_items?.length || 0} impayés
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right font-bold text-red-700">
                       {student.total_due.toLocaleString()} Ar
                     </td>
                     <td className="px-6 py-4 text-xs text-gray-500">
-                      {student.unpaid_months.map((m) => {
-                        const [y, mo] = m.split('-')
-                        const monthNames = ['', 'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
-                        return `${monthNames[parseInt(mo)]} ${y}`
-                      }).join(', ')}
+                      <ul className="space-y-1 list-disc list-inside">
+                        {student.unpaid_items?.map((item, idx) => (
+                          <li key={idx}>
+                            {item.description}
+                          </li>
+                        ))}
+                      </ul>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <a

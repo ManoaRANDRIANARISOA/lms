@@ -1,3 +1,4 @@
+import { useAppStore } from '@/store/useAppStore'
 /**
  * GradeEntry.tsx — Saisie des notes par classe / matière / trimestre
  *
@@ -49,7 +50,7 @@ export default function GradeEntry(): React.JSX.Element {
   const [assessments, setAssessments] = useState<any[]>([])
   const [selectedSubject, setSelectedSubject] = useState('')
   const [selectedTerm, setSelectedTerm] = useState(1)
-  const [schoolYear, setSchoolYear] = useState('2025-2026')
+  const [schoolYear, setSchoolYear] = useState(useAppStore.getState().currentYear)
   const [students, setStudents] = useState<StudentRow[]>([])
   const [saveMsg, setSaveMsg] = useState('')
 
