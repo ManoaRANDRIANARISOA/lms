@@ -21,11 +21,19 @@ import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 
 function groupClasses(classes: string[]): { label: string; classes: string[] }[] {
   const groups: { label: string; classes: string[] }[] = []
-  const prescolaire = classes.filter(c => ['PS', 'MS', 'GS'].includes(c))
-  const primaire = classes.filter(c => /^CP|CE|CM/.test(c))
-  const college = classes.filter(c => /^[3456]ème$/.test(c))
-  const lycee = classes.filter(c => ['2nde', '1ère', 'TA', 'TD', 'Seconde', 'Première', 'Terminale'].includes(c))
-  const other = classes.filter(c => !prescolaire.includes(c) && !primaire.includes(c) && !college.includes(c) && !lycee.includes(c))
+  const prescolaire = classes.filter((c) => ['PS', 'MS', 'GS'].includes(c))
+  const primaire = classes.filter((c) => /^CP|CE|CM/.test(c))
+  const college = classes.filter((c) => /^[3456]ème$/.test(c))
+  const lycee = classes.filter((c) =>
+    ['2nde', '1ère', 'TA', 'TD', 'Seconde', 'Première', 'Terminale'].includes(c)
+  )
+  const other = classes.filter(
+    (c) =>
+      !prescolaire.includes(c) &&
+      !primaire.includes(c) &&
+      !college.includes(c) &&
+      !lycee.includes(c)
+  )
   if (prescolaire.length) groups.push({ label: 'Préscolaire', classes: prescolaire })
   if (primaire.length) groups.push({ label: 'Primaire', classes: primaire })
   if (college.length) groups.push({ label: 'Collège', classes: college })
@@ -39,9 +47,17 @@ export default function SubjectManager(): React.JSX.Element {
   const canWrite = useAuthStore((s) => s.canWrite)
   const { classes: ALL_CLASSES } = useClasses()
   const {
-    subjects, fetchSubjects, createSubject, deleteSubject,
-    allClassSubjects, fetchAllClassSubjects, createClassSubject, updateClassSubject, deleteClassSubject,
-    loading, error
+    subjects,
+    fetchSubjects,
+    createSubject,
+    deleteSubject,
+    allClassSubjects,
+    fetchAllClassSubjects,
+    createClassSubject,
+    updateClassSubject,
+    deleteClassSubject,
+    loading,
+    error
   } = useGradeStore()
 
   const [activeClass, setActiveClass] = useState<string>('')
@@ -59,15 +75,15 @@ export default function SubjectManager(): React.JSX.Element {
     if (!activeClass) return new Map<string, ClassSubject>()
     const map = new Map<string, ClassSubject>()
     allClassSubjects
-      .filter(cs => cs.class_name === activeClass)
-      .forEach(cs => map.set(cs.subject_id, cs))
+      .filter((cs) => cs.class_name === activeClass)
+      .forEach((cs) => map.set(cs.subject_id, cs))
     return map
   }, [allClassSubjects, activeClass])
 
   // Assigned classes per subject (across all classes)
   const assignedClassesMap = useMemo(() => {
     const map = new Map<string, string[]>()
-    allClassSubjects.forEach(cs => {
+    allClassSubjects.forEach((cs) => {
       const arr = map.get(cs.subject_id) || []
       arr.push(cs.class_name)
       map.set(cs.subject_id, arr)
@@ -78,7 +94,7 @@ export default function SubjectManager(): React.JSX.Element {
   // Filtered subjects based on active class
   const filteredSubjects = useMemo(() => {
     if (!activeClass) return subjects
-    return subjects.filter(s => activeAssignments.has(s.id))
+    return subjects.filter((s) => activeAssignments.has(s.id))
   }, [subjects, activeAssignments, activeClass])
 
   const handleCreateSubject = async () => {
@@ -126,7 +142,10 @@ export default function SubjectManager(): React.JSX.Element {
   }
 
   const handleDeleteSubject = async (id: string, name: string) => {
-    if (!confirm(`Supprimer "${name}" du catalogue ?\nLes notes associées ne seront plus visibles.`)) return
+    if (
+      !confirm(`Supprimer "${name}" du catalogue ?\nLes notes associées ne seront plus visibles.`)
+    )
+      return
     const ok = await deleteSubject(id)
     if (ok) setMsg(`"${name}" supprimée du catalogue.`)
     else setMsg('Erreur lors de la suppression.')
@@ -152,7 +171,9 @@ export default function SubjectManager(): React.JSX.Element {
 
       {error && <p className="text-red-600 bg-red-50 p-3 rounded">{error}</p>}
       {msg && (
-        <p className={`p-3 rounded ${msg.includes('Erreur') ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'}`}>
+        <p
+          className={`p-3 rounded ${msg.includes('Erreur') ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'}`}
+        >
           {msg}
         </p>
       )}
@@ -175,10 +196,10 @@ export default function SubjectManager(): React.JSX.Element {
           >
             Toutes
           </Button>
-          {groupClasses(ALL_CLASSES).map(group => (
+          {groupClasses(ALL_CLASSES).map((group) => (
             <div key={group.label} className="flex items-center gap-1">
               <span className="text-xs text-muted-foreground font-medium mr-1">{group.label}:</span>
-              {group.classes.map(c => (
+              {group.classes.map((c) => (
                 <Button
                   key={c}
                   size="sm"
@@ -193,7 +214,8 @@ export default function SubjectManager(): React.JSX.Element {
           ))}
           {activeClass && (
             <span className="text-xs text-muted-foreground ml-2">
-              — {filteredSubjects.length} matière{filteredSubjects.length > 1 ? 's' : ''} assignée{filteredSubjects.length > 1 ? 's' : ''} à {activeClass}
+              — {filteredSubjects.length} matière{filteredSubjects.length > 1 ? 's' : ''} assignée
+              {filteredSubjects.length > 1 ? 's' : ''} à {activeClass}
             </span>
           )}
         </div>
@@ -233,15 +255,16 @@ export default function SubjectManager(): React.JSX.Element {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {filteredSubjects.length === 0 && (
             <div className="col-span-full py-8 text-center text-muted-foreground">
-              {activeClass
-                ? <>
-                    Aucune matière assignée à {activeClass}.<br />
-                    <span className="text-sm">
-                      Cliquez sur "Toutes" puis "Ajouter à {activeClass}" sur une matière.
-                    </span>
-                  </>
-                : 'Aucune matière dans le catalogue.'
-              }
+              {activeClass ? (
+                <>
+                  Aucune matière assignée à {activeClass}.<br />
+                  <span className="text-sm">
+                    Cliquez sur "Toutes" puis "Ajouter à {activeClass}" sur une matière.
+                  </span>
+                </>
+              ) : (
+                'Aucune matière dans le catalogue.'
+              )}
             </div>
           )}
           {filteredSubjects.map((s) => {
@@ -253,7 +276,11 @@ export default function SubjectManager(): React.JSX.Element {
               <div
                 key={s.id}
                 className={`relative bg-white border rounded-lg p-3 transition-shadow group ${
-                  activeClass ? (isAssignedToActive ? 'border-green-300 bg-green-50/30' : 'border-orange-200 bg-orange-50/20 hover:shadow-md') : 'hover:shadow-md'
+                  activeClass
+                    ? isAssignedToActive
+                      ? 'border-green-300 bg-green-50/30'
+                      : 'border-orange-200 bg-orange-50/20 hover:shadow-md'
+                    : 'hover:shadow-md'
                 }`}
               >
                 {/* Delete subject (global) */}
@@ -275,7 +302,10 @@ export default function SubjectManager(): React.JSX.Element {
 
                 {/* Default coefficient */}
                 <div className="text-xs text-muted-foreground mb-2">
-                  Coef. défaut : <span className="font-semibold text-foreground">{s.default_coefficient ?? 1}</span>
+                  Coef. défaut :{' '}
+                  <span className="font-semibold text-foreground">
+                    {s.default_coefficient ?? 1}
+                  </span>
                 </div>
 
                 {/* Active class controls */}
@@ -325,7 +355,7 @@ export default function SubjectManager(): React.JSX.Element {
                 {/* Assigned classes badges (always visible) */}
                 {assigned.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {assigned.map(c => (
+                    {assigned.map((c) => (
                       <span
                         key={c}
                         className={`text-[10px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
@@ -337,11 +367,17 @@ export default function SubjectManager(): React.JSX.Element {
                         }`}
                         onClick={() => {
                           if (canWrite('grades') && c !== activeClass) {
-                            const cs = allClassSubjects.find(cs => cs.subject_id === s.id && cs.class_name === c)
+                            const cs = allClassSubjects.find(
+                              (cs) => cs.subject_id === s.id && cs.class_name === c
+                            )
                             if (cs) handleUnassignFromClass(cs)
                           }
                         }}
-                        title={canWrite('grades') && c !== activeClass ? `Cliquer pour retirer de ${c}` : undefined}
+                        title={
+                          canWrite('grades') && c !== activeClass
+                            ? `Cliquer pour retirer de ${c}`
+                            : undefined
+                        }
                       >
                         {c}
                       </span>

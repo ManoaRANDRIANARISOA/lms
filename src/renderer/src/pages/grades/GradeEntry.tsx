@@ -41,9 +41,8 @@ const BEHAVIOR_LABELS: Record<string, string> = {
 export default function GradeEntry(): React.JSX.Element {
   const navigate = useNavigate()
   const canWrite = useAuthStore((s) => s.canWrite)
-  const {
-    classSubjects, fetchClassSubjects, createGrade, updateGrade, loading, error
-  } = useGradeStore()
+  const { classSubjects, fetchClassSubjects, createGrade, updateGrade, loading, error } =
+    useGradeStore()
 
   const { classes: ALL_CLASSES } = useClasses()
   const [selectedClass, setSelectedClass] = useState('')
@@ -82,8 +81,6 @@ export default function GradeEntry(): React.JSX.Element {
     }
   }
 
-
-
   const loadStudents = async () => {
     if (!selectedClass) {
       setStudents([])
@@ -120,7 +117,11 @@ export default function GradeEntry(): React.JSX.Element {
 
   const loadExistingGrades = async (rows: StudentRow[]) => {
     try {
-      const result = await window.api.grade.getGradesByClass(selectedClass, schoolYear, selectedTerm)
+      const result = await window.api.grade.getGradesByClass(
+        selectedClass,
+        schoolYear,
+        selectedTerm
+      )
       if (result.success && result.grades) {
         const map: Record<string, any> = {}
         for (const g of result.grades) {
@@ -128,22 +129,25 @@ export default function GradeEntry(): React.JSX.Element {
             map[g.student_id] = g
           }
         }
-        setStudents(rows.map((r) => {
-          const existing = map[r.id]
-          if (existing) {
-            return {
-              ...r,
-              existingGradeId: existing.id,
-              grade: String(existing.grade),
-              grade_journalier: existing.grade_journalier != null ? String(existing.grade_journalier) : '',
-              grade_exam: existing.grade_exam != null ? String(existing.grade_exam) : '',
-              coefficient: String(existing.class_coefficient ?? existing.coefficient ?? 1),
-              comment: existing.teacher_comment || '',
-              behavior: existing.behavior_note || 'none'
+        setStudents(
+          rows.map((r) => {
+            const existing = map[r.id]
+            if (existing) {
+              return {
+                ...r,
+                existingGradeId: existing.id,
+                grade: String(existing.grade),
+                grade_journalier:
+                  existing.grade_journalier != null ? String(existing.grade_journalier) : '',
+                grade_exam: existing.grade_exam != null ? String(existing.grade_exam) : '',
+                coefficient: String(existing.class_coefficient ?? existing.coefficient ?? 1),
+                comment: existing.teacher_comment || '',
+                behavior: existing.behavior_note || 'none'
+              }
             }
-          }
-          return r
-        }))
+            return r
+          })
+        )
       }
     } catch (e) {
       // ignore
@@ -160,7 +164,7 @@ export default function GradeEntry(): React.JSX.Element {
     setStudents((prev) => {
       const next = [...prev]
       const row = { ...next[index], [field]: value }
-      
+
       // Auto-calculate final grade if journalier or exam is changed
       if (field === 'grade_journalier' || field === 'grade_exam') {
         const j = parseFloat(row.grade_journalier)
@@ -175,7 +179,7 @@ export default function GradeEntry(): React.JSX.Element {
           row.grade = ''
         }
       }
-      
+
       next[index] = row
       return next
     })
@@ -225,7 +229,7 @@ export default function GradeEntry(): React.JSX.Element {
     }
   }
 
-  const selectedSubjectInfo = classSubjects.find(cs => cs.subject_id === selectedSubject)
+  const selectedSubjectInfo = classSubjects.find((cs) => cs.subject_id === selectedSubject)
 
   const isPrimaryOrPreschool = /^(PS|MS|GS|CP|CE|CM)/i.test(selectedClass)
   const label1 = isPrimaryOrPreschool ? 'Semi-Trim' : 'Journ.'
@@ -243,7 +247,13 @@ export default function GradeEntry(): React.JSX.Element {
       </div>
 
       {error && <p className="text-red-600 bg-red-50 p-3 rounded">{error}</p>}
-      {saveMsg && <p className={`p-3 rounded ${saveMsg.includes('erreur') ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'}`}>{saveMsg}</p>}
+      {saveMsg && (
+        <p
+          className={`p-3 rounded ${saveMsg.includes('erreur') ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'}`}
+        >
+          {saveMsg}
+        </p>
+      )}
 
       {/* Filtres */}
       <div className="bg-white rounded-xl border shadow-sm p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -251,12 +261,17 @@ export default function GradeEntry(): React.JSX.Element {
           <Label>Classe</Label>
           <select
             value={selectedClass}
-            onChange={(e) => { setSelectedClass(e.target.value); setSelectedSubject('') }}
+            onChange={(e) => {
+              setSelectedClass(e.target.value)
+              setSelectedSubject('')
+            }}
             className="w-full border rounded-md px-3 py-2 text-sm bg-white"
           >
             <option value="">— Choisir —</option>
             {ALL_CLASSES.map((c) => (
-              <option key={c} value={c}>{c}</option>
+              <option key={c} value={c}>
+                {c}
+              </option>
             ))}
           </select>
           {ALL_CLASSES.length === 0 && (
@@ -282,7 +297,13 @@ export default function GradeEntry(): React.JSX.Element {
           {selectedClass && classSubjects.length === 0 && (
             <p className="text-xs text-amber-600 mt-1">
               Aucune matière configurée pour cette classe.
-              <button onClick={() => navigate('/grades/subjects')} className="underline hover:text-amber-800 ml-1">Configurer les matières</button>.
+              <button
+                onClick={() => navigate('/grades/subjects')}
+                className="underline hover:text-amber-800 ml-1"
+              >
+                Configurer les matières
+              </button>
+              .
             </p>
           )}
         </div>
@@ -300,8 +321,10 @@ export default function GradeEntry(): React.JSX.Element {
                 <option value={3}>Trimestre 3</option>
               </>
             ) : (
-              assessments.map(a => (
-                <option key={a.id} value={a.term_value}>{a.name}</option>
+              assessments.map((a) => (
+                <option key={a.id} value={a.term_value}>
+                  {a.name}
+                </option>
               ))
             )}
           </select>
@@ -317,7 +340,8 @@ export default function GradeEntry(): React.JSX.Element {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
           <span className="font-medium">{selectedSubjectInfo.subject_name}</span>
           {' — '}Coefficient par défaut: {selectedSubjectInfo.subject_default_coefficient ?? 1}
-          {' | '}Coefficient pour {selectedClass}: <span className="font-bold">{selectedSubjectInfo.coefficient}</span>
+          {' | '}Coefficient pour {selectedClass}:{' '}
+          <span className="font-bold">{selectedSubjectInfo.coefficient}</span>
         </div>
       )}
 
@@ -339,7 +363,9 @@ export default function GradeEntry(): React.JSX.Element {
             <tbody className="divide-y">
               {students.map((row, idx) => (
                 <tr key={row.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">{row.last_name} {row.first_name}</td>
+                  <td className="px-4 py-3 font-medium">
+                    {row.last_name} {row.first_name}
+                  </td>
                   <td className="px-4 py-3">
                     <Input
                       type="number"
@@ -425,14 +451,20 @@ export default function GradeEntry(): React.JSX.Element {
       {students.length === 0 && selectedClass && (
         <div className="text-center py-8 space-y-2">
           <p className="text-muted-foreground">Aucun élève trouvé dans cette classe.</p>
-          <p className="text-sm text-muted-foreground">Vérifiez que des élèves sont inscrits dans la classe "{selectedClass}".</p>
+          <p className="text-sm text-muted-foreground">
+            Vérifiez que des élèves sont inscrits dans la classe "{selectedClass}".
+          </p>
         </div>
       )}
 
       {students.length === 0 && !selectedClass && (
         <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed">
-          <p className="text-muted-foreground text-lg font-medium">Sélectionnez une classe et une matière pour commencer</p>
-          <p className="text-sm text-muted-foreground mt-1">Les notes saisies seront enregistrées par trimestre et par année scolaire.</p>
+          <p className="text-muted-foreground text-lg font-medium">
+            Sélectionnez une classe et une matière pour commencer
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Les notes saisies seront enregistrées par trimestre et par année scolaire.
+          </p>
         </div>
       )}
     </div>

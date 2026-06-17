@@ -40,10 +40,7 @@ export interface LoginResult {
  * @param password - The plaintext password
  * @returns LoginResult with user and session token on success
  */
-export async function loginWithPassword(
-  username: string,
-  password: string
-): Promise<LoginResult> {
+export async function loginWithPassword(username: string, password: string): Promise<LoginResult> {
   try {
     // 1. Look up user by username (with password_hash for verification)
     const userRow = UserRepository.getByUsernameWithHash(username)
@@ -200,7 +197,7 @@ function isPasswordChangeRequired(userId: string): boolean {
 
     // Check if the user is the default admin (created by migration 004)
     const user = db
-      .prepare("SELECT id FROM users WHERE id = ? AND last_login IS NULL")
+      .prepare('SELECT id FROM users WHERE id = ? AND last_login IS NULL')
       .get(userId) as { id: string } | undefined
 
     return !!user

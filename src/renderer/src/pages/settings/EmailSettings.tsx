@@ -133,13 +133,28 @@ export default function EmailSettings() {
       <div className="p-4 bg-white rounded-lg border shadow-sm">
         <h3 className="text-lg font-semibold mb-2">État du service</h3>
         <div className="flex gap-4 text-sm">
-          <span className={cn('px-2 py-1 rounded', status.configured ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600')}>
+          <span
+            className={cn(
+              'px-2 py-1 rounded',
+              status.configured ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+            )}
+          >
             {status.configured ? 'Configuré' : 'Non configuré'}
           </span>
-          <span className={cn('px-2 py-1 rounded', status.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600')}>
+          <span
+            className={cn(
+              'px-2 py-1 rounded',
+              status.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+            )}
+          >
             {status.enabled ? 'Activé' : 'Désactivé'}
           </span>
-          <span className={cn('px-2 py-1 rounded', status.auto_send ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600')}>
+          <span
+            className={cn(
+              'px-2 py-1 rounded',
+              status.auto_send ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+            )}
+          >
             {status.auto_send ? 'Envoi auto 18h' : 'Envoi manuel'}
           </span>
         </div>
@@ -210,7 +225,11 @@ export default function EmailSettings() {
                 <Button onClick={saveConfig} disabled={saving}>
                   {saving ? 'Enregistrement...' : 'Enregistrer'}
                 </Button>
-                <Button variant="outline" onClick={testConnection} disabled={testing || !config.gmail_address}>
+                <Button
+                  variant="outline"
+                  onClick={testConnection}
+                  disabled={testing || !config.gmail_address}
+                >
                   {testing ? 'Test en cours...' : 'Tester la connexion'}
                 </Button>
               </>
@@ -234,7 +253,11 @@ export default function EmailSettings() {
                   <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
                 )}
                 <span className="text-gray-500 text-xs">
-                  {new Date(log.sent_at).toLocaleDateString('fr-FR')} {new Date(log.sent_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(log.sent_at).toLocaleDateString('fr-FR')}{' '}
+                  {new Date(log.sent_at).toLocaleTimeString('fr-FR', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
                 </span>
                 <span className="flex-1 truncate">{log.subject}</span>
                 <span className="text-gray-400 text-xs">{log.recipient}</span>

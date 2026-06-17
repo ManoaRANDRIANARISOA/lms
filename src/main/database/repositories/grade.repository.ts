@@ -24,14 +24,18 @@ import type {
 // ============================================
 
 export class GradeRepository {
-  static createSubject(data: Omit<Subject, 'id' | 'created_at' | 'updated_at' | 'version' | 'sync_status' | 'deleted'>) {
+  static createSubject(
+    data: Omit<Subject, 'id' | 'created_at' | 'updated_at' | 'version' | 'sync_status' | 'deleted'>
+  ) {
     const id = uuidv4()
 
     const transaction = db.transaction(() => {
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO subjects (id, name, default_coefficient, created_at, updated_at, version, sync_status, deleted)
         VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, 'pending', 0)
-      `).run(id, data.name, data.default_coefficient ?? 1)
+      `
+      ).run(id, data.name, data.default_coefficient ?? 1)
       addToSyncQueue('subjects', id, 'create', { id, ...data })
     })
 
@@ -61,14 +65,18 @@ export class GradeRepository {
       return { success: false, error: 'Aucun champ valide à mettre à jour' }
     }
 
-    const fields = Object.keys(allowed).map((k) => `${k} = ?`).join(', ')
+    const fields = Object.keys(allowed)
+      .map((k) => `${k} = ?`)
+      .join(', ')
     const values = Object.values(allowed)
 
     const transaction = db.transaction(() => {
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE subjects SET ${fields}, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending'
         WHERE id = ? AND deleted = 0
-      `).run(...values, id)
+      `
+      ).run(...values, id)
       addToSyncQueue('subjects', id, 'update', { id, ...allowed })
     })
 
@@ -84,7 +92,9 @@ export class GradeRepository {
 
   static deleteSubject(id: string) {
     const transaction = db.transaction(() => {
-      db.prepare(`UPDATE subjects SET deleted = 1, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ?`).run(id)
+      db.prepare(
+        `UPDATE subjects SET deleted = 1, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ?`
+      ).run(id)
       addToSyncQueue('subjects', id, 'delete', { deleted: true })
     })
 
@@ -102,33 +112,43 @@ export class GradeRepository {
   // ============================================
 
   static getClassSubjects(className: string): ClassSubject[] {
-    return db.prepare(`
+    return db
+      .prepare(
+        `
       SELECT cs.*, s.name as subject_name, s.default_coefficient as subject_default_coefficient
       FROM class_subjects cs
       JOIN subjects s ON cs.subject_id = s.id
       WHERE cs.class_name = ? AND cs.deleted = 0 AND s.deleted = 0
       ORDER BY cs.position, s.name
-    `).all(className) as ClassSubject[]
+    `
+      )
+      .all(className) as ClassSubject[]
   }
 
   static getAllClassSubjects(): ClassSubject[] {
-    return db.prepare(`
+    return db
+      .prepare(
+        `
       SELECT cs.*, s.name as subject_name, s.default_coefficient as subject_default_coefficient
       FROM class_subjects cs
       JOIN subjects s ON cs.subject_id = s.id
       WHERE cs.deleted = 0 AND s.deleted = 0
       ORDER BY cs.class_name, cs.position, s.name
-    `).all() as ClassSubject[]
+    `
+      )
+      .all() as ClassSubject[]
   }
 
   static createClassSubject(data: ClassSubjectInput) {
     const id = uuidv4()
 
     const transaction = db.transaction(() => {
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO class_subjects (id, class_name, subject_id, coefficient, position, created_at, updated_at, version, sync_status, deleted)
         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, 'pending', 0)
-      `).run(id, data.class_name, data.subject_id, data.coefficient ?? 1, data.position ?? 0)
+      `
+      ).run(id, data.class_name, data.subject_id, data.coefficient ?? 1, data.position ?? 0)
       addToSyncQueue('class_subjects', id, 'create', { id, ...data })
     })
 
@@ -156,14 +176,18 @@ export class GradeRepository {
       return { success: false, error: 'Aucun champ valide à mettre à jour' }
     }
 
-    const fields = Object.keys(allowed).map((k) => `${k} = ?`).join(', ')
+    const fields = Object.keys(allowed)
+      .map((k) => `${k} = ?`)
+      .join(', ')
     const values = Object.values(allowed)
 
     const transaction = db.transaction(() => {
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE class_subjects SET ${fields}, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending'
         WHERE id = ? AND deleted = 0
-      `).run(...values, id)
+      `
+      ).run(...values, id)
       addToSyncQueue('class_subjects', id, 'update', { id, ...allowed })
     })
 
@@ -178,7 +202,9 @@ export class GradeRepository {
 
   static deleteClassSubject(id: string) {
     const transaction = db.transaction(() => {
-      db.prepare(`UPDATE class_subjects SET deleted = 1, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ?`).run(id)
+      db.prepare(
+        `UPDATE class_subjects SET deleted = 1, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ?`
+      ).run(id)
       addToSyncQueue('class_subjects', id, 'delete', { deleted: true })
     })
 
@@ -196,16 +222,24 @@ export class GradeRepository {
    * Falls back to the subject's default_coefficient if no class_subjects mapping exists.
    */
   static getSubjectCoefficient(subjectId: string, className: string): number {
-    const cs = db.prepare(`
+    const cs = db
+      .prepare(
+        `
       SELECT coefficient FROM class_subjects
       WHERE class_name = ? AND subject_id = ? AND deleted = 0
-    `).get(className, subjectId) as { coefficient: number } | undefined
+    `
+      )
+      .get(className, subjectId) as { coefficient: number } | undefined
 
     if (cs) return cs.coefficient
 
-    const subj = db.prepare(`
+    const subj = db
+      .prepare(
+        `
       SELECT default_coefficient FROM subjects WHERE id = ? AND deleted = 0
-    `).get(subjectId) as { default_coefficient: number } | undefined
+    `
+      )
+      .get(subjectId) as { default_coefficient: number } | undefined
 
     return subj?.default_coefficient ?? 1
   }
@@ -214,24 +248,32 @@ export class GradeRepository {
    * Get all distinct class names that have subjects configured.
    */
   static getClassesWithSubjects(): string[] {
-    const rows = db.prepare(`
+    const rows = db
+      .prepare(
+        `
       SELECT DISTINCT class_name FROM class_subjects WHERE deleted = 0 ORDER BY class_name
-    `).all() as { class_name: string }[]
-    return rows.map(r => r.class_name)
+    `
+      )
+      .all() as { class_name: string }[]
+    return rows.map((r) => r.class_name)
   }
 
   // ============================================
   // GRADES CRUD
   // ============================================
 
-  static createGrade(data: Omit<Grade, 'id' | 'created_at' | 'updated_at' | 'version' | 'sync_status' | 'deleted'>) {
+  static createGrade(
+    data: Omit<Grade, 'id' | 'created_at' | 'updated_at' | 'version' | 'sync_status' | 'deleted'>
+  ) {
     const id = uuidv4()
 
     const transaction = db.transaction(() => {
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO grades (id, student_id, teacher_id, subject_id, school_year, term, grade, grade_journalier, grade_exam, coefficient, teacher_comment, behavior_note, created_at, updated_at, version, sync_status, deleted)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, 'pending', 0)
-      `).run(
+      `
+      ).run(
         id,
         data.student_id,
         data.teacher_id || null,
@@ -260,7 +302,15 @@ export class GradeRepository {
 
   static updateGrade(id: string, updates: Partial<Grade>) {
     const allowed: Record<string, unknown> = {}
-    const allowedFields = ['grade', 'grade_journalier', 'grade_exam', 'coefficient', 'teacher_comment', 'behavior_note', 'teacher_id']
+    const allowedFields = [
+      'grade',
+      'grade_journalier',
+      'grade_exam',
+      'coefficient',
+      'teacher_comment',
+      'behavior_note',
+      'teacher_id'
+    ]
     for (const key of Object.keys(updates)) {
       if (allowedFields.includes(key)) {
         allowed[key] = (updates as Record<string, unknown>)[key]
@@ -270,14 +320,18 @@ export class GradeRepository {
       return { success: false, error: 'Aucun champ valide à mettre à jour' }
     }
 
-    const fields = Object.keys(allowed).map((k) => `${k} = ?`).join(', ')
+    const fields = Object.keys(allowed)
+      .map((k) => `${k} = ?`)
+      .join(', ')
     const values = Object.values(allowed)
 
     const transaction = db.transaction(() => {
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE grades SET ${fields}, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending'
         WHERE id = ? AND deleted = 0
-      `).run(...values, id)
+      `
+      ).run(...values, id)
       addToSyncQueue('grades', id, 'update', { id, ...allowed })
     })
 
@@ -293,7 +347,9 @@ export class GradeRepository {
 
   static deleteGrade(id: string) {
     const transaction = db.transaction(() => {
-      db.prepare(`UPDATE grades SET deleted = 1, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ?`).run(id)
+      db.prepare(
+        `UPDATE grades SET deleted = 1, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ?`
+      ).run(id)
       addToSyncQueue('grades', id, 'delete', { deleted: true })
     })
 
@@ -323,7 +379,9 @@ export class GradeRepository {
   }
 
   static getGradesByClass(className: string, schoolYear: string, term: number) {
-    return db.prepare(`
+    return db
+      .prepare(
+        `
       SELECT g.*, s.name as subject_name, st.first_name, st.last_name, st.class,
         COALESCE(cs.coefficient, s.default_coefficient, 1) as class_coefficient
       FROM grades g
@@ -332,11 +390,24 @@ export class GradeRepository {
       LEFT JOIN class_subjects cs ON cs.class_name = st.class AND cs.subject_id = g.subject_id AND cs.deleted = 0
       WHERE st.class = ? AND g.school_year = ? AND g.term = ? AND g.deleted = 0 AND st.deleted = 0 AND s.deleted = 0
       ORDER BY st.last_name, st.first_name, s.name
-    `).all(className, schoolYear, term) as (GradeWithSubject & { first_name: string; last_name: string; class: string; class_coefficient: number })[]
+    `
+      )
+      .all(className, schoolYear, term) as (GradeWithSubject & {
+      first_name: string
+      last_name: string
+      class: string
+      class_coefficient: number
+    })[]
   }
 
-  static getStudentAverage(studentId: string, schoolYear: string, term: number): { average: number; totalCoefficient: number } | null {
-    const rows = db.prepare(`
+  static getStudentAverage(
+    studentId: string,
+    schoolYear: string,
+    term: number
+  ): { average: number; totalCoefficient: number } | null {
+    const rows = db
+      .prepare(
+        `
       SELECT g.grade,
         COALESCE(g.coefficient, cs.coefficient, s.default_coefficient, 1) as coeff
       FROM grades g
@@ -344,7 +415,9 @@ export class GradeRepository {
       JOIN students st ON g.student_id = st.id
       LEFT JOIN class_subjects cs ON cs.class_name = st.class AND cs.subject_id = g.subject_id AND cs.deleted = 0
       WHERE g.student_id = ? AND g.school_year = ? AND g.term = ? AND g.deleted = 0 AND s.deleted = 0
-    `).all(studentId, schoolYear, term) as { grade: number; coeff: number }[]
+    `
+      )
+      .all(studentId, schoolYear, term) as { grade: number; coeff: number }[]
 
     if (rows.length === 0) return null
 
@@ -361,8 +434,14 @@ export class GradeRepository {
     }
   }
 
-  static getClassAverages(className: string, schoolYear: string, term: number): SubjectClassAverage[] {
-    return db.prepare(`
+  static getClassAverages(
+    className: string,
+    schoolYear: string,
+    term: number
+  ): SubjectClassAverage[] {
+    return db
+      .prepare(
+        `
       SELECT g.subject_id, s.name as subject_name, AVG(g.grade) as average, COUNT(*) as student_count
       FROM grades g
       JOIN students st ON g.student_id = st.id
@@ -370,15 +449,23 @@ export class GradeRepository {
       WHERE st.class = ? AND g.school_year = ? AND g.term = ? AND g.deleted = 0 AND st.deleted = 0 AND s.deleted = 0
       GROUP BY g.subject_id, s.name
       ORDER BY s.name
-    `).all(className, schoolYear, term) as SubjectClassAverage[]
+    `
+      )
+      .all(className, schoolYear, term) as SubjectClassAverage[]
   }
 
   /**
    * Get class averages using only class_subjects subjects (even if no grades yet).
    * Returns all subjects configured for the class.
    */
-  static getClassSubjectAverages(className: string, schoolYear: string, term: number): SubjectClassAverage[] {
-    return db.prepare(`
+  static getClassSubjectAverages(
+    className: string,
+    schoolYear: string,
+    term: number
+  ): SubjectClassAverage[] {
+    return db
+      .prepare(
+        `
       SELECT cs.subject_id, s.name as subject_name,
         COALESCE(AVG(g.grade), 0) as average,
         COUNT(DISTINCT g.student_id) as student_count
@@ -390,16 +477,26 @@ export class GradeRepository {
       WHERE cs.class_name = ? AND cs.deleted = 0 AND s.deleted = 0
       GROUP BY cs.subject_id, s.name, cs.position
       ORDER BY cs.position, s.name
-    `).all(schoolYear, term, className, className) as SubjectClassAverage[]
+    `
+      )
+      .all(schoolYear, term, className, className) as SubjectClassAverage[]
   }
 
-  static getClassRanking(className: string, schoolYear: string, term: number): StudentTermAverage[] {
-    const students = db.prepare(`
+  static getClassRanking(
+    className: string,
+    schoolYear: string,
+    term: number
+  ): StudentTermAverage[] {
+    const students = db
+      .prepare(
+        `
       SELECT id, first_name, last_name, class
       FROM students
       WHERE class = ? AND deleted = 0
       ORDER BY last_name, first_name
-    `).all(className) as { id: string; first_name: string; last_name: string; class: string }[]
+    `
+      )
+      .all(className) as { id: string; first_name: string; last_name: string; class: string }[]
 
     const result: StudentTermAverage[] = []
 

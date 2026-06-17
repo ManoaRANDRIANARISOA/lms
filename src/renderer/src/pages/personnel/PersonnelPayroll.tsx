@@ -4,19 +4,26 @@ import { usePersonnelStore } from '@/store/usePersonnelStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Calculator, ArrowRight, Receipt } from 'lucide-react'
+import { Calculator, ArrowRight, AlertTriangle } from 'lucide-react'
 import type { SalaryCalculation, Personnel } from '@shared/types'
+
+interface UnpaidRow {
+  person: Personnel
+  month: string
+  calc: SalaryCalculation
+}
 
 export default function PersonnelPayroll(): React.JSX.Element {
   const { personnel, fetchPersonnel } = usePersonnelStore()
   const navigate = useNavigate()
 
-  const [currentMonth, setCurrentMonth] = useState(() => {
+  const [filterType, setFilterType] = useState<'all' | 'specific'>('all')
+  const [specificMonth, setSpecificMonth] = useState(() => {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   })
 
-  const [payrollData, setPayrollData] = useState<{person: any, calc: SalaryCalculation | null}[]>([])
+  const [unpaidData, setUnpaidData] = useState<UnpaidRow[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -26,127 +33,225 @@ export default function PersonnelPayroll(): React.JSX.Element {
   useEffect(() => {
     async function computeAll() {
       setLoading(true)
-      const data: { person: Personnel; calc: SalaryCalculation }[] = []
+      const data: UnpaidRow[] = []
+
+      const d = new Date()
+      const realCurrentMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+
       for (const p of personnel) {
         if (p.status === 'parttime' || p.status === 'fulltime') {
-          const res = await window.api.personnel.calculateSalary(p.id, currentMonth)
-          if (res.success && res.calculation) {
-            data.push({ person: p, calc: res.calculation })
+          if (filterType === 'specific') {
+            const res = await window.api.personnel.calculateSalary(p.id, specificMonth)
+            if (res.success && res.calculation && !res.calculation.isPaid) {
+              data.push({ person: p, month: specificMonth, calc: res.calculation })
+            }
+          } else {
+            // Tous les impayés (remonter jusqu'à 12 mois maximum ou depuis hire_date)
+            const monthsToCheck: string[] = []
+
+            // Generate last 6 months (to not kill performance, 6 months of unpaid is already a lot)
+            // But let's check from hire_date if possible, max 12 months
+            const startDate = p.hire_date ? new Date(p.hire_date) : new Date()
+            startDate.setDate(1) // set to 1st
+
+            const endDate = new Date() // current
+
+            // Limit to max 12 months in the past
+            const limitDate = new Date()
+            limitDate.setMonth(limitDate.getMonth() - 12)
+
+            const actualStart = startDate < limitDate ? limitDate : startDate
+
+            const curr = new Date(actualStart)
+            while (curr <= endDate) {
+              monthsToCheck.push(
+                `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}`
+              )
+              curr.setMonth(curr.getMonth() + 1)
+            }
+            // always include current month just in case
+            if (!monthsToCheck.includes(realCurrentMonth)) {
+              monthsToCheck.push(realCurrentMonth)
+            }
+
+            for (const m of monthsToCheck) {
+              const res = await window.api.personnel.calculateSalary(p.id, m)
+              if (
+                res.success &&
+                res.calculation &&
+                !res.calculation.isPaid &&
+                res.calculation.netSalary > 0
+              ) {
+                // If netSalary is 0, it means the employee didn't work and has no base salary, no need to pay 0.
+                data.push({ person: p, month: m, calc: res.calculation })
+              }
+            }
           }
         }
       }
-      setPayrollData(data)
+
+      // Sort by month desc, then name
+      data.sort((a, b) => {
+        if (a.month !== b.month) return b.month.localeCompare(a.month)
+        return a.person.last_name.localeCompare(b.person.last_name)
+      })
+
+      setUnpaidData(data)
       setLoading(false)
     }
+
     if (personnel.length > 0) {
       computeAll()
     }
-  }, [personnel, currentMonth])
+  }, [personnel, filterType, specificMonth])
 
-  const totalNet = payrollData.reduce((sum, item) => sum + (item.calc?.netSalary || 0), 0)
+  const totalNet = unpaidData.reduce((sum, item) => sum + (item.calc.netSalary || 0), 0)
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center bg-white p-6 rounded-xl border shadow-sm">
+      <div className="flex justify-between items-center bg-white p-6 rounded-xl border border-red-100 shadow-sm">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
-            <Receipt className="w-6 h-6 text-indigo-600" />
-            Paie Globale & Règlements
+            <AlertTriangle className="w-6 h-6 text-red-500" />
+            Alertes Impayés Salaires
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Générez et validez la paie de tout le personnel pour un mois donné.</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Liste des salaires en attente de paiement (Reste à Payer).
+          </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Label className="font-medium text-gray-700">Mois :</Label>
-          <Input 
-            type="month" 
-            value={currentMonth} 
-            onChange={(e) => setCurrentMonth(e.target.value)}
-            className="w-48"
-          />
+        <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-lg border">
+          <Label className="font-medium text-gray-700 ml-2">Filtre :</Label>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value as 'all' | 'specific')}
+            className="flex h-10 w-[180px] items-center justify-between rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <option value="all">Tous les impayés</option>
+            <option value="specific">Mois spécifique</option>
+          </select>
+
+          {filterType === 'specific' && (
+            <Input
+              type="month"
+              value={specificMonth}
+              onChange={(e) => setSpecificMonth(e.target.value)}
+              className="w-40 bg-white"
+            />
+          )}
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-red-100 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-500 flex flex-col items-center">
-            <Calculator className="w-8 h-8 animate-spin text-indigo-500 mb-2" />
-            Calcul des salaires en cours...
+            <Calculator className="w-8 h-8 animate-spin text-red-400 mb-2" />
+            Recherche des salaires impayés en cours...
           </div>
         ) : (
           <div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
-                <thead className="bg-gray-50 text-gray-600 border-b">
+                <thead className="bg-red-50 text-red-800 border-b border-red-100">
                   <tr>
-                    <th className="px-4 py-3 font-medium">Employé</th>
-                    <th className="px-4 py-3 font-medium">Poste / Type</th>
-                    <th className="px-4 py-3 font-medium text-right">Salaire Brut Base</th>
-                    <th className="px-4 py-3 font-medium text-right">Heures (Mensuels)</th>
-                    <th className="px-4 py-3 font-medium text-right text-red-600">Déductions (Abs/Av/CNAPS)</th>
-                    <th className="px-4 py-3 font-medium text-right text-green-700 text-base">Net à Payer</th>
-                    <th className="px-4 py-3 font-medium text-center">Action</th>
+                    <th className="px-4 py-3 font-semibold">Mois</th>
+                    <th className="px-4 py-3 font-semibold">Employé</th>
+                    <th className="px-4 py-3 font-semibold">Poste / Type</th>
+                    <th className="px-4 py-3 font-semibold text-right">Salaire Brut Base</th>
+                    <th className="px-4 py-3 font-semibold text-right">Déductions</th>
+                    <th className="px-4 py-3 font-semibold text-right text-base">Net à Payer</th>
+                    <th className="px-4 py-3 font-semibold text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {payrollData.length === 0 ? (
-                    <tr><td colSpan={7} className="p-6 text-center text-gray-500">Aucun personnel éligible.</td></tr>
-                  ) : payrollData.map((row) => {
-                    const p = row.person
-                    const c = row.calc
-                    if (!c) return null
-                    
-                    const totalDeductions = (c.details.absencesDeduction || 0) + c.cnapsDeduction + c.irsaDeduction + c.advancesTotal + c.customDeductionsTotal
+                  {unpaidData.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-12 text-center text-gray-500">
+                        <div className="flex flex-col items-center justify-center">
+                          <AlertTriangle className="w-12 h-12 text-green-300 mb-3" />
+                          <span className="text-lg font-medium text-gray-700">
+                            Aucun salaire impayé.
+                          </span>
+                          <span className="text-sm">
+                            Tout le personnel est à jour pour la période sélectionnée !
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    unpaidData.map((row, idx) => {
+                      const p = row.person
+                      const c = row.calc
 
-                    return (
-                      <tr key={p.id} className="hover:bg-gray-50/50 transition">
-                        <td className="px-4 py-3">
-                          <div className="font-semibold text-gray-900">{p.last_name}</div>
-                          <div className="text-xs text-gray-500">{p.first_name}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div>{p.position || '-'}</div>
-                          <div className="text-xs text-indigo-600 bg-indigo-50 inline-block px-2 py-0.5 rounded-full mt-1">
-                            {p.salary_type === 'monthly' ? 'Mensuel' : 'Horaire'}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-right text-gray-600">
-                          {c.details.baseSalary.toLocaleString('fr-MG')} Ar
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          {p.salary_type === 'monthly' ? (
-                            <span className={c.details.hoursWorked && c.details.hoursWorked < (p.expected_monthly_hours || 160) ? 'text-red-600' : 'text-green-600'}>
-                              {c.details.hoursWorked}h / {p.expected_monthly_hours || 160}h
-                            </span>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-right text-red-600">
-                          -{totalDeductions.toLocaleString('fr-MG')} Ar
-                        </td>
-                        <td className="px-4 py-3 text-right font-bold text-base text-green-700">
-                          {c.netSalary.toLocaleString('fr-MG')} Ar
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <Button size="sm" variant="outline" className="text-indigo-600 hover:text-indigo-700" onClick={() => navigate(`/personnel/${p.id}`)}>
-                            Détails <ArrowRight className="w-3 h-3 ml-1" />
-                          </Button>
-                        </td>
-                      </tr>
-                    )
-                  })}
+                      const totalDeductions =
+                        (c.details.absencesDeduction || 0) +
+                        c.cnapsDeduction +
+                        c.irsaDeduction +
+                        c.advancesTotal +
+                        c.customDeductionsTotal
+
+                      // Format YYYY-MM to Month YYYY
+                      const [yyyy, mm] = row.month.split('-')
+                      const monthName = new Date(parseInt(yyyy), parseInt(mm) - 1).toLocaleString(
+                        'fr-FR',
+                        { month: 'long', year: 'numeric' }
+                      )
+
+                      return (
+                        <tr
+                          key={`${p.id}-${row.month}-${idx}`}
+                          className="hover:bg-red-50/30 transition"
+                        >
+                          <td className="px-4 py-3">
+                            <span className="font-medium text-red-700 capitalize">{monthName}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="font-semibold text-gray-900">{p.last_name}</div>
+                            <div className="text-xs text-gray-500">{p.first_name}</div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div>{p.position || '-'}</div>
+                            <div className="text-xs text-gray-500 bg-gray-100 inline-block px-2 py-0.5 rounded-full mt-1">
+                              {p.salary_type === 'monthly' ? 'Mensuel' : 'Horaire'}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right text-gray-600">
+                            {c.details.baseSalary.toLocaleString('fr-MG')} Ar
+                          </td>
+                          <td className="px-4 py-3 text-right text-red-600">
+                            -{totalDeductions.toLocaleString('fr-MG')} Ar
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-base text-red-700">
+                            {c.netSalary.toLocaleString('fr-MG')} Ar
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <Button
+                              size="sm"
+                              className="bg-red-500 hover:bg-red-600 text-white"
+                              onClick={() =>
+                                navigate(`/personnel/${p.id}?tab=salaire&month=${row.month}`)
+                              }
+                            >
+                              Régler <ArrowRight className="w-3 h-3 ml-1" />
+                            </Button>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
                 </tbody>
-                <tfoot className="bg-indigo-50/50 font-bold border-t-2 border-indigo-100">
-                  <tr>
-                    <td colSpan={5} className="px-4 py-4 text-right text-indigo-900 text-lg">
-                      TOTAL NET À PAYER ({currentMonth}) :
-                    </td>
-                    <td className="px-4 py-4 text-right text-green-700 text-xl whitespace-nowrap">
-                      {totalNet.toLocaleString('fr-MG')} Ar
-                    </td>
-                    <td></td>
-                  </tr>
-                </tfoot>
+                {unpaidData.length > 0 && (
+                  <tfoot className="bg-red-50 font-bold border-t-2 border-red-200">
+                    <tr>
+                      <td colSpan={5} className="px-4 py-4 text-right text-red-900 text-lg">
+                        TOTAL RESTE À PAYER :
+                      </td>
+                      <td className="px-4 py-4 text-right text-red-700 text-xl whitespace-nowrap">
+                        {totalNet.toLocaleString('fr-MG')} Ar
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </div>

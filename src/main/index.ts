@@ -74,7 +74,6 @@ app.whenReady().then(() => {
 
   // IPC test
 
-
   // Register Auth & RBAC Handlers
   registerAuthHandlers()
 

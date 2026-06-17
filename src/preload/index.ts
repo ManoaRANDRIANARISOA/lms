@@ -24,10 +24,11 @@ const api = {
     create: (data: Record<string, unknown>) => ipcRenderer.invoke('student:create', data),
     list: (filters?: Record<string, unknown>) => ipcRenderer.invoke('student:list', filters),
     get: (id: string) => ipcRenderer.invoke('student:get', id),
-    update: (id: string, updates: Record<string, unknown>) => ipcRenderer.invoke('student:update', id, updates),
+    update: (id: string, updates: Record<string, unknown>) =>
+      ipcRenderer.invoke('student:update', id, updates),
     delete: (id: string) => ipcRenderer.invoke('student:delete', id),
-    reEnroll: (id: string, newClass: string, targetYear: string) =>
-      ipcRenderer.invoke('student:reEnroll', id, newClass, targetYear),
+    reEnroll: (id: string, newClass: string, targetYear: string, framPaid?: boolean, initialPayment?: number) =>
+      ipcRenderer.invoke('student:reEnroll', id, newClass, targetYear, framPaid, initialPayment),
     getServiceStats: () => ipcRenderer.invoke('student:serviceStats'),
     repair: (targetYear: string) => ipcRenderer.invoke('student:repair', targetYear),
     resetDatabase: (includeRemote: boolean) => ipcRenderer.invoke('db:reset', includeRemote)
@@ -45,7 +46,9 @@ const api = {
     getUnpaidAlerts: (schoolYear: string) =>
       ipcRenderer.invoke('payment:getUnpaidAlerts', schoolYear),
     getExpectedRevenue: (schoolYear: string) =>
-      ipcRenderer.invoke('payment:getExpectedRevenue', schoolYear)
+      ipcRenderer.invoke('payment:getExpectedRevenue', schoolYear),
+    checkFramFratrie: (studentId: string, schoolYear: string) =>
+      ipcRenderer.invoke('payment:checkFramFratrie', studentId, schoolYear)
   },
 
   // --------------------------------------------
@@ -71,7 +74,8 @@ const api = {
     create: (data: Record<string, unknown>) => ipcRenderer.invoke('event:create', data),
     list: () => ipcRenderer.invoke('event:list'),
     getById: (id: string) => ipcRenderer.invoke('event:getById', id),
-    update: (id: string, updates: Record<string, unknown>) => ipcRenderer.invoke('event:update', id, updates),
+    update: (id: string, updates: Record<string, unknown>) =>
+      ipcRenderer.invoke('event:update', id, updates),
     delete: (id: string) => ipcRenderer.invoke('event:delete', id),
     addParticipants: (eventId: string, studentIds: string[], amountDue?: number) =>
       ipcRenderer.invoke('event:addParticipants', eventId, studentIds, amountDue),
@@ -106,8 +110,10 @@ const api = {
 
     // User management (admin only)
     listUsers: () => ipcRenderer.invoke('auth:listUsers'),
-    createUser: (userData: Record<string, unknown>) => ipcRenderer.invoke('auth:createUser', userData),
-    updateUser: (id: string, updates: Record<string, unknown>) => ipcRenderer.invoke('auth:updateUser', id, updates),
+    createUser: (userData: Record<string, unknown>) =>
+      ipcRenderer.invoke('auth:createUser', userData),
+    updateUser: (id: string, updates: Record<string, unknown>) =>
+      ipcRenderer.invoke('auth:updateUser', id, updates),
     deactivateUser: (id: string) => ipcRenderer.invoke('auth:deactivateUser', id),
 
     // Password management
@@ -117,7 +123,8 @@ const api = {
       ipcRenderer.invoke('auth:resetPassword', userId, newPassword),
 
     // Audit logs (admin + direction read)
-    getAuditLogs: (filters?: Record<string, unknown>) => ipcRenderer.invoke('auth:getAuditLogs', filters)
+    getAuditLogs: (filters?: Record<string, unknown>) =>
+      ipcRenderer.invoke('auth:getAuditLogs', filters)
   },
 
   // --------------------------------------------
@@ -127,40 +134,65 @@ const api = {
     create: (data: Record<string, unknown>) => ipcRenderer.invoke('personnel:create', data),
     list: (filters?: Record<string, unknown>) => ipcRenderer.invoke('personnel:list', filters),
     get: (id: string) => ipcRenderer.invoke('personnel:get', id),
-    update: (id: string, updates: Record<string, unknown>) => ipcRenderer.invoke('personnel:update', id, updates),
+    update: (id: string, updates: Record<string, unknown>) =>
+      ipcRenderer.invoke('personnel:update', id, updates),
     delete: (id: string) => ipcRenderer.invoke('personnel:delete', id),
-    setTimeTracking: (data: Record<string, unknown>) => ipcRenderer.invoke('personnel:setTimeTracking', data),
-    getTimeTracking: (personnelId: string) => ipcRenderer.invoke('personnel:getTimeTracking', personnelId),
-    createAbsence: (data: Record<string, unknown>) => ipcRenderer.invoke('personnel:createAbsence', data),
+    setTimeTracking: (data: Record<string, unknown>) =>
+      ipcRenderer.invoke('personnel:setTimeTracking', data),
+    getTimeTracking: (personnelId: string) =>
+      ipcRenderer.invoke('personnel:getTimeTracking', personnelId),
+    createAbsence: (data: Record<string, unknown>) =>
+      ipcRenderer.invoke('personnel:createAbsence', data),
     getAbsences: (personnelId: string) => ipcRenderer.invoke('personnel:getAbsences', personnelId),
     deleteAbsence: (id: string) => ipcRenderer.invoke('personnel:deleteAbsence', id),
-    createAdvance: (data: Record<string, unknown>) => ipcRenderer.invoke('personnel:createAdvance', data),
+    createAdvance: (data: Record<string, unknown>) =>
+      ipcRenderer.invoke('personnel:createAdvance', data),
     getAdvances: (personnelId: string) => ipcRenderer.invoke('personnel:getAdvances', personnelId),
-    markAdvanceRepaid: (id: string, repaymentDate: string) => ipcRenderer.invoke('personnel:markAdvanceRepaid', id, repaymentDate),
-    createDeduction: (data: Record<string, unknown>) => ipcRenderer.invoke('personnel:createDeduction', data),
-    getDeductions: (personnelId: string, month?: string) => ipcRenderer.invoke('personnel:getDeductions', personnelId, month),
+    markAdvanceRepaid: (id: string, repaymentDate: string) =>
+      ipcRenderer.invoke('personnel:markAdvanceRepaid', id, repaymentDate),
+    createDeduction: (data: Record<string, unknown>) =>
+      ipcRenderer.invoke('personnel:createDeduction', data),
+    getDeductions: (personnelId: string, month?: string) =>
+      ipcRenderer.invoke('personnel:getDeductions', personnelId, month),
     deleteDeduction: (id: string) => ipcRenderer.invoke('personnel:deleteDeduction', id),
-    calculateSalary: (personnelId: string, month: string) => ipcRenderer.invoke('personnel:calculateSalary', personnelId, month),
+    calculateSalary: (personnelId: string, month: string) =>
+      ipcRenderer.invoke('personnel:calculateSalary', personnelId, month),
     getMonthlyAttendance: (personnelId: string, year: number, month: number) =>
       ipcRenderer.invoke('personnel:getMonthlyAttendance', personnelId, year, month),
     getDailyAttendance: (date: string) => ipcRenderer.invoke('personnel:getDailyAttendance', date),
-    setBulkAttendance: (records: Record<string, unknown>[]) => ipcRenderer.invoke('personnel:setBulkAttendance', records),
-    setAttendance: (data: Record<string, unknown>) => ipcRenderer.invoke('personnel:setAttendance', data),
+    setBulkAttendance: (records: Record<string, unknown>[]) =>
+      ipcRenderer.invoke('personnel:setBulkAttendance', records),
+    setAttendance: (data: Record<string, unknown>) =>
+      ipcRenderer.invoke('personnel:setAttendance', data),
     deleteAttendance: (id: string) => ipcRenderer.invoke('personnel:deleteAttendance', id),
-    createSalaryExpense: (personnelId: string, month: string, netAmount: number, description?: string) =>
-      ipcRenderer.invoke('personnel:createSalaryExpense', personnelId, month, netAmount, description)
+    createSalaryExpense: (
+      personnelId: string,
+      month: string,
+      netAmount: number,
+      description?: string
+    ) =>
+      ipcRenderer.invoke(
+        'personnel:createSalaryExpense',
+        personnelId,
+        month,
+        netAmount,
+        description
+      )
   },
 
   // --------------------------------------------
   // Grades & Subjects
   // --------------------------------------------
   grade: {
-    createSubject: (data: Record<string, unknown>) => ipcRenderer.invoke('grade:createSubject', data),
+    createSubject: (data: Record<string, unknown>) =>
+      ipcRenderer.invoke('grade:createSubject', data),
     listSubjects: () => ipcRenderer.invoke('grade:listSubjects'),
-    updateSubject: (id: string, updates: Record<string, unknown>) => ipcRenderer.invoke('grade:updateSubject', id, updates),
+    updateSubject: (id: string, updates: Record<string, unknown>) =>
+      ipcRenderer.invoke('grade:updateSubject', id, updates),
     deleteSubject: (id: string) => ipcRenderer.invoke('grade:deleteSubject', id),
     createGrade: (data: Record<string, unknown>) => ipcRenderer.invoke('grade:createGrade', data),
-    updateGrade: (id: string, updates: Record<string, unknown>) => ipcRenderer.invoke('grade:updateGrade', id, updates),
+    updateGrade: (id: string, updates: Record<string, unknown>) =>
+      ipcRenderer.invoke('grade:updateGrade', id, updates),
     deleteGrade: (id: string) => ipcRenderer.invoke('grade:deleteGrade', id),
     getGradesByStudent: (studentId: string, schoolYear: string, term?: number) =>
       ipcRenderer.invoke('grade:getGradesByStudent', studentId, schoolYear, term),
@@ -173,10 +205,13 @@ const api = {
     getClassRanking: (className: string, schoolYear: string, term: number) =>
       ipcRenderer.invoke('grade:getClassRanking', className, schoolYear, term),
     // Class Subjects (Phase 3)
-    getClassSubjects: (className: string) => ipcRenderer.invoke('grade:getClassSubjects', className),
+    getClassSubjects: (className: string) =>
+      ipcRenderer.invoke('grade:getClassSubjects', className),
     getAllClassSubjects: () => ipcRenderer.invoke('grade:getAllClassSubjects'),
-    createClassSubject: (data: Record<string, unknown>) => ipcRenderer.invoke('grade:createClassSubject', data),
-    updateClassSubject: (id: string, updates: Record<string, unknown>) => ipcRenderer.invoke('grade:updateClassSubject', id, updates),
+    createClassSubject: (data: Record<string, unknown>) =>
+      ipcRenderer.invoke('grade:createClassSubject', data),
+    updateClassSubject: (id: string, updates: Record<string, unknown>) =>
+      ipcRenderer.invoke('grade:updateClassSubject', id, updates),
     deleteClassSubject: (id: string) => ipcRenderer.invoke('grade:deleteClassSubject', id),
     getClassesWithSubjects: () => ipcRenderer.invoke('grade:getClassesWithSubjects'),
     getClassSubjectAverages: (className: string, schoolYear: string, term: number) =>
@@ -190,11 +225,14 @@ const api = {
     create: (data: Record<string, unknown>) => ipcRenderer.invoke('cashjournal:create', data),
     list: (filters?: Record<string, unknown>) => ipcRenderer.invoke('cashjournal:list', filters),
     get: (id: string) => ipcRenderer.invoke('cashjournal:get', id),
-    update: (id: string, updates: Record<string, unknown>) => ipcRenderer.invoke('cashjournal:update', id, updates),
+    update: (id: string, updates: Record<string, unknown>) =>
+      ipcRenderer.invoke('cashjournal:update', id, updates),
     delete: (id: string) => ipcRenderer.invoke('cashjournal:delete', id),
     getDailyBalance: (date: string) => ipcRenderer.invoke('cashjournal:getDailyBalance', date),
-    getMonthlyBalance: (year: number, month: number) => ipcRenderer.invoke('cashjournal:getMonthlyBalance', year, month),
-    getBalanceSummary: (startDate: string, endDate: string) => ipcRenderer.invoke('cashjournal:getBalanceSummary', startDate, endDate),
+    getMonthlyBalance: (year: number, month: number) =>
+      ipcRenderer.invoke('cashjournal:getMonthlyBalance', year, month),
+    getBalanceSummary: (startDate: string, endDate: string) =>
+      ipcRenderer.invoke('cashjournal:getBalanceSummary', startDate, endDate),
     getTotalBalance: () => ipcRenderer.invoke('cashjournal:getTotalBalance')
   },
 
@@ -209,20 +247,25 @@ const api = {
   // Reports & Export
   // --------------------------------------------
   report: {
-    monthlyFinance: (year: number, month: number) => ipcRenderer.invoke('report:monthlyFinance', year, month),
+    monthlyFinance: (year: number, month: number) =>
+      ipcRenderer.invoke('report:monthlyFinance', year, month),
     unpaid: (schoolYear: string) => ipcRenderer.invoke('report:unpaid', schoolYear),
     payroll: (year: number, month: number) => ipcRenderer.invoke('report:payroll', year, month),
     tuition: (schoolYear: string) => ipcRenderer.invoke('report:tuition', schoolYear)
   },
   assessment: {
     create: (data: any) => ipcRenderer.invoke('assessment:create', data),
-    list: (schoolYear: string, className?: string) => ipcRenderer.invoke('assessment:list', schoolYear, className),
+    list: (schoolYear: string, className?: string) =>
+      ipcRenderer.invoke('assessment:list', schoolYear, className),
     update: (id: string, updates: any) => ipcRenderer.invoke('assessment:update', id, updates),
     delete: (id: string) => ipcRenderer.invoke('assessment:delete', id)
   },
   export: {
-    csv: (data: Record<string, unknown>[], columns: Array<{ key: string; label: string }>, filename: string) =>
-      ipcRenderer.invoke('export:csv', data, columns, filename)
+    csv: (
+      data: Record<string, unknown>[],
+      columns: Array<{ key: string; label: string }>,
+      filename: string
+    ) => ipcRenderer.invoke('export:csv', data, columns, filename)
   },
 
   // --------------------------------------------
@@ -231,7 +274,8 @@ const api = {
   email: {
     configure: (config: Record<string, unknown>) => ipcRenderer.invoke('email:configure', config),
     testConnection: () => ipcRenderer.invoke('email:testConnection'),
-    sendNow: (to: string, subject: string, body: string) => ipcRenderer.invoke('email:sendNow', to, subject, body),
+    sendNow: (to: string, subject: string, body: string) =>
+      ipcRenderer.invoke('email:sendNow', to, subject, body),
     getStatus: () => ipcRenderer.invoke('email:getStatus'),
     getLogs: () => ipcRenderer.invoke('email:getLogs'),
     sendDailyReport: () => ipcRenderer.invoke('email:sendDailyReport')
@@ -241,13 +285,21 @@ const api = {
   // PDF Generation
   // --------------------------------------------
   pdf: {
-    generateReceipt: (data: Record<string, unknown>) => ipcRenderer.invoke('pdf:generateReceipt', data),
-    generateCertificate: (data: Record<string, unknown>) => ipcRenderer.invoke('pdf:generateCertificate', data),
-    generateReportCard: (studentData: Record<string, unknown>, grades: unknown[], generalAverage: number) =>
-      ipcRenderer.invoke('pdf:generateReportCard', studentData, grades, generalAverage),
-    generatePayslip: (personnelData: Record<string, unknown>, salaryCalc: Record<string, unknown>) =>
-      ipcRenderer.invoke('pdf:generatePayslip', personnelData, salaryCalc),
-    generateDailyReport: (data: Record<string, unknown>) => ipcRenderer.invoke('pdf:generateDailyReport', data),
+    generateReceipt: (data: Record<string, unknown>) =>
+      ipcRenderer.invoke('pdf:generateReceipt', data),
+    generateCertificate: (data: Record<string, unknown>) =>
+      ipcRenderer.invoke('pdf:generateCertificate', data),
+    generateReportCard: (
+      studentData: Record<string, unknown>,
+      grades: unknown[],
+      generalAverage: number
+    ) => ipcRenderer.invoke('pdf:generateReportCard', studentData, grades, generalAverage),
+    generatePayslip: (
+      personnelData: Record<string, unknown>,
+      salaryCalc: Record<string, unknown>
+    ) => ipcRenderer.invoke('pdf:generatePayslip', personnelData, salaryCalc),
+    generateDailyReport: (data: Record<string, unknown>) =>
+      ipcRenderer.invoke('pdf:generateDailyReport', data),
     openFile: (filePath: string) => ipcRenderer.invoke('pdf:openFile', filePath)
   },
 

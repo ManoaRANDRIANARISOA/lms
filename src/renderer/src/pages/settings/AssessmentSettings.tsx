@@ -10,15 +10,15 @@ import { useAuthStore } from '@/store/useAuthStore'
 export default function AssessmentSettings() {
   const { classes } = useClasses()
   const canWrite = useAuthStore((s) => s.canWrite)
-  
+
   const [selectedClass, setSelectedClass] = useState<string>('')
   const [assessments, setAssessments] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  
+
   const [newName, setNewName] = useState('')
   const [newTermValue, setNewTermValue] = useState<number | ''>('')
-  
+
   useEffect(() => {
     if (selectedClass) {
       loadAssessments()
@@ -31,9 +31,11 @@ export default function AssessmentSettings() {
     try {
       setLoading(true)
       setError('')
-      const schoolYear = await window.api.settings.get('current_year') as string || useAppStore.getState().currentYear
+      const schoolYear =
+        ((await window.api.settings.get('current_year')) as string) ||
+        useAppStore.getState().currentYear
       const result = await window.api.assessment.list(schoolYear, selectedClass)
-      
+
       if (result.success && result.assessments) {
         setAssessments(result.assessments)
       } else {
@@ -48,11 +50,13 @@ export default function AssessmentSettings() {
 
   const handleAdd = async () => {
     if (!newName.trim() || newTermValue === '') return
-    
+
     try {
       setLoading(true)
-      const schoolYear = await window.api.settings.get('current_year') as string || useAppStore.getState().currentYear
-      
+      const schoolYear =
+        ((await window.api.settings.get('current_year')) as string) ||
+        useAppStore.getState().currentYear
+
       const data = {
         school_year: schoolYear,
         class_name: selectedClass, // specific to this class
@@ -60,7 +64,7 @@ export default function AssessmentSettings() {
         term_value: Number(newTermValue),
         weight: 1.0
       }
-      
+
       const result = await window.api.assessment.create(data)
       if (result.success) {
         setNewName('')
@@ -78,12 +82,12 @@ export default function AssessmentSettings() {
 
   const handleDelete = async (id: string, isGlobal: boolean) => {
     if (isGlobal) {
-      alert("Les trimestres par défaut (globaux) ne peuvent pas être supprimés.")
+      alert('Les trimestres par défaut (globaux) ne peuvent pas être supprimés.')
       return
     }
-    
+
     if (!confirm('Voulez-vous vraiment supprimer cette évaluation ?')) return
-    
+
     try {
       setLoading(true)
       const result = await window.api.assessment.delete(id)
@@ -103,7 +107,8 @@ export default function AssessmentSettings() {
     <div className="bg-white p-6 rounded shadow max-w-xl border border-gray-100">
       <h2 className="text-lg font-semibold mb-4 text-gray-800">Évaluations & Examens Blancs</h2>
       <p className="text-sm text-gray-500 mb-4">
-        Par défaut, toutes les classes ont Trimestre 1, 2 et 3. Vous pouvez ajouter des examens supplémentaires (ex: "Essai N°1") spécifiques à une classe.
+        Par défaut, toutes les classes ont Trimestre 1, 2 et 3. Vous pouvez ajouter des examens
+        supplémentaires (ex: "Essai N°1") spécifiques à une classe.
       </p>
 
       {error && (
@@ -122,8 +127,10 @@ export default function AssessmentSettings() {
           onChange={(e) => setSelectedClass(e.target.value)}
         >
           <option value="">-- Choisir une classe --</option>
-          {classes.map(c => (
-            <option key={c} value={c}>{c}</option>
+          {classes.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
           ))}
         </select>
       </div>
@@ -136,19 +143,26 @@ export default function AssessmentSettings() {
               <div className="col-span-8">Nom de l'évaluation</div>
               <div className="col-span-2 text-center">Action</div>
             </div>
-            
+
             {assessments.length === 0 && (
               <div className="p-4 text-center text-sm text-gray-500">Aucune évaluation</div>
             )}
-            
-            {assessments.map(a => {
+
+            {assessments.map((a) => {
               const isGlobal = a.class_name === null
               return (
-                <div key={a.id} className={`px-4 py-2 flex items-center grid grid-cols-12 gap-2 text-sm ${isGlobal ? 'bg-blue-50/30' : ''}`}>
+                <div
+                  key={a.id}
+                  className={`px-4 py-2 flex items-center grid grid-cols-12 gap-2 text-sm ${isGlobal ? 'bg-blue-50/30' : ''}`}
+                >
                   <div className="col-span-2 font-mono text-gray-500">{a.term_value}</div>
                   <div className="col-span-8">
                     <span className="font-medium">{a.name}</span>
-                    {isGlobal && <span className="ml-2 text-xs text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">Par défaut</span>}
+                    {isGlobal && (
+                      <span className="ml-2 text-xs text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">
+                        Par défaut
+                      </span>
+                    )}
                   </div>
                   <div className="col-span-2 text-center">
                     {!isGlobal && canWrite('settings') && (
@@ -189,11 +203,17 @@ export default function AssessmentSettings() {
                     onChange={(e) => setNewName(e.target.value)}
                   />
                 </div>
-                <Button onClick={handleAdd} disabled={loading || !newName.trim() || newTermValue === ''}>
+                <Button
+                  onClick={handleAdd}
+                  disabled={loading || !newName.trim() || newTermValue === ''}
+                >
                   <Plus className="w-4 h-4 mr-1" /> Ajouter
                 </Button>
               </div>
-              <p className="text-xs text-gray-500 mt-1">Utilisez un ordre supérieur à 3 (4, 5, 6...) pour éviter les conflits avec les trimestres classiques.</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Utilisez un ordre supérieur à 3 (4, 5, 6...) pour éviter les conflits avec les
+                trimestres classiques.
+              </p>
             </div>
           )}
         </div>

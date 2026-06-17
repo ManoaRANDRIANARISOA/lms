@@ -20,7 +20,9 @@ interface ReadOnlyBannerProps {
   resource: Resource
 }
 
-export default function ReadOnlyBanner({ resource }: ReadOnlyBannerProps): React.JSX.Element | null {
+export default function ReadOnlyBanner({
+  resource
+}: ReadOnlyBannerProps): React.JSX.Element | null {
   const { isReadOnly } = usePermissions()
 
   if (!isReadOnly(resource)) {
@@ -42,7 +44,8 @@ export default function ReadOnlyBanner({ resource }: ReadOnlyBannerProps): React
         />
       </svg>
       <span>
-        <strong>Mode lecture seule</strong> — Vous pouvez consulter les données mais pas les modifier.
+        <strong>Mode lecture seule</strong> — Vous pouvez consulter les données mais pas les
+        modifier.
       </span>
     </div>
   )

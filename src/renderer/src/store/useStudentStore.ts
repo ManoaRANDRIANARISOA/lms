@@ -30,6 +30,8 @@ export interface Student {
   address?: string
 
   siblings: string[] // IDs
+  is_personnel_child?: boolean
+  parent_personnel_id?: string | null
 
   // Services & Fees (Optional for display/update)
   bus_subscribed?: boolean
@@ -55,10 +57,14 @@ interface StudentStore {
   loading: boolean
   error: string | null
 
-  fetchStudents: (filters?: { search?: string; class?: string; schoolYear?: string }) => Promise<void>
+  fetchStudents: (filters?: {
+    search?: string
+    class?: string
+    schoolYear?: string
+  }) => Promise<void>
   getStudent: (id: string) => Promise<void>
-  createStudent: (data: Partial<Student>) => Promise<void>
-  updateStudent: (id: string, data: Partial<Student>) => Promise<void>
+  createStudent: (data: Partial<Student>) => Promise<boolean>
+  updateStudent: (id: string, data: Partial<Student>) => Promise<boolean>
   deleteStudent: (id: string) => Promise<void>
 }
 
@@ -106,12 +112,40 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
     try {
       const result = await window.api.student.create(data)
       if (result.success) {
+        const initialAmount = (data as Record<string, unknown>).initial_payment_amount as
+          | number
+          | undefined
+        if (initialAmount && initialAmount > 0) {
+          try {
+            await window.api.payment.create({
+              student_id: result.id || (result as { student?: { id: string } }).student?.id || '',
+              amount: initialAmount,
+              payment_type:
+                ((data as Record<string, unknown>).initial_payment_type as
+                  | 'tuition'
+                  | 'bus'
+                  | 'canteen'
+                  | 'enrollment'
+                  | 'uniform'
+                  | 'event'
+                  | 'other') || 'enrollment',
+              payment_method: 'cash',
+              payment_date: new Date().toISOString().split('T')[0],
+              description: "Paiement initial à l'inscription (Droits, etc.)"
+            })
+          } catch (paymentErr) {
+            console.error('Failed to record initial payment:', paymentErr)
+          }
+        }
         await get().fetchStudents()
+        return true
       } else {
         set({ error: result.error, loading: false })
+        return false
       }
     } catch (error: unknown) {
       handleStoreError(error, set, 'Create student')
+      return false
     }
   },
 
@@ -125,11 +159,14 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         if (current && current.id === id) {
           await get().getStudent(id)
         }
+        return true
       } else {
         set({ error: result.error, loading: false })
+        return false
       }
     } catch (error: unknown) {
       handleStoreError(error, set, 'Update student')
+      return false
     }
   },
 

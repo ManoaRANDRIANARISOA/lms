@@ -57,7 +57,9 @@ export default function GradesPage(): React.JSX.Element {
             onClick={() => navigate(card.path)}
             className="bg-white rounded-xl border shadow-sm p-6 text-left hover:shadow-md hover:border-primary/30 transition-all group"
           >
-            <div className={`${card.color} text-white p-3 rounded-lg w-fit mb-4 group-hover:scale-105 transition-transform`}>
+            <div
+              className={`${card.color} text-white p-3 rounded-lg w-fit mb-4 group-hover:scale-105 transition-transform`}
+            >
               <card.icon className="w-6 h-6" />
             </div>
             <h3 className="text-lg font-semibold mb-1">{card.title}</h3>

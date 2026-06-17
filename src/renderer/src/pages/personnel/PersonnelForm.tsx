@@ -17,7 +17,8 @@ export default function PersonnelForm(): React.JSX.Element {
   const navigate = useNavigate()
   const isEdit = !!id
 
-  const { currentPerson, loading, error, createPerson, updatePerson, getPerson } = usePersonnelStore()
+  const { currentPerson, loading, error, createPerson, updatePerson, getPerson } =
+    usePersonnelStore()
 
   const [formData, setFormData] = useState<Record<string, any>>({
     first_name: '',
@@ -69,11 +70,15 @@ export default function PersonnelForm(): React.JSX.Element {
         irsa_amount: currentPerson.irsa_amount || '',
         expected_monthly_hours: currentPerson.expected_monthly_hours || '',
         work_pattern: currentPerson.work_pattern || 'daily',
-        work_days: JSON.stringify(currentPerson.work_days || ["Monday","Tuesday","Wednesday","Thursday","Friday"]),
+        work_days: JSON.stringify(
+          currentPerson.work_days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+        ),
         daily_hours: currentPerson.daily_hours || ''
       })
-      if (currentPerson.cnaps_amount !== undefined && currentPerson.cnaps_amount !== null) setCnapsType('amount')
-      if (currentPerson.irsa_amount !== undefined && currentPerson.irsa_amount !== null) setIrsaType('amount')
+      if (currentPerson.cnaps_amount !== undefined && currentPerson.cnaps_amount !== null)
+        setCnapsType('amount')
+      if (currentPerson.irsa_amount !== undefined && currentPerson.irsa_amount !== null)
+        setIrsaType('amount')
     }
   }, [isEdit, currentPerson])
 
@@ -97,7 +102,7 @@ export default function PersonnelForm(): React.JSX.Element {
     payload.monthly_salary = payload.monthly_salary ? parseFloat(payload.monthly_salary) : null
     payload.hourly_rate = payload.hourly_rate ? parseFloat(payload.hourly_rate) : null
     payload.droit_amount = payload.droit_amount ? parseFloat(payload.droit_amount) : null
-    
+
     // CNAPS
     if (cnapsType === 'rate') {
       payload.cnaps_rate = payload.cnaps_rate ? parseFloat(payload.cnaps_rate) : 0.01
@@ -117,13 +122,15 @@ export default function PersonnelForm(): React.JSX.Element {
     }
 
     payload.has_droit = payload.has_droit ? true : false
-    payload.expected_monthly_hours = payload.expected_monthly_hours ? parseFloat(payload.expected_monthly_hours) : null
+    payload.expected_monthly_hours = payload.expected_monthly_hours
+      ? parseFloat(payload.expected_monthly_hours)
+      : null
     payload.daily_hours = payload.daily_hours ? parseFloat(payload.daily_hours) : null
     if (payload.work_days && typeof payload.work_days === 'string') {
       try {
         payload.work_days = JSON.parse(payload.work_days)
       } catch {
-        payload.work_days = ["Monday","Tuesday","Wednesday","Thursday","Friday"]
+        payload.work_days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
       }
     }
 
@@ -158,23 +165,46 @@ export default function PersonnelForm(): React.JSX.Element {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="last_name">Nom *</Label>
-              <Input id="last_name" value={formData.last_name} onChange={(e) => handleChange('last_name', e.target.value)} required />
+              <Input
+                id="last_name"
+                value={formData.last_name}
+                onChange={(e) => handleChange('last_name', e.target.value)}
+                required
+              />
             </div>
             <div>
               <Label htmlFor="first_name">Prénom *</Label>
-              <Input id="first_name" value={formData.first_name} onChange={(e) => handleChange('first_name', e.target.value)} required />
+              <Input
+                id="first_name"
+                value={formData.first_name}
+                onChange={(e) => handleChange('first_name', e.target.value)}
+                required
+              />
             </div>
             <div>
               <Label htmlFor="contact">Téléphone</Label>
-              <Input id="contact" value={formData.contact} onChange={(e) => handleChange('contact', e.target.value)} />
+              <Input
+                id="contact"
+                value={formData.contact}
+                onChange={(e) => handleChange('contact', e.target.value)}
+              />
             </div>
             <div>
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={formData.email} onChange={(e) => handleChange('email', e.target.value)} />
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleChange('email', e.target.value)}
+              />
             </div>
             <div className="md:col-span-2">
               <Label htmlFor="address">Adresse</Label>
-              <Input id="address" value={formData.address} onChange={(e) => handleChange('address', e.target.value)} />
+              <Input
+                id="address"
+                value={formData.address}
+                onChange={(e) => handleChange('address', e.target.value)}
+              />
             </div>
           </div>
         </div>
@@ -213,11 +243,22 @@ export default function PersonnelForm(): React.JSX.Element {
             </div>
             <div>
               <Label htmlFor="hire_date">Date d'embauche *</Label>
-              <Input id="hire_date" type="date" value={formData.hire_date} onChange={(e) => handleChange('hire_date', e.target.value)} required />
+              <Input
+                id="hire_date"
+                type="date"
+                value={formData.hire_date}
+                onChange={(e) => handleChange('hire_date', e.target.value)}
+                required
+              />
             </div>
             <div>
               <Label htmlFor="departure_date">Date de départ</Label>
-              <Input id="departure_date" type="date" value={formData.departure_date} onChange={(e) => handleChange('departure_date', e.target.value)} />
+              <Input
+                id="departure_date"
+                type="date"
+                value={formData.departure_date}
+                onChange={(e) => handleChange('departure_date', e.target.value)}
+              />
             </div>
             {formData.position === 'teacher' && (
               <>
@@ -239,7 +280,12 @@ export default function PersonnelForm(): React.JSX.Element {
                 </div>
                 <div>
                   <Label htmlFor="teacher_subjects">Matières (JSON array)</Label>
-                  <Input id="teacher_subjects" value={formData.teacher_subjects} onChange={(e) => handleChange('teacher_subjects', e.target.value)} placeholder='["Mathématiques", "Français"]' />
+                  <Input
+                    id="teacher_subjects"
+                    value={formData.teacher_subjects}
+                    onChange={(e) => handleChange('teacher_subjects', e.target.value)}
+                    placeholder='["Mathématiques", "Français"]'
+                  />
                 </div>
               </>
             )}
@@ -265,19 +311,33 @@ export default function PersonnelForm(): React.JSX.Element {
             {formData.salary_type === 'monthly' ? (
               <div>
                 <Label htmlFor="monthly_salary">Salaire mensuel (Ar)</Label>
-                <Input id="monthly_salary" type="number" value={formData.monthly_salary} onChange={(e) => handleChange('monthly_salary', e.target.value)} />
+                <Input
+                  id="monthly_salary"
+                  type="number"
+                  value={formData.monthly_salary}
+                  onChange={(e) => handleChange('monthly_salary', e.target.value)}
+                />
               </div>
             ) : (
               <div>
                 <Label htmlFor="hourly_rate">Taux horaire (Ar)</Label>
-                <Input id="hourly_rate" type="number" value={formData.hourly_rate} onChange={(e) => handleChange('hourly_rate', e.target.value)} />
+                <Input
+                  id="hourly_rate"
+                  type="number"
+                  value={formData.hourly_rate}
+                  onChange={(e) => handleChange('hourly_rate', e.target.value)}
+                />
               </div>
             )}
 
             {/* Planning de travail */}
             <div className="md:col-span-2 bg-gray-50 rounded-lg p-4 space-y-3">
               <h3 className="text-sm font-semibold text-gray-700">Planning de travail</h3>
-              <p className="text-xs text-gray-500">Ces informations servent au calcul du salaire et au pointage. Le type "mensuel" utilise un quota d'heures ; le type "horaire" se base sur les heures réellement pointées.</p>
+              <p className="text-xs text-gray-500">
+                Ces informations servent au calcul du salaire et au pointage. Le type "mensuel"
+                utilise un quota d'heures ; le type "horaire" se base sur les heures réellement
+                pointées.
+              </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="work_pattern">Fréquence de présence</Label>
@@ -295,32 +355,81 @@ export default function PersonnelForm(): React.JSX.Element {
                 </div>
                 <div>
                   <Label htmlFor="daily_hours">Heures par jour de travail</Label>
-                  <Input id="daily_hours" type="number" step="0.5" value={formData.daily_hours} onChange={(e) => handleChange('daily_hours', e.target.value)} placeholder="ex: 8" />
+                  <Input
+                    id="daily_hours"
+                    type="number"
+                    step="0.5"
+                    value={formData.daily_hours}
+                    onChange={(e) => handleChange('daily_hours', e.target.value)}
+                    placeholder="ex: 8"
+                  />
                 </div>
                 <div>
                   <Label htmlFor="expected_monthly_hours">Quota mensuel d'heures</Label>
-                  <Input id="expected_monthly_hours" type="number" step="0.5" value={formData.expected_monthly_hours} onChange={(e) => handleChange('expected_monthly_hours', e.target.value)} placeholder="ex: 160" />
-                  <p className="text-xs text-gray-500 mt-1">Pour les mensuels : salaire ÷ quota = taux horaire équivalent. Les heures manquantes sont déduites, les heures supplémentaires sont payées.</p>
+                  <Input
+                    id="expected_monthly_hours"
+                    type="number"
+                    step="0.5"
+                    value={formData.expected_monthly_hours}
+                    onChange={(e) => handleChange('expected_monthly_hours', e.target.value)}
+                    placeholder="ex: 160"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Pour les mensuels : salaire ÷ quota = taux horaire équivalent. Les heures
+                    manquantes sont déduites, les heures supplémentaires sont payées.
+                  </p>
                 </div>
                 {formData.work_pattern === 'weekly' && (
                   <div className="md:col-span-2">
                     <Label className="mb-2 block">Jours de travail</Label>
                     <div className="flex flex-wrap gap-3">
-                      {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map((day) => (
+                      {[
+                        'Monday',
+                        'Tuesday',
+                        'Wednesday',
+                        'Thursday',
+                        'Friday',
+                        'Saturday',
+                        'Sunday'
+                      ].map((day) => (
                         <label key={day} className="flex items-center gap-1 text-sm">
                           <input
                             type="checkbox"
                             checked={(() => {
-                              try { return JSON.parse(formData.work_days || '[]').includes(day) } catch { return false }
+                              try {
+                                return JSON.parse(formData.work_days || '[]').includes(day)
+                              } catch {
+                                return false
+                              }
                             })()}
                             onChange={(e) => {
-                              const current = (() => { try { return JSON.parse(formData.work_days || '[]') } catch { return [] } })()
-                              const next = e.target.checked ? [...current, day] : current.filter((d: string) => d !== day)
+                              const current = (() => {
+                                try {
+                                  return JSON.parse(formData.work_days || '[]')
+                                } catch {
+                                  return []
+                                }
+                              })()
+                              const next = e.target.checked
+                                ? [...current, day]
+                                : current.filter((d: string) => d !== day)
                               handleChange('work_days', JSON.stringify(next))
                             }}
                             className="h-4 w-4"
                           />
-                          {day === 'Monday' ? 'Lun' : day === 'Tuesday' ? 'Mar' : day === 'Wednesday' ? 'Mer' : day === 'Thursday' ? 'Jeu' : day === 'Friday' ? 'Ven' : day === 'Saturday' ? 'Sam' : 'Dim'}
+                          {day === 'Monday'
+                            ? 'Lun'
+                            : day === 'Tuesday'
+                              ? 'Mar'
+                              : day === 'Wednesday'
+                                ? 'Mer'
+                                : day === 'Thursday'
+                                  ? 'Jeu'
+                                  : day === 'Friday'
+                                    ? 'Ven'
+                                    : day === 'Saturday'
+                                      ? 'Sam'
+                                      : 'Dim'}
                         </label>
                       ))}
                     </div>
@@ -332,7 +441,7 @@ export default function PersonnelForm(): React.JSX.Element {
             <div>
               <div className="flex justify-between items-center mb-2">
                 <Label htmlFor="cnaps_rate">Déduction CNaPS</Label>
-                <select 
+                <select
                   className="text-xs border rounded p-1"
                   value={cnapsType}
                   onChange={(e) => setCnapsType(e.target.value as 'rate' | 'amount')}
@@ -342,16 +451,29 @@ export default function PersonnelForm(): React.JSX.Element {
                 </select>
               </div>
               {cnapsType === 'rate' ? (
-                <Input id="cnaps_rate" type="number" step="0.01" value={formData.cnaps_rate} onChange={(e) => handleChange('cnaps_rate', e.target.value)} placeholder="ex: 0.01 pour 1%" />
+                <Input
+                  id="cnaps_rate"
+                  type="number"
+                  step="0.01"
+                  value={formData.cnaps_rate}
+                  onChange={(e) => handleChange('cnaps_rate', e.target.value)}
+                  placeholder="ex: 0.01 pour 1%"
+                />
               ) : (
-                <Input id="cnaps_amount" type="number" value={formData.cnaps_amount} onChange={(e) => handleChange('cnaps_amount', e.target.value)} placeholder="Montant en Ar" />
+                <Input
+                  id="cnaps_amount"
+                  type="number"
+                  value={formData.cnaps_amount}
+                  onChange={(e) => handleChange('cnaps_amount', e.target.value)}
+                  placeholder="Montant en Ar"
+                />
               )}
             </div>
-            
+
             <div>
               <div className="flex justify-between items-center mb-2">
                 <Label htmlFor="irsa_rate">Déduction IRSA</Label>
-                <select 
+                <select
                   className="text-xs border rounded p-1"
                   value={irsaType}
                   onChange={(e) => setIrsaType(e.target.value as 'rate' | 'amount')}
@@ -361,9 +483,22 @@ export default function PersonnelForm(): React.JSX.Element {
                 </select>
               </div>
               {irsaType === 'rate' ? (
-                <Input id="irsa_rate" type="number" step="0.01" value={formData.irsa_rate} onChange={(e) => handleChange('irsa_rate', e.target.value)} placeholder="ex: 0.01 pour 1%" />
+                <Input
+                  id="irsa_rate"
+                  type="number"
+                  step="0.01"
+                  value={formData.irsa_rate}
+                  onChange={(e) => handleChange('irsa_rate', e.target.value)}
+                  placeholder="ex: 0.01 pour 1%"
+                />
               ) : (
-                <Input id="irsa_amount" type="number" value={formData.irsa_amount} onChange={(e) => handleChange('irsa_amount', e.target.value)} placeholder="Montant en Ar" />
+                <Input
+                  id="irsa_amount"
+                  type="number"
+                  value={formData.irsa_amount}
+                  onChange={(e) => handleChange('irsa_amount', e.target.value)}
+                  placeholder="Montant en Ar"
+                />
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -374,12 +509,19 @@ export default function PersonnelForm(): React.JSX.Element {
                 onChange={(e) => handleChange('has_droit', e.target.checked)}
                 className="h-4 w-4"
               />
-              <Label htmlFor="has_droit" className="mb-0">A droit de logement / autres</Label>
+              <Label htmlFor="has_droit" className="mb-0">
+                A droit de logement / autres
+              </Label>
             </div>
             {formData.has_droit && (
               <div>
                 <Label htmlFor="droit_amount">Montant du droit (Ar)</Label>
-                <Input id="droit_amount" type="number" value={formData.droit_amount} onChange={(e) => handleChange('droit_amount', e.target.value)} />
+                <Input
+                  id="droit_amount"
+                  type="number"
+                  value={formData.droit_amount}
+                  onChange={(e) => handleChange('droit_amount', e.target.value)}
+                />
               </div>
             )}
           </div>

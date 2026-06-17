@@ -9,8 +9,9 @@ import { useStudentStore, Student } from '@/store/useStudentStore'
 import type { FeeRecord } from '@shared/types'
 import { useState, useEffect } from 'react'
 import { getStudentPhotoUrl } from '@/lib/image-utils'
-import { Search, X, Plus } from 'lucide-react'
+import { Search, X, Plus, UserCircle } from 'lucide-react'
 import { useFinanceStore } from '@/store/useFinanceStore'
+import { usePersonnelStore } from '@/store/usePersonnelStore'
 import { useClasses } from '@/lib/useClasses'
 
 const studentSchema = z.object({
@@ -60,7 +61,12 @@ const studentSchema = z.object({
 
   uniform_items_purchased: z.array(z.string()).optional(),
 
-  fram_paid_by_parent: z.boolean().optional()
+  fram_paid_by_parent: z.boolean().optional(),
+  is_personnel_child: z.boolean().optional(),
+  parent_personnel_id: z.string().nullable().optional(),
+
+  initial_payment_amount: z.number().optional(),
+  initial_payment_type: z.string().optional()
 })
 
 type StudentFormValues = z.infer<typeof studentSchema>
@@ -100,8 +106,11 @@ export default function StudentForm({
       ? prices.busRoutes
       : Object.keys(prices.bus || {})
 
+  const { personnel, fetchPersonnel } = usePersonnelStore()
+
   useEffect(() => {
     fetchPrices()
+    fetchPersonnel()
   }, [])
 
   const form = useForm<StudentFormValues>({
@@ -138,7 +147,11 @@ export default function StudentForm({
       canteen_subscribed: false,
       canteen_days_per_week: 0,
       uniform_items_purchased: [],
-      fram_paid_by_parent: false
+      fram_paid_by_parent: false,
+      is_personnel_child: false,
+      parent_personnel_id: null,
+      initial_payment_amount: 0,
+      initial_payment_type: 'enrollment'
     }
   })
 
@@ -183,7 +196,11 @@ export default function StudentForm({
         canteen_days_per_week: 0,
         canteen_days: [],
         uniform_items_purchased: [],
-        fram_paid_by_parent: false
+        fram_paid_by_parent: false,
+        is_personnel_child: Boolean(initialData.is_personnel_child),
+        parent_personnel_id: initialData.parent_personnel_id || null,
+        initial_payment_amount: 0,
+        initial_payment_type: 'enrollment'
       }
 
       // Load Fees if available
@@ -251,7 +268,8 @@ export default function StudentForm({
         })
         // Filter out current student (if editing) and already selected siblings
         const filtered = result.students.filter(
-          (s: Student) => s.id !== initialData?.id && !selectedSiblings.some((sel) => sel.id === s.id)
+          (s: Student) =>
+            s.id !== initialData?.id && !selectedSiblings.some((sel) => sel.id === s.id)
         )
         setSiblingResults(filtered)
       } catch (err) {
@@ -290,13 +308,14 @@ export default function StudentForm({
       const payload = { ...data }
       payload.siblings = selectedSiblings.map((s) => s.id)
 
+      let success = false
       if (initialData) {
-        await updateStudent(initialData.id, payload)
+        success = await updateStudent(initialData.id, payload)
       } else {
-        await createStudent(payload)
+        success = await createStudent(payload)
       }
 
-      if (onSuccess) onSuccess()
+      if (success && onSuccess) onSuccess()
     } catch (err) {
       if (import.meta.env.DEV) console.error('Error submitting form:', err)
     } finally {
@@ -336,10 +355,10 @@ export default function StudentForm({
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <Tabs defaultValue="identity" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className={`grid w-full ${initialData ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <TabsTrigger value="identity">Identité</TabsTrigger>
             <TabsTrigger value="family">Famille</TabsTrigger>
-            <TabsTrigger value="services">Services & Frais</TabsTrigger>
+            {initialData && <TabsTrigger value="services">Services & Frais</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="identity" className="space-y-4 pt-4">
@@ -397,7 +416,8 @@ export default function StudentForm({
                               }
                             }
                           } catch (err) {
-                            if (import.meta.env.DEV) console.error('Failed to open file dialog', err)
+                            if (import.meta.env.DEV)
+                              console.error('Failed to open file dialog', err)
                           } finally {
                             setIsLoadingImage(false)
                           }
@@ -438,11 +458,21 @@ export default function StudentForm({
                 <label className="text-sm font-medium">Sexe</label>
                 <div className="flex items-center gap-4 mt-2">
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" value="M" {...form.register('gender')} className="w-4 h-4" />
+                    <input
+                      type="radio"
+                      value="M"
+                      {...form.register('gender')}
+                      className="w-4 h-4"
+                    />
                     <span className="text-sm">Garçon</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" value="F" {...form.register('gender')} className="w-4 h-4" />
+                    <input
+                      type="radio"
+                      value="F"
+                      {...form.register('gender')}
+                      className="w-4 h-4"
+                    />
                     <span className="text-sm">Fille</span>
                   </label>
                 </div>
@@ -462,23 +492,40 @@ export default function StudentForm({
 
             <div className="grid grid-cols-2 gap-4">
               {initialData && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Classe</label>
-                  <select
-                    {...form.register('class')}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="">Sélectionner une classe</option>
-                    {availableClasses.map((cls) => (
-                      <option key={cls} value={cls}>
-                        {cls}
-                      </option>
-                    ))}
-                  </select>
-                  {form.formState.errors.class && (
-                    <p className="text-sm text-red-500">{form.formState.errors.class.message}</p>
-                  )}
-                </div>
+                <>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Classe Actuelle</label>
+                    <select
+                      {...form.register('class')}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="">Sélectionner une classe</option>
+                      {availableClasses.map((cls) => (
+                        <option key={cls} value={cls}>
+                          {cls}
+                        </option>
+                      ))}
+                    </select>
+                    {form.formState.errors.class && (
+                      <p className="text-sm text-red-500">{form.formState.errors.class.message}</p>
+                    )}
+                    <div className="flex items-center space-x-2 mt-3 pt-2 border-t">
+                      <Checkbox
+                        id="is_personnel_child"
+                        checked={form.watch('is_personnel_child')}
+                        onCheckedChange={(checked) =>
+                          form.setValue('is_personnel_child', checked as boolean)
+                        }
+                      />
+                      <label
+                        htmlFor="is_personnel_child"
+                        className="text-sm font-medium text-blue-700"
+                      >
+                        Enfant du personnel (Écolage gratuit)
+                      </label>
+                    </div>
+                  </div>
+                </>
               )}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Date d'inscription *</label>
@@ -566,6 +613,48 @@ export default function StudentForm({
                 <label className="text-sm font-medium">Adresse</label>
                 <Input {...form.register('address')} placeholder="Lot..." />
               </div>
+
+              {/* Personnel Parent Section */}
+              <div className="border p-4 rounded-md mt-6 bg-blue-50/50">
+                <h3 className="font-semibold mb-3 flex items-center gap-2 text-blue-800">
+                  <UserCircle className="w-5 h-5" /> Parent membre du personnel
+                </h3>
+                <div className="flex items-center space-x-2 mb-4">
+                  <Checkbox
+                    id="is_personnel_child"
+                    checked={form.watch('is_personnel_child')}
+                    onCheckedChange={(checked) => {
+                      form.setValue('is_personnel_child', checked as boolean)
+                      if (!checked) form.setValue('parent_personnel_id', null)
+                    }}
+                  />
+                  <label htmlFor="is_personnel_child" className="text-sm font-medium">
+                    Cet élève est l'enfant d'un membre du personnel de l'établissement
+                  </label>
+                </div>
+
+                {form.watch('is_personnel_child') && (
+                  <div className="space-y-2 mt-3">
+                    <label className="text-sm font-medium text-gray-700">
+                      Sélectionner le membre du personnel
+                    </label>
+                    <select
+                      {...form.register('parent_personnel_id')}
+                      className="flex h-10 w-full md:w-1/2 rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    >
+                      <option value="">Sélectionner...</option>
+                      {personnel.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.last_name} {p.first_name} ({p.position})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-blue-600 mt-1">
+                      Note : Les enfants du personnel sont exonérés d'écolage mensuel.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Siblings Section */}
@@ -642,148 +731,140 @@ export default function StudentForm({
           </TabsContent>
 
           <TabsContent value="services" className="space-y-4 pt-4">
-            {/* Bus */}
-            <div className="border p-4 rounded-md">
-              <h3 className="font-semibold mb-3">Transport Scolaire (Bus)</h3>
-              <div className="flex items-center space-x-2 mb-4">
-                <Checkbox
-                  id="bus_subscribed"
-                  checked={form.watch('bus_subscribed')}
-                  onCheckedChange={(checked) => form.setValue('bus_subscribed', checked as boolean)}
-                />
-                <label htmlFor="bus_subscribed" className="text-sm font-medium">
-                  Inscription au Bus
-                </label>
-              </div>
+            {initialData && (
+              <>
+                {/* Bus */}
+                <div className="border p-4 rounded-md">
+                  <h3 className="font-semibold mb-3">Transport Scolaire (Bus)</h3>
+                  <div className="flex items-center space-x-2 mb-4">
+                    <Checkbox
+                      id="bus_subscribed"
+                      checked={form.watch('bus_subscribed')}
+                      onCheckedChange={(checked) => form.setValue('bus_subscribed', checked as boolean)}
+                    />
+                    <label htmlFor="bus_subscribed" className="text-sm font-medium">
+                      Inscription au Bus
+                    </label>
+                  </div>
 
-              {form.watch('bus_subscribed') && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Ligne de Bus</label>
-                  <select
-                    {...form.register('bus_route')}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="">Sélectionner une zone</option>
-                    {availableBusRoutes.map((route) => (
-                      <option key={route} value={route}>
-                        {route} ({prices.bus[route]?.toLocaleString()} Ar)
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500">
-                    Note: Sélectionnez la zone correspondant à l'arrêt de l'élève.
-                  </p>
+                  {form.watch('bus_subscribed') && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Ligne de Bus</label>
+                      <select
+                        {...form.register('bus_route')}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="">Sélectionner une zone</option>
+                        {availableBusRoutes.map((route) => (
+                          <option key={route} value={route}>
+                            {route} ({prices.bus[route]?.toLocaleString()} Ar)
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500">
+                        Note: Sélectionnez la zone correspondant à l'arrêt de l'élève.
+                      </p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            {/* Canteen */}
-            <div className="border p-4 rounded-md mt-4">
-              <h3 className="font-semibold mb-3">Cantine</h3>
-              <div className="flex items-center space-x-2 mb-4">
-                <Checkbox
-                  id="canteen_subscribed"
-                  checked={form.watch('canteen_subscribed')}
-                  onCheckedChange={(checked) =>
-                    form.setValue('canteen_subscribed', checked as boolean)
-                  }
-                />
-                <label htmlFor="canteen_subscribed" className="text-sm font-medium">
-                  Inscription à la Cantine
-                </label>
-              </div>
+                {/* Canteen */}
+                <div className="border p-4 rounded-md mt-4">
+                  <h3 className="font-semibold mb-3">Cantine</h3>
+                  <div className="flex items-center space-x-2 mb-4">
+                    <Checkbox
+                      id="canteen_subscribed"
+                      checked={form.watch('canteen_subscribed')}
+                      onCheckedChange={(checked) =>
+                        form.setValue('canteen_subscribed', checked as boolean)
+                      }
+                    />
+                    <label htmlFor="canteen_subscribed" className="text-sm font-medium">
+                      Inscription à la Cantine
+                    </label>
+                  </div>
 
-              {form.watch('canteen_subscribed') && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Jours de cantine</label>
-                  <div className="flex gap-2 flex-wrap">
-                    {[
-                      { id: 'Monday', label: 'Lun' },
-                      { id: 'Tuesday', label: 'Mar' },
-                      { id: 'Wednesday', label: 'Mer' },
-                      { id: 'Thursday', label: 'Jeu' },
-                      { id: 'Friday', label: 'Ven' }
-                    ].map((day) => {
-                      const currentDays = form.watch('canteen_days') || []
-                      const isSelected = currentDays.includes(day.id)
+                  {form.watch('canteen_subscribed') && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Jours de cantine</label>
+                      <div className="flex gap-2 flex-wrap">
+                        {[
+                          { id: 'Monday', label: 'Lun' },
+                          { id: 'Tuesday', label: 'Mar' },
+                          { id: 'Wednesday', label: 'Mer' },
+                          { id: 'Thursday', label: 'Jeu' },
+                          { id: 'Friday', label: 'Ven' }
+                        ].map((day) => {
+                          const currentDays = form.watch('canteen_days') || []
+                          const isSelected = currentDays.includes(day.id)
+                          return (
+                            <button
+                              key={day.id}
+                              type="button"
+                              onClick={() => {
+                                const newDays = isSelected
+                                  ? currentDays.filter((d) => d !== day.id)
+                                  : [...currentDays, day.id]
+                                form.setValue('canteen_days', newDays)
+                                form.setValue('canteen_days_per_week', newDays.length)
+                              }}
+                              className={`px-3 py-2 rounded text-sm font-medium transition-colors border ${
+                                isSelected
+                                  ? 'bg-green-600 text-white border-green-600 hover:bg-green-700'
+                                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                              }`}
+                            >
+                              {day.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {form.watch('canteen_days_per_week')} jour(s) par semaine
+                      </p>
+                      <input type="hidden" {...form.register('canteen_days_per_week')} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Uniforms */}
+                <div className="border p-4 rounded-md mt-4">
+                  <h3 className="font-semibold mb-3">Tenues & Accessoires</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {Object.keys(prices?.uniforms || {}).map((item) => {
+                      const itemsPurchased = form.watch('uniform_items_purchased') || []
+                      const isChecked = itemsPurchased.includes(item)
                       return (
-                        <button
-                          key={day.id}
-                          type="button"
-                          onClick={() => {
-                            const newDays = isSelected
-                              ? currentDays.filter((d) => d !== day.id)
-                              : [...currentDays, day.id]
-                            form.setValue('canteen_days', newDays)
-                            form.setValue('canteen_days_per_week', newDays.length)
-                          }}
-                          className={`px-3 py-2 rounded text-sm font-medium transition-colors border ${
-                            isSelected
-                              ? 'bg-green-600 text-white border-green-600 hover:bg-green-700'
-                              : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                          }`}
-                        >
-                          {day.label}
-                        </button>
+                        <div key={item} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`uniform_${item}`}
+                            checked={isChecked}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                form.setValue('uniform_items_purchased', [...itemsPurchased, item])
+                              } else {
+                                form.setValue(
+                                  'uniform_items_purchased',
+                                  itemsPurchased.filter((i) => i !== item)
+                                )
+                              }
+                            }}
+                          />
+                          <label htmlFor={`uniform_${item}`} className="text-sm">
+                            {item}
+                          </label>
+                        </div>
                       )
                     })}
+                    {Object.keys(prices?.uniforms || {}).length === 0 && (
+                      <p className="text-sm text-gray-500 italic">Aucun article configuré</p>
+                    )}
                   </div>
-                  <p className="text-xs text-gray-500">
-                    {form.watch('canteen_days_per_week')} jour(s) par semaine
-                  </p>
-                  <input type="hidden" {...form.register('canteen_days_per_week')} />
                 </div>
-              )}
-            </div>
+              </>
+            )}
 
-            {/* Uniforms */}
-            <div className="border p-4 rounded-md mt-4">
-              <h3 className="font-semibold mb-3">Tenues & Accessoires</h3>
-              <div className="grid grid-cols-2 gap-4">
-                {Object.keys(prices?.uniforms || {}).map((item) => {
-                  const itemsPurchased = form.watch('uniform_items_purchased') || []
-                  const isChecked = itemsPurchased.includes(item)
-                  return (
-                    <div key={item} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`uniform_${item}`}
-                        checked={isChecked}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            form.setValue('uniform_items_purchased', [...itemsPurchased, item])
-                          } else {
-                            form.setValue('uniform_items_purchased', itemsPurchased.filter(i => i !== item))
-                          }
-                        }}
-                      />
-                      <label htmlFor={`uniform_${item}`} className="text-sm">
-                        {item}
-                      </label>
-                    </div>
-                  )
-                })}
-                {Object.keys(prices?.uniforms || {}).length === 0 && (
-                  <p className="text-sm text-gray-500 italic">Aucun article configuré</p>
-                )}
-              </div>
-            </div>
 
-            {/* FRAM */}
-            <div className="border p-4 rounded-md mt-4">
-              <h3 className="font-semibold mb-3">Cotisation FRAM</h3>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="fram_paid"
-                  checked={form.watch('fram_paid_by_parent')}
-                  onCheckedChange={(checked) =>
-                    form.setValue('fram_paid_by_parent', checked as boolean)
-                  }
-                />
-                <label htmlFor="fram_paid" className="text-sm">
-                  Payé par les parents (Décocher si inclus dans la fratrie)
-                </label>
-              </div>
-            </div>
           </TabsContent>
         </Tabs>
 

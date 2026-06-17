@@ -32,12 +32,14 @@ export class ExportService {
 
       const header = columns.map((c) => `"${c.label}"`).join(';')
       const rows = data.map((row) =>
-        columns.map((c) => {
-          const val = row[c.key]
-          if (val === null || val === undefined) return '""'
-          const str = String(val).replace(/"/g, '""')
-          return `"${str}"`
-        }).join(';')
+        columns
+          .map((c) => {
+            const val = row[c.key]
+            if (val === null || val === undefined) return '""'
+            const str = String(val).replace(/"/g, '""')
+            return `"${str}"`
+          })
+          .join(';')
       )
 
       const csv = [header, ...rows].join('\n')

@@ -113,7 +113,9 @@ export function registerPdfHandlers(): void {
     try {
       const isDev = !app.isPackaged
       const allowedDir = path.resolve(
-        isDev ? path.join(process.cwd(), 'pdf-output') : path.join(app.getPath('userData'), 'pdf-output')
+        isDev
+          ? path.join(process.cwd(), 'pdf-output')
+          : path.join(app.getPath('userData'), 'pdf-output')
       )
       const resolvedPath = path.resolve(filePath)
 

@@ -29,7 +29,14 @@ export function registerEventHandlers(): void {
     }
     const result = EventRepository.create(event)
     if (result.success && result.id) {
-      logAction(getCurrentUser()?.id || null, 'create', 'parent_events', result.id, null, JSON.stringify(event))
+      logAction(
+        getCurrentUser()?.id || null,
+        'create',
+        'parent_events',
+        result.id,
+        null,
+        JSON.stringify(event)
+      )
     }
     return result
   })

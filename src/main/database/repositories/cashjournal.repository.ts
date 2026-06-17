@@ -41,13 +41,15 @@ export class CashJournalRepository {
   static create(entry: Omit<CashJournalEntry, 'id' | 'created_at' | 'updated_at'>) {
     const id = uuidv4()
     try {
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO cash_journal (
           id, transaction_date, type, department, category, subcategory,
           amount, description, payment_method,
           related_student_id, related_personnel_id
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
+      `
+      ).run(
         id,
         entry.transaction_date,
         entry.type,
@@ -95,7 +97,10 @@ export class CashJournalRepository {
       params.push(filters.department)
     }
     if (filters.category && filters.category !== 'all') {
-      const cats = filters.category.split(',').map(c => c.trim()).filter(c => c)
+      const cats = filters.category
+        .split(',')
+        .map((c) => c.trim())
+        .filter((c) => c)
       if (cats.length === 1) {
         query += ' AND cj.category = ?'
         params.push(cats[0])
@@ -105,7 +110,8 @@ export class CashJournalRepository {
       }
     }
     if (filters.search) {
-      query += ' AND (LOWER(cj.description) LIKE ? OR LOWER(cj.category) LIKE ? OR LOWER(s.first_name) LIKE ? OR LOWER(s.last_name) LIKE ?)'
+      query +=
+        ' AND (LOWER(cj.description) LIKE ? OR LOWER(cj.category) LIKE ? OR LOWER(s.first_name) LIKE ? OR LOWER(s.last_name) LIKE ?)'
       const s = `%${filters.search.toLowerCase()}%`
       params.push(s, s, s, s)
     }
@@ -123,23 +129,49 @@ export class CashJournalRepository {
     const fields: string[] = []
     const values: (string | number | null)[] = []
 
-    if (updates.transaction_date !== undefined) { fields.push('transaction_date = ?'); values.push(updates.transaction_date) }
-    if (updates.type !== undefined) { fields.push('type = ?'); values.push(updates.type) }
-    if (updates.department !== undefined) { fields.push('department = ?'); values.push(updates.department) }
-    if (updates.category !== undefined) { fields.push('category = ?'); values.push(updates.category) }
-    if (updates.subcategory !== undefined) { fields.push('subcategory = ?'); values.push(updates.subcategory) }
-    if (updates.amount !== undefined) { fields.push('amount = ?'); values.push(updates.amount) }
-    if (updates.description !== undefined) { fields.push('description = ?'); values.push(updates.description) }
-    if (updates.payment_method !== undefined) { fields.push('payment_method = ?'); values.push(updates.payment_method) }
+    if (updates.transaction_date !== undefined) {
+      fields.push('transaction_date = ?')
+      values.push(updates.transaction_date)
+    }
+    if (updates.type !== undefined) {
+      fields.push('type = ?')
+      values.push(updates.type)
+    }
+    if (updates.department !== undefined) {
+      fields.push('department = ?')
+      values.push(updates.department)
+    }
+    if (updates.category !== undefined) {
+      fields.push('category = ?')
+      values.push(updates.category)
+    }
+    if (updates.subcategory !== undefined) {
+      fields.push('subcategory = ?')
+      values.push(updates.subcategory)
+    }
+    if (updates.amount !== undefined) {
+      fields.push('amount = ?')
+      values.push(updates.amount)
+    }
+    if (updates.description !== undefined) {
+      fields.push('description = ?')
+      values.push(updates.description)
+    }
+    if (updates.payment_method !== undefined) {
+      fields.push('payment_method = ?')
+      values.push(updates.payment_method)
+    }
 
     if (fields.length === 0) return { success: false, error: 'Aucun champ à modifier' }
 
-    fields.push("updated_at = CURRENT_TIMESTAMP")
+    fields.push('updated_at = CURRENT_TIMESTAMP')
     fields.push("sync_status = 'pending'")
     values.push(id)
 
     try {
-      const result = db.prepare(`UPDATE cash_journal SET ${fields.join(', ')} WHERE id = ? AND deleted = 0`).run(...values)
+      const result = db
+        .prepare(`UPDATE cash_journal SET ${fields.join(', ')} WHERE id = ? AND deleted = 0`)
+        .run(...values)
       if (result.changes === 0) return { success: false, error: 'Entrée non trouvée' }
       addToSyncQueue('cash_journal', id, 'update', updates)
       return { success: true }
@@ -151,10 +183,14 @@ export class CashJournalRepository {
 
   static delete(id: string) {
     try {
-      const result = db.prepare(`
+      const result = db
+        .prepare(
+          `
         UPDATE cash_journal SET deleted = 1, sync_status = 'pending', updated_at = CURRENT_TIMESTAMP
         WHERE id = ? AND deleted = 0
-      `).run(id)
+      `
+        )
+        .run(id)
       if (result.changes === 0) return { success: false, error: 'Entrée non trouvée' }
       addToSyncQueue('cash_journal', id, 'delete', { id })
       return { success: true }
@@ -165,34 +201,44 @@ export class CashJournalRepository {
   }
 
   static getDailyBalance(date: string) {
-    const result = db.prepare(`
+    const result = db
+      .prepare(
+        `
       SELECT
         COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as total_income,
         COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as total_expense,
         COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END), 0) as balance
       FROM cash_journal
       WHERE transaction_date = ? AND deleted = 0
-    `).get(date) as { total_income: number; total_expense: number; balance: number }
+    `
+      )
+      .get(date) as { total_income: number; total_expense: number; balance: number }
 
     return result
   }
 
   static getMonthlyBalance(year: number, month: number) {
     const monthStr = `${year}-${String(month).padStart(2, '0')}`
-    const result = db.prepare(`
+    const result = db
+      .prepare(
+        `
       SELECT
         COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as total_income,
         COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as total_expense,
         COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END), 0) as balance
       FROM cash_journal
       WHERE transaction_date LIKE ? AND deleted = 0
-    `).get(`${monthStr}%`) as { total_income: number; total_expense: number; balance: number }
+    `
+      )
+      .get(`${monthStr}%`) as { total_income: number; total_expense: number; balance: number }
 
     return result
   }
 
   static getBalanceSummary(startDate: string, endDate: string) {
-    return db.prepare(`
+    return db
+      .prepare(
+        `
       SELECT
         department,
         type,
@@ -203,18 +249,24 @@ export class CashJournalRepository {
       WHERE transaction_date >= ? AND transaction_date <= ? AND deleted = 0
       GROUP BY department, type, category
       ORDER BY department, type, total DESC
-    `).all(startDate, endDate)
+    `
+      )
+      .all(startDate, endDate)
   }
 
   static getTotalBalance() {
-    const result = db.prepare(`
+    const result = db
+      .prepare(
+        `
       SELECT
         COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as total_income,
         COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as total_expense,
         COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END), 0) as balance
       FROM cash_journal
       WHERE deleted = 0
-    `).get() as { total_income: number; total_expense: number; balance: number }
+    `
+      )
+      .get() as { total_income: number; total_expense: number; balance: number }
 
     return result
   }

@@ -40,7 +40,9 @@ export default function ReportsPage() {
     try {
       const result = await window.api.report.monthlyFinance(year, month)
       if (result.success) setFinanceReport(result.data as unknown as FinanceReport)
-    } catch { /* empty */ }
+    } catch {
+      /* empty */
+    }
     setLoading(null)
   }
 
@@ -49,7 +51,9 @@ export default function ReportsPage() {
     try {
       const result = await window.api.report.payroll(year, month)
       if (result.success) setPayrollReport(result.data as unknown as PayrollReport)
-    } catch { /* empty */ }
+    } catch {
+      /* empty */
+    }
     setLoading(null)
   }
 
@@ -58,7 +62,9 @@ export default function ReportsPage() {
     try {
       const result = await window.api.report.tuition(schoolYear)
       if (result.success) setTuitionReport(result.data as Record<string, unknown>)
-    } catch { /* empty */ }
+    } catch {
+      /* empty */
+    }
     setLoading(null)
   }
 
@@ -78,7 +84,9 @@ export default function ReportsPage() {
         ],
         'eleves_export.csv'
       )
-    } catch { /* empty */ }
+    } catch {
+      /* empty */
+    }
     setLoading(null)
   }
 
@@ -92,15 +100,31 @@ export default function ReportsPage() {
       <div className="flex gap-4 mb-6 bg-white p-4 rounded-lg border shadow-sm">
         <div>
           <Label>Année</Label>
-          <Input type="number" value={year} onChange={(e) => setYear(parseInt(e.target.value) || 2025)} className="mt-1 w-28" />
+          <Input
+            type="number"
+            value={year}
+            onChange={(e) => setYear(parseInt(e.target.value) || 2025)}
+            className="mt-1 w-28"
+          />
         </div>
         <div>
           <Label>Mois</Label>
-          <Input type="number" value={month} min={1} max={12} onChange={(e) => setMonth(parseInt(e.target.value) || 1)} className="mt-1 w-20" />
+          <Input
+            type="number"
+            value={month}
+            min={1}
+            max={12}
+            onChange={(e) => setMonth(parseInt(e.target.value) || 1)}
+            className="mt-1 w-20"
+          />
         </div>
         <div>
           <Label>Année scolaire</Label>
-          <Input value={schoolYear} onChange={(e) => setSchoolYear(e.target.value)} className="mt-1 w-40" />
+          <Input
+            value={schoolYear}
+            onChange={(e) => setSchoolYear(e.target.value)}
+            className="mt-1 w-40"
+          />
         </div>
       </div>
 
@@ -153,25 +177,43 @@ export default function ReportsPage() {
           <div className="grid gap-4 md:grid-cols-3 mb-4">
             <div className="p-3 bg-green-50 rounded">
               <p className="text-sm text-gray-600">Recettes</p>
-              <p className="text-xl font-bold text-green-700">{financeReport.total_income.toLocaleString()} Ar</p>
+              <p className="text-xl font-bold text-green-700">
+                {financeReport.total_income.toLocaleString()} Ar
+              </p>
             </div>
             <div className="p-3 bg-red-50 rounded">
               <p className="text-sm text-gray-600">Dépenses</p>
-              <p className="text-xl font-bold text-red-700">{financeReport.total_expense.toLocaleString()} Ar</p>
+              <p className="text-xl font-bold text-red-700">
+                {financeReport.total_expense.toLocaleString()} Ar
+              </p>
             </div>
             <div className="p-3 bg-blue-50 rounded">
               <p className="text-sm text-gray-600">Solde</p>
-              <p className="text-xl font-bold text-blue-700">{financeReport.balance.toLocaleString()} Ar</p>
+              <p className="text-xl font-bold text-blue-700">
+                {financeReport.balance.toLocaleString()} Ar
+              </p>
             </div>
           </div>
           {financeReport.income_by_category.length > 0 && (
             <div className="mb-4">
               <h4 className="font-medium mb-2">Recettes par catégorie</h4>
               <table className="w-full text-sm">
-                <thead className="bg-gray-50"><tr><th className="p-2 text-left">Dép.</th><th className="p-2 text-left">Catégorie</th><th className="p-2 text-right">Nb</th><th className="p-2 text-right">Total</th></tr></thead>
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="p-2 text-left">Dép.</th>
+                    <th className="p-2 text-left">Catégorie</th>
+                    <th className="p-2 text-right">Nb</th>
+                    <th className="p-2 text-right">Total</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {financeReport.income_by_category.map((r, i) => (
-                    <tr key={i} className="border-t"><td className="p-2">{r.department}</td><td className="p-2">{r.category}</td><td className="p-2 text-right">{r.count}</td><td className="p-2 text-right">{r.total.toLocaleString()} Ar</td></tr>
+                    <tr key={i} className="border-t">
+                      <td className="p-2">{r.department}</td>
+                      <td className="p-2">{r.category}</td>
+                      <td className="p-2 text-right">{r.count}</td>
+                      <td className="p-2 text-right">{r.total.toLocaleString()} Ar</td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
@@ -181,10 +223,22 @@ export default function ReportsPage() {
             <div>
               <h4 className="font-medium mb-2">Dépenses par catégorie</h4>
               <table className="w-full text-sm">
-                <thead className="bg-gray-50"><tr><th className="p-2 text-left">Dép.</th><th className="p-2 text-left">Catégorie</th><th className="p-2 text-right">Nb</th><th className="p-2 text-right">Total</th></tr></thead>
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="p-2 text-left">Dép.</th>
+                    <th className="p-2 text-left">Catégorie</th>
+                    <th className="p-2 text-right">Nb</th>
+                    <th className="p-2 text-right">Total</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {financeReport.expense_by_category.map((r, i) => (
-                    <tr key={i} className="border-t"><td className="p-2">{r.department}</td><td className="p-2">{r.category}</td><td className="p-2 text-right">{r.count}</td><td className="p-2 text-right">{r.total.toLocaleString()} Ar</td></tr>
+                    <tr key={i} className="border-t">
+                      <td className="p-2">{r.department}</td>
+                      <td className="p-2">{r.category}</td>
+                      <td className="p-2 text-right">{r.count}</td>
+                      <td className="p-2 text-right">{r.total.toLocaleString()} Ar</td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
@@ -201,14 +255,28 @@ export default function ReportsPage() {
           </h3>
           <div className="p-3 bg-green-50 rounded mb-4">
             <p className="text-sm text-gray-600">Total salaires</p>
-            <p className="text-xl font-bold text-green-700">{payrollReport.total_payroll.toLocaleString()} Ar</p>
+            <p className="text-xl font-bold text-green-700">
+              {payrollReport.total_payroll.toLocaleString()} Ar
+            </p>
           </div>
           {payrollReport.entries.length > 0 && (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50"><tr><th className="p-2 text-left">Date</th><th className="p-2 text-left">Description</th><th className="p-2 text-right">Montant</th></tr></thead>
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="p-2 text-left">Date</th>
+                  <th className="p-2 text-left">Description</th>
+                  <th className="p-2 text-right">Montant</th>
+                </tr>
+              </thead>
               <tbody>
                 {payrollReport.entries.map((e, i) => (
-                  <tr key={i} className="border-t"><td className="p-2">{new Date(e.transaction_date).toLocaleDateString('fr-FR')}</td><td className="p-2">{e.description || '-'}</td><td className="p-2 text-right">{e.amount.toLocaleString()} Ar</td></tr>
+                  <tr key={i} className="border-t">
+                    <td className="p-2">
+                      {new Date(e.transaction_date).toLocaleDateString('fr-FR')}
+                    </td>
+                    <td className="p-2">{e.description || '-'}</td>
+                    <td className="p-2 text-right">{e.amount.toLocaleString()} Ar</td>
+                  </tr>
                 ))}
               </tbody>
             </table>
@@ -219,23 +287,37 @@ export default function ReportsPage() {
       {/* Tuition Report */}
       {tuitionReport && (
         <div className="mb-6 p-4 bg-white rounded-lg border shadow-sm">
-          <h3 className="text-lg font-semibold mb-4">
-            État Écolage — {schoolYear}
-          </h3>
+          <h3 className="text-lg font-semibold mb-4">État Écolage — {schoolYear}</h3>
           <div className="p-3 bg-orange-50 rounded mb-4">
             <p className="text-sm text-gray-600">Total paiements écolage</p>
-            <p className="text-xl font-bold text-orange-700">{(tuitionReport.total_payments as number) || 0} paiements</p>
+            <p className="text-xl font-bold text-orange-700">
+              {(tuitionReport.total_payments as number) || 0} paiements
+            </p>
           </div>
-          {Boolean(tuitionReport.by_class) && Object.keys(tuitionReport.by_class as Record<string, { total: number; count: number }>).length > 0 && (
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50"><tr><th className="p-2 text-left">Classe</th><th className="p-2 text-right">Nb paiements</th><th className="p-2 text-right">Total</th></tr></thead>
-              <tbody>
-                {Object.entries(tuitionReport.by_class as Record<string, { total: number; count: number }>).map(([cls, data], i) => (
-                  <tr key={i} className="border-t"><td className="p-2">{cls}</td><td className="p-2 text-right">{data.count}</td><td className="p-2 text-right">{data.total.toLocaleString()} Ar</td></tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          {Boolean(tuitionReport.by_class) &&
+            Object.keys(tuitionReport.by_class as Record<string, { total: number; count: number }>)
+              .length > 0 && (
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="p-2 text-left">Classe</th>
+                    <th className="p-2 text-right">Nb paiements</th>
+                    <th className="p-2 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(
+                    tuitionReport.by_class as Record<string, { total: number; count: number }>
+                  ).map(([cls, data], i) => (
+                    <tr key={i} className="border-t">
+                      <td className="p-2">{cls}</td>
+                      <td className="p-2 text-right">{data.count}</td>
+                      <td className="p-2 text-right">{data.total.toLocaleString()} Ar</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
         </div>
       )}
     </div>

@@ -1,6 +1,7 @@
 export interface FinancePrices {
   tuition: Record<string, number>
   classes: string[]
+  fram: number
   registration: number
   reenrollment: number
   canteen: {
@@ -48,6 +49,7 @@ export const defaultPrices: FinancePrices = {
     'Première',
     'Terminale'
   ],
+  fram: 15000,
   registration: 20000,
   reenrollment: 10000,
   canteen: {

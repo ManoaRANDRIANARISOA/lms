@@ -44,7 +44,7 @@ lms/
 │   │   │   ├── session.service.ts # Session lifecycle & timeout
 │   │   │   └── audit.service.ts   # Audit log management
 │   │   ├── database/              # Database Layer
-│   │   │   ├── db.ts              # SQLite initialization & migrations (001-021)
+│   │   │   ├── db.ts              # SQLite initialization & migrations (001-027)
 │   │   │   ├── migrations/        # SQL migration files
 │   │   │   └── repositories/      # Data access layer
 │   │   │       ├── student.repository.ts
@@ -194,7 +194,7 @@ lms/
 
 #### db.ts
 - Initializes better-sqlite3 with WAL journal mode
-- Runs 21 migrations sequentially
+- Runs 28 migrations sequentially
 - Schema healing mechanism (`ensureDeletedColumn`)
 - Soft-delete on startup for corrupted records
 

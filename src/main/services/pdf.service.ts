@@ -42,7 +42,11 @@ function addHeader(doc: jsPDF, title: string): number {
 function addFooter(doc: jsPDF, pageNumber: number): void {
   doc.setFontSize(8)
   doc.setFont('helvetica', 'normal')
-  doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`, 20, 285)
+  doc.text(
+    `Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`,
+    20,
+    285
+  )
   doc.text(`Page ${pageNumber}`, 190, 285, { align: 'right' })
 }
 
@@ -127,7 +131,7 @@ export class PdfService {
 
       // Add Logo and header
       try {
-        const logoPath = isDev 
+        const logoPath = isDev
           ? path.join(process.cwd(), 'resources', 'logo.png')
           : path.join(process.resourcesPath, 'logo.png')
         if (fs.existsSync(logoPath)) {
@@ -149,7 +153,7 @@ export class PdfService {
       doc.setFontSize(16)
       doc.setFont('helvetica', 'bold')
       doc.text('CERTIFICAT DE SCOLARITE', 105, y, { align: 'center' })
-      
+
       doc.setLineWidth(0.5)
       doc.line(60, y + 2, 150, y + 2)
 
@@ -157,16 +161,21 @@ export class PdfService {
       doc.setFontSize(12)
       doc.setFont('helvetica', 'normal')
 
-      const text1 = 'Je soussignée, RAZAFINTSEHENO Anjarasoa Christine, Directrice du Lycée Privé MANJARY SOA sise à Miadana Alasora, certifie que :'
+      const text1 =
+        'Je soussignée, RAZAFINTSEHENO Anjarasoa Christine, Directrice du Lycée Privé MANJARY SOA sise à Miadana Alasora, certifie que :'
       const splitText1 = doc.splitTextToSize(text1, 170)
       doc.text(splitText1, 20, y)
       y += splitText1.length * 7 + 10
 
       doc.text(`L'élève : ${studentData.last_name} ${studentData.first_name}`, 20, y)
       y += 10
-      doc.text(`Né(e) le : ${studentData.date_of_birth || '.......................'} à ${studentData.place_of_birth || '.......................'}`, 20, y)
+      doc.text(
+        `Né(e) le : ${studentData.date_of_birth || '.......................'} à ${studentData.place_of_birth || '.......................'}`,
+        20,
+        y
+      )
       y += 10
-      
+
       const text2 = `Est inscrit(e) dans mon établissement en classe de ${studentData.class_name} durant l'année scolaire ${studentData.school_year}.`
       const splitText2 = doc.splitTextToSize(text2, 170)
       doc.text(splitText2, 20, y)
@@ -203,24 +212,37 @@ export class PdfService {
     total_income: number
     total_expense: number
     balance: number
-    entries: Array<{ type: string; department: string; category: string; amount: number; description?: string }>
+    entries: Array<{
+      type: string
+      department: string
+      category: string
+      amount: number
+      description?: string
+    }>
   }): { success: boolean; filePath?: string; error?: string } {
     try {
       const doc = new jsPDF()
-      let y = addHeader(doc, `BILAN JOURNALIER — ${new Date(reportData.date).toLocaleDateString('fr-FR')}`)
+      let y = addHeader(
+        doc,
+        `BILAN JOURNALIER — ${new Date(reportData.date).toLocaleDateString('fr-FR')}`
+      )
 
       doc.setFontSize(11)
       doc.setFont('helvetica', 'bold')
       doc.text('Résumé :', 20, y)
       y += 8
       doc.setFont('helvetica', 'normal')
-      doc.text(`Recettes : ${reportData.total_income.toLocaleString()} Ar`, 20, y); y += 7
-      doc.text(`Dépenses : ${reportData.total_expense.toLocaleString()} Ar`, 20, y); y += 7
+      doc.text(`Recettes : ${reportData.total_income.toLocaleString()} Ar`, 20, y)
+      y += 7
+      doc.text(`Dépenses : ${reportData.total_expense.toLocaleString()} Ar`, 20, y)
+      y += 7
       doc.setFont('helvetica', 'bold')
-      doc.text(`Solde : ${reportData.balance.toLocaleString()} Ar`, 20, y); y += 12
+      doc.text(`Solde : ${reportData.balance.toLocaleString()} Ar`, 20, y)
+      y += 12
 
       doc.setFont('helvetica', 'bold')
-      doc.text('Détail des entrées :', 20, y); y += 8
+      doc.text('Détail des entrées :', 20, y)
+      y += 8
       doc.setFont('helvetica', 'normal')
 
       let pageNum = 1
@@ -236,7 +258,11 @@ export class PdfService {
           }
           const prefix = entry.type === 'income' ? '+' : '-'
           const dept = entry.department === 'bus' ? 'Bus' : 'École'
-          doc.text(`${prefix} ${entry.amount.toLocaleString()} Ar — [${dept}] ${entry.category}${entry.description ? ' — ' + entry.description : ''}`, 20, y)
+          doc.text(
+            `${prefix} ${entry.amount.toLocaleString()} Ar — [${dept}] ${entry.category}${entry.description ? ' — ' + entry.description : ''}`,
+            20,
+            y
+          )
           y += 7
         })
       }
@@ -257,24 +283,33 @@ export class PdfService {
   /**
    * Generate a report card (placeholder — template to be customized)
    */
-  static generateReportCard(studentData: {
-    first_name: string
-    last_name: string
-    class_name: string
-    school_year: string
-    term: number
-    termName?: string
-  }, grades: Array<{ subject: string; grade: number; coefficient: number; average: number }>, generalAverage: number): { success: boolean; filePath?: string; error?: string } {
+  static generateReportCard(
+    studentData: {
+      first_name: string
+      last_name: string
+      class_name: string
+      school_year: string
+      term: number
+      termName?: string
+    },
+    grades: Array<{ subject: string; grade: number; coefficient: number; average: number }>,
+    generalAverage: number
+  ): { success: boolean; filePath?: string; error?: string } {
     try {
       const doc = new jsPDF()
-      const title = studentData.termName ? `BULLETIN DE NOTES — ${studentData.termName}` : `BULLETIN DE NOTES — Trimestre ${studentData.term}`
+      const title = studentData.termName
+        ? `BULLETIN DE NOTES — ${studentData.termName}`
+        : `BULLETIN DE NOTES — Trimestre ${studentData.term}`
       let y = addHeader(doc, title)
 
       doc.setFontSize(11)
       doc.setFont('helvetica', 'normal')
-      doc.text(`Élève : ${studentData.last_name} ${studentData.first_name}`, 20, y); y += 7
-      doc.text(`Classe : ${studentData.class_name}`, 20, y); y += 7
-      doc.text(`Année : ${studentData.school_year}`, 20, y); y += 12
+      doc.text(`Élève : ${studentData.last_name} ${studentData.first_name}`, 20, y)
+      y += 7
+      doc.text(`Classe : ${studentData.class_name}`, 20, y)
+      y += 7
+      doc.text(`Année : ${studentData.school_year}`, 20, y)
+      y += 12
 
       // Table header
       doc.setFont('helvetica', 'bold')
@@ -310,7 +345,9 @@ export class PdfService {
 
       addFooter(doc, pageNum)
 
-      const termSuffix = studentData.termName ? sanitizeFilename(studentData.termName) : `T${studentData.term}`
+      const termSuffix = studentData.termName
+        ? sanitizeFilename(studentData.termName)
+        : `T${studentData.term}`
       const filename = `bulletin_${sanitizeFilename(studentData.last_name)}_${sanitizeFilename(studentData.first_name)}_${termSuffix}.pdf`
       const filePath = path.join(getOutputDir(), filename)
       doc.save(filePath)
@@ -325,42 +362,54 @@ export class PdfService {
   /**
    * Generate a payslip (placeholder — template to be customized)
    */
-  static generatePayslip(personnelData: {
-    first_name: string
-    last_name: string
-    position: string
-    month: string
-  }, salaryCalc: {
-    gross_salary: number
-    cnaps: number
-    ostie: number
-    irsa: number
-    total_deductions: number
-    net_salary: number
-    details?: Record<string, unknown>
-  }): { success: boolean; filePath?: string; error?: string } {
+  static generatePayslip(
+    personnelData: {
+      first_name: string
+      last_name: string
+      position: string
+      month: string
+    },
+    salaryCalc: {
+      gross_salary: number
+      cnaps: number
+      ostie: number
+      irsa: number
+      total_deductions: number
+      net_salary: number
+      details?: Record<string, unknown>
+    }
+  ): { success: boolean; filePath?: string; error?: string } {
     try {
       const doc = new jsPDF()
       let y = addHeader(doc, `FICHE DE PAIE — ${personnelData.month}`)
 
       doc.setFontSize(11)
       doc.setFont('helvetica', 'normal')
-      doc.text(`Salarié : ${personnelData.last_name} ${personnelData.first_name}`, 20, y); y += 7
-      doc.text(`Poste : ${personnelData.position}`, 20, y); y += 7
-      doc.text(`Mois : ${personnelData.month}`, 20, y); y += 12
+      doc.text(`Salarié : ${personnelData.last_name} ${personnelData.first_name}`, 20, y)
+      y += 7
+      doc.text(`Poste : ${personnelData.position}`, 20, y)
+      y += 7
+      doc.text(`Mois : ${personnelData.month}`, 20, y)
+      y += 12
 
       doc.setFont('helvetica', 'bold')
-      doc.text('Éléments de salaire :', 20, y); y += 8
+      doc.text('Éléments de salaire :', 20, y)
+      y += 8
       doc.setFont('helvetica', 'normal')
-      doc.text(`Salaire brut : ${salaryCalc.gross_salary.toLocaleString()} Ar`, 25, y); y += 7
-      doc.text(`CNAPS : -${salaryCalc.cnaps.toLocaleString()} Ar`, 25, y); y += 7
-      doc.text(`OSTIE : -${salaryCalc.ostie.toLocaleString()} Ar`, 25, y); y += 7
-      doc.text(`IRSA : -${salaryCalc.irsa.toLocaleString()} Ar`, 25, y); y += 7
+      doc.text(`Salaire brut : ${salaryCalc.gross_salary.toLocaleString()} Ar`, 25, y)
+      y += 7
+      doc.text(`CNAPS : -${salaryCalc.cnaps.toLocaleString()} Ar`, 25, y)
+      y += 7
+      doc.text(`OSTIE : -${salaryCalc.ostie.toLocaleString()} Ar`, 25, y)
+      y += 7
+      doc.text(`IRSA : -${salaryCalc.irsa.toLocaleString()} Ar`, 25, y)
+      y += 7
 
       doc.line(20, y, 100, y)
       y += 7
       doc.setFont('helvetica', 'bold')
-      doc.text(`Total déductions : -${salaryCalc.total_deductions.toLocaleString()} Ar`, 25, y); y += 10
+      doc.text(`Total déductions : -${salaryCalc.total_deductions.toLocaleString()} Ar`, 25, y)
+      y += 10
       doc.setFontSize(13)
       doc.text(`Salaire net : ${salaryCalc.net_salary.toLocaleString()} Ar`, 20, y)
 

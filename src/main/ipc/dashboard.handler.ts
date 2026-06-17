@@ -31,66 +31,130 @@ export function registerDashboardHandlers(): void {
       const today = new Date().toISOString().split('T')[0]
 
       // 1. Élèves
-      const totalRegistered = (db.prepare('SELECT COUNT(*) as count FROM students WHERE deleted = 0').get() as { count: number }).count
-      const totalEnrolled = (db.prepare(`
+      const totalRegistered = (
+        db.prepare('SELECT COUNT(*) as count FROM students WHERE deleted = 0').get() as {
+          count: number
+        }
+      ).count
+      const totalEnrolled = (
+        db
+          .prepare(
+            `
         SELECT COUNT(*) as count FROM students 
         WHERE deleted = 0 AND class IS NOT NULL AND class != 'Non inscrit' AND class != 'Classe non spécifiée'
-      `).get() as { count: number }).count
-      
-      const newStudentsThisMonth = (db.prepare(`
+      `
+          )
+          .get() as { count: number }
+      ).count
+
+      const newStudentsThisMonth = (
+        db
+          .prepare(
+            `
         SELECT COUNT(*) as count FROM students 
         WHERE enrollment_date >= date('now', 'start of month') AND deleted = 0
-      `).get() as { count: number }).count
+      `
+          )
+          .get() as { count: number }
+      ).count
 
-      const studentsByClass = db.prepare(`
+      const studentsByClass = db
+        .prepare(
+          `
         SELECT class, COUNT(*) as count FROM students 
         WHERE deleted = 0 AND class != 'Non inscrit' AND class != 'Classe non spécifiée'
         GROUP BY class ORDER BY count DESC
-      `).all() as { class: string; count: number }[]
+      `
+        )
+        .all() as { class: string; count: number }[]
 
       // 2. Paiements (élèves)
-      const todayPayments = (db.prepare(`
+      const todayPayments = (
+        db
+          .prepare(
+            `
         SELECT COALESCE(SUM(amount), 0) as total FROM student_payments 
         WHERE payment_date = ? AND deleted = 0
-      `).get(today) as { total: number }).total
+      `
+          )
+          .get(today) as { total: number }
+      ).total
 
-      const weekPayments = (db.prepare(`
+      const weekPayments = (
+        db
+          .prepare(
+            `
         SELECT COALESCE(SUM(amount), 0) as total FROM student_payments 
         WHERE payment_date >= date('now', '-7 days') AND deleted = 0
-      `).get() as { total: number }).total
+      `
+          )
+          .get() as { total: number }
+      ).total
 
-      const monthPayments = (db.prepare(`
+      const monthPayments = (
+        db
+          .prepare(
+            `
         SELECT COALESCE(SUM(amount), 0) as total FROM student_payments 
         WHERE payment_date >= date('now', 'start of month') AND deleted = 0
-      `).get() as { total: number }).total
+      `
+          )
+          .get() as { total: number }
+      ).total
 
-      const totalPaymentsAllTime = (db.prepare(`
+      const totalPaymentsAllTime = (
+        db
+          .prepare(
+            `
         SELECT COALESCE(SUM(amount), 0) as total FROM student_payments WHERE deleted = 0
-      `).get() as { total: number }).total
+      `
+          )
+          .get() as { total: number }
+      ).total
 
       // 3. Impayés — depuis la source centralisée PaymentRepository.getUnpaidAlerts
       const schoolYearSetting = SettingsRepository.get('school_year') as string
-      const targetYear = schoolYearSetting?.replace(/['"]/g, '').trim() || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`
+      const targetYear =
+        schoolYearSetting?.replace(/['"]/g, '').trim() ||
+        `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`
       const unpaidResult = PaymentRepository.getUnpaidAlerts(targetYear)
-      const unpaidAlerts = (unpaidResult.success && unpaidResult.alerts ? unpaidResult.alerts : []) as Array<{ total_due: number }>
+      const unpaidAlerts = (
+        unpaidResult.success && unpaidResult.alerts ? unpaidResult.alerts : []
+      ) as Array<{ total_due: number }>
       const totalUnpaid = unpaidAlerts.reduce((sum: number, a) => sum + (a.total_due || 0), 0)
       const unpaidCount = unpaidAlerts.length
       const expectedResult = PaymentRepository.getExpectedRevenue(targetYear)
       const totalDue = (expectedResult.success ? expectedResult.expected : 0) || 0
 
       // 4. Personnel
-      const personnelCount = (db.prepare('SELECT COUNT(*) as count FROM personnel WHERE deleted = 0').get() as { count: number }).count
+      const personnelCount = (
+        db.prepare('SELECT COUNT(*) as count FROM personnel WHERE deleted = 0').get() as {
+          count: number
+        }
+      ).count
 
       // 5. Événements à venir
-      const upcomingEvents = db.prepare(`
+      const upcomingEvents = db
+        .prepare(
+          `
         SELECT id, name, event_date, amount_per_parent, status
         FROM parent_events 
         WHERE event_date >= date('now') AND deleted = 0 AND status != 'completed'
         ORDER BY event_date ASC LIMIT 5
-      `).all() as { id: string; name: string; event_date: string; amount_per_parent: number; status: string }[]
+      `
+        )
+        .all() as {
+        id: string
+        name: string
+        event_date: string
+        amount_per_parent: number
+        status: string
+      }[]
 
       // 6. Activité récente — derniers paiements
-      const recentPayments = db.prepare(`
+      const recentPayments = db
+        .prepare(
+          `
         SELECT sp.id, sp.amount, sp.payment_date, sp.payment_type, 
                s.first_name, s.last_name, s.class
         FROM student_payments sp
@@ -98,31 +162,50 @@ export function registerDashboardHandlers(): void {
         WHERE sp.deleted = 0
         ORDER BY sp.created_at DESC
         LIMIT 10
-      `).all() as {
-        id: string; amount: number; payment_date: string; payment_type: string;
-        first_name: string; last_name: string; class: string
+      `
+        )
+        .all() as {
+        id: string
+        amount: number
+        payment_date: string
+        payment_type: string
+        first_name: string
+        last_name: string
+        class: string
       }[]
 
       // 7. Dernières inscriptions
-      const recentEnrollments = db.prepare(`
+      const recentEnrollments = db
+        .prepare(
+          `
         SELECT id, first_name, last_name, class, enrollment_date, created_at
         FROM students WHERE deleted = 0
         ORDER BY created_at DESC
         LIMIT 5
-      `).all() as {
-        id: string; first_name: string; last_name: string; class: string;
-        enrollment_date: string; created_at: string
+      `
+        )
+        .all() as {
+        id: string
+        first_name: string
+        last_name: string
+        class: string
+        enrollment_date: string
+        created_at: string
       }[]
 
       // 8. Tendance financière (30 derniers jours)
-      const paymentTrend = db.prepare(`
+      const paymentTrend = db
+        .prepare(
+          `
         SELECT transaction_date as date, 
                COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END), 0) as total
         FROM cash_journal
         WHERE transaction_date >= date('now', '-30 days') AND deleted = 0
         GROUP BY transaction_date
         ORDER BY transaction_date ASC
-      `).all() as { date: string; total: number }[]
+      `
+        )
+        .all() as { date: string; total: number }[]
 
       return {
         success: true,

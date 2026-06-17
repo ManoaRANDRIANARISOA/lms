@@ -93,7 +93,8 @@ export default function UserManagementPage(): React.JSX.Element {
   }
 
   const handleDeactivate = async (user: UserRow) => {
-    if (!confirm(`Désactiver l'utilisateur "${user.username}" ? Cette action est irréversible.`)) return
+    if (!confirm(`Désactiver l'utilisateur "${user.username}" ? Cette action est irréversible.`))
+      return
     try {
       const result = await window.api.auth.deactivateUser(user.id)
       if (result.success) {
@@ -150,19 +151,33 @@ export default function UserManagementPage(): React.JSX.Element {
               {users.map((user) => (
                 <tr key={user.id} className="hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3 text-sm font-medium">{user.username}</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">{user.full_name || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground">
+                    {user.full_name || '—'}
+                  </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[user.role as UserRole] || 'bg-gray-100 text-gray-800'}`}>
+                    <span
+                      className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[user.role as UserRole] || 'bg-gray-100 text-gray-800'}`}
+                    >
                       {ROLE_LABELS[user.role as UserRole] || user.role}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${user.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                    <span
+                      className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${user.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}
+                    >
                       {user.active ? 'Actif' : 'Inactif'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">
-                    {user.last_login ? new Date(user.last_login).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Jamais'}
+                    {user.last_login
+                      ? new Date(user.last_login).toLocaleDateString('fr-FR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      : 'Jamais'}
                   </td>
                   <td className="px-4 py-3 text-right">
                     {canWrite('users') && (
@@ -240,7 +255,7 @@ function UserFormModal({ mode, user, onClose, onSaved }: UserFormModalProps) {
   const [username, setUsername] = useState(user?.username || '')
   const [fullName, setFullName] = useState(user?.full_name || '')
   const [email, setEmail] = useState(user?.email || '')
-  const [role, setRole] = useState<UserRole>(user?.role as UserRole || 'secretariat')
+  const [role, setRole] = useState<UserRole>((user?.role as UserRole) || 'secretariat')
   const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -290,7 +305,7 @@ function UserFormModal({ mode, user, onClose, onSaved }: UserFormModalProps) {
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-card rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
         <h2 className="text-lg font-semibold mb-4">
-          {mode === 'create' ? 'Nouvel utilisateur' : 'Modifier l\'utilisateur'}
+          {mode === 'create' ? 'Nouvel utilisateur' : "Modifier l'utilisateur"}
         </h2>
 
         {error && (
@@ -314,7 +329,9 @@ function UserFormModal({ mode, user, onClose, onSaved }: UserFormModalProps) {
 
           {mode === 'create' && (
             <div>
-              <label className="block text-sm font-medium mb-1">Mot de passe * (min. 8 caractères)</label>
+              <label className="block text-sm font-medium mb-1">
+                Mot de passe * (min. 8 caractères)
+              </label>
               <input
                 type="password"
                 value={password}
@@ -441,7 +458,9 @@ function ResetPasswordModal({ user, onClose, onReset }: ResetPasswordModalProps)
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Nouveau mot de passe * (min. 8 caractères)</label>
+                <label className="block text-sm font-medium mb-1">
+                  Nouveau mot de passe * (min. 8 caractères)
+                </label>
                 <input
                   type="password"
                   value={newPassword}

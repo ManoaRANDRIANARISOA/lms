@@ -13,18 +13,59 @@ import { usePersonnelStore } from '@/store/usePersonnelStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ChevronLeft, ChevronRight, Clock, CheckCircle, XCircle, AlertCircle, Coffee, Briefcase } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Coffee,
+  Briefcase
+} from 'lucide-react'
 
 const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
-const FULL_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const FULL_DAY_NAMES = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday'
+]
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  present: { label: 'Présent', color: 'bg-green-100 text-green-700 border-green-300', icon: <CheckCircle className="w-3 h-3" /> },
-  absent: { label: 'Absent', color: 'bg-red-100 text-red-700 border-red-300', icon: <XCircle className="w-3 h-3" /> },
-  late: { label: 'En retard', color: 'bg-yellow-100 text-yellow-700 border-yellow-300', icon: <AlertCircle className="w-3 h-3" /> },
-  half_day: { label: 'Demi-journée', color: 'bg-orange-100 text-orange-700 border-orange-300', icon: <Coffee className="w-3 h-3" /> },
-  excused: { label: 'Abs. justifiée', color: 'bg-blue-100 text-blue-700 border-blue-300', icon: <AlertCircle className="w-3 h-3" /> },
-  paid_leave: { label: 'Congé payé', color: 'bg-purple-100 text-purple-700 border-purple-300', icon: <Briefcase className="w-3 h-3" /> },
+  present: {
+    label: 'Présent',
+    color: 'bg-green-100 text-green-700 border-green-300',
+    icon: <CheckCircle className="w-3 h-3" />
+  },
+  absent: {
+    label: 'Absent',
+    color: 'bg-red-100 text-red-700 border-red-300',
+    icon: <XCircle className="w-3 h-3" />
+  },
+  late: {
+    label: 'En retard',
+    color: 'bg-yellow-100 text-yellow-700 border-yellow-300',
+    icon: <AlertCircle className="w-3 h-3" />
+  },
+  half_day: {
+    label: 'Demi-journée',
+    color: 'bg-orange-100 text-orange-700 border-orange-300',
+    icon: <Coffee className="w-3 h-3" />
+  },
+  excused: {
+    label: 'Abs. justifiée',
+    color: 'bg-blue-100 text-blue-700 border-blue-300',
+    icon: <AlertCircle className="w-3 h-3" />
+  },
+  paid_leave: {
+    label: 'Congé payé',
+    color: 'bg-purple-100 text-purple-700 border-purple-300',
+    icon: <Briefcase className="w-3 h-3" />
+  }
 }
 
 interface AttendanceCalendarProps {
@@ -46,15 +87,16 @@ export default function AttendanceCalendar({
   workDays,
   canWrite
 }: AttendanceCalendarProps): React.JSX.Element {
-  const { dailyAttendance, fetchMonthlyAttendance, setAttendance, deleteAttendance } = usePersonnelStore()
+  const { dailyAttendance, fetchMonthlyAttendance, setAttendance, deleteAttendance } =
+    usePersonnelStore()
 
   const today = new Date()
   const [currentYear, setCurrentYear] = useState(today.getFullYear())
   const [currentMonth, setCurrentMonth] = useState(today.getMonth() + 1)
-  
+
   const [selectedDates, setSelectedDates] = useState<string[]>([])
   const [showModal, setShowModal] = useState(false)
-  
+
   const [modalStatus, setModalStatus] = useState('present')
   const [modalHours, setModalHours] = useState('')
   const [modalNotes, setModalNotes] = useState('')
@@ -85,7 +127,10 @@ export default function AttendanceCalendar({
     if (salaryType === 'monthly' && expectedMonthlyHours) return expectedMonthlyHours
     if (workPattern === 'monthly' || workPattern === 'custom') return expectedMonthlyHours || 160
 
-    const wd = (workDays && workDays.length > 0) ? workDays : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+    const wd =
+      workDays && workDays.length > 0
+        ? workDays
+        : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
     const dh = dailyHours || 8
     let count = 0
     for (let day = 1; day <= daysInMonth; day++) {
@@ -93,12 +138,21 @@ export default function AttendanceCalendar({
       if (wd.includes(FULL_DAY_NAMES[d.getDay()])) count++
     }
     return count * dh
-  }, [salaryType, expectedMonthlyHours, workPattern, workDays, dailyHours, daysInMonth, currentYear, currentMonth])
+  }, [
+    salaryType,
+    expectedMonthlyHours,
+    workPattern,
+    workDays,
+    dailyHours,
+    daysInMonth,
+    currentYear,
+    currentMonth
+  ])
 
   const totalAbsentHours = useMemo(() => {
     return dailyAttendance.reduce((sum, a) => {
       const expectedForDay = a.expected_hours || dailyHours || 8
-      const workedForDay = a.status === 'paid_leave' ? expectedForDay : (a.hours_worked || 0)
+      const workedForDay = a.status === 'paid_leave' ? expectedForDay : a.hours_worked || 0
       if (workedForDay < expectedForDay) {
         return sum + (expectedForDay - workedForDay)
       }
@@ -108,16 +162,24 @@ export default function AttendanceCalendar({
 
   const effectiveMonthlyHours = Math.max(0, expectedHoursForMonth - totalAbsentHours)
 
-  const progressPct = expectedHoursForMonth > 0 
-    ? Math.min(100, Math.round(((salaryType === 'monthly' ? effectiveMonthlyHours : totalHoursWorked) / expectedHoursForMonth) * 100)) 
-    : 0
+  const progressPct =
+    expectedHoursForMonth > 0
+      ? Math.min(
+          100,
+          Math.round(
+            ((salaryType === 'monthly' ? effectiveMonthlyHours : totalHoursWorked) /
+              expectedHoursForMonth) *
+              100
+          )
+        )
+      : 0
 
   const toggleDate = (dateStr: string) => {
     if (!canWrite) return
     if (selectedDates.includes(dateStr)) {
-      setSelectedDates(prev => prev.filter(d => d !== dateStr))
+      setSelectedDates((prev) => prev.filter((d) => d !== dateStr))
     } else {
-      setSelectedDates(prev => [...prev, dateStr])
+      setSelectedDates((prev) => [...prev, dateStr])
     }
   }
 
@@ -151,59 +213,87 @@ export default function AttendanceCalendar({
     if (modalStatus === 'absent') hours = 0
     if (modalStatus === 'paid_leave') hours = dh
 
-    await Promise.all(selectedDates.map(dateStr => 
-      setAttendance({
-        personnel_id: personnelId,
-        attendance_date: dateStr,
-        status: modalStatus as 'present' | 'absent' | 'late' | 'half_day' | 'excused' | 'paid_leave',
-        hours_worked: hours,
-        expected_hours: dh,
-        notes: modalNotes || undefined
-      })
-    ))
+    await Promise.all(
+      selectedDates.map((dateStr) =>
+        setAttendance({
+          personnel_id: personnelId,
+          attendance_date: dateStr,
+          status: modalStatus as
+            | 'present'
+            | 'absent'
+            | 'late'
+            | 'half_day'
+            | 'excused'
+            | 'paid_leave',
+          hours_worked: hours,
+          expected_hours: dh,
+          notes: modalNotes || undefined
+        })
+      )
+    )
     closeModal()
   }
 
   const handleDelete = async () => {
     if (selectedDates.length === 0) return
-    await Promise.all(selectedDates.map(async (dateStr) => {
-      const existing = attendanceMap[dateStr]
-      if (existing?.id) {
-        await deleteAttendance(existing.id)
-      }
-    }))
+    await Promise.all(
+      selectedDates.map(async (dateStr) => {
+        const existing = attendanceMap[dateStr]
+        if (existing?.id) {
+          await deleteAttendance(existing.id)
+        }
+      })
+    )
     closeModal()
   }
 
   const prevMonth = () => {
-    if (currentMonth === 1) { setCurrentMonth(12); setCurrentYear(y => y - 1) }
-    else setCurrentMonth(m => m - 1)
+    if (currentMonth === 1) {
+      setCurrentMonth(12)
+      setCurrentYear((y) => y - 1)
+    } else setCurrentMonth((m) => m - 1)
   }
   const nextMonth = () => {
-    if (currentMonth === 12) { setCurrentMonth(1); setCurrentYear(y => y + 1) }
-    else setCurrentMonth(m => m + 1)
+    if (currentMonth === 12) {
+      setCurrentMonth(1)
+      setCurrentYear((y) => y + 1)
+    } else setCurrentMonth((m) => m + 1)
   }
 
-  const monthLabel = new Date(currentYear, currentMonth - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+  const monthLabel = new Date(currentYear, currentMonth - 1, 1).toLocaleDateString('fr-FR', {
+    month: 'long',
+    year: 'numeric'
+  })
 
   return (
     <div className="space-y-4">
       {/* Header mois + navigation */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={prevMonth}><ChevronLeft className="w-4 h-4" /></Button>
+          <Button variant="outline" size="sm" onClick={prevMonth}>
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
           <span className="font-semibold capitalize min-w-[140px] text-center">{monthLabel}</span>
-          <Button variant="outline" size="sm" onClick={nextMonth}><ChevronRight className="w-4 h-4" /></Button>
+          <Button variant="outline" size="sm" onClick={nextMonth}>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
         </div>
         <div className="flex items-center gap-4">
           {selectedDates.length > 0 && (
-            <Button size="sm" onClick={openModal} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Button
+              size="sm"
+              onClick={openModal}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
               Définir {selectedDates.length} jour(s)...
             </Button>
           )}
           <div className="text-sm text-gray-500 flex items-center gap-1">
             <Clock className="w-4 h-4" />
-            {salaryType === 'monthly' ? effectiveMonthlyHours.toFixed(1) : totalHoursWorked.toFixed(1)}h / {expectedHoursForMonth.toFixed(1)}h
+            {salaryType === 'monthly'
+              ? effectiveMonthlyHours.toFixed(1)
+              : totalHoursWorked.toFixed(1)}
+            h / {expectedHoursForMonth.toFixed(1)}h
           </div>
         </div>
       </div>
@@ -216,7 +306,10 @@ export default function AttendanceCalendar({
             <span className="text-blue-800">{progressPct}%</span>
           </div>
           <div className="w-full bg-blue-200 rounded-full h-2.5">
-            <div className="bg-blue-600 h-2.5 rounded-full transition-all" style={{ width: `${progressPct}%` }} />
+            <div
+              className="bg-blue-600 h-2.5 rounded-full transition-all"
+              style={{ width: `${progressPct}%` }}
+            />
           </div>
           <p className="text-xs text-blue-700 mt-1">
             {totalAbsentHours > 0
@@ -229,7 +322,10 @@ export default function AttendanceCalendar({
       {/* Légende */}
       <div className="flex flex-wrap gap-2 text-xs">
         {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-          <div key={key} className={`flex items-center gap-1 px-2 py-1 rounded border ${cfg.color}`}>
+          <div
+            key={key}
+            className={`flex items-center gap-1 px-2 py-1 rounded border ${cfg.color}`}
+          >
             {cfg.icon}
             <span>{cfg.label}</span>
           </div>
@@ -238,8 +334,10 @@ export default function AttendanceCalendar({
 
       {/* Grille calendrier */}
       <div className="grid grid-cols-7 gap-1 text-center text-sm">
-        {DAY_NAMES.map(d => (
-          <div key={d} className="font-semibold text-gray-500 py-1">{d}</div>
+        {DAY_NAMES.map((d) => (
+          <div key={d} className="font-semibold text-gray-500 py-1">
+            {d}
+          </div>
         ))}
         {Array.from({ length: firstDayOfWeek }, (_, i) => (
           <div key={`empty-${i}`} className="h-20" />
@@ -280,7 +378,9 @@ export default function AttendanceCalendar({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6 space-y-4">
             <h3 className="text-lg font-semibold">Déclarer pour {selectedDates.length} jour(s)</h3>
-            <p className="text-xs text-gray-500">{selectedDates.map(d => new Date(d).toLocaleDateString('fr-FR')).join(', ')}</p>
+            <p className="text-xs text-gray-500">
+              {selectedDates.map((d) => new Date(d).toLocaleDateString('fr-FR')).join(', ')}
+            </p>
 
             <div>
               <Label>Statut</Label>
@@ -311,20 +411,28 @@ export default function AttendanceCalendar({
                 placeholder={`ex: ${dailyHours || 8}`}
               />
               <p className="text-xs text-gray-500 mt-1">
-                Pré-rempli selon le statut. Vous pouvez l'ajuster (ex: demi-journée = {((dailyHours || 8) / 2).toFixed(1)}h).
+                Pré-rempli selon le statut. Vous pouvez l'ajuster (ex: demi-journée ={' '}
+                {((dailyHours || 8) / 2).toFixed(1)}h).
               </p>
             </div>
 
             <div>
               <Label htmlFor="modalNotes">Notes / Motif</Label>
-              <Input id="modalNotes" value={modalNotes} onChange={(e) => setModalNotes(e.target.value)} placeholder="Observation, motif de l'absence..." />
+              <Input
+                id="modalNotes"
+                value={modalNotes}
+                onChange={(e) => setModalNotes(e.target.value)}
+                placeholder="Observation, motif de l'absence..."
+              />
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="destructive" onClick={handleDelete}>
                 Supprimer existants
               </Button>
-              <Button variant="outline" onClick={closeModal}>Annuler</Button>
+              <Button variant="outline" onClick={closeModal}>
+                Annuler
+              </Button>
               <Button onClick={saveModal}>
                 <CheckCircle className="w-4 h-4 mr-1" />
                 Enregistrer

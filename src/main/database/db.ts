@@ -99,7 +99,12 @@ const runMigrations = () => {
     '020_fix_class_subjects_fk.sql',
     '021_repair_fees_from_payments.sql',
     '022_add_journalier_exam_grades.sql',
-    '025_add_assessments_table.sql'
+    '023_add_personnel_cnaps_amounts.sql',
+    '024_add_student_gender.sql',
+    '025_add_assessments_table.sql',
+    '026_add_uniform_items.sql',
+    '026_add_parent_personnel_id.sql',
+    '027_add_personnel_child.sql'
   ]
   migrations.forEach(applyMigration)
 }
@@ -145,7 +150,10 @@ ensureTableColumns('students', [
   'address',
   'photo_path',
   'siblings',
-  'email'
+  'email',
+  'gender',
+  'is_personnel_child',
+  'parent_personnel_id'
 ])
 
 ensureTableColumns('student_fees', [
@@ -185,15 +193,20 @@ ensureDeletedColumn('daily_attendance')
 // AUTO-CLEANUP: Soft-delete corrupted students (empty registration_number) on startup
 try {
   const deleted = db
-    .prepare(`
+    .prepare(
+      `
       UPDATE students 
       SET deleted = 1, sync_status = 'pending'
       WHERE (registration_number IS NULL OR registration_number = '')
       AND deleted = 0
-    `)
+    `
+    )
     .run()
   if (deleted.changes > 0) {
-    if (isDev) console.log(`Cleanup: Soft-deleted ${deleted.changes} invalid student records (missing matricule).`)
+    if (isDev)
+      console.log(
+        `Cleanup: Soft-deleted ${deleted.changes} invalid student records (missing matricule).`
+      )
   }
 } catch (e) {
   console.error('Cleanup error:', e)

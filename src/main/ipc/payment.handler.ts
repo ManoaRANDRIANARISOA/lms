@@ -29,7 +29,14 @@ export function registerPaymentHandlers(): void {
     }
     const result = PaymentRepository.create(payment)
     if (result.success && result.id) {
-      logAction(getCurrentUser()?.id || null, 'create', 'student_payments', result.id, null, JSON.stringify(payment))
+      logAction(
+        getCurrentUser()?.id || null,
+        'create',
+        'student_payments',
+        result.id,
+        null,
+        JSON.stringify(payment)
+      )
     }
     return result
   })
@@ -62,6 +69,16 @@ export function registerPaymentHandlers(): void {
       return { success: false, error: 'Accès refusé: lecture paiements' }
     }
     return PaymentRepository.getTuitionStatus(studentId, schoolYear)
+  })
+
+  // --------------------------------------------
+  // CHECK FRAM FRATRIE
+  // --------------------------------------------
+  ipcMain.handle('payment:checkFramFratrie', async (_, studentId, schoolYear) => {
+    if (!canRead('payments')) {
+      return { success: false, error: 'Accès refusé: lecture paiements' }
+    }
+    return PaymentRepository.checkFramFratrie(studentId, schoolYear)
   })
 
   // --------------------------------------------

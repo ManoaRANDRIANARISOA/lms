@@ -383,7 +383,7 @@ Nouvelle fonctionnalité = Repository + Handler + Preload + Store + Page
 | grades | grade.repository | grade.handler |
 | class_subjects | grade.repository | grade.handler |
 
-### Migrations (21 au total)
+### Migrations (28 au total)
 | # | Nom | Contenu |
 |---|-----|---------|
 | 001 | init.sql | Tables de base |
@@ -412,6 +412,9 @@ Nouvelle fonctionnalité = Repository + Handler + Preload + Store + Page
 | 024 | add_student_gender.sql | Ajout du genre M/F |
 | 025 | add_assessments_table.sql | Table des évaluations/trimestres |
 | 026 | add_uniform_items.sql | Uniformes dynamiques JSON |
+| 026 | add_parent_personnel_id.sql | Colonne parent_personnel_id pour les enfants du personnel |
+| 027 | add_personnel_child.sql | Identification des enfants du personnel (discount) |
+
 
 ---
 
@@ -443,14 +446,17 @@ La base SQLite contient déjà des données (élèves, paiements, etc.) synchron
 ## 9. CHECKLIST PRÉ-COMMIT
 
 Avant chaque livraison :
-- [ ] `npm run typecheck` passe sans erreur
-- [ ] `npm run dev` démarre l'app sans crash
+- [ ] **Proactive Questions Asked**: Any ambiguities about business requirements or codebase impacts have been clarified with the user before coding.
+- [ ] `npm run lint` passe sans erreur (0 erreur de syntaxe ou formatage)
+- [ ] `npm run typecheck` passe sans erreur (0 erreur TypeScript dans le Node/Main et React/Renderer process)
+- [ ] `npm run build` réussit sans aucune erreur (vérification du bundle de production Electron + Vite)
+- [ ] `npm run dev` démarre l'app sans crash ni avertissement bloquant
 - [ ] Les nouvelles fonctionnalités sont testées manuellement
 - [ ] Les permissions RBAC sont vérifiées (admin, secretariat, accounting, direction)
 - [ ] Les messages UI sont en français
 - [ ] Aucun `console.log` superflu
 - [ ] Les types sont corrects (pas de `any` injustifié)
-- [ ] La sync Supabase fonctionne pour les nouvelles tables
+- [ ] La sync Supabase fonctionne pour les nouvelles tables (remonter les requêtes SQL équivalentes à l'utilisateur)
 
 ---
 
@@ -460,5 +466,5 @@ Voir `docs/FINAL_PLAN.md` pour le plan de finition détaillé avec toutes les co
 
 ---
 
-*Dernière mise à jour : 10 juin 2026*
-*État : Toutes les phases (0-8) implémentées. Projet de finition achevé.*
+*Dernière mise à jour : 17 juin 2026*
+*État : Toutes les phases (0-8) implémentées. Intégration récente de la gestion des fratries, des réductions pour enfants de personnel, et des uniformes dynamiques finalisée et vérifiée sans erreur.*

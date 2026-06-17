@@ -12,8 +12,14 @@
 
 import React, { useEffect, useState } from 'react'
 import {
-  Users, Wallet, AlertTriangle, TrendingUp, CalendarDays,
-  School, CreditCard, UserPlus
+  Users,
+  Wallet,
+  AlertTriangle,
+  TrendingUp,
+  CalendarDays,
+  School,
+  CreditCard,
+  UserPlus
 } from 'lucide-react'
 
 // Types locaux (seront déplacés dans shared/types.ts si réutilisés)
@@ -71,7 +77,11 @@ interface DashboardStats {
 
 // Format monétaire MGA (Ariary)
 function formatMGA(amount: number): string {
-  return new Intl.NumberFormat('fr-MG', { style: 'currency', currency: 'MGA', maximumFractionDigits: 0 }).format(amount)
+  return new Intl.NumberFormat('fr-MG', {
+    style: 'currency',
+    currency: 'MGA',
+    maximumFractionDigits: 0
+  }).format(amount)
 }
 
 function formatDate(dateStr: string): string {
@@ -116,15 +126,11 @@ function KpiCard({
 function PaymentTrendChart({ data }: { data: { date: string; total: number }[] }) {
   if (!data || data.length === 0) return null
 
-  // Pour le dashboard, la norme est de pouvoir tout voir d'un coup d'oeil sans scroller.
-  // On ne garde que les jours actifs (data) pour éviter les espaces vides inutiles,
-  // et on les aligne simplement (justify-start) au lieu de les écarter.
-
   const minVal = Math.min(...data.map((d) => d.total), 0)
   const maxVal = Math.max(...data.map((d) => d.total), 0)
   const range = Math.max(maxVal - minVal, 1)
 
-  // Position du zéro (en pourcentage)
+  // Position du zéro (en pourcentage réel du graphique)
   const zeroPercent = (Math.abs(minVal) / range) * 100
 
   return (
@@ -134,69 +140,73 @@ function PaymentTrendChart({ data }: { data: { date: string; total: number }[] }
         Tendance financière (30 jours)
       </h3>
       <div className="flex-1 overflow-x-auto custom-scrollbar">
-        {/* Changement : justify-start et gap-6 pour que les barres s'alignent proprement à gauche */}
-        <div className="flex justify-start gap-8 px-1 relative h-full min-w-full pt-6">
-          
-          {/* Zero Line dynamique */}
-          <div 
-            className="absolute left-0 right-0 border-t border-dashed border-border z-0" 
-            style={{ bottom: `calc(${zeroPercent}% * 0.8 + 30px)` }} 
-          />
+        <div className="flex justify-start gap-8 px-1 relative h-full min-w-full pt-2">
+          {/* Zero Line Dynamique */}
+          <div className="absolute left-0 right-0 top-2 bottom-[30px] pointer-events-none z-0">
+            {/* L'espace de 20px en haut et en bas correspond au py-[20px] de la zone graphique */}
+            <div className="absolute top-[20px] bottom-[20px] left-0 right-0">
+              <div
+                className="absolute left-0 right-0 border-t border-dashed border-border"
+                style={{ bottom: `${zeroPercent}%` }}
+              />
+            </div>
+          </div>
 
           {data.map((item, i) => {
-            const barHeightPct = (Math.abs(item.total) / range) * 80 // max 80% de l'espace pour ne pas déborder
+            const barHeightPct = (Math.abs(item.total) / range) * 100
             const isNegative = item.total < 0
             const d = new Date(item.date)
-            // N'afficher la date que tous les 3 jours ou si c'est le dernier pour ne pas surcharger si c'est trop serré,
-            // Mais avec le scroll, on peut l'afficher. On va l'afficher au format très court.
             const shortDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
-            const compactVal = new Intl.NumberFormat('fr-MG', { notation: 'compact' }).format(item.total)
-            
-            // On cache le texte de la date pour la moitié des jours si l'écran est petit, mais comme on a min-w-[30px], ça devrait aller.
+            const compactVal = new Intl.NumberFormat('fr-MG', { notation: 'compact' }).format(
+              item.total
+            )
+
             return (
-              <div key={i} className="flex flex-col h-full flex-1 max-w-[50px] min-w-[30px] group relative z-10 flex-shrink-0">
-                
-                {/* Zone Graphique */}
-                <div className="flex-1 relative w-full">
-                  
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-secondary text-secondary-foreground text-xs font-semibold py-1 px-2 rounded-md whitespace-nowrap z-50 pointer-events-none shadow-md">
-                    {formatMGA(item.total)}
-                  </div>
-                  
-                  <div 
-                    className="absolute w-full flex flex-col items-center"
-                    style={{ 
-                      height: `${Math.max(barHeightPct, 1)}%`,
-                      bottom: isNegative 
-                        ? `calc(${zeroPercent * 0.8}% - ${Math.max(barHeightPct, 1)}%)` 
-                        : `${zeroPercent * 0.8}%`
-                    }}
-                  >
-                    {!isNegative ? (
-                      <>
-                        {item.total > 0 && (
-                          <span className="text-[10px] text-primary/80 font-bold whitespace-nowrap absolute -top-4">
+              <div
+                key={i}
+                className="flex flex-col h-full flex-1 max-w-[50px] min-w-[30px] group relative z-10 flex-shrink-0"
+              >
+                {/* Zone Graphique avec padding pour laisser la place aux labels */}
+                <div className="flex-1 relative w-full py-[20px]">
+                  <div className="relative w-full h-full">
+                    {/* Tooltip au hover */}
+                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-secondary text-secondary-foreground text-xs font-semibold py-1 px-2 rounded-md whitespace-nowrap z-50 pointer-events-none shadow-md">
+                      {formatMGA(item.total)}
+                    </div>
+
+                    <div
+                      className="absolute w-full flex flex-col items-center"
+                      style={{
+                        height: `${Math.max(barHeightPct, 1)}%`,
+                        bottom: isNegative
+                          ? `calc(${zeroPercent}% - ${Math.max(barHeightPct, 1)}%)`
+                          : `${zeroPercent}%`
+                      }}
+                    >
+                      {!isNegative ? (
+                        <>
+                          {item.total > 0 && (
+                            <span className="text-[10px] text-primary/80 font-bold whitespace-nowrap absolute -top-5">
+                              {compactVal}
+                            </span>
+                          )}
+                          <div className="bg-primary/50 group-hover:bg-primary transition-colors rounded-t-sm w-full h-full cursor-pointer" />
+                        </>
+                      ) : (
+                        <>
+                          <div className="bg-destructive/50 group-hover:bg-destructive transition-colors rounded-b-sm w-full h-full cursor-pointer" />
+                          <span className="text-[10px] text-destructive/80 font-bold whitespace-nowrap absolute -bottom-5">
                             {compactVal}
                           </span>
-                        )}
-                        <div className="bg-primary/50 group-hover:bg-primary transition-colors rounded-t-sm w-full h-full cursor-pointer" />
-                      </>
-                    ) : (
-                      <>
-                        <div className="bg-destructive/50 group-hover:bg-destructive transition-colors rounded-b-sm w-full h-full cursor-pointer" />
-                        <span className="text-[10px] text-destructive/80 font-bold whitespace-nowrap absolute -bottom-4">
-                          {compactVal}
-                        </span>
-                      </>
-                    )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 {/* Zone Date */}
                 <div className="h-[30px] flex items-center justify-center flex-shrink-0">
-                  <span className="text-[10px] text-muted-foreground font-medium">
-                    {shortDate}
-                  </span>
+                  <span className="text-[10px] text-muted-foreground font-medium">{shortDate}</span>
                 </div>
               </div>
             )
@@ -248,7 +258,9 @@ export default function DashboardPage(): React.JSX.Element {
         <div className="text-center">
           <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-destructive mb-2">Erreur de chargement</h2>
-          <p className="text-muted-foreground">{error || 'Impossible de charger les statistiques'}</p>
+          <p className="text-muted-foreground">
+            {error || 'Impossible de charger les statistiques'}
+          </p>
         </div>
       </div>
     )
@@ -260,7 +272,13 @@ export default function DashboardPage(): React.JSX.Element {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Tableau de bord</h1>
         <p className="text-muted-foreground mt-1">
-          Vue d'ensemble de l'établissement — {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          Vue d'ensemble de l'établissement —{' '}
+          {new Date().toLocaleDateString('fr-FR', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          })}
         </p>
       </div>
 
@@ -272,8 +290,12 @@ export default function DashboardPage(): React.JSX.Element {
           value={stats.students.totalEnrolled.toString()}
           subValue={
             <div className="flex flex-col gap-0.5 mt-0.5">
-              <span className="text-blue-600 font-medium">{stats.students.totalRegistered} enregistrés au total</span>
-              <span className="text-green-600">+{stats.students.newThisMonth} inscrits ce mois</span>
+              <span className="text-blue-600 font-medium">
+                {stats.students.totalRegistered} enregistrés au total
+              </span>
+              <span className="text-green-600">
+                +{stats.students.newThisMonth} inscrits ce mois
+              </span>
             </div>
           }
           colorClass="bg-blue-600"
@@ -282,7 +304,9 @@ export default function DashboardPage(): React.JSX.Element {
           icon={Wallet}
           label="Paiements aujourd'hui"
           value={formatMGA(stats.payments.today)}
-          subValue={<span className="text-green-600">Semaine : {formatMGA(stats.payments.thisWeek)}</span>}
+          subValue={
+            <span className="text-green-600">Semaine : {formatMGA(stats.payments.thisWeek)}</span>
+          }
           colorClass="bg-emerald-600"
         />
         <KpiCard
@@ -295,7 +319,9 @@ export default function DashboardPage(): React.JSX.Element {
           icon={AlertTriangle}
           label="Impayés"
           value={formatMGA(stats.finances.balance)}
-          subValue={<span className="text-amber-700">{stats.finances.unpaidCount} élèves concernés</span>}
+          subValue={
+            <span className="text-amber-700">{stats.finances.unpaidCount} élèves concernés</span>
+          }
           colorClass="bg-amber-600"
         />
         <KpiCard
@@ -328,7 +354,10 @@ export default function DashboardPage(): React.JSX.Element {
           ) : (
             <ul className="space-y-3">
               {stats.events.map((evt) => (
-                <li key={evt.id} className="flex justify-between items-center border-b pb-2 last:border-0">
+                <li
+                  key={evt.id}
+                  className="flex justify-between items-center border-b pb-2 last:border-0"
+                >
                   <div>
                     <p className="font-medium text-sm">{evt.name}</p>
                     <p className="text-xs text-muted-foreground">{formatDate(evt.event_date)}</p>
@@ -356,10 +385,17 @@ export default function DashboardPage(): React.JSX.Element {
           ) : (
             <ul className="space-y-3">
               {stats.activity.recentPayments.map((p) => (
-                <li key={p.id} className="flex justify-between items-center border-b pb-2 last:border-0">
+                <li
+                  key={p.id}
+                  className="flex justify-between items-center border-b pb-2 last:border-0"
+                >
                   <div>
-                    <p className="font-medium text-sm">{p.last_name} {p.first_name}</p>
-                    <p className="text-xs text-muted-foreground">{p.class} — {formatDate(p.payment_date)}</p>
+                    <p className="font-medium text-sm">
+                      {p.last_name} {p.first_name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {p.class} — {formatDate(p.payment_date)}
+                    </p>
                   </div>
                   <div className="text-right">
                     <p className="font-semibold text-sm text-emerald-700">{formatMGA(p.amount)}</p>
@@ -382,12 +418,19 @@ export default function DashboardPage(): React.JSX.Element {
           ) : (
             <ul className="space-y-3">
               {stats.activity.recentEnrollments.map((s) => (
-                <li key={s.id} className="flex justify-between items-center border-b pb-2 last:border-0">
+                <li
+                  key={s.id}
+                  className="flex justify-between items-center border-b pb-2 last:border-0"
+                >
                   <div>
-                    <p className="font-medium text-sm">{s.last_name} {s.first_name}</p>
+                    <p className="font-medium text-sm">
+                      {s.last_name} {s.first_name}
+                    </p>
                     <p className="text-xs text-muted-foreground">{s.class}</p>
                   </div>
-                  <span className="text-xs text-muted-foreground">{formatDate(s.enrollment_date)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {formatDate(s.enrollment_date)}
+                  </span>
                 </li>
               ))}
             </ul>

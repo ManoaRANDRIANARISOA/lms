@@ -62,8 +62,8 @@ interface NavModuleProps {
 function NavLeaf({ to, label, resource, indent = false, icon: Icon, exact = false }: NavLeafProps) {
   const location = useLocation()
   const canRead = useAuthStore((s) => s.canRead)
-  const isActive = exact 
-    ? location.pathname === to 
+  const isActive = exact
+    ? location.pathname === to
     : location.pathname === to || (to !== '/' && location.pathname.startsWith(to + '/'))
 
   if (resource && !canRead(resource)) {
@@ -126,7 +126,14 @@ function NavModule({ label, icon: Icon, items, isOpen, onToggle }: NavModuleProp
       {isOpen && (
         <div className="ml-2 border-l border-primary-foreground/10 pl-1 mb-1">
           {visibleItems.map((item) => (
-            <NavLeaf key={item.to} to={item.to} label={item.label} resource={item.resource} indent exact={item.exact} />
+            <NavLeaf
+              key={item.to}
+              to={item.to}
+              label={item.label}
+              resource={item.resource}
+              indent
+              exact={item.exact}
+            />
           ))}
         </div>
       )}
@@ -149,14 +156,15 @@ export default function Sidebar(): React.JSX.Element {
     if (location.pathname.startsWith('/finance')) return 'Finance'
     if (location.pathname.startsWith('/personnel')) return 'Personnel'
     if (location.pathname.startsWith('/grades')) return 'Notes & Bulletins'
-    if (['/settings', '/users', '/audit'].some(p => location.pathname.startsWith(p))) return 'Administration'
+    if (['/settings', '/users', '/audit'].some((p) => location.pathname.startsWith(p)))
+      return 'Administration'
     return null
   }
 
   const [openModule, setOpenModule] = useState<string | null>(getInitialModule())
 
   const handleToggle = (moduleName: string) => {
-    setOpenModule(prev => prev === moduleName ? null : moduleName)
+    setOpenModule((prev) => (prev === moduleName ? null : moduleName))
   }
 
   const roleLabels: Record<string, string> = {
@@ -170,8 +178,16 @@ export default function Sidebar(): React.JSX.Element {
     <aside className="w-64 bg-primary text-primary-foreground p-4 flex flex-col shadow-xl z-10">
       {/* Nom de l'école */}
       <div className="flex items-center gap-3 mb-6 pl-2">
-        <img src={logo} alt="Logo Manjary Soa" className="w-10 h-10 object-contain bg-white rounded-md p-0.5" />
-        <div className="text-xl font-bold tracking-wide leading-tight">Lycée<br/>Manjary Soa</div>
+        <img
+          src={logo}
+          alt="Logo Manjary Soa"
+          className="w-10 h-10 object-contain bg-white rounded-md p-0.5"
+        />
+        <div className="text-xl font-bold tracking-wide leading-tight">
+          Lycée
+          <br />
+          Manjary Soa
+        </div>
       </div>
 
       {/* Navigation */}
@@ -221,7 +237,12 @@ export default function Sidebar(): React.JSX.Element {
         />
 
         {/* Pointage Bus/Cantine — standalone */}
-        <NavLeaf to="/attendance" label="Pointage Bus/Cantine" resource="attendance" icon={ClipboardCheck} />
+        <NavLeaf
+          to="/attendance"
+          label="Pointage Bus/Cantine"
+          resource="attendance"
+          icon={ClipboardCheck}
+        />
 
         {/* Événements — standalone */}
         <NavLeaf to="/events" label="Événements" resource="events" icon={CalendarDays} />
@@ -238,7 +259,7 @@ export default function Sidebar(): React.JSX.Element {
           items={[
             { to: '/settings', label: 'Paramètres', resource: 'settings', exact: true },
             { to: '/users', label: 'Utilisateurs', resource: 'users' },
-            { to: '/audit', label: 'Journal d\'audit', resource: 'audit' }
+            { to: '/audit', label: "Journal d'audit", resource: 'audit' }
           ]}
         />
       </nav>

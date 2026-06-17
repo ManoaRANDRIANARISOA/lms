@@ -140,7 +140,6 @@ export async function wipeRemoteData() {
   }
 
   try {
-
     // Delete in reverse order of dependencies
 
     // 1. Attendance & Event Payments
@@ -229,7 +228,9 @@ async function pushLocalChanges() {
     try {
       if (!SYNCABLE_TABLES.has(item.table_name)) {
         console.error(`Skipping unauthorized table in sync queue: ${item.table_name}`)
-        db.prepare(`UPDATE sync_queue SET status = 'skipped', error_message = 'Forbidden table name' WHERE id = ?`).run(item.id)
+        db.prepare(
+          `UPDATE sync_queue SET status = 'skipped', error_message = 'Forbidden table name' WHERE id = ?`
+        ).run(item.id)
         continue
       }
       // If status is error, we should retry.
@@ -244,7 +245,17 @@ async function pushLocalChanges() {
 
       // FIX: Sanitize empty date strings for PostgreSQL
       // PostgreSQL rejects "" as date, must be NULL
-      const dateFields = ['date_of_birth', 'departure_date', 'hire_date', 'start_date', 'end_date', 'payment_date', 'attendance_date', 'advance_date', 'repayment_date']
+      const dateFields = [
+        'date_of_birth',
+        'departure_date',
+        'hire_date',
+        'start_date',
+        'end_date',
+        'payment_date',
+        'attendance_date',
+        'advance_date',
+        'repayment_date'
+      ]
       for (const field of dateFields) {
         if (payload[field] === '') {
           payload[field] = null
@@ -254,12 +265,16 @@ async function pushLocalChanges() {
       // FIX: Skip records with missing required foreign keys
       if (item.table_name === 'student_fees' && !payload.student_id) {
         console.warn(`Skipping student_fees ${payload.id}: missing student_id`)
-        db.prepare(`UPDATE sync_queue SET status = 'skipped', error_message = 'Missing student_id' WHERE id = ?`).run(item.id)
+        db.prepare(
+          `UPDATE sync_queue SET status = 'skipped', error_message = 'Missing student_id' WHERE id = ?`
+        ).run(item.id)
         continue
       }
       if (item.table_name === 'student_fees' && !payload.school_year) {
         console.warn(`Skipping student_fees ${payload.id}: missing school_year`)
-        db.prepare(`UPDATE sync_queue SET status = 'skipped', error_message = 'Missing school_year' WHERE id = ?`).run(item.id)
+        db.prepare(
+          `UPDATE sync_queue SET status = 'skipped', error_message = 'Missing school_year' WHERE id = ?`
+        ).run(item.id)
         continue
       }
 
@@ -318,8 +333,6 @@ async function pushLocalChanges() {
         try {
           const localPath = payload.photo_path
           if (fs.existsSync(localPath)) {
-
-
             const fileBuffer = fs.readFileSync(localPath)
             const fileExt = path.extname(localPath)
             const fileName = `${payload.id}-${Date.now()}${fileExt}`
@@ -373,8 +386,6 @@ async function pushLocalChanges() {
                   payload.photo_path,
                   payload.id
                 )
-
-
               }
             }
           }
@@ -396,11 +407,21 @@ async function pushLocalChanges() {
           if (val === 0 || val === 1) {
             // Heuristic: common boolean field names
             const booleanFields = [
-              'deleted', 'active', 'bus_subscribed', 'canteen_subscribed',
-              'uniform_tshirt_purchased', 'uniform_apron_purchased',
-              'uniform_shorts_purchased', 'uniform_badge_purchased',
-              'fram_paid_by_parent', 'manually_edited', 'justified',
-              'present', 'paid', 'repaid', 'has_droit'
+              'deleted',
+              'active',
+              'bus_subscribed',
+              'canteen_subscribed',
+              'uniform_tshirt_purchased',
+              'uniform_apron_purchased',
+              'uniform_shorts_purchased',
+              'uniform_badge_purchased',
+              'fram_paid_by_parent',
+              'manually_edited',
+              'justified',
+              'present',
+              'paid',
+              'repaid',
+              'has_droit'
             ]
             if (booleanFields.includes(key)) {
               supabasePayload[key] = val === 1
@@ -435,7 +456,10 @@ async function pushLocalChanges() {
 
         if (upsertError) {
           // Handle Duplicate Key Error (23505) for registration_number
-          if (upsertError.code === '23505' && upsertError.message?.includes('registration_number')) {
+          if (
+            upsertError.code === '23505' &&
+            upsertError.message?.includes('registration_number')
+          ) {
             console.warn(
               `Duplicate registration_number detected for ${payload.id}. Regenerating...`
             )
@@ -685,7 +709,9 @@ async function pullRemoteChanges() {
         if (!localUser) {
           // New user from cloud — insert with a random password (must be reset locally)
           const fields = Object.keys(userData).join(', ')
-          const placeholders = Object.keys(userData).map(() => '?').join(', ')
+          const placeholders = Object.keys(userData)
+            .map(() => '?')
+            .join(', ')
           db.prepare(
             `INSERT INTO users (${fields}, password_hash, sync_status) VALUES (${placeholders}, ?, 'synced')`
           ).run(

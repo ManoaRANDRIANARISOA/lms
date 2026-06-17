@@ -37,7 +37,7 @@ export default function PersonnelList(): React.JSX.Element {
         const res = await window.api.cashJournal.list({ category: 'salaire', search: currentMonth })
         if (res.success && res.entries) {
           const ids = new Set<string>()
-          res.entries.forEach(e => {
+          res.entries.forEach((e) => {
             if (e.related_personnel_id && e.description?.includes(currentMonth)) {
               ids.add(e.related_personnel_id)
             }
@@ -56,11 +56,11 @@ export default function PersonnelList(): React.JSX.Element {
   }
 
   const filtered = personnel.filter((p) => {
-    const matchSearch = !search || (
+    const matchSearch =
+      !search ||
       p.first_name?.toLowerCase().includes(search.toLowerCase()) ||
       p.last_name?.toLowerCase().includes(search.toLowerCase()) ||
       p.contact?.includes(search)
-    )
     const matchPosition = !positionFilter || p.position === positionFilter
     return matchSearch && matchPosition
   })
@@ -97,7 +97,11 @@ export default function PersonnelList(): React.JSX.Element {
           </Button>
           {canWrite('personnel') && (
             <>
-              <Button onClick={() => navigate('/personnel/payroll')} variant="outline" className="border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+              <Button
+                onClick={() => navigate('/personnel/payroll')}
+                variant="outline"
+                className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+              >
                 <Receipt className="w-4 h-4 mr-2" />
                 Paie Globale
               </Button>
@@ -131,8 +135,8 @@ export default function PersonnelList(): React.JSX.Element {
         </select>
         <div className="flex items-center gap-2 border rounded-md px-3 py-1 bg-white ml-auto">
           <span className="text-sm text-gray-500 whitespace-nowrap">Mois de paie :</span>
-          <Input 
-            type="month" 
+          <Input
+            type="month"
             value={currentMonth}
             onChange={(e) => setCurrentMonth(e.target.value)}
             className="w-40 h-8 border-none shadow-none focus-visible:ring-0 p-0"
@@ -155,7 +159,9 @@ export default function PersonnelList(): React.JSX.Element {
               <th className="px-4 py-3 text-left font-medium text-gray-600">Statut</th>
               <th className="px-4 py-3 text-left font-medium text-gray-600">Contact</th>
               <th className="px-4 py-3 text-left font-medium text-gray-600">Salaire</th>
-              <th className="px-4 py-3 text-center font-medium text-gray-600">Paie ({currentMonth})</th>
+              <th className="px-4 py-3 text-center font-medium text-gray-600">
+                Paie ({currentMonth})
+              </th>
               <th className="px-4 py-3 text-right font-medium text-gray-600">Actions</th>
             </tr>
           </thead>
@@ -163,54 +169,71 @@ export default function PersonnelList(): React.JSX.Element {
             {filtered.map((p) => {
               const isPaid = paidPersonnelIds.has(p.id!)
               return (
-              <tr key={p.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3">
-                  <div className="font-medium">{p.last_name} {p.first_name}</div>
-                </td>
-                <td className="px-4 py-3">{POSITION_LABELS[p.position || ''] || p.position || '-'}</td>
-                <td className="px-4 py-3">{STATUS_LABELS[p.status || ''] || p.status || '-'}</td>
-                <td className="px-4 py-3">{p.contact || '-'}</td>
-                <td className="px-4 py-3">
-                  {p.salary_type === 'monthly' && p.monthly_salary
-                    ? `${p.monthly_salary.toLocaleString('fr-MG')} Ar/mois`
-                    : p.salary_type === 'hourly' && p.hourly_rate
-                      ? `${p.hourly_rate.toLocaleString('fr-MG')} Ar/h`
-                      : '-'}
-                </td>
-                <td className="px-4 py-3 text-center">
-                  {isPaid ? (
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      Payé
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                      Non Payé
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => navigate(`/personnel/${p.id}`)}>
-                      <Eye className="w-4 h-4" />
-                    </Button>
-                    {canWrite('personnel') && (
-                      <>
-                        <Button variant="ghost" size="sm" onClick={() => navigate(`/personnel/${p.id}/edit`)}>
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" className="text-red-600" onClick={() => {
-                          if (confirm(`Supprimer ${p.last_name} ${p.first_name} ?`)) {
-                            usePersonnelStore.getState().deletePerson(p.id)
-                          }
-                        }}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </>
+                <tr key={p.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <div className="font-medium">
+                      {p.last_name} {p.first_name}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    {POSITION_LABELS[p.position || ''] || p.position || '-'}
+                  </td>
+                  <td className="px-4 py-3">{STATUS_LABELS[p.status || ''] || p.status || '-'}</td>
+                  <td className="px-4 py-3">{p.contact || '-'}</td>
+                  <td className="px-4 py-3">
+                    {p.salary_type === 'monthly' && p.monthly_salary
+                      ? `${p.monthly_salary.toLocaleString('fr-MG')} Ar/mois`
+                      : p.salary_type === 'hourly' && p.hourly_rate
+                        ? `${p.hourly_rate.toLocaleString('fr-MG')} Ar/h`
+                        : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {isPaid ? (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Payé
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        Non Payé
+                      </span>
                     )}
-                  </div>
-                </td>
-              </tr>
-            );
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/personnel/${p.id}`)}
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                      {canWrite('personnel') && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate(`/personnel/${p.id}/edit`)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600"
+                            onClick={() => {
+                              if (confirm(`Supprimer ${p.last_name} ${p.first_name} ?`)) {
+                                usePersonnelStore.getState().deletePerson(p.id)
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )
             })}
             {filtered.length === 0 && !loading && (
               <tr>

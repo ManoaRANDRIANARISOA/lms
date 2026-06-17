@@ -13,21 +13,39 @@ export class ReportService {
     try {
       const monthStr = `${year}-${String(month).padStart(2, '0')}`
 
-      const income = db.prepare(`
+      const income = db
+        .prepare(
+          `
         SELECT department, category, COUNT(*) as count, SUM(amount) as total
         FROM cash_journal
         WHERE type = 'income' AND transaction_date LIKE ? AND deleted = 0
         GROUP BY department, category
         ORDER BY total DESC
-      `).all(`${monthStr}%`) as Array<{ department: string; category: string; count: number; total: number }>
+      `
+        )
+        .all(`${monthStr}%`) as Array<{
+        department: string
+        category: string
+        count: number
+        total: number
+      }>
 
-      const expense = db.prepare(`
+      const expense = db
+        .prepare(
+          `
         SELECT department, category, COUNT(*) as count, SUM(amount) as total
         FROM cash_journal
         WHERE type = 'expense' AND transaction_date LIKE ? AND deleted = 0
         GROUP BY department, category
         ORDER BY total DESC
-      `).all(`${monthStr}%`) as Array<{ department: string; category: string; count: number; total: number }>
+      `
+        )
+        .all(`${monthStr}%`) as Array<{
+        department: string
+        category: string
+        count: number
+        total: number
+      }>
 
       const totalIncome = income.reduce((s, r) => s + r.total, 0)
       const totalExpense = expense.reduce((s, r) => s + r.total, 0)
@@ -50,15 +68,22 @@ export class ReportService {
   static generateUnpaidReport(schoolYear: string) {
     try {
       const targetYear = schoolYear.replace(/['"]/g, '').trim()
-      const fees = db.prepare(`
+      const fees = db
+        .prepare(
+          `
         SELECT sf.class_name, sf.student_id, sf.monthly_tuition,
                s.first_name, s.last_name
         FROM student_fees sf
         JOIN students s ON sf.student_id = s.id
         WHERE sf.school_year = ? AND sf.deleted = 0 AND sf.monthly_tuition > 0
-      `).all(targetYear) as Array<{
-        class_name: string; student_id: string; monthly_tuition: number;
-        first_name: string; last_name: string
+      `
+        )
+        .all(targetYear) as Array<{
+        class_name: string
+        student_id: string
+        monthly_tuition: number
+        first_name: string
+        last_name: string
       }>
 
       const [startYear] = targetYear.split('-').map(Number)
@@ -68,12 +93,19 @@ export class ReportService {
       months.push(`${startYear + 1}-07`)
 
       const placeholders = months.map(() => '?').join(', ')
-      const payments = db.prepare(`
+      const payments = db
+        .prepare(
+          `
         SELECT student_id, month FROM student_payments
         WHERE payment_type = 'tuition' AND deleted = 0 AND month IN (${placeholders})
-      `).all(...months) as Array<{ student_id: string; month: string }>
+      `
+        )
+        .all(...months) as Array<{ student_id: string; month: string }>
 
-      const byClass: Record<string, Array<{ student: string; unpaid: number; total_due: number }>> = {}
+      const byClass: Record<
+        string,
+        Array<{ student: string; unpaid: number; total_due: number }>
+      > = {}
 
       fees.forEach((fee) => {
         const paidMonths = payments
@@ -101,12 +133,20 @@ export class ReportService {
     try {
       const monthStr = `${year}-${String(month).padStart(2, '0')}`
 
-      const expenses = db.prepare(`
+      const expenses = db
+        .prepare(
+          `
         SELECT description, amount, transaction_date
         FROM cash_journal
         WHERE type = 'expense' AND category = 'salaire' AND transaction_date LIKE ? AND deleted = 0
         ORDER BY transaction_date
-      `).all(`${monthStr}%`) as Array<{ description: string; amount: number; transaction_date: string }>
+      `
+        )
+        .all(`${monthStr}%`) as Array<{
+        description: string
+        amount: number
+        transaction_date: string
+      }>
 
       const totalPayroll = expenses.reduce((s, r) => s + r.amount, 0)
 
@@ -130,13 +170,23 @@ export class ReportService {
       const endYear = parseInt(endYearStr)
 
       const months = [
-        `${startYear}-09`, `${startYear}-10`, `${startYear}-11`, `${startYear}-12`,
-        `${endYear}-01`, `${endYear}-02`, `${endYear}-03`, `${endYear}-04`,
-        `${endYear}-05`, `${endYear}-06`, `${endYear}-07`
+        `${startYear}-09`,
+        `${startYear}-10`,
+        `${startYear}-11`,
+        `${startYear}-12`,
+        `${endYear}-01`,
+        `${endYear}-02`,
+        `${endYear}-03`,
+        `${endYear}-04`,
+        `${endYear}-05`,
+        `${endYear}-06`,
+        `${endYear}-07`
       ]
 
       const placeholders = months.map(() => '?').join(', ')
-      const payments = db.prepare(`
+      const payments = db
+        .prepare(
+          `
         SELECT sp.student_id, sp.month, sp.amount,
                s.first_name, s.last_name, s.class as class_name
         FROM student_payments sp
@@ -145,9 +195,15 @@ export class ReportService {
           AND sp.deleted = 0 
           AND sp.month IN (${placeholders})
         ORDER BY s.class, s.last_name, sp.month
-      `).all(...months) as Array<{
-        student_id: string; month: string; amount: number;
-        first_name: string; last_name: string; class_name: string
+      `
+        )
+        .all(...months) as Array<{
+        student_id: string
+        month: string
+        amount: number
+        first_name: string
+        last_name: string
+        class_name: string
       }>
 
       const byClass: Record<string, { total: number; count: number }> = {}

@@ -89,7 +89,10 @@ export default function StudentList() {
             variant="outline"
             size="sm"
             onClick={async () => {
-              const result = await window.api.student.list({ limit: 10000, schoolYear: currentYear })
+              const result = await window.api.student.list({
+                limit: 10000,
+                schoolYear: currentYear
+              })
               const students = result?.students || []
               await window.api.export.csv(
                 students as unknown as Record<string, unknown>[],
@@ -177,7 +180,9 @@ export default function StudentList() {
                     <div className="text-gray-500">{student.first_name}</div>
                   </td>
                   <td className="p-4">
-                    {student.class && student.class !== 'Non inscrit' && student.class !== 'Classe non spécifiée' ? (
+                    {student.class &&
+                    student.class !== 'Non inscrit' &&
+                    student.class !== 'Classe non spécifiée' ? (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                         {student.class}
                       </span>

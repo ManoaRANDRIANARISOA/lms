@@ -1,5 +1,12 @@
 import { create } from 'zustand'
-import type { Subject, GradeWithSubject, StudentTermAverage, SubjectClassAverage, ClassSubject, ClassSubjectInput } from '@shared/types'
+import type {
+  Subject,
+  GradeWithSubject,
+  StudentTermAverage,
+  SubjectClassAverage,
+  ClassSubject,
+  ClassSubjectInput
+} from '@shared/types'
 import { handleStoreError } from '@/lib/store-utils'
 
 interface GradeStore {
@@ -7,7 +14,12 @@ interface GradeStore {
   classSubjects: ClassSubject[]
   allClassSubjects: ClassSubject[]
   grades: GradeWithSubject[]
-  classGrades: (GradeWithSubject & { first_name: string; last_name: string; class: string; class_coefficient: number })[]
+  classGrades: (GradeWithSubject & {
+    first_name: string
+    last_name: string
+    class: string
+    class_coefficient: number
+  })[]
   studentAverage: { average: number; totalCoefficient: number } | null
   classAverages: SubjectClassAverage[]
   classRanking: StudentTermAverage[]
@@ -16,7 +28,10 @@ interface GradeStore {
 
   fetchSubjects: () => Promise<void>
   createSubject: (data: Pick<Subject, 'name' | 'default_coefficient'>) => Promise<boolean>
-  updateSubject: (id: string, data: Partial<Pick<Subject, 'name' | 'default_coefficient'>>) => Promise<boolean>
+  updateSubject: (
+    id: string,
+    data: Partial<Pick<Subject, 'name' | 'default_coefficient'>>
+  ) => Promise<boolean>
   deleteSubject: (id: string) => Promise<boolean>
 
   fetchClassSubjects: (className: string) => Promise<void>
@@ -234,7 +249,9 @@ export const useGradeStore = create<GradeStore>((set, get) => ({
   createGrade: async (data) => {
     set({ loading: true, error: null })
     try {
-      const result = await window.api.grade.createGrade(data as unknown as Parameters<typeof window.api.grade.createGrade>[0])
+      const result = await window.api.grade.createGrade(
+        data as unknown as Parameters<typeof window.api.grade.createGrade>[0]
+      )
       if (result.success) {
         set({ loading: false })
         return true
@@ -251,7 +268,10 @@ export const useGradeStore = create<GradeStore>((set, get) => ({
   updateGrade: async (id, data) => {
     set({ loading: true, error: null })
     try {
-      const result = await window.api.grade.updateGrade(id, data as unknown as Parameters<typeof window.api.grade.updateGrade>[1])
+      const result = await window.api.grade.updateGrade(
+        id,
+        data as unknown as Parameters<typeof window.api.grade.updateGrade>[1]
+      )
       if (result.success) {
         set({ loading: false })
         return true

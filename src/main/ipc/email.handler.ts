@@ -20,7 +20,14 @@ export function registerEmailHandlers(): void {
     const result = EmailService.configure(config)
     if (result.success) {
       const user = getCurrentUser()
-      logAction(user?.id || null, 'update', 'settings', 'email_config', null, 'Configuration SMTP modifiée')
+      logAction(
+        user?.id || null,
+        'update',
+        'settings',
+        'email_config',
+        null,
+        'Configuration SMTP modifiée'
+      )
     }
     return result
   })

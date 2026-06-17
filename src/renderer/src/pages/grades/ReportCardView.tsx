@@ -26,7 +26,9 @@ export default function ReportCardView(): React.JSX.Element {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
-  const [schoolYear, setSchoolYear] = useState(searchParams.get('year') || useAppStore.getState().currentYear)
+  const [schoolYear, setSchoolYear] = useState(
+    searchParams.get('year') || useAppStore.getState().currentYear
+  )
   const [term, setTerm] = useState(Number(searchParams.get('term') || 1))
 
   const { grades, studentAverage, fetchGradesByStudent, fetchStudentAverage } = useGradeStore()
@@ -106,7 +108,8 @@ export default function ReportCardView(): React.JSX.Element {
                   class_name: student.class || '',
                   school_year: schoolYear,
                   term,
-                  termName: assessments.find(a => a.term_value === term)?.name || `Trimestre ${term}`
+                  termName:
+                    assessments.find((a) => a.term_value === term)?.name || `Trimestre ${term}`
                 },
                 gradesData,
                 average
@@ -148,8 +151,10 @@ export default function ReportCardView(): React.JSX.Element {
                 <option value={3}>Trimestre 3</option>
               </>
             ) : (
-              assessments.map(a => (
-                <option key={a.id} value={a.term_value}>{a.name}</option>
+              assessments.map((a) => (
+                <option key={a.id} value={a.term_value}>
+                  {a.name}
+                </option>
               ))
             )}
           </select>
@@ -160,17 +165,31 @@ export default function ReportCardView(): React.JSX.Element {
       <div className="bg-white rounded-xl border shadow-sm p-6 space-y-2">
         <div className="text-center">
           <h2 className="text-xl font-bold">Lycée Manjary Soa</h2>
-          <p className="text-sm text-muted-foreground">Bulletin de notes — {schoolYear} — {assessments.find(a => a.term_value === term)?.name || `Trimestre ${term}`}</p>
+          <p className="text-sm text-muted-foreground">
+            Bulletin de notes — {schoolYear} —{' '}
+            {assessments.find((a) => a.term_value === term)?.name || `Trimestre ${term}`}
+          </p>
         </div>
         <div className="border-t pt-4 grid grid-cols-2 gap-4 text-sm">
           <div>
-            <p><span className="font-medium">Nom :</span> {student.last_name}</p>
-            <p><span className="font-medium">Prénom :</span> {student.first_name}</p>
-            <p><span className="font-medium">Classe :</span> {student.class}</p>
+            <p>
+              <span className="font-medium">Nom :</span> {student.last_name}
+            </p>
+            <p>
+              <span className="font-medium">Prénom :</span> {student.first_name}
+            </p>
+            <p>
+              <span className="font-medium">Classe :</span> {student.class}
+            </p>
           </div>
           <div>
-            <p><span className="font-medium">Matricule :</span> {student.registration_number}</p>
-            <p><span className="font-medium">Date de naissance :</span> {student.date_of_birth || '—'}</p>
+            <p>
+              <span className="font-medium">Matricule :</span> {student.registration_number}
+            </p>
+            <p>
+              <span className="font-medium">Date de naissance :</span>{' '}
+              {student.date_of_birth || '—'}
+            </p>
           </div>
         </div>
       </div>
@@ -202,7 +221,15 @@ export default function ReportCardView(): React.JSX.Element {
                 <tr key={g.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium">{g.subject_name || '—'}</td>
                   <td className="px-4 py-3 text-center font-semibold">
-                    <span className={g.grade < 10 ? 'text-red-600' : g.grade >= 14 ? 'text-green-600' : 'text-amber-600'}>
+                    <span
+                      className={
+                        g.grade < 10
+                          ? 'text-red-600'
+                          : g.grade >= 14
+                            ? 'text-green-600'
+                            : 'text-amber-600'
+                      }
+                    >
                       {g.grade.toFixed(2)}
                     </span>
                   </td>
@@ -220,7 +247,9 @@ export default function ReportCardView(): React.JSX.Element {
       <div className="bg-white rounded-xl border shadow-sm p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="text-center">
           <p className="text-sm text-muted-foreground mb-1">Moyenne générale</p>
-          <p className={`text-3xl font-bold ${average < 10 ? 'text-red-600' : average >= 14 ? 'text-green-600' : 'text-amber-600'}`}>
+          <p
+            className={`text-3xl font-bold ${average < 10 ? 'text-red-600' : average >= 14 ? 'text-green-600' : 'text-amber-600'}`}
+          >
             {average > 0 ? average.toFixed(2) : '—'}
           </p>
         </div>
@@ -243,7 +272,9 @@ export default function ReportCardView(): React.JSX.Element {
           <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
           <div>
             <p className="font-semibold">Attention : moyenne insuffisante</p>
-            <p className="text-sm">La moyenne de l'élève est inférieure à 10/20. Un suivi renforcé est recommandé.</p>
+            <p className="text-sm">
+              La moyenne de l'élève est inférieure à 10/20. Un suivi renforcé est recommandé.
+            </p>
           </div>
         </div>
       )}

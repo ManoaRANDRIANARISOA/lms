@@ -17,7 +17,8 @@ import {
   FileText,
   MoreHorizontal,
   Lock,
-  Calendar
+  Calendar,
+  Users
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -61,9 +62,15 @@ interface ServiceCard {
   enabled: boolean
   status: string
   isOneTime: boolean
+  balance?: number
 }
 
-const getTuitionCost = (record: FeeRecord | undefined | null, prices: FinancePrices | null) => {
+const getTuitionCost = (
+  record: FeeRecord | undefined | null,
+  prices: FinancePrices | null,
+  isPersonnelChild: boolean = false
+) => {
+  if (isPersonnelChild) return 0
   if (!record) return 0
   if (record.tuition_level && prices?.tuition?.[record.tuition_level]) {
     return prices.tuition[record.tuition_level]
@@ -106,6 +113,11 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
   const { canWrite } = usePermissions()
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
   const [isViewPaymentOpen, setIsViewPaymentOpen] = useState(false)
+  const [studentInfo, setStudentInfo] = useState<any>(null)
+  const [framFratrieStatus, setFramFratrieStatus] = useState<{ isPaid: boolean; by?: string }>({
+    isPaid: false
+  })
+
   const [formData, setFormData] = useState({
     amount: '',
     payment_type: 'tuition',
@@ -124,6 +136,14 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
       const paymentsRes = await window.api.payment.getByStudent(studentId)
       // Fetch configuration
       fetchPrices()
+
+      // Fetch student info
+      const studentRes = await window.api.student.get(studentId)
+      if (studentRes.success) setStudentInfo(studentRes.student)
+
+      // Fetch Fram fratrie
+      const framRes = await window.api.payment.checkFramFratrie(studentId, schoolYear)
+      if (framRes.success) setFramFratrieStatus({ isPaid: framRes.isPaid, by: framRes.by })
 
       if (statusRes.success) {
         setStatus(statusRes)
@@ -148,7 +168,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     const currentRecord = status?.feeRecord || feeRecord
 
     if (formData.payment_type === 'tuition') {
-      const cost = getTuitionCost(currentRecord, configPrices)
+      const cost = getTuitionCost(currentRecord, configPrices, Boolean(studentInfo?.is_personnel_child))
       if (cost > 0) suggestedAmount = cost.toString()
     } else if (formData.payment_type === 'canteen') {
       const cost = getCanteenCost(currentRecord, configPrices)
@@ -165,6 +185,8 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
       if (configPrices.registration) suggestedAmount = configPrices.registration.toString()
     } else if (formData.payment_type === 'reenrollment') {
       if (configPrices.reenrollment) suggestedAmount = configPrices.reenrollment.toString()
+    } else if (formData.payment_type === 'fram') {
+      if (configPrices.fram) suggestedAmount = configPrices.fram.toString()
     } else if (formData.payment_type === 'uniform') {
       // Handle uniform item selection
       const items = Object.keys(configPrices.uniforms || {})
@@ -182,6 +204,13 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
         // If item is selected, use its price
         if (targetItem && configPrices.uniforms?.[targetItem]) {
           suggestedAmount = configPrices.uniforms[targetItem].toString()
+        }
+      }
+    } else if (formData.payment_type === 'event') {
+      if (formData.item) {
+        const evt = events.find((e) => e.id === formData.item)
+        if (evt && evt.amount_per_parent) {
+          suggestedAmount = evt.amount_per_parent.toString()
         }
       }
     }
@@ -202,7 +231,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
         const currentFeeRecord = status?.feeRecord || feeRecord
 
         if (formData.payment_type === 'tuition') {
-          monthlyCost = getTuitionCost(currentFeeRecord, configPrices)
+          monthlyCost = getTuitionCost(currentFeeRecord, configPrices, Boolean(studentInfo?.is_personnel_child))
         } else if (formData.payment_type === 'bus') {
           monthlyCost = getBusCost(currentFeeRecord, configPrices)
         } else if (formData.payment_type === 'canteen') {
@@ -226,22 +255,33 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
         }
       }
 
-      const paymentData = {
-        student_id: studentId,
-        payment_date: new Date().toISOString().split('T')[0],
-        amount: amount,
-        payment_type: formData.payment_type as Payment['payment_type'],
-        month: ['tuition', 'canteen', 'bus'].includes(formData.payment_type)
-          ? formData.month
-          : undefined,
-        description:
-          formData.payment_type === 'uniform'
-            ? `${formData.item}${formData.description ? ' - ' + formData.description : ''}`
-            : formData.description,
-        payment_method: formData.payment_method as Payment['payment_method'],
+      let result: any
+      if (formData.payment_type === 'event' && formData.item) {
+        result = await window.api.event.recordPayment(
+          formData.item,
+          studentId,
+          amount,
+          formData.payment_method
+        )
+      } else {
+        const paymentData = {
+          student_id: studentId,
+          payment_date: new Date().toISOString().split('T')[0],
+          amount: amount,
+          payment_type: formData.payment_type as Payment['payment_type'],
+          month: ['tuition', 'canteen', 'bus'].includes(formData.payment_type)
+            ? formData.month
+            : undefined,
+          description:
+            formData.payment_type === 'uniform'
+              ? `${formData.item}${formData.description ? ' - ' + formData.description : ''}`
+              : formData.description,
+          payment_method: formData.payment_method as Payment['payment_method']
+        }
+
+        result = await window.api.payment.create(paymentData)
       }
 
-      const result = await window.api.payment.create(paymentData)
       if (result.success) {
         setIsAddPaymentOpen(false)
         setFormData({
@@ -261,51 +301,69 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     }
   }
 
-  const openPaymentModal = (type: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      payment_type: type,
-      amount: '',
-      month: '',
-      description: '',
-      item: ''
-    }))
-    setIsAddPaymentOpen(true)
-  }
-
-  const totalPaid = payments.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
-
-  // Check if one-time fees are paid
-  const isPaid = (type: string) => {
-    return payments.some((p) => p.payment_type === type)
-  }
-
   const getPaymentDetails = (type: string) => {
     return payments.find((p) => p.payment_type === type)
   }
 
+  const totalPaid = payments.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
+
+
+
   const busFeeRecord = status?.feeRecord || feeRecord
 
+  // Determine if student is new or returning
+  const currentStartYear = parseInt(schoolYear.split('-')[0])
+  const studentEnrollmentYear = studentInfo
+    ? parseInt(studentInfo.enrollment_date.split('-')[0])
+    : currentStartYear
+  const isReturning = studentEnrollmentYear < currentStartYear
+
+  const enrollmentType = isReturning ? 'reenrollment' : 'enrollment'
+  const enrollmentLabel = isReturning ? 'Réinscription' : "Frais d'inscription"
+  
+  const enrollmentExpected = isReturning ? configPrices?.reenrollment : configPrices?.registration
+  const enrollmentPaidAmt = payments.filter(p => p.payment_type === enrollmentType).reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+  const enrollmentBalance = (enrollmentExpected || 0) - enrollmentPaidAmt
+  
+  const getEnrollmentStatus = () => {
+    if (enrollmentPaidAmt >= (enrollmentExpected || 0) && enrollmentPaidAmt > 0) return 'paid'
+    if (enrollmentPaidAmt > 0) return 'partial'
+    return 'pending'
+  }
+
+  const framExpected = configPrices?.fram || 0
+  const framPaidAmt = payments.filter(p => p.payment_type === 'fram').reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+  const framBalance = (framFratrieStatus.isPaid || busFeeRecord?.fram_paid_by_parent) ? 0 : (framExpected - framPaidAmt)
+  
+  const getFramStatus = () => {
+    if (framFratrieStatus.isPaid) return 'paid_fratrie'
+    if (busFeeRecord?.fram_paid_by_parent || (framPaidAmt >= framExpected && framPaidAmt > 0)) return 'paid'
+    if (framPaidAmt > 0) return 'partial'
+    return 'pending'
+  }
+
   // Service Cards Configuration
-  const services = [
+  const services: ServiceCard[] = [
     {
-      id: 'enrollment',
-      label: "Frais d'inscription",
+      id: enrollmentType,
+      label: enrollmentLabel,
       icon: FileText,
-      color: 'text-purple-600',
-      bg: 'bg-purple-50',
+      color: isReturning ? 'text-indigo-600' : 'text-purple-600',
+      bg: isReturning ? 'bg-indigo-50' : 'bg-purple-50',
       enabled: true,
-      status: isPaid('enrollment') ? 'paid' : 'pending',
+      status: getEnrollmentStatus(),
+      balance: Math.max(0, enrollmentBalance),
       isOneTime: true
     },
     {
-      id: 'reenrollment',
-      label: 'Réinscription',
-      icon: FileText,
-      color: 'text-indigo-600',
-      bg: 'bg-indigo-50',
+      id: 'fram',
+      label: 'Cotisation FRAM',
+      icon: Users,
+      color: 'text-emerald-600',
+      bg: 'bg-emerald-50',
       enabled: true,
-      status: isPaid('reenrollment') ? 'paid' : 'pending',
+      status: getFramStatus(),
+      balance: Math.max(0, framBalance),
       isOneTime: true
     },
     {
@@ -363,14 +421,26 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
   const handleCardClick = (service: ServiceCard) => {
     if (!service.enabled) return
 
-    if (service.isOneTime && service.status === 'paid') {
+    if (service.isOneTime && (service.status === 'paid' || service.status === 'paid_fratrie')) {
       const payment = getPaymentDetails(service.id)
       if (payment) {
         setSelectedPayment(payment)
         setIsViewPaymentOpen(true)
+      } else if (service.status === 'paid_fratrie') {
+        alert('Cette cotisation a déjà été couverte par un membre de la fratrie.')
+      } else {
+        alert('Le paiement a été enregistré avec l\'inscription.')
       }
     } else {
-      openPaymentModal(service.id)
+      setFormData((prev) => ({
+        ...prev,
+        payment_type: service.id,
+        amount: service.balance && service.balance > 0 ? service.balance.toString() : '',
+        month: '',
+        description: '',
+        item: ''
+      }))
+      setIsAddPaymentOpen(true)
     }
   }
 
@@ -503,12 +573,14 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           </div>
           <p
             className="text-2xl font-bold text-gray-900 truncate"
-            title={`${(configPrices?.tuition?.[status?.feeRecord?.tuition_level ?? ''] || status?.feeRecord?.monthly_tuition || 0).toLocaleString()} Ar`}
+            title={`${(studentInfo?.is_personnel_child ? 0 : (configPrices?.tuition?.[status?.feeRecord?.tuition_level ?? ''] || status?.feeRecord?.monthly_tuition || 0)).toLocaleString()} Ar`}
           >
             {(
-              configPrices?.tuition?.[status?.feeRecord?.tuition_level ?? ''] ||
-              status?.feeRecord?.monthly_tuition ||
-              0
+              studentInfo?.is_personnel_child
+                ? 0
+                : (configPrices?.tuition?.[status?.feeRecord?.tuition_level ?? ''] ||
+                   status?.feeRecord?.monthly_tuition ||
+                   0)
             ).toLocaleString()}{' '}
             Ar
           </p>
@@ -542,9 +614,11 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                       ${
                         !service.enabled
                           ? 'opacity-50 cursor-not-allowed bg-gray-50 border-gray-100'
-                          : service.status === 'paid'
+                          : service.status === 'paid' || service.status === 'paid_fratrie'
                             ? 'cursor-default bg-green-50 border-green-100'
-                            : 'cursor-pointer hover:shadow-md hover:border-gray-300 bg-white border-gray-100'
+                            : service.status === 'partial'
+                              ? 'cursor-pointer hover:shadow-md hover:border-yellow-300 bg-yellow-50 border-yellow-100'
+                              : 'cursor-pointer hover:shadow-md hover:border-gray-300 bg-white border-gray-100'
                       }
                   `}
           >
@@ -553,7 +627,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                 <Lock className="w-3 h-3 text-gray-400" />
               </div>
             )}
-            {service.status === 'paid' && (
+            {(service.status === 'paid' || service.status === 'paid_fratrie') && (
               <div className="absolute top-2 right-2">
                 <CheckCircle2 className="w-4 h-4 text-green-500" />
               </div>
@@ -566,6 +640,14 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
 
             {service.status === 'paid' && (
               <span className="text-xs text-green-600 font-bold mt-1">PAYÉ</span>
+            )}
+            {service.status === 'paid_fratrie' && (
+              <span className="text-[10px] text-green-600 font-bold mt-1">PAYÉ (FRATRIE)</span>
+            )}
+            {service.status === 'partial' && (
+              <span className="text-[10px] text-yellow-600 font-bold mt-1">
+                RESTE: {service.balance?.toLocaleString() || 0} Ar
+              </span>
             )}
             {!service.enabled && (
               <span className="text-[10px] text-gray-400 mt-1">Non souscrit</span>
@@ -600,10 +682,11 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
               onChange={(e) => setFormData({ ...formData, payment_type: e.target.value })}
               disabled // Lock the type since we clicked a specific card
             >
-              <option value="tuition">Écolage (Tuition)</option>
-              <option value="enrollment">Frais d'inscription</option>
-              <option value="reenrollment">Frais de réinscription</option>
-              <option value="bus">Transport</option>
+              <option value="tuition">Écolage Mensuel</option>
+              <option value="enrollment">Droit d'inscription</option>
+              <option value="reenrollment">Réinscription</option>
+              <option value="fram">Cotisation FRAM</option>
+              <option value="bus">Transport (Bus)</option>
               <option value="canteen">Cantine</option>
               <option value="uniform">Uniforme</option>
               <option value="event">Événement</option>
@@ -656,6 +739,26 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                 </select>
               </div>
             )}
+
+          {formData.payment_type === 'event' && events && events.length > 0 && (
+            <div className="grid gap-2">
+              <Label htmlFor="event_item">Sélectionner l'événement</Label>
+              <select
+                id="event_item"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                value={formData.item}
+                onChange={(e) => setFormData({ ...formData, item: e.target.value })}
+                required
+              >
+                <option value="">Sélectionner un événement</option>
+                {events.map((evt) => (
+                  <option key={evt.id} value={evt.id}>
+                    {evt.event_name} ({evt.amount_per_parent.toLocaleString()} Ar)
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="grid gap-2">
             <Label htmlFor="amount">Montant (Ar)</Label>
@@ -746,7 +849,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
       {renderMonthGrid(`Suivi des Écolages (${schoolYear})`, 'tuition', status?.status ?? [])}
 
       {/* Monthly Tracking Grid (Bus) */}
-      {status?.feeRecord?.bus_subscribed &&
+      {!!status?.feeRecord?.bus_subscribed &&
         renderMonthGrid(
           `Suivi du Transport (${status.feeRecord.bus_route} - ${busCost.toLocaleString()} Ar/mois)`,
           'bus',
@@ -754,7 +857,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
         )}
 
       {/* Monthly Tracking Grid (Canteen) */}
-      {status?.feeRecord?.canteen_subscribed &&
+      {!!status?.feeRecord?.canteen_subscribed &&
         renderMonthGrid(
           `Suivi de la Cantine (${canteenCost.toLocaleString()} Ar/mois)`,
           'canteen',
@@ -773,27 +876,36 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {events.map((ev) => (
-                <div key={ev.id} className="border rounded-lg p-4 bg-white relative overflow-hidden border-blue-100">
+                <div
+                  key={ev.id}
+                  className="border rounded-lg p-4 bg-white relative overflow-hidden border-blue-100"
+                >
                   {ev.family_payment_status?.is_paid && (
                     <div className="absolute -right-6 -top-6 w-16 h-16 bg-green-100 rounded-full flex items-end justify-center pb-2 pl-2 shadow-sm">
                       <CheckCircle2 className="w-4 h-4 text-green-600" />
                     </div>
                   )}
                   <h4 className="font-semibold text-lg pr-6 text-gray-800">{ev.event_name}</h4>
-                  <p className="text-sm text-gray-500 mb-3 capitalize">{format(new Date(ev.event_date), 'dd MMMM yyyy', { locale: fr })}</p>
-                  
+                  <p className="text-sm text-gray-500 mb-3 capitalize">
+                    {format(new Date(ev.event_date), 'dd MMMM yyyy', { locale: fr })}
+                  </p>
+
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between items-center bg-gray-50 p-2 rounded">
                       <span className="text-gray-600">Frais (par parent):</span>
-                      <span className="font-semibold">{ev.amount_per_parent.toLocaleString()} Ar</span>
+                      <span className="font-semibold">
+                        {ev.amount_per_parent.toLocaleString()} Ar
+                      </span>
                     </div>
                     <div className="flex justify-between items-center bg-gray-50 p-2 rounded">
                       <span className="text-gray-600">Total payé (fratrie):</span>
-                      <span className={`font-semibold ${ev.family_payment_status?.is_paid ? 'text-green-600' : 'text-orange-600'}`}>
+                      <span
+                        className={`font-semibold ${ev.family_payment_status?.is_paid ? 'text-green-600' : 'text-orange-600'}`}
+                      >
                         {ev.family_payment_status?.total_paid?.toLocaleString() || 0} Ar
                       </span>
                     </div>
-                    
+
                     {ev.family_payment_status?.is_paid ? (
                       <div className="mt-3 flex items-center text-green-700 text-sm font-medium bg-green-50 p-2 rounded justify-center border border-green-100">
                         <CheckCircle2 className="w-4 h-4 mr-2" />
@@ -801,7 +913,11 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                       </div>
                     ) : (
                       <div className="mt-3 flex items-center text-orange-700 text-sm font-medium bg-orange-50 p-2 rounded justify-center border border-orange-100">
-                        Reste à payer: {(ev.amount_per_parent - (ev.family_payment_status?.total_paid || 0)).toLocaleString()} Ar
+                        Reste à payer:{' '}
+                        {(
+                          ev.amount_per_parent - (ev.family_payment_status?.total_paid || 0)
+                        ).toLocaleString()}{' '}
+                        Ar
                       </div>
                     )}
                   </div>
@@ -809,7 +925,9 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
               ))}
             </div>
             <p className="text-xs text-gray-500 mt-4 italic">
-              Note: Les événements sont gérés par famille (parent). Si un membre de la fratrie a payé, la participation est validée pour tous les autres membres inscrits à l'événement.
+              Note: Les événements sont gérés par famille (parent). Si un membre de la fratrie a
+              payé, la participation est validée pour tous les autres membres inscrits à
+              l'événement.
             </p>
           </div>
         </div>

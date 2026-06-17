@@ -231,6 +231,28 @@ export default function FinanceConfig() {
             </div>
           </div>
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <div className="flex flex-col space-y-1.5">
+            <Label htmlFor="price-fram">Frais FRAM (Association des Parents)</Label>
+            <div className="relative">
+              <Input
+                id="price-fram"
+                type="number"
+                value={prices.fram || 0}
+                onChange={(e) =>
+                  setPrices((prev) => ({
+                    ...prev,
+                    fram: parseInt(e.target.value) || 0
+                  }))
+                }
+                className="pl-8"
+              />
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
+                Ar
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Ecolage & Classes */}

@@ -69,7 +69,14 @@ export function registerAttendanceHandlers(): void {
     }
     const result = AttendanceRepository.recordBusAttendance(date, records)
     if (result.success !== false) {
-      logAction(getCurrentUser()?.id || null, 'recordBus', 'bus_attendance', null, null, JSON.stringify({ date, recordCount: records?.length }))
+      logAction(
+        getCurrentUser()?.id || null,
+        'recordBus',
+        'bus_attendance',
+        null,
+        null,
+        JSON.stringify({ date, recordCount: records?.length })
+      )
     }
     return result
   })
@@ -83,7 +90,14 @@ export function registerAttendanceHandlers(): void {
     }
     const result = AttendanceRepository.recordCanteenAttendance(date, records)
     if (result.success !== false) {
-      logAction(getCurrentUser()?.id || null, 'recordCanteen', 'canteen_attendance', null, null, JSON.stringify({ date, recordCount: records?.length }))
+      logAction(
+        getCurrentUser()?.id || null,
+        'recordCanteen',
+        'canteen_attendance',
+        null,
+        null,
+        JSON.stringify({ date, recordCount: records?.length })
+      )
     }
     return result
   })

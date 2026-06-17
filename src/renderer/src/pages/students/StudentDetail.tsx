@@ -87,14 +87,17 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
     if (studentId) {
       getStudent(studentId)
       setImageError(false) // Reset error state on new student
-      
+
       // Fetch events
       if (window.api?.event?.getByStudent) {
-        window.api.event.getByStudent(studentId).then(res => {
-          if (res.success && res.events) {
-            setEvents(res.events)
-          }
-        }).catch(err => console.error("Failed to fetch events", err))
+        window.api.event
+          .getByStudent(studentId)
+          .then((res) => {
+            if (res.success && res.events) {
+              setEvents(res.events)
+            }
+          })
+          .catch((err) => console.error('Failed to fetch events', err))
       }
     }
   }, [studentId, getStudent])
@@ -132,7 +135,9 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
     const newValue = !displayedFees.canteen_subscribed
     await updateStudent(studentId, {
       canteen_subscribed: newValue,
-      canteen_days: newValue ? (displayedFees.canteen_days || ['Monday','Tuesday','Wednesday','Thursday','Friday']) : [],
+      canteen_days: newValue
+        ? displayedFees.canteen_days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+        : [],
       canteen_days_per_week: newValue ? 5 : 0
     })
   }
@@ -147,12 +152,20 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
 
   const getDisplayClass = (fee: FeeRecord | null | undefined) => {
     // Priority 1: Class name stored in the fee record (History)
-    if (fee?.class_name && fee.class_name !== 'Classe non spécifiée' && fee.class_name !== 'Non inscrit') {
+    if (
+      fee?.class_name &&
+      fee.class_name !== 'Classe non spécifiée' &&
+      fee.class_name !== 'Non inscrit'
+    ) {
       return fee.class_name
     }
 
     // Priority 2: Current student's active class (if valid)
-    if (currentStudent?.class && currentStudent.class !== 'Classe non spécifiée' && currentStudent.class !== 'Non inscrit') {
+    if (
+      currentStudent?.class &&
+      currentStudent.class !== 'Classe non spécifiée' &&
+      currentStudent.class !== 'Non inscrit'
+    ) {
       return currentStudent.class
     }
 
@@ -191,9 +204,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
             {canWrite('students') && (
               <Button variant="outline" size="sm" onClick={() => setIsReEnrollOpen(true)}>
                 <History className="w-4 h-4 mr-2" />
-                {!currentFees
-                  ? 'Inscrire'
-                  : 'Réinscrire'}
+                {!currentFees ? 'Inscrire' : 'Réinscrire'}
               </Button>
             )}
             <Button
@@ -265,11 +276,6 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                 <div>
                   <h1 className="text-2xl font-bold flex items-center gap-2">
                     {currentStudent.last_name} {currentStudent.first_name}
-                    {currentStudent.gender && (
-                      <span className="text-sm font-normal opacity-75 bg-white/20 px-2 py-0.5 rounded-full">
-                        {currentStudent.gender === 'M' ? 'Garçon' : 'Fille'}
-                      </span>
-                    )}
                   </h1>
                   <p className="text-primary-foreground/80 mt-1">
                     Classe: {getDisplayClass(displayedFees)}
@@ -311,7 +317,6 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
               </select>
             </div>
 
-            
             <FinanceTab
               studentId={studentId}
               schoolYear={selectedYear || useAppStore.getState().currentYear}
@@ -329,6 +334,12 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                     Informations Personnelles
                   </h3>
                   <dl className="space-y-3">
+                    {currentStudent.gender && (
+                      <div className="grid grid-cols-3">
+                        <dt className="text-gray-500 text-sm">Sexe</dt>
+                        <dd className="col-span-2 text-sm">{currentStudent.gender === 'M' ? 'Garçon' : 'Fille'}</dd>
+                      </div>
+                    )}
                     <div className="grid grid-cols-3">
                       <dt className="text-gray-500 text-sm">Date de naissance</dt>
                       <dd className="col-span-2 text-sm">{currentStudent.date_of_birth || '-'}</dd>
@@ -420,14 +431,22 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                       )}
                     </div>
                   ) : (
-                    canWrite('students') && (
+                    canWrite('students') && currentFeesHistory && currentFeesHistory.length > 0 && (
                       <Button
                         variant="outline"
                         size="sm"
                         className="text-xs h-7 text-red-600 border-red-200 hover:bg-red-50"
                         onClick={() => {
-                          const date = prompt('Date de départ (AAAA-MM-JJ) :', new Date().toISOString().split('T')[0])
-                          if (date && confirm(`Confirmer le départ de cet élève au ${new Date(date).toLocaleDateString('fr-FR')} ?\n\nLes impayés après cette date ne seront plus comptabilisés.`)) {
+                          const date = prompt(
+                            'Date de départ (AAAA-MM-JJ) :',
+                            new Date().toISOString().split('T')[0]
+                          )
+                          if (
+                            date &&
+                            confirm(
+                              `Confirmer le départ de cet élève au ${new Date(date).toLocaleDateString('fr-FR')} ?\n\nLes impayés après cette date ne seront plus comptabilisés.`
+                            )
+                          ) {
                             updateStudent(studentId, { departure_date: date })
                           }
                         }}
@@ -485,7 +504,9 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                           Transport & Restauration
                         </span>
                         {canWrite('students') && (
-                          <span className="text-xs text-gray-400">Cliquez pour activer/désactiver</span>
+                          <span className="text-xs text-gray-400">
+                            Cliquez pour activer/désactiver
+                          </span>
                         )}
                       </h4>
                       <div className="space-y-3">
@@ -500,12 +521,14 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                           } ${!canWrite('students') ? 'cursor-default' : 'cursor-pointer'}`}
                         >
                           <div className="flex items-center gap-2">
-                            <Bus className={`w-5 h-5 ${displayedFees.bus_subscribed ? 'text-yellow-600' : 'text-gray-400'}`} />
+                            <Bus
+                              className={`w-5 h-5 ${displayedFees.bus_subscribed ? 'text-yellow-600' : 'text-gray-400'}`}
+                            />
                             <div>
                               <p className="text-sm font-medium">Bus Scolaire</p>
                               <p className="text-xs text-gray-500">
                                 {displayedFees.bus_subscribed
-                                  ? (displayedFees.bus_route || 'Zone non définie')
+                                  ? displayedFees.bus_route || 'Zone non définie'
                                   : 'Non inscrit'}
                               </p>
                             </div>
@@ -528,12 +551,17 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                           } ${!canWrite('students') ? 'cursor-default' : 'cursor-pointer'}`}
                         >
                           <div className="flex items-center gap-2">
-                            <Utensils className={`w-5 h-5 ${displayedFees.canteen_subscribed ? 'text-orange-600' : 'text-gray-400'}`} />
+                            <Utensils
+                              className={`w-5 h-5 ${displayedFees.canteen_subscribed ? 'text-orange-600' : 'text-gray-400'}`}
+                            />
                             <div>
                               <p className="text-sm font-medium">Cantine</p>
                               <p className="text-xs text-gray-500">
                                 {displayedFees.canteen_subscribed
-                                  ? formatCanteenDays(displayedFees.canteen_days, displayedFees.canteen_days_per_week)
+                                  ? formatCanteenDays(
+                                      displayedFees.canteen_days,
+                                      displayedFees.canteen_days_per_week
+                                    )
                                   : 'Non inscrit'}
                               </p>
                             </div>
@@ -555,9 +583,18 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                         {Object.keys(financePrices?.uniforms || {}).map((item) => {
                           const isPurchased = displayedFees.uniform_items_purchased?.includes(item)
                           return (
-                            <li key={item} className={`flex items-center ${isPurchased ? 'text-green-600' : 'text-gray-400'}`}>
-                              {isPurchased ? <CheckCircle2 className="w-4 h-4 mr-2" /> : <XCircle className="w-4 h-4 mr-2 opacity-50" />} 
-                              <span className={!isPurchased ? 'line-through opacity-70' : ''}>{item}</span>
+                            <li
+                              key={item}
+                              className={`flex items-center ${isPurchased ? 'text-green-600' : 'text-gray-400'}`}
+                            >
+                              {isPurchased ? (
+                                <CheckCircle2 className="w-4 h-4 mr-2" />
+                              ) : (
+                                <XCircle className="w-4 h-4 mr-2 opacity-50" />
+                              )}
+                              <span className={!isPurchased ? 'line-through opacity-70' : ''}>
+                                {item}
+                              </span>
                             </li>
                           )
                         })}
@@ -567,12 +604,9 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                       </ul>
                     </div>
                   </div>
-
                 </div>
               )}
             </div>
-
-
           </TabsContent>
 
           <TabsContent value="historique">
@@ -612,12 +646,12 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                           <div>
                             <span className="text-gray-500 block mb-1">Services Souscrits</span>
                             <ul className="space-y-1">
-                              {fee.bus_subscribed && (
+                              {!!fee.bus_subscribed && (
                                 <li className="flex items-center">
                                   <Bus className="w-3 h-3 mr-2" /> Bus ({fee.bus_route})
                                 </li>
                               )}
-                              {fee.canteen_subscribed && (
+                              {!!fee.canteen_subscribed && (
                                 <li className="flex items-center">
                                   <Utensils className="w-3 h-3 mr-2" /> Cantine (
                                   {formatCanteenDays(fee.canteen_days, fee.canteen_days_per_week)})
@@ -631,9 +665,13 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                           <div>
                             <span className="text-gray-500 block mb-1">Uniformes</span>
                             <div className="flex flex-wrap gap-2">
-                              {fee.uniform_items_purchased && fee.uniform_items_purchased.length > 0 ? (
+                              {fee.uniform_items_purchased &&
+                              fee.uniform_items_purchased.length > 0 ? (
                                 fee.uniform_items_purchased.map((item) => (
-                                  <span key={item} className="px-2 py-0.5 bg-white border rounded text-xs">
+                                  <span
+                                    key={item}
+                                    className="px-2 py-0.5 bg-white border rounded text-xs"
+                                  >
                                     {item}
                                   </span>
                                 ))
@@ -683,7 +721,11 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
           isOpen={isReEnrollOpen}
           onClose={() => setIsReEnrollOpen(false)}
           student={currentStudent}
-          currentYear={displayedFees?.school_year || currentFees?.school_year || useAppStore.getState().currentYear}
+          currentYear={
+            displayedFees?.school_year ||
+            currentFees?.school_year ||
+            useAppStore.getState().currentYear
+          }
           onSuccess={handleReEnrollSuccess}
         />
       </div>

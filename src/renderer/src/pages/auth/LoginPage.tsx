@@ -33,10 +33,10 @@ export default function LoginPage(): React.JSX.Element {
       <div className="w-full max-w-md mx-4">
         {/* Logo / Header */}
         <div className="text-center mb-8">
-          <img 
-            src={logo} 
-            alt="Logo Lycée Manjary Soa" 
-            className="w-24 h-24 mx-auto object-contain bg-white rounded-2xl p-2 shadow-sm mb-4 border" 
+          <img
+            src={logo}
+            alt="Logo Lycée Manjary Soa"
+            className="w-24 h-24 mx-auto object-contain bg-white rounded-2xl p-2 shadow-sm mb-4 border"
           />
           <h1 className="text-2xl font-bold text-foreground">Lycée Manjary Soa</h1>
           <p className="text-muted-foreground mt-1">Système de gestion scolaire</p>

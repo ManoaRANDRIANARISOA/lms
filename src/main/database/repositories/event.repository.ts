@@ -268,7 +268,9 @@ export class EventRepository {
   static getByStudent(studentId: string) {
     try {
       // Get student and siblings
-      const student = db.prepare('SELECT siblings FROM students WHERE id = ?').get(studentId) as { siblings: string } | undefined
+      const student = db.prepare('SELECT siblings FROM students WHERE id = ?').get(studentId) as
+        | { siblings: string }
+        | undefined
       if (!student) return { success: false, error: 'Student not found' }
 
       const siblings = student.siblings ? JSON.parse(student.siblings) : []
@@ -276,35 +278,43 @@ export class EventRepository {
       const placeholders = familyIds.map(() => '?').join(', ')
 
       // Get all event payments for this family
-      const payments = db.prepare(`
+      const payments = db
+        .prepare(
+          `
         SELECT 
           ep.event_id, ep.amount_due, ep.amount_paid, ep.paid, ep.payment_date, ep.student_id,
           s.first_name, s.last_name
         FROM event_payments ep
         JOIN students s ON ep.student_id = s.id
         WHERE ep.student_id IN (${placeholders})
-      `).all(...familyIds) as any[]
+      `
+        )
+        .all(...familyIds) as any[]
 
       if (payments.length === 0) {
         return { success: true, events: [] }
       }
 
-      const eventIds = [...new Set(payments.map(p => p.event_id))]
+      const eventIds = [...new Set(payments.map((p) => p.event_id))]
       const eventPlaceholders = eventIds.map(() => '?').join(', ')
 
       // Get event details
-      const events = db.prepare(`
+      const events = db
+        .prepare(
+          `
         SELECT * FROM parent_events 
         WHERE id IN (${eventPlaceholders})
         ORDER BY event_date DESC
-      `).all(...eventIds) as any[]
+      `
+        )
+        .all(...eventIds) as any[]
 
       // Combine
-      const result = events.map(ev => {
-        const familyPayments = payments.filter(p => p.event_id === ev.id)
+      const result = events.map((ev) => {
+        const familyPayments = payments.filter((p) => p.event_id === ev.id)
         const totalPaid = familyPayments.reduce((sum, p) => sum + p.amount_paid, 0)
         // If any sibling is fully paid, the event is considered paid for the family
-        const isPaid = familyPayments.some(p => p.paid === 1) || totalPaid >= ev.amount_per_parent
+        const isPaid = familyPayments.some((p) => p.paid === 1) || totalPaid >= ev.amount_per_parent
 
         return {
           ...ev,

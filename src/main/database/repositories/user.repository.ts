@@ -104,7 +104,9 @@ export class UserRepository {
    */
   private static validateUsername(username: string): void {
     if (!username || username.length < MIN_USERNAME_LENGTH) {
-      throw new Error(`Le nom d'utilisateur doit contenir au moins ${MIN_USERNAME_LENGTH} caractères`)
+      throw new Error(
+        `Le nom d'utilisateur doit contenir au moins ${MIN_USERNAME_LENGTH} caractères`
+      )
     }
     if (!/^[a-zA-Z0-9_.-]+$/.test(username)) {
       throw new Error("Le nom d'utilisateur ne peut contenir que des lettres, chiffres, _, . et -")
@@ -148,10 +150,12 @@ export class UserRepository {
       const id = uuidv4()
       const passwordHash = this.hashPassword(input.password)
 
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO users (id, username, password_hash, role, full_name, email, active, version, sync_status, deleted)
         VALUES (?, ?, ?, ?, ?, ?, 1, 1, 'pending', 0)
-      `).run(
+      `
+      ).run(
         id,
         input.username,
         passwordHash,
@@ -212,7 +216,10 @@ export class UserRepository {
   /**
    * Update a user's profile information (not password).
    */
-  static update(id: string, input: UpdateUserInput): { success: boolean; user?: UserRow; error?: string } {
+  static update(
+    id: string,
+    input: UpdateUserInput
+  ): { success: boolean; user?: UserRow; error?: string } {
     try {
       // Validate role if provided
       if (input.role) {
@@ -291,18 +298,22 @@ export class UserRepository {
 
       if (user.role === 'admin') {
         const activeAdmins = db
-          .prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin' AND active = 1 AND deleted = 0 AND id != ?")
+          .prepare(
+            "SELECT COUNT(*) as count FROM users WHERE role = 'admin' AND active = 1 AND deleted = 0 AND id != ?"
+          )
           .get(id) as { count: number }
         if (activeAdmins.count === 0) {
           throw new Error('Impossible de désactiver le dernier administrateur')
         }
       }
 
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE users
         SET active = 0, deleted = 1, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending'
         WHERE id = ?
-      `).run(id)
+      `
+      ).run(id)
 
       addToSyncQueue('users', id, 'update', { active: 0, deleted: 1 })
 
@@ -338,7 +349,9 @@ export class UserRepository {
   ): { success: boolean; error?: string } {
     try {
       if (newPassword.length < MIN_PASSWORD_LENGTH) {
-        throw new Error(`Le nouveau mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères`)
+        throw new Error(
+          `Le nouveau mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères`
+        )
       }
 
       const user = db
@@ -356,11 +369,13 @@ export class UserRepository {
 
       const newHash = this.hashPassword(newPassword)
 
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE users
         SET password_hash = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending'
         WHERE id = ?
-      `).run(newHash, userId)
+      `
+      ).run(newHash, userId)
 
       return { success: true }
     } catch (error: unknown) {
@@ -375,13 +390,12 @@ export class UserRepository {
    * @param userId - The user ID whose password to reset
    * @param newPassword - The new password
    */
-  static resetPassword(
-    userId: string,
-    newPassword: string
-  ): { success: boolean; error?: string } {
+  static resetPassword(userId: string, newPassword: string): { success: boolean; error?: string } {
     try {
       if (newPassword.length < MIN_PASSWORD_LENGTH) {
-        throw new Error(`Le nouveau mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères`)
+        throw new Error(
+          `Le nouveau mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères`
+        )
       }
 
       const user = this.getById(userId)
@@ -391,11 +405,13 @@ export class UserRepository {
 
       const newHash = this.hashPassword(newPassword)
 
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE users
         SET password_hash = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending'
         WHERE id = ?
-      `).run(newHash, userId)
+      `
+      ).run(newHash, userId)
 
       return { success: true }
     } catch (error: unknown) {
@@ -410,7 +426,9 @@ export class UserRepository {
    */
   static countByRole(): Record<UserRole, number> {
     const rows = db
-      .prepare('SELECT role, COUNT(*) as count FROM users WHERE deleted = 0 AND active = 1 GROUP BY role')
+      .prepare(
+        'SELECT role, COUNT(*) as count FROM users WHERE deleted = 0 AND active = 1 GROUP BY role'
+      )
       .all() as { role: string; count: number }[]
 
     const result: Record<string, number> = { admin: 0, secretariat: 0, accounting: 0, direction: 0 }

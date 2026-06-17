@@ -299,5 +299,4 @@ export function registerAuthHandlers(): void {
       accessibleResources: getAccessibleResources()
     }
   })
-
 }

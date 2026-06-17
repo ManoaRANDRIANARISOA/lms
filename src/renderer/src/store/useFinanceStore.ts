@@ -19,7 +19,9 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   fetchPrices: async () => {
     set({ loading: true, error: null })
     try {
-      const savedPrices = await window.api.settings.get('finance_prices') as Partial<FinancePrices> | null
+      const savedPrices = (await window.api.settings.get(
+        'finance_prices'
+      )) as Partial<FinancePrices> | null
 
       set((state) => {
         if (savedPrices) {

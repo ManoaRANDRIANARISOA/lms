@@ -29,9 +29,14 @@ interface GradeCell {
 export default function GradeBook(): React.JSX.Element {
   const navigate = useNavigate()
   const {
-    classSubjects, fetchClassSubjects,
-    classGrades, classAverages, classRanking,
-    fetchGradesByClass, fetchClassSubjectAverages, fetchClassRanking,
+    classSubjects,
+    fetchClassSubjects,
+    classGrades,
+    classAverages,
+    classRanking,
+    fetchGradesByClass,
+    fetchClassSubjectAverages,
+    fetchClassRanking,
     loading
   } = useGradeStore()
 
@@ -114,7 +119,11 @@ export default function GradeBook(): React.JSX.Element {
     for (const g of classGrades) {
       if (!seen.has(g.subject_id)) {
         seen.add(g.subject_id)
-        list.push({ id: g.subject_id, name: g.subject_name || '', coefficient: g.class_coefficient ?? g.coefficient ?? 1 })
+        list.push({
+          id: g.subject_id,
+          name: g.subject_name || '',
+          coefficient: g.class_coefficient ?? g.coefficient ?? 1
+        })
       }
     }
     return list
@@ -150,11 +159,15 @@ export default function GradeBook(): React.JSX.Element {
           >
             <option value="">— Choisir —</option>
             {ALL_CLASSES.map((c) => (
-              <option key={c} value={c}>{c}</option>
+              <option key={c} value={c}>
+                {c}
+              </option>
             ))}
           </select>
           {ALL_CLASSES.length === 0 && (
-            <p className="text-xs text-amber-600 mt-1">Aucune classe configurée. Ajoutez des classes dans Paramètres.</p>
+            <p className="text-xs text-amber-600 mt-1">
+              Aucune classe configurée. Ajoutez des classes dans Paramètres.
+            </p>
           )}
         </div>
         <div>
@@ -171,8 +184,10 @@ export default function GradeBook(): React.JSX.Element {
                 <option value={3}>Trimestre 3</option>
               </>
             ) : (
-              assessments.map(a => (
-                <option key={a.id} value={a.term_value}>{a.name}</option>
+              assessments.map((a) => (
+                <option key={a.id} value={a.term_value}>
+                  {a.name}
+                </option>
               ))
             )}
           </select>
@@ -196,11 +211,18 @@ export default function GradeBook(): React.JSX.Element {
           <table className="w-full text-sm min-w-[600px]">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-3 py-3 text-left font-medium text-gray-600 sticky left-0 bg-gray-50 z-10">Élève</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-600 sticky left-0 bg-gray-50 z-10">
+                  Élève
+                </th>
                 {subjectList.map((s) => (
-                  <th key={s.id} className="px-3 py-3 text-center font-medium text-gray-600 min-w-[80px]">
+                  <th
+                    key={s.id}
+                    className="px-3 py-3 text-center font-medium text-gray-600 min-w-[80px]"
+                  >
                     {s.name}
-                    <span className="block text-xs text-muted-foreground font-normal">coef. {s.coefficient}</span>
+                    <span className="block text-xs text-muted-foreground font-normal">
+                      coef. {s.coefficient}
+                    </span>
                   </th>
                 ))}
                 <th className="px-3 py-3 text-center font-medium text-gray-600 bg-blue-50">
@@ -216,8 +238,12 @@ export default function GradeBook(): React.JSX.Element {
             <tbody className="divide-y">
               {studentsInClass.length === 0 && classSubjects.length === 0 && (
                 <tr>
-                  <td colSpan={subjectList.length + 3} className="px-3 py-8 text-center text-muted-foreground">
-                    Aucune note enregistrée pour cette classe.<br />
+                  <td
+                    colSpan={subjectList.length + 3}
+                    className="px-3 py-8 text-center text-muted-foreground"
+                  >
+                    Aucune note enregistrée pour cette classe.
+                    <br />
                     <button
                       onClick={() => navigate('/grades/entry')}
                       className="text-primary hover:underline text-sm mt-1"
@@ -229,7 +255,10 @@ export default function GradeBook(): React.JSX.Element {
               )}
               {studentsInClass.length === 0 && classSubjects.length > 0 && (
                 <tr>
-                  <td colSpan={subjectList.length + 3} className="px-3 py-8 text-center text-muted-foreground">
+                  <td
+                    colSpan={subjectList.length + 3}
+                    className="px-3 py-8 text-center text-muted-foreground"
+                  >
                     Aucun élève avec des notes dans cette classe.
                   </td>
                 </tr>
@@ -241,7 +270,11 @@ export default function GradeBook(): React.JSX.Element {
                     <td className="px-3 py-3 font-medium sticky left-0 bg-white z-10">
                       <button
                         className="text-left hover:text-primary hover:underline"
-                        onClick={() => navigate(`/grades/report/${st.id}?year=${schoolYear}&term=${selectedTerm}`)}
+                        onClick={() =>
+                          navigate(
+                            `/grades/report/${st.id}?year=${schoolYear}&term=${selectedTerm}`
+                          )
+                        }
                       >
                         {st.last_name} {st.first_name}
                       </button>
@@ -251,7 +284,9 @@ export default function GradeBook(): React.JSX.Element {
                       return (
                         <td key={subj.id} className="px-3 py-3 text-center">
                           {cell ? (
-                            <span className={`font-semibold ${cell.grade < 10 ? 'text-red-600' : cell.grade >= 14 ? 'text-green-600' : 'text-amber-600'}`}>
+                            <span
+                              className={`font-semibold ${cell.grade < 10 ? 'text-red-600' : cell.grade >= 14 ? 'text-green-600' : 'text-amber-600'}`}
+                            >
                               {cell.grade.toFixed(2)}
                             </span>
                           ) : (

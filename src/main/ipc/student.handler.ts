@@ -34,7 +34,12 @@ export function registerStudentHandlers(): void {
       console.warn('Background sync before creation failed, proceeding anyway:', e)
     })
 
-    const result = StudentRepository.create(studentData) as { success: boolean; id?: string; registration_number?: string; error?: string }
+    const result = StudentRepository.create(studentData) as {
+      success: boolean
+      id?: string
+      registration_number?: string
+      error?: string
+    }
     if (result.success && result.id) {
       logAction(
         getCurrentUser()?.id || null,
@@ -117,11 +122,11 @@ export function registerStudentHandlers(): void {
   // --------------------------------------------
   // RE-ENROLL STUDENT
   // --------------------------------------------
-  ipcMain.handle('student:reEnroll', async (_, id, newClass, targetYear) => {
+  ipcMain.handle('student:reEnroll', async (_, id, newClass, targetYear, framPaid, initialPayment) => {
     if (!canWrite('students')) {
       return { success: false, error: 'Accès refusé: réinscription élève' }
     }
-    const result = StudentRepository.reEnroll(id, newClass, targetYear)
+    const result = StudentRepository.reEnroll(id, newClass, targetYear, framPaid, initialPayment)
     if (result.success) {
       logAction(
         getCurrentUser()?.id || null,

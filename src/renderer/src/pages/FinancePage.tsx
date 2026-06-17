@@ -9,7 +9,7 @@ export default function FinancePage() {
   const [refreshKey, setRefreshKey] = useState(0)
 
   const handleTabChange = (value: string) => {
-    if (value === 'journal') setRefreshKey(k => k + 1)
+    if (value === 'journal') setRefreshKey((k) => k + 1)
     setActiveTab(value)
   }
 

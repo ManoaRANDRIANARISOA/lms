@@ -39,7 +39,13 @@ function StudentDetailRoute(): React.JSX.Element | null {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   if (!id) return null
-  return <StudentDetail studentId={id} onBack={() => navigate('/students')} onEdit={() => navigate('/students')} />
+  return (
+    <StudentDetail
+      studentId={id}
+      onBack={() => navigate('/students')}
+      onEdit={() => navigate('/students')}
+    />
+  )
 }
 
 export default function MainLayout(): React.JSX.Element {
@@ -55,13 +61,16 @@ export default function MainLayout(): React.JSX.Element {
   // Ping d'activité toutes les 5 min pour maintenir la session
   useEffect(() => {
     if (token) {
-      activityPingInterval.current = setInterval(async () => {
-        try {
-          await window.api.auth.activity(token)
-        } catch {
-          // Ignorer les erreurs de ping
-        }
-      }, 5 * 60 * 1000)
+      activityPingInterval.current = setInterval(
+        async () => {
+          try {
+            await window.api.auth.activity(token)
+          } catch {
+            // Ignorer les erreurs de ping
+          }
+        },
+        5 * 60 * 1000
+      )
     }
 
     return () => {

@@ -23,8 +23,8 @@ import { v4 as uuidv4 } from 'uuid'
 // --------------------------------------------
 
 export interface Session {
-  id: string          // UUID session token
-  user_id: string     // FK to users.id
+  id: string // UUID session token
+  user_id: string // FK to users.id
   created_at: string
   expires_at: string
   last_activity: string
@@ -55,15 +55,20 @@ const INACTIVITY_CHECK_INTERVAL_MS = 60 * 1000
  * @param timeoutMinutes - Session duration in minutes (default: 60)
  * @returns The created session with token
  */
-export function createSession(userId: string, timeoutMinutes: number = DEFAULT_TIMEOUT_MINUTES): Session {
+export function createSession(
+  userId: string,
+  timeoutMinutes: number = DEFAULT_TIMEOUT_MINUTES
+): Session {
   const token = uuidv4()
   const now = new Date()
   const expiresAt = new Date(now.getTime() + timeoutMinutes * 60 * 1000)
 
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO sessions (id, user_id, created_at, expires_at, last_activity)
     VALUES (?, ?, CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP)
-  `).run(token, userId, expiresAt.toISOString())
+  `
+  ).run(token, userId, expiresAt.toISOString())
 
   return {
     id: token,
@@ -84,9 +89,9 @@ export function createSession(userId: string, timeoutMinutes: number = DEFAULT_T
  */
 export function validateSession(token: string): Session | null {
   try {
-    const session = db
-      .prepare('SELECT * FROM sessions WHERE id = ?')
-      .get(token) as Session | undefined
+    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(token) as
+      | Session
+      | undefined
 
     if (!session) {
       return null
@@ -103,11 +108,13 @@ export function validateSession(token: string): Session | null {
 
     // Renew the session (extend expiry by timeout duration)
     const newExpiresAt = new Date(now.getTime() + DEFAULT_TIMEOUT_MINUTES * 60 * 1000)
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE sessions
       SET expires_at = ?, last_activity = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(newExpiresAt.toISOString(), token)
+    `
+    ).run(newExpiresAt.toISOString(), token)
 
     return { ...session, expires_at: newExpiresAt.toISOString(), last_activity: now.toISOString() }
   } catch (error) {
@@ -211,10 +218,11 @@ function checkInactivity(): void {
 
     // Expire sessions where last_activity is older than the cutoff.
     // We wrap both sides with datetime() so ISO-8601 strings are parsed correctly.
-    db.prepare(`
+    db.prepare(
+      `
       DELETE FROM sessions WHERE datetime(last_activity) < datetime(?)
-    `).run(cutoff)
-
+    `
+    ).run(cutoff)
   } catch (error) {
     console.error('SessionService.checkInactivity error:', error)
   }
@@ -249,9 +257,11 @@ function getSessionTimeoutFromSettings(): number {
  */
 export function renewSessionActivity(token: string): void {
   try {
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE sessions SET last_activity = CURRENT_TIMESTAMP WHERE id = ?
-    `).run(token)
+    `
+    ).run(token)
   } catch (error) {
     // Ignore errors — non-critical
   }

@@ -211,16 +211,34 @@ export function canWrite(resource: Resource): boolean {
 export function hasPermission(action: string, resource: string): boolean {
   // Read-only actions
   const readActions = [
-    'list', 'get', 'getByStudent', 'getAll', 'getTuitionStatus',
-    'getBusSubscribers', 'getCanteenSubscribers', 'getBusAttendance',
-    'getCanteenAttendance', 'getById', 'serviceStats'
+    'list',
+    'get',
+    'getByStudent',
+    'getAll',
+    'getTuitionStatus',
+    'getBusSubscribers',
+    'getCanteenSubscribers',
+    'getBusAttendance',
+    'getCanteenAttendance',
+    'getById',
+    'serviceStats'
   ]
 
   // Write actions
   const writeActions = [
-    'create', 'update', 'delete', 'record', 'set', 'repair',
-    'reEnroll', 'addParticipants', 'recordPayment', 'manage',
-    'recordBus', 'recordCanteen', 'deactivate'
+    'create',
+    'update',
+    'delete',
+    'record',
+    'set',
+    'repair',
+    'reEnroll',
+    'addParticipants',
+    'recordPayment',
+    'manage',
+    'recordBus',
+    'recordCanteen',
+    'deactivate'
   ]
 
   // Normalize resource name (some handlers use slightly different keys)
@@ -298,12 +316,12 @@ function normalizeResource(resource: string): Resource {
     events: 'events',
     // Aliases used in various handlers
     finance: 'payments',
-    'student_payments': 'payments',
-    'student_fees': 'payments',
+    student_payments: 'payments',
+    student_fees: 'payments',
     bus: 'attendance',
     canteen: 'attendance',
-    'bus_attendance': 'attendance',
-    'canteen_attendance': 'attendance',
+    bus_attendance: 'attendance',
+    canteen_attendance: 'attendance',
     salaries: 'personnel',
     payroll: 'personnel',
     salary: 'personnel',

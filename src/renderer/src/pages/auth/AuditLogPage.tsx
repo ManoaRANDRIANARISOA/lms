@@ -157,9 +157,7 @@ export default function AuditLogPage(): React.JSX.Element {
       </div>
 
       {/* Total count */}
-      <div className="text-sm text-muted-foreground mb-3">
-        {total} entrée(s) trouvée(s)
-      </div>
+      <div className="text-sm text-muted-foreground mb-3">{total} entrée(s) trouvée(s)</div>
 
       {/* Logs Table */}
       {loading ? (
@@ -193,7 +191,9 @@ export default function AuditLogPage(): React.JSX.Element {
                       })}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ACTION_COLORS[log.action] || 'bg-gray-100 text-gray-800'}`}>
+                      <span
+                        className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ACTION_COLORS[log.action] || 'bg-gray-100 text-gray-800'}`}
+                      >
                         {ACTION_LABELS[log.action] || log.action}
                       </span>
                     </td>
@@ -201,8 +201,13 @@ export default function AuditLogPage(): React.JSX.Element {
                     <td className="px-4 py-3 text-sm font-mono text-xs">{log.record_id || '—'}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground max-w-xs truncate">
                       {log.new_value ? (
-                        <span title={log.new_value}>{log.new_value.substring(0, 80)}{log.new_value.length > 80 ? '...' : ''}</span>
-                      ) : '—'}
+                        <span title={log.new_value}>
+                          {log.new_value.substring(0, 80)}
+                          {log.new_value.length > 80 ? '...' : ''}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                   </tr>
                 ))}

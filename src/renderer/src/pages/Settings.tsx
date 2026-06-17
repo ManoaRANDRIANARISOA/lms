@@ -144,7 +144,12 @@ export default function Settings() {
   }
 
   const handleRemoveClass = async (name: string) => {
-    if (!confirm(`Supprimer la classe "${name}" ?\n\nLes élèves dans cette classe ne seront pas supprimés, mais il faudra les réassigner.`)) return
+    if (
+      !confirm(
+        `Supprimer la classe "${name}" ?\n\nLes élèves dans cette classe ne seront pas supprimés, mais il faudra les réassigner.`
+      )
+    )
+      return
     await removeClass(name)
     setMessage('Classe supprimée.')
   }
@@ -254,8 +259,8 @@ export default function Settings() {
         <div className="bg-white p-6 rounded shadow max-w-xl border border-gray-100">
           <h2 className="text-lg font-semibold mb-4 text-gray-800">Gestion des Classes</h2>
           <p className="text-sm text-gray-500 mb-4">
-            Liste unique utilisée par tous les modules (Élèves, Finance, Notes).
-            Ajoutez, supprimez ou réordonnez les classes ici.
+            Liste unique utilisée par tous les modules (Élèves, Finance, Notes). Ajoutez, supprimez
+            ou réordonnez les classes ici.
           </p>
 
           {canWrite('settings') && (
@@ -288,10 +293,20 @@ export default function Settings() {
                       className="h-7 text-sm"
                       autoFocus
                     />
-                    <Button size="sm" variant="ghost" className="h-7 text-green-600" onClick={handleConfirmRename}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-green-600"
+                      onClick={handleConfirmRename}
+                    >
                       OK
                     </Button>
-                    <Button size="sm" variant="ghost" className="h-7" onClick={() => setEditingClass(null)}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7"
+                      onClick={() => setEditingClass(null)}
+                    >
                       Annuler
                     </Button>
                   </div>
@@ -342,8 +357,6 @@ export default function Settings() {
             ))}
           </div>
         </div>
-
-
 
         <div className="max-w-2xl">
           <h2 className="text-lg font-semibold mb-4 text-gray-800">📧 Service Email</h2>

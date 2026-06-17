@@ -32,7 +32,9 @@ let schedulerInterval: ReturnType<typeof setInterval> | null = null
 
 function getConfig(): EmailConfig | null {
   try {
-    const row = db.prepare("SELECT value FROM settings WHERE key = 'email_config'").get() as { value: string } | undefined
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'email_config'").get() as
+      | { value: string }
+      | undefined
     if (!row) return null
     return JSON.parse(row.value) as EmailConfig
   } catch {
@@ -43,11 +45,14 @@ function getConfig(): EmailConfig | null {
 function saveConfig(config: EmailConfig): void {
   const existing = db.prepare("SELECT key FROM settings WHERE key = 'email_config'").get()
   if (existing) {
-    db.prepare("UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE key = 'email_config'")
-      .run(JSON.stringify(config))
+    db.prepare(
+      "UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE key = 'email_config'"
+    ).run(JSON.stringify(config))
   } else {
-    db.prepare("INSERT INTO settings (key, value, sync_status) VALUES (?, ?, 'pending')")
-      .run('email_config', JSON.stringify(config))
+    db.prepare("INSERT INTO settings (key, value, sync_status) VALUES (?, ?, 'pending')").run(
+      'email_config',
+      JSON.stringify(config)
+    )
   }
 }
 
@@ -65,17 +70,22 @@ function initTransporter(config: EmailConfig): boolean {
 
 function addEmailLog(log: EmailLog): void {
   try {
-    const existing = db.prepare("SELECT value FROM settings WHERE key = 'email_logs'").get() as { value: string } | undefined
+    const existing = db.prepare("SELECT value FROM settings WHERE key = 'email_logs'").get() as
+      | { value: string }
+      | undefined
     const logs: EmailLog[] = existing ? JSON.parse(existing.value) : []
     logs.unshift(log)
     if (logs.length > 50) logs.length = 50
     const row = db.prepare("SELECT key FROM settings WHERE key = 'email_logs'").get()
     if (row) {
-      db.prepare("UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = 'email_logs'")
-        .run(JSON.stringify(logs))
+      db.prepare(
+        "UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = 'email_logs'"
+      ).run(JSON.stringify(logs))
     } else {
-      db.prepare("INSERT INTO settings (key, value, sync_status) VALUES (?, ?, 'synced')")
-        .run('email_logs', JSON.stringify(logs))
+      db.prepare("INSERT INTO settings (key, value, sync_status) VALUES (?, ?, 'synced')").run(
+        'email_logs',
+        JSON.stringify(logs)
+      )
     }
   } catch {
     // Silent fail for logging
@@ -109,7 +119,9 @@ export class EmailService {
 
   static getLogs(): EmailLog[] {
     try {
-      const row = db.prepare("SELECT value FROM settings WHERE key = 'email_logs'").get() as { value: string } | undefined
+      const row = db.prepare("SELECT value FROM settings WHERE key = 'email_logs'").get() as
+        | { value: string }
+        | undefined
       return row ? JSON.parse(row.value) : []
     } catch {
       return []
@@ -134,7 +146,12 @@ export class EmailService {
     }
   }
 
-  static async sendEmail(to: string, subject: string, body: string, attachments?: string[]): Promise<{ success: boolean; error?: string }> {
+  static async sendEmail(
+    to: string,
+    subject: string,
+    body: string,
+    attachments?: string[]
+  ): Promise<{ success: boolean; error?: string }> {
     const config = getConfig()
     if (!config?.enabled) {
       return { success: false, error: 'Service email désactivé' }
@@ -159,7 +176,13 @@ export class EmailService {
       return { success: true }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Envoi échoué'
-      addEmailLog({ sent_at: new Date().toISOString(), recipient: to, subject, success: false, error: message })
+      addEmailLog({
+        sent_at: new Date().toISOString(),
+        recipient: to,
+        subject,
+        success: false,
+        error: message
+      })
       return { success: false, error: message }
     }
   }
@@ -186,23 +209,35 @@ export class EmailService {
         const today = now.toISOString().split('T')[0]
         let lastSent = ''
         try {
-          const row = db.prepare("SELECT value FROM settings WHERE key = 'email_last_sent_date'").get() as { value: string } | undefined
+          const row = db
+            .prepare("SELECT value FROM settings WHERE key = 'email_last_sent_date'")
+            .get() as { value: string } | undefined
           if (row) lastSent = JSON.parse(row.value)
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
 
         if (lastSent !== today) {
-          EmailService.sendDailyReport().then(() => {
-            try {
-              const exists = db.prepare("SELECT key FROM settings WHERE key = 'email_last_sent_date'").get()
-              if (exists) {
-                db.prepare("UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = 'email_last_sent_date'")
-                  .run(JSON.stringify(today))
-              } else {
-                db.prepare("INSERT INTO settings (key, value, sync_status) VALUES (?, ?, 'synced')")
-                  .run('email_last_sent_date', JSON.stringify(today))
+          EmailService.sendDailyReport()
+            .then(() => {
+              try {
+                const exists = db
+                  .prepare("SELECT key FROM settings WHERE key = 'email_last_sent_date'")
+                  .get()
+                if (exists) {
+                  db.prepare(
+                    "UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = 'email_last_sent_date'"
+                  ).run(JSON.stringify(today))
+                } else {
+                  db.prepare(
+                    "INSERT INTO settings (key, value, sync_status) VALUES (?, ?, 'synced')"
+                  ).run('email_last_sent_date', JSON.stringify(today))
+                }
+              } catch {
+                /* silent */
               }
-            } catch { /* silent */ }
-          }).catch(() => {})
+            })
+            .catch(() => {})
         }
       }
     }, 60 * 1000)

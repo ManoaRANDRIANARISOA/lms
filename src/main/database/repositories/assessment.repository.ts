@@ -13,15 +13,17 @@ export interface Assessment {
 }
 
 export const AssessmentRepository = {
-  create: (data: Omit<Assessment, 'id' | 'created_at' | 'updated_at'>): { success: boolean; id?: string; error?: string } => {
+  create: (
+    data: Omit<Assessment, 'id' | 'created_at' | 'updated_at'>
+  ): { success: boolean; id?: string; error?: string } => {
     try {
       const id = uuidv4()
-      
+
       const stmt = db.prepare(`
         INSERT INTO assessments (id, school_year, class_name, name, term_value, weight)
         VALUES (@id, @school_year, @class_name, @name, @term_value, @weight)
       `)
-      
+
       stmt.run({
         id,
         school_year: data.school_year,
@@ -30,7 +32,7 @@ export const AssessmentRepository = {
         term_value: data.term_value,
         weight: data.weight || 1.0
       })
-      
+
       return { success: true, id }
     } catch (error) {
       console.error('Error creating assessment:', error)
@@ -38,10 +40,13 @@ export const AssessmentRepository = {
     }
   },
 
-  list: (schoolYear: string, className?: string): { success: boolean; assessments?: Assessment[]; error?: string } => {
+  list: (
+    schoolYear: string,
+    className?: string
+  ): { success: boolean; assessments?: Assessment[]; error?: string } => {
     try {
       let stmt
-      
+
       if (className) {
         // Obtenir les évaluations globales (class_name is null) ET celles spécifiques à la classe
         stmt = db.prepare(`
@@ -69,19 +74,19 @@ export const AssessmentRepository = {
   update: (id: string, updates: Partial<Assessment>): { success: boolean; error?: string } => {
     try {
       const setFields = Object.keys(updates)
-        .filter(k => k !== 'id' && k !== 'created_at' && k !== 'updated_at')
-        .map(k => `${k} = @${k}`)
-        
+        .filter((k) => k !== 'id' && k !== 'created_at' && k !== 'updated_at')
+        .map((k) => `${k} = @${k}`)
+
       if (setFields.length === 0) return { success: true }
-      
+
       setFields.push('updated_at = CURRENT_TIMESTAMP')
-      
+
       const stmt = db.prepare(`
         UPDATE assessments 
         SET ${setFields.join(', ')}
         WHERE id = @id
       `)
-      
+
       stmt.run({ ...updates, id })
       return { success: true }
     } catch (error) {

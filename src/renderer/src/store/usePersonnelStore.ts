@@ -1,5 +1,13 @@
 import { create } from 'zustand'
-import type { Personnel, SalaryCalculation, TimeTracking, PersonnelAbsence, SalaryAdvance, CustomDeduction, DailyAttendance } from '@shared/types'
+import type {
+  Personnel,
+  SalaryCalculation,
+  TimeTracking,
+  PersonnelAbsence,
+  SalaryAdvance,
+  CustomDeduction,
+  DailyAttendance
+} from '@shared/types'
 import { handleStoreError } from '@/lib/store-utils'
 
 interface PersonnelStore {
@@ -27,9 +35,21 @@ interface PersonnelStore {
   deleteDeduction: (id: string) => Promise<boolean>
   markAdvanceRepaid: (id: string, repaymentDate: string) => Promise<boolean>
   fetchMonthlyAttendance: (personnelId: string, year: number, month: number) => Promise<void>
-  setAttendance: (data: { personnel_id: string; attendance_date: string; status: string; hours_worked: number; expected_hours?: number; notes?: string }) => Promise<boolean>
+  setAttendance: (data: {
+    personnel_id: string
+    attendance_date: string
+    status: string
+    hours_worked: number
+    expected_hours?: number
+    notes?: string
+  }) => Promise<boolean>
   deleteAttendance: (id: string) => Promise<boolean>
-  createSalaryExpense: (personnelId: string, month: string, netAmount: number, description?: string) => Promise<boolean>
+  createSalaryExpense: (
+    personnelId: string,
+    month: string,
+    netAmount: number,
+    description?: string
+  ) => Promise<boolean>
 }
 
 export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
@@ -277,9 +297,15 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
   setAttendance: async (data) => {
     set({ loading: true, error: null })
     try {
-      const result = await window.api.personnel.setAttendance(data as Parameters<typeof window.api.personnel.setAttendance>[0])
+      const result = await window.api.personnel.setAttendance(
+        data as Parameters<typeof window.api.personnel.setAttendance>[0]
+      )
       if (result.success) {
-        await get().fetchMonthlyAttendance(data.personnel_id, new Date(data.attendance_date).getFullYear(), new Date(data.attendance_date).getMonth() + 1)
+        await get().fetchMonthlyAttendance(
+          data.personnel_id,
+          new Date(data.attendance_date).getFullYear(),
+          new Date(data.attendance_date).getMonth() + 1
+        )
         set({ loading: false })
         return true
       } else {
@@ -317,7 +343,12 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
   createSalaryExpense: async (personnelId, month, netAmount, description) => {
     set({ loading: true, error: null })
     try {
-      const result = await window.api.personnel.createSalaryExpense(personnelId, month, netAmount, description)
+      const result = await window.api.personnel.createSalaryExpense(
+        personnelId,
+        month,
+        netAmount,
+        description
+      )
       set({ loading: false })
       return result.success
     } catch (error: unknown) {

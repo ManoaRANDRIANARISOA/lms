@@ -27,7 +27,14 @@ export function registerGradeHandlers(): void {
     try {
       const result = GradeRepository.createSubject(data)
       if (result.success) {
-        logAction(getCurrentUser()?.id || null, 'create', 'subjects', result.id, null, JSON.stringify(data))
+        logAction(
+          getCurrentUser()?.id || null,
+          'create',
+          'subjects',
+          result.id,
+          null,
+          JSON.stringify(data)
+        )
       }
       return result
     } catch (error: unknown) {
@@ -54,7 +61,14 @@ export function registerGradeHandlers(): void {
     try {
       const result = GradeRepository.updateSubject(id, updates)
       if (result.success) {
-        logAction(getCurrentUser()?.id || null, 'update', 'subjects', id, null, JSON.stringify(updates))
+        logAction(
+          getCurrentUser()?.id || null,
+          'update',
+          'subjects',
+          id,
+          null,
+          JSON.stringify(updates)
+        )
       }
       return result
     } catch (error: unknown) {
@@ -85,9 +99,18 @@ export function registerGradeHandlers(): void {
       return { success: false, error: 'Accès refusé' }
     }
     try {
-      const result = GradeRepository.createGrade(data as Parameters<typeof GradeRepository.createGrade>[0])
+      const result = GradeRepository.createGrade(
+        data as Parameters<typeof GradeRepository.createGrade>[0]
+      )
       if (result.success) {
-        logAction(getCurrentUser()?.id || null, 'create', 'grades', result.id, null, JSON.stringify(data))
+        logAction(
+          getCurrentUser()?.id || null,
+          'create',
+          'grades',
+          result.id,
+          null,
+          JSON.stringify(data)
+        )
       }
       return result
     } catch (error: unknown) {
@@ -102,7 +125,14 @@ export function registerGradeHandlers(): void {
     try {
       const result = GradeRepository.updateGrade(id, updates)
       if (result.success) {
-        logAction(getCurrentUser()?.id || null, 'update', 'grades', id, null, JSON.stringify(updates))
+        logAction(
+          getCurrentUser()?.id || null,
+          'update',
+          'grades',
+          id,
+          null,
+          JSON.stringify(updates)
+        )
       }
       return result
     } catch (error: unknown) {
@@ -125,65 +155,80 @@ export function registerGradeHandlers(): void {
     }
   })
 
-  ipcMain.handle('grade:getGradesByStudent', async (_, studentId: string, schoolYear: string, term?: number) => {
-    if (!canRead('grades')) {
-      return { success: false, error: 'Accès refusé' }
+  ipcMain.handle(
+    'grade:getGradesByStudent',
+    async (_, studentId: string, schoolYear: string, term?: number) => {
+      if (!canRead('grades')) {
+        return { success: false, error: 'Accès refusé' }
+      }
+      try {
+        const grades = GradeRepository.getGradesByStudent(studentId, schoolYear, term)
+        return { success: true, grades }
+      } catch (error: unknown) {
+        return { success: false, error: 'Erreur lors du chargement des notes' }
+      }
     }
-    try {
-      const grades = GradeRepository.getGradesByStudent(studentId, schoolYear, term)
-      return { success: true, grades }
-    } catch (error: unknown) {
-      return { success: false, error: 'Erreur lors du chargement des notes' }
-    }
-  })
+  )
 
-  ipcMain.handle('grade:getGradesByClass', async (_, className: string, schoolYear: string, term: number) => {
-    if (!canRead('grades')) {
-      return { success: false, error: 'Accès refusé' }
+  ipcMain.handle(
+    'grade:getGradesByClass',
+    async (_, className: string, schoolYear: string, term: number) => {
+      if (!canRead('grades')) {
+        return { success: false, error: 'Accès refusé' }
+      }
+      try {
+        const grades = GradeRepository.getGradesByClass(className, schoolYear, term)
+        return { success: true, grades }
+      } catch (error: unknown) {
+        return { success: false, error: 'Erreur lors du chargement des notes' }
+      }
     }
-    try {
-      const grades = GradeRepository.getGradesByClass(className, schoolYear, term)
-      return { success: true, grades }
-    } catch (error: unknown) {
-      return { success: false, error: 'Erreur lors du chargement des notes' }
-    }
-  })
+  )
 
-  ipcMain.handle('grade:getStudentAverage', async (_, studentId: string, schoolYear: string, term: number) => {
-    if (!canRead('grades')) {
-      return { success: false, error: 'Accès refusé' }
+  ipcMain.handle(
+    'grade:getStudentAverage',
+    async (_, studentId: string, schoolYear: string, term: number) => {
+      if (!canRead('grades')) {
+        return { success: false, error: 'Accès refusé' }
+      }
+      try {
+        const average = GradeRepository.getStudentAverage(studentId, schoolYear, term)
+        return { success: true, average }
+      } catch (error: unknown) {
+        return { success: false, error: 'Erreur lors du calcul de la moyenne' }
+      }
     }
-    try {
-      const average = GradeRepository.getStudentAverage(studentId, schoolYear, term)
-      return { success: true, average }
-    } catch (error: unknown) {
-      return { success: false, error: 'Erreur lors du calcul de la moyenne' }
-    }
-  })
+  )
 
-  ipcMain.handle('grade:getClassAverages', async (_, className: string, schoolYear: string, term: number) => {
-    if (!canRead('grades')) {
-      return { success: false, error: 'Accès refusé' }
+  ipcMain.handle(
+    'grade:getClassAverages',
+    async (_, className: string, schoolYear: string, term: number) => {
+      if (!canRead('grades')) {
+        return { success: false, error: 'Accès refusé' }
+      }
+      try {
+        const averages = GradeRepository.getClassAverages(className, schoolYear, term)
+        return { success: true, averages }
+      } catch (error: unknown) {
+        return { success: false, error: 'Erreur lors du calcul des moyennes' }
+      }
     }
-    try {
-      const averages = GradeRepository.getClassAverages(className, schoolYear, term)
-      return { success: true, averages }
-    } catch (error: unknown) {
-      return { success: false, error: 'Erreur lors du calcul des moyennes' }
-    }
-  })
+  )
 
-  ipcMain.handle('grade:getClassRanking', async (_, className: string, schoolYear: string, term: number) => {
-    if (!canRead('grades')) {
-      return { success: false, error: 'Accès refusé' }
+  ipcMain.handle(
+    'grade:getClassRanking',
+    async (_, className: string, schoolYear: string, term: number) => {
+      if (!canRead('grades')) {
+        return { success: false, error: 'Accès refusé' }
+      }
+      try {
+        const ranking = GradeRepository.getClassRanking(className, schoolYear, term)
+        return { success: true, ranking }
+      } catch (error: unknown) {
+        return { success: false, error: 'Erreur lors du calcul du classement' }
+      }
     }
-    try {
-      const ranking = GradeRepository.getClassRanking(className, schoolYear, term)
-      return { success: true, ranking }
-    } catch (error: unknown) {
-      return { success: false, error: 'Erreur lors du calcul du classement' }
-    }
-  })
+  )
 
   // --------------------------------------------
   // CLASS_SUBJECTS (Phase 3)
@@ -218,30 +263,49 @@ export function registerGradeHandlers(): void {
       return { success: false, error: 'Accès refusé' }
     }
     try {
-      const result = GradeRepository.createClassSubject(data as unknown as Parameters<typeof GradeRepository.createClassSubject>[0])
+      const result = GradeRepository.createClassSubject(
+        data as unknown as Parameters<typeof GradeRepository.createClassSubject>[0]
+      )
       if (result.success) {
-        logAction(getCurrentUser()?.id || null, 'create', 'class_subjects', result.id, null, JSON.stringify(data))
+        logAction(
+          getCurrentUser()?.id || null,
+          'create',
+          'class_subjects',
+          result.id,
+          null,
+          JSON.stringify(data)
+        )
       }
       return result
     } catch (error: unknown) {
-      return { success: false, error: 'Erreur lors de l\'ajout de la matière' }
+      return { success: false, error: "Erreur lors de l'ajout de la matière" }
     }
   })
 
-  ipcMain.handle('grade:updateClassSubject', async (_, id: string, updates: Record<string, unknown>) => {
-    if (!canWrite('grades')) {
-      return { success: false, error: 'Accès refusé' }
-    }
-    try {
-      const result = GradeRepository.updateClassSubject(id, updates)
-      if (result.success) {
-        logAction(getCurrentUser()?.id || null, 'update', 'class_subjects', id, null, JSON.stringify(updates))
+  ipcMain.handle(
+    'grade:updateClassSubject',
+    async (_, id: string, updates: Record<string, unknown>) => {
+      if (!canWrite('grades')) {
+        return { success: false, error: 'Accès refusé' }
       }
-      return result
-    } catch (error: unknown) {
-      return { success: false, error: 'Erreur lors de la mise à jour' }
+      try {
+        const result = GradeRepository.updateClassSubject(id, updates)
+        if (result.success) {
+          logAction(
+            getCurrentUser()?.id || null,
+            'update',
+            'class_subjects',
+            id,
+            null,
+            JSON.stringify(updates)
+          )
+        }
+        return result
+      } catch (error: unknown) {
+        return { success: false, error: 'Erreur lors de la mise à jour' }
+      }
     }
-  })
+  )
 
   ipcMain.handle('grade:deleteClassSubject', async (_, id: string) => {
     if (!canWrite('grades')) {
@@ -270,15 +334,18 @@ export function registerGradeHandlers(): void {
     }
   })
 
-  ipcMain.handle('grade:getClassSubjectAverages', async (_, className: string, schoolYear: string, term: number) => {
-    if (!canRead('grades')) {
-      return { success: false, error: 'Accès refusé' }
+  ipcMain.handle(
+    'grade:getClassSubjectAverages',
+    async (_, className: string, schoolYear: string, term: number) => {
+      if (!canRead('grades')) {
+        return { success: false, error: 'Accès refusé' }
+      }
+      try {
+        const averages = GradeRepository.getClassSubjectAverages(className, schoolYear, term)
+        return { success: true, averages }
+      } catch (error: unknown) {
+        return { success: false, error: 'Erreur lors du calcul des moyennes' }
+      }
     }
-    try {
-      const averages = GradeRepository.getClassSubjectAverages(className, schoolYear, term)
-      return { success: true, averages }
-    } catch (error: unknown) {
-      return { success: false, error: 'Erreur lors du calcul des moyennes' }
-    }
-  })
+  )
 }

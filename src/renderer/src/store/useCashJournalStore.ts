@@ -11,8 +11,13 @@ interface CashJournalState {
   error: string | null
 
   fetchEntries: (filters?: CashJournalFilters) => Promise<void>
-  createEntry: (data: Omit<CashJournalEntry, 'id' | 'created_at' | 'updated_at'>) => Promise<{ success: boolean; id?: string; error?: string }>
-  updateEntry: (id: string, updates: Partial<CashJournalEntry>) => Promise<{ success: boolean; error?: string }>
+  createEntry: (
+    data: Omit<CashJournalEntry, 'id' | 'created_at' | 'updated_at'>
+  ) => Promise<{ success: boolean; id?: string; error?: string }>
+  updateEntry: (
+    id: string,
+    updates: Partial<CashJournalEntry>
+  ) => Promise<{ success: boolean; error?: string }>
   deleteEntry: (id: string) => Promise<{ success: boolean; error?: string }>
   fetchDailyBalance: (date: string) => Promise<void>
   fetchMonthlyBalance: (year: number, month: number) => Promise<void>

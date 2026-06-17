@@ -92,6 +92,7 @@ export interface UserRow {
 export interface FinancePrices {
   tuition: Record<string, number>
   classes: string[]
+  fram: number
   registration: number
   reenrollment: number
   canteen: {
@@ -132,6 +133,8 @@ export interface Student {
   address?: string
 
   siblings: string[] // IDs
+  is_personnel_child?: boolean
+  parent_personnel_id?: string | null
 
   // Services & Fees (Optional/Merged from FeeRecord)
   bus_subscribed?: boolean
@@ -139,6 +142,8 @@ export interface Student {
   canteen_subscribed?: boolean
   canteen_days_per_week?: number
   canteen_days?: string[]
+
+
 
   uniform_tshirt_purchased?: boolean
   uniform_apron_purchased?: boolean
@@ -155,7 +160,7 @@ export interface Payment {
   student_id: string
   payment_date: string
   amount: number
-  payment_type: 'tuition' | 'bus' | 'canteen' | 'enrollment' | 'uniform' | 'event' | 'other'
+  payment_type: 'tuition' | 'bus' | 'canteen' | 'enrollment' | 'reenrollment' | 'fram' | 'uniform' | 'event' | 'other'
   month?: string // "2025-09"
   description?: string
   payment_method?: 'cash' | 'check' | 'transfer' | 'mobile_money'
@@ -252,8 +257,8 @@ export interface Personnel {
   // Work schedule (for attendance tracking)
   expected_monthly_hours?: number
   work_pattern?: 'daily' | 'weekly' | 'monthly' | 'custom'
-  work_days?: string[]          // e.g. ["Monday","Tuesday","Wednesday","Thursday","Friday"]
-  daily_hours?: number          // expected hours per working day
+  work_days?: string[] // e.g. ["Monday","Tuesday","Wednesday","Thursday","Friday"]
+  daily_hours?: number // expected hours per working day
   // Metadata
   created_at?: string
   updated_at?: string
@@ -319,12 +324,12 @@ export interface CustomDeduction {
 export interface DailyAttendance {
   id: string
   personnel_id: string
-  attendance_date: string          // "2025-09-15"
+  attendance_date: string // "2025-09-15"
   status: 'present' | 'absent' | 'late' | 'half_day' | 'excused' | 'paid_leave'
   hours_worked: number
   expected_hours?: number
   notes?: string
-  session_info?: string            // JSON string for future extensibility
+  session_info?: string // JSON string for future extensibility
   created_at?: string
   updated_at?: string
   version?: number
@@ -339,6 +344,7 @@ export interface SalaryCalculation {
   advancesTotal: number
   customDeductionsTotal: number
   netSalary: number
+  isPaid?: boolean
   details: {
     baseSalary: number
     hoursWorked?: number

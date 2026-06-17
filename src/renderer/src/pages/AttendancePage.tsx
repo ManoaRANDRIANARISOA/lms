@@ -20,8 +20,6 @@ interface StudentAttendance {
   present: boolean
 }
 
-
-
 import { ServiceDashboard } from '@/components/students/ServiceDashboard'
 
 export default function AttendancePage() {
@@ -75,7 +73,10 @@ export default function AttendancePage() {
       // Usually for "Pointage", we mark who is ABSENT. So default TRUE is better.
       // But let's check if record exists.
 
-      const mapStudents = (subs: Array<Omit<StudentAttendance, 'present'>>, records: Array<{ student_id: string; status: string }>) => {
+      const mapStudents = (
+        subs: Array<Omit<StudentAttendance, 'present'>>,
+        records: Array<{ student_id: string; status: string }>
+      ) => {
         return subs.map((s: Omit<StudentAttendance, 'present'>) => {
           const record = records.find((a: { student_id: string }) => a.student_id === s.id)
           return {
@@ -87,8 +88,6 @@ export default function AttendancePage() {
 
       setBusStudents(mapStudents(busSubs || [], busAtt || []))
       setCanteenStudents(mapStudents(canteenSubs || [], canteenAtt || []))
-
-
     } catch (e) {
       if (import.meta.env.DEV) console.error(e)
     } finally {
@@ -110,10 +109,16 @@ export default function AttendancePage() {
     setSaving(true)
     try {
       if (activeTab === 'bus') {
-        const records = busStudents.map((s) => ({ student_id: s.id, status: s.present ? 'present' : 'absent' }))
+        const records = busStudents.map((s) => ({
+          student_id: s.id,
+          status: s.present ? 'present' : 'absent'
+        }))
         await window.api.attendance.recordBus(date, records)
       } else if (activeTab === 'canteen') {
-        const records = canteenStudents.map((s) => ({ student_id: s.id, status: s.present ? 'present' : 'absent' }))
+        const records = canteenStudents.map((s) => ({
+          student_id: s.id,
+          status: s.present ? 'present' : 'absent'
+        }))
         await window.api.attendance.recordCanteen(date, records)
       }
       // Simple feedback
@@ -185,7 +190,6 @@ export default function AttendancePage() {
               <Utensils className="w-4 h-4 mr-2" />
               Cantine ({canteenStudents.length})
             </TabsTrigger>
-
           </TabsList>
 
           <div className="flex items-center gap-4">
@@ -305,8 +309,6 @@ export default function AttendancePage() {
                 )}
               </div>
             </TabsContent>
-
-
           </>
         )}
       </Tabs>

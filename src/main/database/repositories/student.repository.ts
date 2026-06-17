@@ -37,7 +37,10 @@ export class StudentRepository {
     'address',
     'photo_path',
     'siblings',
-    'email'
+    'email',
+    'is_personnel_child',
+    'parent_personnel_id',
+    'departure_date'
   ]
 
   private static DEFAULT_PRICES = {
@@ -57,7 +60,21 @@ export class StudentRepository {
       Seconde: 110000,
       Première: 110000,
       Terminale: 120000
-    }
+    },
+    fram: 15000,
+    registration: 50000
+  }
+
+  private static translateError(error: unknown): string {
+    const msg = error instanceof Error ? error.message : String(error)
+    if (msg.includes('no column named'))
+      return `Erreur système : colonne de base de données introuvable. L'application est en train de se mettre à jour.`
+    if (msg.includes('UNIQUE constraint failed'))
+      return `Erreur : Cet enregistrement existe déjà (ex: numéro matricule doublon).`
+    if (msg.includes('FOREIGN KEY constraint failed'))
+      return `Erreur : Liaison impossible. L'élément lié n'existe pas.`
+    if (msg.includes('SQLITE_')) return `Erreur inattendue de la base de données.`
+    return msg
   }
 
   private static handlePhoto(sourcePath: string): string {
@@ -124,7 +141,8 @@ export class StudentRepository {
     }
   }
 
-  static getTuitionPrice(className: string): number {
+  static getTuitionPrice(className: string, isPersonnelChild: boolean = false): number {
+    if (isPersonnelChild) return 0
     const config = this.resolveTuitionConfig(className)
     return config.price
   }
@@ -221,7 +239,7 @@ export class StudentRepository {
           const newSiblingsJson = JSON.stringify(siblingsList)
 
           db.prepare(
-            'UPDATE students SET siblings = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = "pending" WHERE id = ?'
+            "UPDATE students SET siblings = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending' WHERE id = ?"
           ).run(newSiblingsJson, siblingId)
 
           addToSyncQueue('students', siblingId, 'update', { siblings: newSiblingsJson })
@@ -242,7 +260,7 @@ export class StudentRepository {
           const newSiblingsJson = JSON.stringify(siblingsList)
 
           db.prepare(
-            'UPDATE students SET siblings = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = "pending" WHERE id = ?'
+            "UPDATE students SET siblings = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending' WHERE id = ?"
           ).run(newSiblingsJson, siblingId)
 
           addToSyncQueue('students', siblingId, 'update', { siblings: newSiblingsJson })
@@ -292,8 +310,8 @@ export class StudentRepository {
                 father_name, mother_name, guardian_name, 
                 father_contact, mother_contact, guardian_contact,
                 father_profession, mother_profession, guardian_profession,
-                address, previous_school, photo_path, siblings
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                address, previous_school, photo_path, siblings, is_personnel_child, parent_personnel_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `)
 
       // Handle siblings as JSON string
@@ -321,7 +339,15 @@ export class StudentRepository {
         studentDataClean.address,
         studentDataClean.previous_school,
         studentDataClean.photo_path,
-        siblingsJson
+        siblingsJson,
+        studentDataClean.is_personnel_child !== undefined
+          ? studentDataClean.is_personnel_child
+            ? 1
+            : 0
+          : null,
+        studentDataClean.parent_personnel_id !== undefined
+          ? studentDataClean.parent_personnel_id
+          : null
       )
 
       // Update bidirectional siblings
@@ -334,7 +360,10 @@ export class StudentRepository {
 
         const config = this.resolveTuitionConfig(studentDataClean.class as string)
         const level = config.key || this.determineTuitionLevel(studentDataClean.class as string)
-        const tuitionFee = config.price
+        const tuitionFee = this.getTuitionPrice(
+          studentDataClean.class as string,
+          Boolean(studentDataClean.is_personnel_child)
+        )
 
         const feeId = uuidv4()
         db.prepare(
@@ -388,13 +417,21 @@ export class StudentRepository {
     try {
       return createTransaction(studentData)
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error)
+      const message = this.translateError(error)
       console.error('Error creating student:', error)
       return { success: false, error: message }
     }
   }
 
-  static list(filters: { search?: string; class?: string; schoolYear?: string; limit?: number; offset?: number } = {}) {
+  static list(
+    filters: {
+      search?: string
+      class?: string
+      schoolYear?: string
+      limit?: number
+      offset?: number
+    } = {}
+  ) {
     const { search, class: className, schoolYear, limit = 50, offset = 0 } = filters
 
     // Build WHERE clause incrementally (same conditions for data and count)
@@ -439,7 +476,7 @@ export class StudentRepository {
     }
 
     // Apply class filter post-resolution if needed
-    const classFilter = className ? "WHERE resolved_class = ?" : ''
+    const classFilter = className ? 'WHERE resolved_class = ?' : ''
     const classParam = className ? [className] : []
 
     const dataQuery = `
@@ -456,14 +493,12 @@ export class StudentRepository {
     `
     const countParams = [...subQueryParams, ...classParam]
 
-    const students = db
-      .prepare(dataQuery)
-      .all(...dataParams) as Record<string, unknown>[]
+    const students = db.prepare(dataQuery).all(...dataParams) as Record<string, unknown>[]
     const mappedStudents = students.map((s) => ({
-        ...s,
-        class: s.resolved_class,
-        siblings: s.siblings ? JSON.parse(s.siblings as string) : []
-      }))
+      ...s,
+      class: s.resolved_class,
+      siblings: s.siblings ? JSON.parse(s.siblings as string) : []
+    }))
 
     const countResult = db.prepare(countQuery).get(...countParams) as { total: number }
 
@@ -471,7 +506,9 @@ export class StudentRepository {
   }
 
   static getById(id: string) {
-    const student = db.prepare(`
+    const student = db
+      .prepare(
+        `
       SELECT *,
         COALESCE(NULLIF(class, 'Classe non spécifiée'),
                  (SELECT class_name FROM student_fees sf
@@ -481,7 +518,9 @@ export class StudentRepository {
         ) as resolved_class
       FROM students
       WHERE id = ?
-    `).get(id) as Record<string, unknown> | undefined
+    `
+      )
+      .get(id) as Record<string, unknown> | undefined
 
     if (!student) return null
 
@@ -507,23 +546,22 @@ export class StudentRepository {
       fees.class_name = student.class
     }
 
-    // Parse JSON fields in fees
-    if (fees) {
+    // Parse JSON fields in allFees
+    allFees.forEach((f) => {
       try {
-        if (typeof fees.canteen_days === 'string') {
-          fees.canteen_days = JSON.parse(fees.canteen_days as string)
+        if (typeof f.canteen_days === 'string') {
+          f.canteen_days = JSON.parse(f.canteen_days as string)
         }
-        if (typeof fees.uniform_items_purchased === 'string') {
-          fees.uniform_items_purchased = JSON.parse(fees.uniform_items_purchased as string)
+        if (typeof f.uniform_items_purchased === 'string') {
+          f.uniform_items_purchased = JSON.parse(f.uniform_items_purchased as string)
         }
-        if (typeof fees.tuition_paid_months === 'string') {
-          fees.tuition_paid_months = JSON.parse(fees.tuition_paid_months as string)
+        if (typeof f.tuition_paid_months === 'string') {
+          f.tuition_paid_months = JSON.parse(f.tuition_paid_months as string)
         }
       } catch (e) {
         console.error('Error parsing fee JSON fields:', e)
-        // Don't overwrite with empty arrays on error, let frontend handle or keep raw
       }
-    }
+    })
 
     const payments = db
       .prepare('SELECT * FROM student_payments WHERE student_id = ? ORDER BY payment_date DESC')
@@ -534,8 +572,6 @@ export class StudentRepository {
 
   static update(id: string, updates: Record<string, unknown>) {
     try {
-
-
       // Handle special fields
       if (updates.photo_path) {
         updates.photo_path = this.handlePhoto(updates.photo_path as string)
@@ -580,8 +616,6 @@ export class StudentRepository {
         }
       })
 
-
-
       const updateTransaction = db.transaction(() => {
         // Update Sibling Relations
         if (newSiblingsArray) {
@@ -612,14 +646,40 @@ export class StudentRepository {
           let schoolYear = this.getSetting('school_year') || '2025-2026'
           schoolYear = schoolYear.replace(/['"]/g, '').trim()
 
-          // If class changed, update fee record too
-          if (studentUpdates.class) {
-            feeUpdates.class_name = studentUpdates.class
-            const config = this.resolveTuitionConfig(studentUpdates.class as string)
-            feeUpdates.tuition_level =
-              config.key || this.determineTuitionLevel(studentUpdates.class as string)
-            feeUpdates.monthly_tuition = config.price
+          // If class or personnel status changed, update fee record too
+          if (
+            studentUpdates.class !== undefined ||
+            studentUpdates.is_personnel_child !== undefined ||
+            studentUpdates.parent_personnel_id !== undefined
+          ) {
+            const currentClass =
+              studentUpdates.class !== undefined
+                ? (studentUpdates.class as string)
+                : (db.prepare('SELECT class FROM students WHERE id = ?').get(id) as any)?.class ||
+                  ''
 
+            const currentIsPersonnelChild =
+              studentUpdates.is_personnel_child !== undefined
+                ? studentUpdates.is_personnel_child
+                : studentUpdates.parent_personnel_id !== undefined
+                  ? Boolean(studentUpdates.parent_personnel_id)
+                  : Boolean(
+                      (
+                        db
+                          .prepare('SELECT is_personnel_child FROM students WHERE id = ?')
+                          .get(id) as any
+                      )?.is_personnel_child
+                    )
+
+            if (studentUpdates.class !== undefined) {
+              feeUpdates.class_name = currentClass
+              const config = this.resolveTuitionConfig(currentClass)
+              feeUpdates.tuition_level = config.key || this.determineTuitionLevel(currentClass)
+            }
+            feeUpdates.monthly_tuition = this.getTuitionPrice(
+              currentClass,
+              Boolean(currentIsPersonnelChild)
+            )
           }
 
           // Find existing fee record
@@ -635,8 +695,6 @@ export class StudentRepository {
           })
 
           if (feeRecord) {
-
-
             // Filter feeUpdates to ensure they are valid columns
             // We assume feeFields matches columns, but we must be careful with types
             const validFeeUpdates: Record<string, unknown> = {}
@@ -664,11 +722,12 @@ export class StudentRepository {
                       `
               ).run(...values, feeRecord.id)
 
-              addToSyncQueue('student_fees', feeRecord.id, 'update', { ...validFeeUpdates, student_id: id })
+              addToSyncQueue('student_fees', feeRecord.id, 'update', {
+                ...validFeeUpdates,
+                student_id: id
+              })
             }
           } else {
-
-
             const feeId = uuidv4()
             let className = studentUpdates.class as string
             if (!className) {
@@ -679,7 +738,14 @@ export class StudentRepository {
             }
 
             const level = this.determineTuitionLevel(className)
-            const tuitionFee = this.getTuitionPrice(className)
+            let isPersonnelChild = studentUpdates.is_personnel_child as boolean
+            if (isPersonnelChild === undefined) {
+              const currentStudentPC = db
+                .prepare('SELECT is_personnel_child FROM students WHERE id = ?')
+                .get(id) as any
+              isPersonnelChild = Boolean(currentStudentPC?.is_personnel_child)
+            }
+            const tuitionFee = this.getTuitionPrice(className, isPersonnelChild)
 
             // Construct new fee object
             const newFeeRecord: Record<string, unknown> = {
@@ -719,7 +785,6 @@ export class StudentRepository {
 
       updateTransaction()
 
-
       return { success: true }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
@@ -751,10 +816,8 @@ export class StudentRepository {
   static async resetDatabase(includeRemote: boolean = false) {
     try {
       if (includeRemote) {
-
         await wipeRemoteData()
       }
-
 
       // 1. Delete Attendance & Event Payments
       db.prepare('DELETE FROM bus_attendance').run()
@@ -777,8 +840,8 @@ export class StudentRepository {
     }
   }
 
-  static reEnroll(id: string, newClass: string, targetYear: string) {
-    const student = db.prepare('SELECT * FROM students WHERE id = ?').get(id)
+  static reEnroll(id: string, newClass: string, targetYear: string, framPaid?: boolean, initialPayment?: number) {
+    const student = db.prepare('SELECT * FROM students WHERE id = ?').get(id) as any
     if (!student) return { success: false, error: 'Student not found' }
 
     // Check if already enrolled
@@ -788,7 +851,12 @@ export class StudentRepository {
     if (existingFee) return { success: false, error: 'Student already enrolled for this year' }
 
     const level = this.determineTuitionLevel(newClass)
-    const tuitionFee = this.getTuitionPrice(newClass)
+    const currentStudentPC = db
+      .prepare('SELECT is_personnel_child FROM students WHERE id = ?')
+      .get(id) as any
+    const isPersonnelChild = Boolean(currentStudentPC?.is_personnel_child)
+
+    const tuitionFee = this.getTuitionPrice(newClass, isPersonnelChild)
 
     const transaction = db.transaction(() => {
       // Update Student Class (Current Status)
@@ -807,10 +875,10 @@ export class StudentRepository {
       db.prepare(
         `
             INSERT INTO student_fees (
-                id, student_id, school_year, tuition_level, monthly_tuition, class_name
-            ) VALUES (?, ?, ?, ?, ?, ?)
+                id, student_id, school_year, tuition_level, monthly_tuition, class_name, fram_paid_by_parent
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
         `
-      ).run(feeId, id, targetYear, level, tuitionFee, newClass)
+      ).run(feeId, id, targetYear, level, tuitionFee, newClass, framPaid ? 1 : 0)
 
       addToSyncQueue('student_fees', feeId, 'create', {
         id: feeId,
@@ -818,8 +886,34 @@ export class StudentRepository {
         school_year: targetYear,
         tuition_level: level,
         monthly_tuition: tuitionFee,
-        class_name: newClass
+        class_name: newClass,
+        fram_paid_by_parent: framPaid ? 1 : 0
       })
+
+      // Create Payment Record if > 0
+      if (initialPayment && initialPayment > 0) {
+        const paymentId = uuidv4()
+        const isNewStudent = !student.class || student.class === 'Classe non spécifiée'
+        const paymentType = isNewStudent ? 'enrollment' : 'reinscription'
+        
+        db.prepare(
+          `
+            INSERT INTO student_payments (
+                id, student_id, amount, payment_date, payment_type, payment_method, description
+            ) VALUES (?, ?, CURRENT_DATE, ?, ?, 'cash', ?)
+          `
+        ).run(paymentId, id, initialPayment, paymentType, isNewStudent ? "Droits d'inscription" : "Droits de réinscription")
+
+        addToSyncQueue('student_payments', paymentId, 'create', {
+          id: paymentId,
+          student_id: id,
+          amount: initialPayment,
+          payment_date: new Date().toISOString().split('T')[0],
+          payment_type: paymentType,
+          payment_method: 'cash',
+          description: isNewStudent ? "Droits d'inscription" : "Droits de réinscription"
+        })
+      }
     })
 
     try {
@@ -843,7 +937,12 @@ export class StudentRepository {
           WHERE school_year = ?
       `
       )
-      .all(schoolYear) as { canteen_subscribed: number; canteen_days: string; bus_subscribed: number; bus_route: string }[]
+      .all(schoolYear) as {
+      canteen_subscribed: number
+      canteen_days: string
+      bus_subscribed: number
+      bus_route: string
+    }[]
 
     const canteenStats: Record<string, number> = {
       Monday: 0,
@@ -883,10 +982,11 @@ export class StudentRepository {
   }
 
   static repairEnrollments(targetYear: string = '2025-2026') {
-
     const students = db
-      .prepare("SELECT id, class FROM students WHERE class IS NOT NULL AND class != ''")
-      .all() as { id: string; class: string }[]
+      .prepare(
+        "SELECT id, class, is_personnel_child FROM students WHERE class IS NOT NULL AND class != ''"
+      )
+      .all() as { id: string; class: string; is_personnel_child: number | null }[]
     let fixedCount = 0
 
     const transaction = db.transaction(() => {
@@ -896,9 +996,11 @@ export class StudentRepository {
           .get(student.id, targetYear)
 
         if (!existingFee) {
-
           const level = this.determineTuitionLevel(student.class)
-          const tuitionFee = this.getTuitionPrice(student.class)
+          const tuitionFee = this.getTuitionPrice(
+            student.class,
+            Boolean(student.is_personnel_child)
+          )
           const feeId = uuidv4()
 
           db.prepare(
@@ -927,8 +1029,8 @@ export class StudentRepository {
       transaction()
       return { success: true, fixedCount }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error)
-      console.error('Repair error:', error)
+      const message = this.translateError(error)
+      console.error('Error updating student:', error)
       return { success: false, error: message }
     }
   }

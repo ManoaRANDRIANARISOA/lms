@@ -8,10 +8,23 @@
 import { useState, useEffect, useCallback } from 'react'
 
 const DEFAULT_CLASSES = [
-  'PS', 'MS', 'GS',
-  'CP1', 'CP2', 'CE1', 'CE2', 'CM1', 'CM2',
-  '6ème', '5ème', '4ème', '3ème',
-  '2nde', '1ère', 'TA', 'TD'
+  'PS',
+  'MS',
+  'GS',
+  'CP1',
+  'CP2',
+  'CE1',
+  'CE2',
+  'CM1',
+  'CM2',
+  '6ème',
+  '5ème',
+  '4ème',
+  '3ème',
+  '2nde',
+  '1ère',
+  'TA',
+  'TD'
 ]
 
 export function useClasses() {
@@ -42,33 +55,45 @@ export function useClasses() {
     setClasses(newClasses)
   }, [])
 
-  const addClass = useCallback(async (name: string) => {
-    const trimmed = name.trim()
-    if (!trimmed || classes.includes(trimmed)) return false
-    const updated = [...classes, trimmed]
-    await saveClasses(updated)
-    return true
-  }, [classes, saveClasses])
+  const addClass = useCallback(
+    async (name: string) => {
+      const trimmed = name.trim()
+      if (!trimmed || classes.includes(trimmed)) return false
+      const updated = [...classes, trimmed]
+      await saveClasses(updated)
+      return true
+    },
+    [classes, saveClasses]
+  )
 
-  const removeClass = useCallback(async (name: string) => {
-    const updated = classes.filter(c => c !== name)
-    await saveClasses(updated)
-  }, [classes, saveClasses])
+  const removeClass = useCallback(
+    async (name: string) => {
+      const updated = classes.filter((c) => c !== name)
+      await saveClasses(updated)
+    },
+    [classes, saveClasses]
+  )
 
-  const reorderClasses = useCallback(async (fromIndex: number, toIndex: number) => {
-    const updated = [...classes]
-    const [moved] = updated.splice(fromIndex, 1)
-    updated.splice(toIndex, 0, moved)
-    await saveClasses(updated)
-  }, [classes, saveClasses])
+  const reorderClasses = useCallback(
+    async (fromIndex: number, toIndex: number) => {
+      const updated = [...classes]
+      const [moved] = updated.splice(fromIndex, 1)
+      updated.splice(toIndex, 0, moved)
+      await saveClasses(updated)
+    },
+    [classes, saveClasses]
+  )
 
-  const renameClass = useCallback(async (oldName: string, newName: string) => {
-    const trimmed = newName.trim()
-    if (!trimmed || trimmed === oldName || classes.includes(trimmed)) return false
-    const updated = classes.map(c => c === oldName ? trimmed : c)
-    await saveClasses(updated)
-    return true
-  }, [classes, saveClasses])
+  const renameClass = useCallback(
+    async (oldName: string, newName: string) => {
+      const trimmed = newName.trim()
+      if (!trimmed || trimmed === oldName || classes.includes(trimmed)) return false
+      const updated = classes.map((c) => (c === oldName ? trimmed : c))
+      await saveClasses(updated)
+      return true
+    },
+    [classes, saveClasses]
+  )
 
   return {
     classes,
