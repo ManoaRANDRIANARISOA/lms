@@ -183,16 +183,30 @@ export default function StudentList() {
                     {student.class &&
                     student.class !== 'Non inscrit' &&
                     student.class !== 'Classe non spécifiée' ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {student.class}
-                      </span>
+                      student.class.startsWith('Ancien') ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          {student.class}
+                        </span>
+                      ) : student.class.startsWith('Pré-inscrit') ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          {student.class}
+                        </span>
+                      ) : student.class.startsWith('Quitté') ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                          {student.class}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {student.class}
+                        </span>
+                      )
                     ) : (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
                         Non inscrit
                       </span>
                     )}
                   </td>
-                  <td className="p-4">{student.guardian_contact}</td>
+                  <td className="p-4">{student.guardian_contact || student.father_contact || student.mother_contact || '-'}</td>
                   <td className="p-4 text-right">
                     <Button
                       variant="ghost"

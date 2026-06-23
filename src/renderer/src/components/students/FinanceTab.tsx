@@ -126,6 +126,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     payment_method: 'cash',
     item: ''
   })
+  const [expectedAmountOverride, setExpectedAmountOverride] = useState('')
 
   const loadData = async () => {
     setLoading(true)
@@ -133,7 +134,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
       // Fetch status
       const statusRes = await window.api.payment.getTuitionStatus(studentId, schoolYear)
       // Fetch payments
-      const paymentsRes = await window.api.payment.getByStudent(studentId)
+      const paymentsRes = await window.api.payment.getByStudent(studentId, schoolYear)
       // Fetch configuration
       fetchPrices()
 
@@ -223,7 +224,8 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const amount = parseFloat(formData.amount)
+      const amount = parseFloat(formData.amount) || 0
+      let discount = 0
 
       // Validation: Check if amount exceeds balance for monthly payments
       if (['tuition', 'canteen', 'bus'].includes(formData.payment_type) && formData.month) {
@@ -243,12 +245,19 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
             (p) => p.payment_type === formData.payment_type && p.month === formData.month
           )
           const paidAmount = existingPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
-          const balance = monthlyCost - paidAmount
+          const actualBalance = monthlyCost - paidAmount
+          
+          const expectedOverride = parseFloat(expectedAmountOverride)
+          if (!isNaN(expectedOverride) && expectedOverride < actualBalance && expectedOverride >= 0) {
+            // The user lowered the expected amount, meaning the difference is a discount
+            discount = actualBalance - expectedOverride
+          }
 
-          // Allow a small margin for floating point errors, or strictly enforce? Strictly enforce.
-          if (amount > balance) {
+          const targetBalance = actualBalance - discount
+
+          if (amount > targetBalance) {
             alert(
-              `Le montant (${amount.toLocaleString()} Ar) dépasse le reste à payer (${balance.toLocaleString()} Ar) pour ce mois.`
+              `Le montant encaissé (${amount.toLocaleString()} Ar) dépasse le reste à payer convenu (${targetBalance.toLocaleString()} Ar) pour ce mois.`
             )
             return
           }
@@ -276,10 +285,22 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
             formData.payment_type === 'uniform'
               ? `${formData.item}${formData.description ? ' - ' + formData.description : ''}`
               : formData.description,
-          payment_method: formData.payment_method as Payment['payment_method']
+          payment_method: formData.payment_method as Payment['payment_method'],
+          school_year: schoolYear
         }
 
         result = await window.api.payment.create(paymentData)
+        
+        // Handle discount if provided
+        if (result.success && discount > 0) {
+          const discountData = {
+            ...paymentData,
+            amount: discount,
+            payment_method: 'discount' as any,
+            description: `Remise exceptionnelle${formData.description ? ' : ' + formData.description : ''}`
+          }
+          await window.api.payment.create(discountData)
+        }
       }
 
       if (result.success) {
@@ -292,6 +313,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           payment_method: 'cash',
           item: ''
         })
+        setExpectedAmountOverride('')
         loadData() // Reload data
       } else {
         alert('Erreur lors du paiement: ' + result.error)
@@ -421,6 +443,11 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
   const handleCardClick = (service: ServiceCard) => {
     if (!service.enabled) return
 
+    if (!status?.feeRecord && service.id !== 'other') {
+      alert("Cet élève n'est pas encore inscrit dans une classe pour l'année " + schoolYear + ". Veuillez d'abord l'inscrire via le bouton 'Inscrire' en haut à droite.")
+      return
+    }
+
     if (service.isOneTime && (service.status === 'paid' || service.status === 'paid_fratrie')) {
       const payment = getPaymentDetails(service.id)
       if (payment) {
@@ -445,6 +472,11 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
   }
 
   const handleMonthClick = (type: string, monthData: MonthStatus) => {
+    if (!status?.feeRecord) {
+      alert("Cet élève n'est pas encore inscrit dans une classe pour l'année " + schoolYear + ". Veuillez d'abord l'inscrire via le bouton 'Inscrire' en haut à droite.")
+      return
+    }
+
     if (monthData.status === 'paid') {
       const payment = payments.find((p) => p.payment_type === type && p.month === monthData.key)
       if (payment) {
@@ -540,17 +572,21 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
               </div>
               <span
                 className={`text-xs font-bold ${
-                  month.status === 'paid'
-                    ? 'text-green-700'
-                    : month.status === 'partial'
-                      ? 'text-yellow-700'
-                      : 'text-red-700'
+                  month.expected === 0 && type === 'tuition'
+                    ? 'text-purple-700'
+                    : month.status === 'paid'
+                      ? 'text-green-700'
+                      : month.status === 'partial'
+                        ? 'text-yellow-700'
+                        : 'text-red-700'
                 }`}
               >
-                {month.status === 'paid'
+                {month.expected === 0 && type === 'tuition'
+                  ? 'EXONÉRÉ'
+                  : month.status === 'paid'
                   ? 'PAYÉ'
                   : month.status === 'partial'
-                    ? `Reste: ${month.balance.toLocaleString()} Ar`
+                    ? `Reste: ${month.balance?.toLocaleString()} Ar`
                     : `${(month.cost || month.expected || 0).toLocaleString()} Ar`}
               </span>
             </div>
@@ -572,20 +608,15 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
             <span className="text-sm font-medium truncate">Écolage Mensuel</span>
           </div>
           <p
-            className="text-2xl font-bold text-gray-900 truncate"
+            className={`text-2xl font-bold truncate ${studentInfo?.is_personnel_child ? 'text-purple-600 text-lg' : 'text-gray-900'}`}
             title={`${(studentInfo?.is_personnel_child ? 0 : (configPrices?.tuition?.[status?.feeRecord?.tuition_level ?? ''] || status?.feeRecord?.monthly_tuition || 0)).toLocaleString()} Ar`}
           >
-            {(
-              studentInfo?.is_personnel_child
-                ? 0
-                : (configPrices?.tuition?.[status?.feeRecord?.tuition_level ?? ''] ||
-                   status?.feeRecord?.monthly_tuition ||
-                   0)
-            ).toLocaleString()}{' '}
-            Ar
+            {studentInfo?.is_personnel_child
+              ? 'EXONÉRÉ (Enfant Personnel)'
+              : `${(configPrices?.tuition?.[status?.feeRecord?.tuition_level ?? ''] || status?.feeRecord?.monthly_tuition || 0).toLocaleString()} Ar`}
           </p>
           <p className="text-xs text-gray-500 truncate">
-            Niveau: {status?.feeRecord?.tuition_level}
+            Niveau: {status?.feeRecord?.tuition_level || '-'}
           </p>
         </div>
 
@@ -649,12 +680,91 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                 RESTE: {service.balance?.toLocaleString() || 0} Ar
               </span>
             )}
+            {service.status === 'pending' && service.isOneTime && (
+              <span className="text-[10px] text-red-600 font-bold mt-1">
+                À PAYER: {service.balance?.toLocaleString() || 0} Ar
+              </span>
+            )}
             {!service.enabled && (
               <span className="text-[10px] text-gray-400 mt-1">Non souscrit</span>
             )}
           </div>
         ))}
       </div>
+
+      {/* Events Section */}
+      {events && events.length > 0 && (
+        <div className="bg-white p-6 rounded-lg shadow border border-gray-100 mt-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center text-gray-800">
+            <PartyPopper className="w-5 h-5 mr-2 text-indigo-600" />
+            Événements & Sorties
+            <span className="ml-3 text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full flex items-center">
+              <Users className="w-3 h-3 mr-1" />
+              Paiement unique par famille
+            </span>
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {events.map((event) => {
+              const isPaid = event.family_payment_status?.is_paid;
+              const balance = Math.max(0, event.amount_per_parent - (event.family_payment_status?.total_paid || 0));
+              
+              return (
+                <div
+                  key={event.id}
+                  className={`
+                    relative p-5 rounded-xl border-2 flex flex-col justify-between min-h-[140px] transition-all
+                    ${
+                      isPaid
+                        ? 'border-indigo-100 bg-gradient-to-br from-indigo-50 to-white'
+                        : balance < event.amount_per_parent
+                          ? 'border-yellow-100 bg-gradient-to-br from-yellow-50 to-white hover:shadow-md hover:border-yellow-300'
+                          : 'border-rose-100 bg-gradient-to-br from-rose-50 to-white hover:shadow-md hover:border-rose-300'
+                    }
+                  `}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <h4 className="font-semibold text-gray-800 leading-tight" title={event.event_name}>
+                      {event.event_name}
+                    </h4>
+                    {isPaid ? (
+                      <CheckCircle2 className="w-6 h-6 text-indigo-500 flex-shrink-0 ml-2" />
+                    ) : balance < event.amount_per_parent ? (
+                      <AlertCircle className="w-6 h-6 text-yellow-500 flex-shrink-0 ml-2" />
+                    ) : (
+                      <XCircle className="w-6 h-6 text-rose-400 flex-shrink-0 ml-2" />
+                    )}
+                  </div>
+                  
+                  <div className="mt-auto pt-4 flex flex-col">
+                    <div className="text-xs text-gray-500 mb-1 flex items-center">
+                      <Calendar className="w-3 h-3 mr-1" />
+                      {format(new Date(event.event_date), 'dd MMM yyyy', { locale: fr })}
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`text-sm font-bold ${
+                          isPaid 
+                            ? 'text-indigo-700' 
+                            : balance < event.amount_per_parent 
+                              ? 'text-yellow-700' 
+                              : 'text-rose-700'
+                        }`}
+                      >
+                        {isPaid 
+                          ? 'RÉGLÉ (FRATRIE)' 
+                          : balance < event.amount_per_parent
+                            ? `RESTE: ${balance.toLocaleString()} Ar`
+                            : `${event.amount_per_parent.toLocaleString()} Ar`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Payment Modal */}
       <Dialog
@@ -701,7 +811,21 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                 id="month"
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 value={formData.month}
-                onChange={(e) => setFormData({ ...formData, month: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, month: e.target.value })
+                  
+                  // Auto-fill the expectedAmountOverride when a month is selected
+                  if (e.target.value) {
+                    const selectedMonthData = getMonthsForPaymentType().find(m => m.key === e.target.value)
+                    if (selectedMonthData && selectedMonthData.balance !== undefined) {
+                      setExpectedAmountOverride(selectedMonthData.balance.toString())
+                    } else {
+                      setExpectedAmountOverride('')
+                    }
+                  } else {
+                    setExpectedAmountOverride('')
+                  }
+                }}
                 required
               >
                 <option value="">Sélectionner un mois</option>
@@ -760,8 +884,54 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
             </div>
           )}
 
+          {/* Expected amount override if partial payment on a monthly fee */}
+          {(() => {
+            if (!['tuition', 'canteen', 'bus'].includes(formData.payment_type) || !formData.month) return null
+            let monthlyCost = 0
+            const currentFeeRecord = status?.feeRecord || feeRecord
+            if (formData.payment_type === 'tuition') {
+              monthlyCost = getTuitionCost(currentFeeRecord, configPrices, Boolean(studentInfo?.is_personnel_child))
+            } else if (formData.payment_type === 'bus') {
+              monthlyCost = getBusCost(currentFeeRecord, configPrices)
+            } else if (formData.payment_type === 'canteen') {
+              monthlyCost = getCanteenCost(currentFeeRecord, configPrices)
+            }
+            const existingPayments = payments.filter(
+              (p) => p.payment_type === formData.payment_type && p.month === formData.month
+            )
+            const paidAmount = existingPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+            const actualBalance = monthlyCost - paidAmount
+            const expectedOverride = parseFloat(expectedAmountOverride)
+            const discountCalculated = (!isNaN(expectedOverride) && expectedOverride < actualBalance && expectedOverride >= 0) 
+              ? actualBalance - expectedOverride 
+              : 0
+
+            return (
+              <div className="grid gap-2 mb-4 p-3 bg-gray-50 border border-gray-200 rounded-md">
+                <Label htmlFor="expected" className="text-gray-700 font-medium">
+                  Reste à payer convenu pour ce mois (Ar)
+                </Label>
+                <Input
+                  id="expected"
+                  type="number"
+                  className="bg-white border-gray-300"
+                  value={expectedAmountOverride}
+                  onChange={(e) => setExpectedAmountOverride(e.target.value)}
+                />
+                <p className="text-xs text-gray-500">
+                  Par défaut, le système attend {actualBalance.toLocaleString()} Ar. Modifiez cette valeur si un tarif réduit a été convenu pour ce mois spécifiquement.
+                </p>
+                {discountCalculated > 0 && (
+                  <p className="text-xs text-orange-600 font-medium">
+                    Une remise de {discountCalculated.toLocaleString()} Ar sera automatiquement appliquée pour ajuster le solde.
+                  </p>
+                )}
+              </div>
+            )
+          })()}
+
           <div className="grid gap-2">
-            <Label htmlFor="amount">Montant (Ar)</Label>
+            <Label htmlFor="amount">Montant encaissé aujourd'hui (Ar)</Label>
             <Input
               id="amount"
               type="number"
@@ -819,7 +989,9 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
               </div>
               <div>
                 <Label>Mode de paiement</Label>
-                <p className="text-sm font-medium capitalize">{selectedPayment.payment_method}</p>
+                <p className="text-sm font-medium capitalize">
+                  {selectedPayment.payment_method === 'discount' ? 'Remise' : selectedPayment.payment_method}
+                </p>
               </div>
               <div>
                 <Label>Type</Label>
@@ -846,7 +1018,19 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
       </Dialog>
 
       {/* Monthly Tracking Grid (Tuition) */}
-      {renderMonthGrid(`Suivi des Écolages (${schoolYear})`, 'tuition', status?.status ?? [])}
+      {!status?.feeRecord ? (
+        <div className="bg-amber-50 p-6 rounded-lg shadow border border-amber-200 mt-6 text-center">
+          <h3 className="text-lg font-semibold text-amber-800 mb-2">
+            Élève non inscrit
+          </h3>
+          <p className="text-amber-700">
+            Cet élève n'est pas encore inscrit dans une classe pour l'année scolaire {schoolYear}. 
+            Veuillez l'inscrire via le bouton "Inscrire" en haut de la page pour activer le suivi des paiements.
+          </p>
+        </div>
+      ) : (
+        renderMonthGrid(`Suivi des Écolages (${schoolYear})`, 'tuition', status?.status ?? [])
+      )}
 
       {/* Monthly Tracking Grid (Bus) */}
       {!!status?.feeRecord?.bus_subscribed &&
@@ -863,75 +1047,6 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           'canteen',
           canteenStatus
         )}
-
-      {/* Events Tracking */}
-      {events && events.length > 0 && (
-        <div className="bg-white shadow rounded-lg overflow-hidden border border-gray-100 mt-6">
-          <div className="px-6 py-4 border-b bg-blue-50/50">
-            <h3 className="text-lg font-semibold flex items-center text-blue-900">
-              <Calendar className="w-5 h-5 mr-2" />
-              Événements & Participations
-            </h3>
-          </div>
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {events.map((ev) => (
-                <div
-                  key={ev.id}
-                  className="border rounded-lg p-4 bg-white relative overflow-hidden border-blue-100"
-                >
-                  {ev.family_payment_status?.is_paid && (
-                    <div className="absolute -right-6 -top-6 w-16 h-16 bg-green-100 rounded-full flex items-end justify-center pb-2 pl-2 shadow-sm">
-                      <CheckCircle2 className="w-4 h-4 text-green-600" />
-                    </div>
-                  )}
-                  <h4 className="font-semibold text-lg pr-6 text-gray-800">{ev.event_name}</h4>
-                  <p className="text-sm text-gray-500 mb-3 capitalize">
-                    {format(new Date(ev.event_date), 'dd MMMM yyyy', { locale: fr })}
-                  </p>
-
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between items-center bg-gray-50 p-2 rounded">
-                      <span className="text-gray-600">Frais (par parent):</span>
-                      <span className="font-semibold">
-                        {ev.amount_per_parent.toLocaleString()} Ar
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center bg-gray-50 p-2 rounded">
-                      <span className="text-gray-600">Total payé (fratrie):</span>
-                      <span
-                        className={`font-semibold ${ev.family_payment_status?.is_paid ? 'text-green-600' : 'text-orange-600'}`}
-                      >
-                        {ev.family_payment_status?.total_paid?.toLocaleString() || 0} Ar
-                      </span>
-                    </div>
-
-                    {ev.family_payment_status?.is_paid ? (
-                      <div className="mt-3 flex items-center text-green-700 text-sm font-medium bg-green-50 p-2 rounded justify-center border border-green-100">
-                        <CheckCircle2 className="w-4 h-4 mr-2" />
-                        Participation réglée
-                      </div>
-                    ) : (
-                      <div className="mt-3 flex items-center text-orange-700 text-sm font-medium bg-orange-50 p-2 rounded justify-center border border-orange-100">
-                        Reste à payer:{' '}
-                        {(
-                          ev.amount_per_parent - (ev.family_payment_status?.total_paid || 0)
-                        ).toLocaleString()}{' '}
-                        Ar
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-gray-500 mt-4 italic">
-              Note: Les événements sont gérés par famille (parent). Si un membre de la fratrie a
-              payé, la participation est validée pour tous les autres membres inscrits à
-              l'événement.
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Payment History List */}
       <div className="bg-white rounded-lg shadow border border-gray-100 overflow-hidden">
@@ -980,13 +1095,15 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                       {payment.amount.toLocaleString()} Ar
                     </td>
                     <td className="px-6 py-4 text-gray-500 capitalize">
-                      {payment.payment_method === 'mobile_money'
-                        ? 'Mobile Money'
-                        : payment.payment_method === 'transfer'
-                          ? 'Virement'
-                          : payment.payment_method === 'check'
-                            ? 'Chèque'
-                            : 'Espèces'}
+                      {payment.payment_method === 'discount'
+                        ? 'Remise'
+                        : payment.payment_method === 'mobile_money'
+                          ? 'Mobile Money'
+                          : payment.payment_method === 'transfer'
+                            ? 'Virement'
+                            : payment.payment_method === 'check'
+                              ? 'Chèque'
+                              : 'Espèces'}
                     </td>
                   </tr>
                 ))

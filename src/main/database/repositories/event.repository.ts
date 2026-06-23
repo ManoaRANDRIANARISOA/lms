@@ -231,11 +231,21 @@ export class EventRepository {
 
       // 3. Record in General Ledger (Student Payments)
       const ledgerId = uuidv4()
+      const setting = db.prepare("SELECT value FROM settings WHERE key = 'school_year'").get() as { value: string } | undefined
+      let schoolYear = '2025-2026'
+      if (setting?.value) {
+        try {
+          schoolYear = JSON.parse(setting.value)
+        } catch(e) {
+          schoolYear = setting.value
+        }
+      }
+
       db.prepare(
         `
         INSERT INTO student_payments (
-            id, student_id, payment_date, amount, payment_type, description, payment_method
-        ) VALUES (?, ?, ?, ?, 'event', ?, ?)
+            id, student_id, payment_date, amount, payment_type, description, payment_method, school_year
+        ) VALUES (?, ?, ?, ?, 'event', ?, ?, ?)
       `
       ).run(
         ledgerId,
@@ -243,7 +253,8 @@ export class EventRepository {
         paymentDate,
         amount,
         `Paiement événement: ${eventId}`,
-        paymentMethod
+        paymentMethod,
+        schoolYear
       )
 
       addToSyncQueue('student_payments', ledgerId, 'create', {
@@ -253,7 +264,48 @@ export class EventRepository {
         amount,
         payment_type: 'event',
         description: `Paiement événement: ${eventId}`,
-        payment_method: paymentMethod
+        payment_method: paymentMethod,
+        school_year: schoolYear
+      })
+
+      // 4. Create cash_journal entry
+      const studentName = db
+        .prepare('SELECT first_name, last_name FROM students WHERE id = ?')
+        .get(studentId) as { first_name: string; last_name: string } | undefined
+        
+      const eventName = db
+        .prepare('SELECT name FROM parent_events WHERE id = ?')
+        .get(eventId) as { name: string } | undefined
+
+      const cashDescription = studentName
+        ? `Paiement événement (${eventName?.name || eventId}) — ${studentName.last_name} ${studentName.first_name}`
+        : `Paiement événement (${eventName?.name || eventId})`
+
+      const cashId = uuidv4()
+      db.prepare(
+        `
+        INSERT INTO cash_journal (id, transaction_date, type, department, category, amount, description, payment_method, related_student_id)
+        VALUES (?, ?, 'income', 'eleve', 'événement', ?, ?, ?, ?)
+      `
+      ).run(
+        cashId,
+        paymentDate,
+        amount,
+        cashDescription,
+        paymentMethod,
+        studentId
+      )
+
+      addToSyncQueue('cash_journal', cashId, 'create', {
+        id: cashId,
+        transaction_date: paymentDate,
+        type: 'income',
+        department: 'eleve',
+        category: 'événement',
+        amount: amount,
+        description: cashDescription,
+        payment_method: paymentMethod,
+        related_student_id: studentId
       })
     })
 
@@ -318,6 +370,7 @@ export class EventRepository {
 
         return {
           ...ev,
+          event_name: ev.name,
           family_payment_status: {
             total_paid: totalPaid,
             is_paid: isPaid,

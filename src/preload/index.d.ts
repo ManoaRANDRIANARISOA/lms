@@ -177,8 +177,8 @@ interface APIType {
       id: string,
       newClass: string,
       targetYear: string,
-      framPaid?: boolean,
-      initialPayment?: number
+      initialPaymentDroit?: number,
+      initialPaymentFram?: number
     ) => Promise<{ success: boolean; error?: string }>
     getServiceStats: () => Promise<Record<string, unknown>>
     repair: (
@@ -190,7 +190,7 @@ interface APIType {
     create: (
       data: Omit<Payment, 'id' | 'created_at' | 'updated_at'>
     ) => Promise<{ success: boolean; id?: string; error?: string }>
-    getByStudent: (studentId: string) => Promise<Payment[]>
+    getByStudent: (studentId: string, schoolYear?: string) => Promise<Payment[]>
     getAll: (filters?: PaymentFilters) => Promise<Payment[]>
     getTuitionStatus: (
       studentId: string,
@@ -568,6 +568,7 @@ interface APIType {
       month?: string
       receipt_number?: string
       payment_method?: string
+      department?: string
     }) => Promise<{ success: boolean; filePath?: string; error?: string }>
     generateCertificate: (data: {
       first_name: string

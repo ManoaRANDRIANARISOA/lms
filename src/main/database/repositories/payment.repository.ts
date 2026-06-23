@@ -11,8 +11,9 @@ export interface Payment {
   payment_type: 'tuition' | 'bus' | 'canteen' | 'enrollment' | 'uniform' | 'event' | 'other'
   month?: string // "2025-09"
   description?: string
-  payment_method?: 'cash' | 'check' | 'transfer' | 'mobile_money'
+  payment_method?: 'cash' | 'check' | 'transfer' | 'mobile_money' | 'discount'
   receipt_number?: string
+  school_year?: string
   created_at?: string
   updated_at?: string
 }
@@ -23,8 +24,8 @@ export class PaymentRepository {
     const stmt = db.prepare(`
       INSERT INTO student_payments (
         id, student_id, payment_date, amount, payment_type, month, 
-        description, payment_method, receipt_number
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        description, payment_method, receipt_number, school_year
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 
     const transaction = db.transaction(() => {
@@ -37,57 +38,63 @@ export class PaymentRepository {
         payment.month || null,
         payment.description || null,
         payment.payment_method || 'cash',
-        payment.receipt_number || null
+        payment.receipt_number || null,
+        payment.school_year || null
       )
 
       addToSyncQueue('student_payments', id, 'create', { ...payment, id })
 
       // SYNC: Create a corresponding cash_journal entry so the school's cash register
       // reflects all student payments. Same pattern as personnel:createSalaryExpense.
-      const cashCategories: Record<string, string> = {
-        tuition: 'écolage',
-        enrollment: 'inscription',
-        reenrollment: 'réinscription',
-        bus: 'transport',
-        canteen: 'cantine',
-        uniform: 'uniforme',
-        event: 'événement',
-        other: 'divers'
-      }
-      const cashCategory = cashCategories[payment.payment_type] || 'divers'
-      const studentName = db
-        .prepare('SELECT first_name, last_name FROM students WHERE id = ?')
-        .get(payment.student_id) as { first_name: string; last_name: string } | undefined
-      const cashDescription = studentName
-        ? `Paiement ${cashCategory}${payment.month ? ` (${payment.month})` : ''} — ${studentName.last_name} ${studentName.first_name}`
-        : `Paiement ${cashCategory}${payment.month ? ` (${payment.month})` : ''}`
+      if (payment.payment_method !== 'discount') {
+        const cashCategories: Record<string, string> = {
+          tuition: 'écolage',
+          enrollment: 'inscription',
+          reenrollment: 'réinscription',
+          bus: 'transport',
+          canteen: 'cantine',
+          uniform: 'uniforme',
+          event: 'événement',
+          other: 'divers'
+        }
+        const cashCategory = cashCategories[payment.payment_type] || 'divers'
+        const studentName = db
+          .prepare('SELECT first_name, last_name FROM students WHERE id = ?')
+          .get(payment.student_id) as { first_name: string; last_name: string } | undefined
+        const cashDescription = studentName
+          ? `Paiement ${cashCategory}${payment.month ? ` (${payment.month})` : ''} — ${studentName.last_name} ${studentName.first_name}`
+          : `Paiement ${cashCategory}${payment.month ? ` (${payment.month})` : ''}`
 
-      const cashId = uuidv4()
-      db.prepare(
+        const cashDepartment = payment.payment_type === 'bus' ? 'bus' : 'eleve'
+
+        const cashId = uuidv4()
+        db.prepare(
+          `
+          INSERT INTO cash_journal (id, transaction_date, type, department, category, amount, description, payment_method, related_student_id)
+          VALUES (?, ?, 'income', ?, ?, ?, ?, ?, ?)
         `
-        INSERT INTO cash_journal (id, transaction_date, type, department, category, amount, description, payment_method, related_student_id)
-        VALUES (?, ?, 'income', 'ecole', ?, ?, ?, ?, ?)
-      `
-      ).run(
-        cashId,
-        payment.payment_date,
-        cashCategory,
-        payment.amount,
-        cashDescription,
-        payment.payment_method || 'cash',
-        payment.student_id
-      )
-      addToSyncQueue('cash_journal', cashId, 'create', {
-        id: cashId,
-        transaction_date: payment.payment_date,
-        type: 'income',
-        department: 'ecole',
-        category: cashCategory,
-        amount: payment.amount,
-        description: cashDescription,
-        payment_method: payment.payment_method || 'cash',
-        related_student_id: payment.student_id
-      })
+        ).run(
+          cashId,
+          payment.payment_date,
+          cashDepartment,
+          cashCategory,
+          payment.amount,
+          cashDescription,
+          payment.payment_method || 'cash',
+          payment.student_id
+        )
+        addToSyncQueue('cash_journal', cashId, 'create', {
+          id: cashId,
+          transaction_date: payment.payment_date,
+          type: 'income',
+          department: cashDepartment,
+          category: cashCategory,
+          amount: payment.amount,
+          description: cashDescription,
+          payment_method: payment.payment_method || 'cash',
+          related_student_id: payment.student_id
+        })
+      }
 
       // SYNC: When a bus or canteen payment is recorded, ensure the subscription flag
       // in student_fees is activated. This keeps the two sources of truth coherent.
@@ -179,7 +186,19 @@ export class PaymentRepository {
     }
   }
 
-  static getByStudent(studentId: string) {
+  static getByStudent(studentId: string, schoolYear?: string) {
+    if (schoolYear) {
+      return db
+        .prepare(
+          `
+        SELECT * FROM student_payments 
+        WHERE student_id = ? AND school_year = ?
+        ORDER BY payment_date DESC
+      `
+        )
+        .all(studentId, schoolYear)
+    }
+    
     return db
       .prepare(
         `
@@ -274,8 +293,9 @@ export class PaymentRepository {
     let globalMonthlyTuition: number | null = null
     try {
       if (feeRecord && feeRecord.tuition_level) {
-        const studentObj = db.prepare('SELECT is_personnel_child FROM students WHERE id = ?').get(studentId) as { is_personnel_child: number | null } | undefined
-        const isPersonnelChild = Boolean(studentObj?.is_personnel_child)
+        const studentObj = db.prepare('SELECT is_personnel_child FROM students WHERE id = ?').get(studentId) as { is_personnel_child: any } | undefined
+        const rawPC = studentObj?.is_personnel_child
+        const isPersonnelChild = rawPC == 1 || rawPC === '1' || rawPC === '1.0' || rawPC === true || rawPC === 'true'
         if (isPersonnelChild) {
           globalMonthlyTuition = 0
         } else {
@@ -379,7 +399,7 @@ export class PaymentRepository {
       const students = db
         .prepare(
           `
-        SELECT s.id, s.first_name, s.last_name, s.class, s.departure_date,
+        SELECT s.id, s.first_name, s.last_name, s.class, s.departure_date, s.is_personnel_child,
                sf.monthly_tuition, sf.bus_subscribed, sf.bus_route, 
                sf.canteen_subscribed, sf.canteen_days_per_week, sf.canteen_days
         FROM students s
@@ -475,7 +495,9 @@ export class PaymentRepository {
         }
 
         // --- Tuition ---
-        checkMonthlyService('tuition', student.monthly_tuition || 0, 'Écolage')
+        const isPersonnelChild = student.is_personnel_child === 1 || student.is_personnel_child === '1' || student.is_personnel_child === true || student.is_personnel_child === 'true'
+        const tuitionCost = isPersonnelChild ? 0 : (student.monthly_tuition || 0)
+        checkMonthlyService('tuition', tuitionCost, 'Écolage')
 
         // --- Bus ---
         if (student.bus_subscribed && student.bus_route) {
@@ -596,20 +618,21 @@ export class PaymentRepository {
       }
 
       // Next, check actual payments
-      const framPayments = db
+      const payments = db
         .prepare(
           `
         SELECT p.student_id, s.first_name, s.last_name
         FROM student_payments p
         JOIN students s ON p.student_id = s.id
-        WHERE p.payment_type = 'fram' AND p.student_id IN (${placeholders})
-        -- ideally we should match school year, but payments don't strictly have school_year, we assume current year context if date is recent or just any fram payment
+        WHERE p.payment_type = 'fram' 
+        AND p.student_id IN (${placeholders})
+        AND p.school_year = ?
       `
         )
-        .all(...siblings) as { student_id: string; first_name: string; last_name: string }[]
+        .all(...siblings, schoolYear) as any[]
 
-      if (framPayments.length > 0) {
-        const siblingNames = framPayments.map((p) => `${p.first_name} ${p.last_name}`).join(', ')
+      if (payments.length > 0) {
+        const siblingNames = payments.map((p) => `${p.first_name} ${p.last_name}`).join(', ')
         return { success: true, isPaid: true, by: siblingNames }
       }
 

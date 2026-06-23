@@ -509,21 +509,6 @@ export default function StudentForm({
                     {form.formState.errors.class && (
                       <p className="text-sm text-red-500">{form.formState.errors.class.message}</p>
                     )}
-                    <div className="flex items-center space-x-2 mt-3 pt-2 border-t">
-                      <Checkbox
-                        id="is_personnel_child"
-                        checked={form.watch('is_personnel_child')}
-                        onCheckedChange={(checked) =>
-                          form.setValue('is_personnel_child', checked as boolean)
-                        }
-                      />
-                      <label
-                        htmlFor="is_personnel_child"
-                        className="text-sm font-medium text-blue-700"
-                      >
-                        Enfant du personnel (Écolage gratuit)
-                      </label>
-                    </div>
                   </div>
                 </>
               )}
@@ -640,6 +625,7 @@ export default function StudentForm({
                     </label>
                     <select
                       {...form.register('parent_personnel_id')}
+                      value={form.watch('parent_personnel_id') || ''}
                       className="flex h-10 w-full md:w-1/2 rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                     >
                       <option value="">Sélectionner...</option>

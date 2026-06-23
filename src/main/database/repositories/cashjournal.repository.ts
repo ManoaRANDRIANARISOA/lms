@@ -35,6 +35,7 @@ export interface CashJournalFilters {
   department?: string
   category?: string
   search?: string
+  schoolYear?: string
 }
 
 export class CashJournalRepository {
@@ -72,13 +73,45 @@ export class CashJournalRepository {
   }
 
   static list(filters: CashJournalFilters = {}) {
-    let query = `
-      SELECT cj.*, s.first_name, s.last_name, s.class as student_class
-      FROM cash_journal cj
-      LEFT JOIN students s ON cj.related_student_id = s.id
-      WHERE cj.deleted = 0
-    `
-    const params: (string | number)[] = []
+    let query = ''
+    if (filters.schoolYear) {
+      query = `
+        SELECT cj.*, s.first_name, s.last_name, 
+          COALESCE(
+            CASE WHEN s.departure_date IS NOT NULL THEN 'Quitté le ' || strftime('%d/%m/%Y', s.departure_date) ELSE NULL END,
+            (SELECT class_name FROM student_fees sf
+             WHERE sf.student_id = s.id AND sf.school_year = ? AND sf.class_name IS NOT NULL AND sf.class_name != ''),
+            (SELECT 
+               CASE 
+                 WHEN school_year > ? THEN 'Pré-inscrit (' || class_name || ' en ' || school_year || ')'
+                 ELSE 'Ancien (' || class_name || ' en ' || school_year || ')'
+               END
+             FROM student_fees sf
+             WHERE sf.student_id = s.id AND sf.class_name IS NOT NULL AND sf.class_name != ''
+             ORDER BY school_year DESC LIMIT 1),
+            'Non inscrit'
+          ) as student_class
+        FROM cash_journal cj
+        LEFT JOIN students s ON cj.related_student_id = s.id
+        WHERE cj.deleted = 0
+      `
+    } else {
+      query = `
+        SELECT cj.*, s.first_name, s.last_name, 
+          COALESCE(
+            CASE WHEN s.departure_date IS NOT NULL THEN 'Quitté le ' || strftime('%d/%m/%Y', s.departure_date) ELSE NULL END,
+            NULLIF(s.class, 'Classe non spécifiée'),
+            (SELECT class_name FROM student_fees sf
+             WHERE sf.student_id = s.id AND sf.class_name IS NOT NULL AND sf.class_name != ''
+             ORDER BY sf.school_year DESC LIMIT 1),
+            'Non inscrit'
+          ) as student_class
+        FROM cash_journal cj
+        LEFT JOIN students s ON cj.related_student_id = s.id
+        WHERE cj.deleted = 0
+      `
+    }
+    const params: (string | number)[] = filters.schoolYear ? [filters.schoolYear, filters.schoolYear] : []
 
     if (filters.startDate) {
       query += ' AND cj.transaction_date >= ?'

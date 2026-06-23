@@ -75,6 +75,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
   const [isReEnrollOpen, setIsReEnrollOpen] = useState(false)
   const [selectedYear, setSelectedYear] = useState<string>('')
   const [events, setEvents] = useState<any[]>([])
+  const [personnelParent, setPersonnelParent] = useState<any>(null)
 
   const { prices: financePrices, fetchPrices } = useFinanceStore()
   const { canWrite } = usePermissions()
@@ -101,6 +102,16 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
       }
     }
   }, [studentId, getStudent])
+
+  useEffect(() => {
+    if (currentStudent?.is_personnel_child && currentStudent.parent_personnel_id) {
+       window.api.personnel.get(currentStudent.parent_personnel_id).then((res: any) => {
+          if (res.success && res.personnel) setPersonnelParent(res.personnel)
+       }).catch((err: any) => console.error('Failed to fetch personnel parent', err))
+    } else {
+       setPersonnelParent(null)
+    }
+  }, [currentStudent?.is_personnel_child, currentStudent?.parent_personnel_id])
 
   // Set default selected year to the latest enrollment or current fees year
   useEffect(() => {
@@ -204,7 +215,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
             {canWrite('students') && (
               <Button variant="outline" size="sm" onClick={() => setIsReEnrollOpen(true)}>
                 <History className="w-4 h-4 mr-2" />
-                {!currentFees ? 'Inscrire' : 'Réinscrire'}
+                {!currentFees ? 'Inscrire' : 'Réinscrire (Suivante)'}
               </Button>
             )}
             <Button
@@ -382,10 +393,25 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                         Contact
                       </dt>
                       <dd className="col-span-2 text-sm font-medium">
-                        {currentStudent.guardian_contact}
+                        {currentStudent.guardian_contact || currentStudent.father_contact || currentStudent.mother_contact || '-'}
                       </dd>
                     </div>
                   </dl>
+
+                  {currentStudent.is_personnel_child && personnelParent && (
+                    <div className="mt-4 p-3 bg-purple-50 rounded-lg border border-purple-100">
+                      <h4 className="text-purple-700 text-sm font-medium flex items-center mb-2">
+                        <Users className="w-4 h-4 mr-2" />
+                        Parent Membre du Personnel
+                      </h4>
+                      <div className="grid grid-cols-3 gap-2">
+                        <dt className="text-purple-600 text-xs mt-0.5">Nom</dt>
+                        <dd className="col-span-2 text-sm font-semibold text-purple-900">{personnelParent.last_name} {personnelParent.first_name}</dd>
+                        <dt className="text-purple-600 text-xs mt-0.5">Poste</dt>
+                        <dd className="col-span-2 text-sm text-purple-800">{personnelParent.position || '-'}</dd>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -726,6 +752,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
             currentFees?.school_year ||
             useAppStore.getState().currentYear
           }
+          isNewStudent={!currentFees}
           onSuccess={handleReEnrollSuccess}
         />
       </div>

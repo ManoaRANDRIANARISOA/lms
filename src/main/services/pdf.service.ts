@@ -72,33 +72,121 @@ export class PdfService {
     month?: string
     receipt_number?: string
     payment_method?: string
+    department?: string
   }): { success: boolean; filePath?: string; error?: string } {
     try {
       const doc = new jsPDF({ format: 'a5' })
-      let y = addHeader(doc, 'REÇU DE PAIEMENT')
+      let y = 15
+
+      // Add Logo
+      try {
+        const logoPath = isDev
+          ? path.join(process.cwd(), 'resources', 'logo.png')
+          : path.join(process.resourcesPath, 'logo.png')
+        if (fs.existsSync(logoPath)) {
+          const logoData = fs.readFileSync(logoPath).toString('base64')
+          doc.addImage(`data:image/png;base64,${logoData}`, 'PNG', 15, 10, 20, 20)
+        }
+      } catch (e) {
+        console.error('Could not load logo', e)
+      }
+
+      // Header Text
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Lycée Manjary Soa', 74, 18, { align: 'center' })
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.text('Lot H 61 Miadana Alasora, Antananarivo', 74, 24, { align: 'center' })
+      
+      // Separator
+      doc.setDrawColor(200, 200, 200)
+      doc.setLineWidth(0.5)
+      doc.line(15, 33, 133, 33)
+
+      // Title
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.text('REÇU DE CAISSE', 74, 45, { align: 'center' })
+
+      // Content Box
+      doc.setDrawColor(0, 0, 0)
+      doc.setFillColor(250, 250, 250)
+      doc.roundedRect(15, 55, 118, 75, 3, 3, 'FD')
 
       doc.setFontSize(10)
       doc.setFont('helvetica', 'normal')
 
-      const lines = [
-        `Élève : ${paymentData.student_name}`,
-        `Classe : ${paymentData.class_name}`,
-        `Type : ${paymentData.payment_type}`,
-        `Montant : ${paymentData.amount.toLocaleString()} Ar`,
-        `Date : ${new Date(paymentData.payment_date).toLocaleDateString('fr-FR')}`,
-        paymentData.month ? `Mois : ${paymentData.month}` : null,
-        paymentData.payment_method ? `Mode de paiement : ${paymentData.payment_method}` : null,
-        paymentData.receipt_number ? `N° Reçu : ${paymentData.receipt_number}` : null
-      ].filter(Boolean) as string[]
+      y = 65
+      const isStudent = paymentData.department === 'eleve'
 
-      lines.forEach((line) => {
-        doc.text(line, 20, y)
+      if (isStudent) {
+        doc.setFont('helvetica', 'bold')
+        doc.text('Élève :', 20, y)
+        doc.setFont('helvetica', 'normal')
+        doc.text(paymentData.student_name, 45, y)
         y += 8
-      })
 
-      y += 10
-      doc.text('Signature et cachet :', 20, y)
-      doc.line(20, y + 2, 100, y + 2)
+        doc.setFont('helvetica', 'bold')
+        doc.text('Classe :', 20, y)
+        doc.setFont('helvetica', 'normal')
+        doc.text(paymentData.class_name, 45, y)
+        y += 8
+      } else {
+        doc.setFont('helvetica', 'bold')
+        doc.text('Libellé :', 20, y)
+        doc.setFont('helvetica', 'normal')
+        const txt = doc.splitTextToSize(paymentData.student_name, 80)
+        doc.text(txt, 45, y)
+        y += txt.length * 5 + 3
+      }
+
+      doc.setFont('helvetica', 'bold')
+      doc.text('Type :', 20, y)
+      doc.setFont('helvetica', 'normal')
+      doc.text(paymentData.payment_type.toUpperCase(), 45, y)
+      y += 8
+
+      if (paymentData.month) {
+        doc.setFont('helvetica', 'bold')
+        doc.text('Mois :', 20, y)
+        doc.setFont('helvetica', 'normal')
+        doc.text(paymentData.month, 45, y)
+        y += 8
+      }
+
+      if (paymentData.payment_method) {
+        doc.setFont('helvetica', 'bold')
+        doc.text('Paiement :', 20, y)
+        doc.setFont('helvetica', 'normal')
+        const pMethod = paymentData.payment_method === 'cash' ? 'Espèces' : paymentData.payment_method === 'bank' ? 'Banque' : paymentData.payment_method === 'mobile' ? 'Mobile Money' : paymentData.payment_method
+        doc.text(pMethod, 45, y)
+        y += 8
+      }
+
+      // Amount highlight
+      y += 5
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(12)
+      doc.text('Montant :', 20, y)
+      
+      const safeAmount = paymentData.amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")
+      doc.text(`${safeAmount} Ar`, 45, y)
+
+      doc.setFontSize(10)
+      y += 12
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Date : ${new Date(paymentData.payment_date).toLocaleDateString('fr-FR')}`, 20, y)
+      
+      if (paymentData.receipt_number) {
+        doc.text(`N° Reçu : ${paymentData.receipt_number}`, 80, y)
+      }
+
+      // Footer signature
+      y += 18
+      doc.setFontSize(9)
+      doc.text('Signature / Cachet :', 85, y)
+      doc.line(85, y + 20, 130, y + 20)
 
       addFooter(doc, 1)
 

@@ -46,6 +46,7 @@ export default function EventsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isAddParticipantsOpen, setIsAddParticipantsOpen] = useState(false)
+  const [participantSearch, setParticipantSearch] = useState('')
 
   // Create Form State
   const [newEvent, setNewEvent] = useState({
@@ -261,48 +262,60 @@ export default function EventsPage() {
         <div className="md:col-span-2 bg-white rounded-lg border shadow-sm flex flex-col h-full overflow-hidden">
           {selectedEvent ? (
             <>
-              <div className="p-6 border-b flex justify-between items-start bg-gray-50/50">
-                <div>
-                  <h2 className="text-xl font-bold mb-1">{selectedEvent.name}</h2>
-                  <p className="text-gray-500 text-sm mb-4">
-                    {selectedEvent.description || 'Aucune description'}
-                  </p>
+              <div className="p-6 border-b flex flex-col gap-4 bg-gray-50/50">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h2 className="text-xl font-bold mb-1">{selectedEvent.name}</h2>
+                    <p className="text-gray-500 text-sm mb-4">
+                      {selectedEvent.description || 'Aucune description'}
+                    </p>
 
-                  <div className="flex gap-4 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4 text-gray-400" />
-                      <span>{participation.length} participants</span>
+                    <div className="flex gap-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-gray-400" />
+                        <span>{participation.length} participants</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="w-4 h-4 text-gray-400" />
+                        <span>{participation.filter((p) => p.paid).length} payés</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <DollarSign className="w-4 h-4 text-gray-400" />
-                      <span>{participation.filter((p) => p.paid).length} payés</span>
-                    </div>
+                  </div>
+
+                  <div className="flex gap-2 flex-wrap justify-end">
+                    {canWrite('events') && (
+                      <Button variant="outline" size="sm" onClick={openEditModal}>
+                        <Edit className="w-4 h-4 mr-2" />
+                        Modifier
+                      </Button>
+                    )}
+                    {canWrite('events') && (
+                      <Button variant="destructive" size="sm" onClick={handleDeleteEvent}>
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Supprimer
+                      </Button>
+                    )}
+                    {canWrite('events') && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsAddParticipantsOpen(true)}
+                      >
+                        <Users className="w-4 h-4 mr-2" />
+                        Gérer Participants
+                      </Button>
+                    )}
                   </div>
                 </div>
 
-                <div className="flex gap-2">
-                  {canWrite('events') && (
-                    <Button variant="outline" size="sm" onClick={openEditModal}>
-                      <Edit className="w-4 h-4 mr-2" />
-                      Modifier
-                    </Button>
-                  )}
-                  {canWrite('events') && (
-                    <Button variant="destructive" size="sm" onClick={handleDeleteEvent}>
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Supprimer
-                    </Button>
-                  )}
-                  {canWrite('events') && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsAddParticipantsOpen(true)}
-                    >
-                      <Users className="w-4 h-4 mr-2" />
-                      Gérer Participants
-                    </Button>
-                  )}
+                {/* Search Bar */}
+                <div className="flex justify-start">
+                  <Input
+                    placeholder="Rechercher un participant par nom, prénom ou classe..."
+                    value={participantSearch}
+                    onChange={(e) => setParticipantSearch(e.target.value)}
+                    className="w-full md:w-80"
+                  />
                 </div>
               </div>
 
@@ -318,8 +331,18 @@ export default function EventsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {participation.map((p) => (
-                      <tr key={p.id} className="hover:bg-gray-50/50">
+                    {participation
+                      .filter((p) => {
+                        if (!participantSearch) return true
+                        const search = participantSearch.toLowerCase()
+                        return (
+                          p.first_name.toLowerCase().includes(search) ||
+                          p.last_name.toLowerCase().includes(search) ||
+                          p.class.toLowerCase().includes(search)
+                        )
+                      })
+                      .map((p) => (
+                        <tr key={p.id} className="hover:bg-gray-50/50">
                         <td className="px-4 py-3 font-medium">
                           {p.last_name} {p.first_name}
                         </td>

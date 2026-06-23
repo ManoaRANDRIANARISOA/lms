@@ -104,7 +104,8 @@ const runMigrations = () => {
     '025_add_assessments_table.sql',
     '026_add_uniform_items.sql',
     '026_add_parent_personnel_id.sql',
-    '027_add_personnel_child.sql'
+    '027_add_personnel_child.sql',
+    '028_add_school_year_to_payments.sql'
   ]
   migrations.forEach(applyMigration)
 }

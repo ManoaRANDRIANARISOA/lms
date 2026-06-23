@@ -44,11 +44,11 @@ export function registerPaymentHandlers(): void {
   // --------------------------------------------
   // GET PAYMENTS BY STUDENT
   // --------------------------------------------
-  ipcMain.handle('payment:getByStudent', async (_, studentId) => {
+  ipcMain.handle('payment:getByStudent', async (_, studentId: string, schoolYear?: string) => {
     if (!canRead('payments')) {
       return { success: false, error: 'Accès refusé: lecture paiements' }
     }
-    return PaymentRepository.getByStudent(studentId)
+    return PaymentRepository.getByStudent(studentId, schoolYear)
   })
 
   // --------------------------------------------

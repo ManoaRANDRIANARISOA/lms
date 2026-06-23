@@ -161,6 +161,7 @@ const STUDENT_CATEGORIES = [
   { value: 'transport', label: 'Transport (élève)' },
   { value: 'cantine', label: 'Cantine' },
   { value: 'uniforme', label: 'Uniforme' },
+  { value: 'événement', label: 'Événement' },
   { value: 'divers', label: 'Divers (élève)' }
 ]
 
@@ -192,19 +193,19 @@ function translateCategory(cat: string, department?: string): string {
 }
 
 function translateDepartment(d: string): string {
-  return d === 'bus' ? 'Transport' : 'École'
+  return d === 'bus' ? 'Transport' : d === 'eleve' ? 'Élève' : 'École'
 }
 
 // Filtres rapides
 const FILTER_PRESETS = [
   { label: 'Tous', filter: {} },
-  { label: 'Élèves', filter: { category: STUDENT_CATEGORIES.map((c) => c.value).join(',') } },
-  { label: 'Transport', filter: { category: 'transport' } },
-  { label: 'Personnel', filter: { category: 'salaire' } },
+  { label: 'Élèves', filter: { department: 'eleve' } },
+  { label: 'Transport', filter: { department: 'bus' } },
+  { label: 'Personnel', filter: { category: 'salaire,avance,prime' } },
   {
     label: 'Fonctionnement',
     tooltip: 'Entretien, fournitures, carburant, papier, banque',
-    filter: { category: 'entretien,fournitures,carburant,papier,banque,banques' }
+    filter: { department: 'ecole', category: 'entretien,fournitures,carburant,papier,banque,banques,autres' }
   }
 ]
 
@@ -229,10 +230,12 @@ export default function FinanceJournal() {
     fetchTotalBalance
   } = useCashJournalStore()
   const { canWrite } = usePermissions()
+  const { currentYear } = useAppStore()
 
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [presetFilter, setPresetFilter] = useState('Tous')
+  const [activeDatePreset, setActiveDatePreset] = useState<string | null>(null)
   const [trendData, setTrendData] = useState<{ date: string; total: number }[]>([])
   const [recoveryRate, setRecoveryRate] = useState<number | null>(null)
 
@@ -242,7 +245,7 @@ export default function FinanceJournal() {
   const [form, setForm] = useState({
     transaction_date: today,
     type: 'expense' as 'income' | 'expense',
-    department: 'ecole' as 'bus' | 'ecole',
+    department: 'eleve' as 'bus' | 'ecole' | 'eleve',
     category: 'entretien',
     amount: '',
     description: '',
@@ -254,13 +257,14 @@ export default function FinanceJournal() {
     endDate: '',
     type: 'all',
     category: 'all',
+    department: 'all',
     search: ''
   })
 
   // ── Data ──
   useEffect(() => {
-    fetchEntries(filters)
-  }, [filters])
+    fetchEntries({ ...filters, schoolYear: currentYear })
+  }, [filters, currentYear])
 
   useEffect(() => {
     fetchDailyBalance(today)
@@ -316,8 +320,7 @@ export default function FinanceJournal() {
     fetchRecoveryRate()
   }, [entries])
 
-  // ── Handlers ──
-  const categories = form.department === 'bus' ? CATEGORIES_BUS : CATEGORIES_ECOLE
+  const categories = form.department === 'bus' ? CATEGORIES_BUS : form.department === 'eleve' ? STUDENT_CATEGORIES : CATEGORIES_ECOLE
 
   const handleSubmit = async () => {
     if (!form.amount || parseFloat(form.amount) <= 0) {
@@ -367,8 +370,8 @@ export default function FinanceJournal() {
     setForm({
       transaction_date: today,
       type: 'expense',
-      department: 'ecole',
-      category: 'entretien',
+      department: 'eleve',
+      category: 'divers',
       amount: '',
       description: '',
       payment_method: 'cash'
@@ -382,17 +385,10 @@ export default function FinanceJournal() {
 
   // ── Summary ──
   const enriched = entries as EnrichedEntry[]
-  const summary =
-    filters.startDate || filters.endDate
-      ? {
-          totalIncome: enriched
-            .filter((e) => e.type === 'income')
-            .reduce((s, e) => s + e.amount, 0),
-          totalExpense: enriched
-            .filter((e) => e.type === 'expense')
-            .reduce((s, e) => s + e.amount, 0)
-        }
-      : null
+  const summary = {
+    totalIncome: enriched.filter((e) => e.type === 'income').reduce((s, e) => s + e.amount, 0),
+    totalExpense: enriched.filter((e) => e.type === 'expense').reduce((s, e) => s + e.amount, 0)
+  }
 
   // ── Render ──
   return (
@@ -538,15 +534,16 @@ export default function FinanceJournal() {
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1"
                 value={form.department}
                 onChange={(e) => {
-                  const d = e.target.value as 'bus' | 'ecole'
+                  const d = e.target.value as 'bus' | 'ecole' | 'eleve'
                   setForm((p) => ({
                     ...p,
                     department: d,
-                    category: d === 'bus' ? 'carburant' : 'fournitures'
+                    category: d === 'bus' ? 'carburant' : d === 'eleve' ? 'divers' : 'fournitures'
                   }))
                 }}
               >
                 <option value="ecole">École</option>
+                <option value="eleve">Élève</option>
                 <option value="bus">Transport</option>
               </select>
             </div>
@@ -624,7 +621,8 @@ export default function FinanceJournal() {
             onClick={() => {
               setPresetFilter(p.label)
               const cat = String((p.filter as Record<string, string>).category || 'all')
-              setFilters((prev) => ({ ...prev, category: cat }))
+              const dep = String((p.filter as Record<string, string>).department || 'all')
+              setFilters((prev) => ({ ...prev, category: cat, department: dep }))
             }}
           >
             {p.label}
@@ -633,83 +631,160 @@ export default function FinanceJournal() {
       </div>
 
       {/* ── Filters ── */}
-      <div className="flex flex-col md:flex-row gap-4 mb-4 bg-white p-4 rounded-lg shadow-sm border">
-        <div className="flex-1">
-          <Label>Recherche</Label>
-          <Input
-            placeholder="Nom, catégorie, description..."
-            value={filters.search || ''}
-            onChange={(e) => setFilters((p) => ({ ...p, search: e.target.value }))}
-            className="mt-1"
-          />
+      <div className="bg-white p-5 rounded-xl shadow-sm border mb-4 flex flex-col gap-4">
+        {/* Ligne 1 : Recherche et Dates */}
+        <div className="flex flex-wrap gap-4 items-end">
+          <div className="flex-1 min-w-[200px]">
+            <Label className="text-xs text-gray-500">Recherche</Label>
+            <Input
+              placeholder="Rechercher (nom, description)..."
+              value={filters.search || ''}
+              onChange={(e) => setFilters((p) => ({ ...p, search: e.target.value }))}
+              className="mt-1 h-9"
+            />
+          </div>
+
+          <div>
+            <Label className="text-xs text-gray-500 mb-1 block">Période rapide</Label>
+            <div className="flex bg-gray-100 p-1 rounded-md">
+              <Button
+                variant={activeDatePreset === 'today' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-7 text-xs px-3"
+                onClick={() => {
+                  const d = new Date()
+                  const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+                  setFilters((p) => ({ ...p, startDate: todayStr, endDate: todayStr }))
+                  setActiveDatePreset('today')
+                }}
+              >
+                Aujourd'hui
+              </Button>
+              <Button
+                variant={activeDatePreset === 'week' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-7 text-xs px-3"
+                onClick={() => {
+                  const d = new Date()
+                  const day = d.getDay()
+                  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+                  const start = new Date(d.setDate(diff))
+                  const end = new Date(start)
+                  end.setDate(start.getDate() + 6)
+                  const startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`
+                  const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`
+                  setFilters((p) => ({ ...p, startDate: startStr, endDate: endStr }))
+                  setActiveDatePreset('week')
+                }}
+              >
+                Semaine
+              </Button>
+              <Button
+                variant={activeDatePreset === 'month' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-7 text-xs px-3"
+                onClick={() => {
+                  const d = new Date()
+                  const startStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+                  const end = new Date(d.getFullYear(), d.getMonth() + 1, 0)
+                  const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`
+                  setFilters((p) => ({ ...p, startDate: startStr, endDate: endStr }))
+                  setActiveDatePreset('month')
+                }}
+              >
+                Mois
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex gap-2 items-center">
+            <div>
+              <Label className="text-xs text-gray-500">Du</Label>
+              <Input
+                type="date"
+                value={filters.startDate || ''}
+                onChange={(e) => {
+                  setActiveDatePreset(null)
+                  setFilters((p) => ({ ...p, startDate: e.target.value }))
+                }}
+                className="mt-1 h-9"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Au</Label>
+              <Input
+                type="date"
+                value={filters.endDate || ''}
+                onChange={(e) => {
+                  setActiveDatePreset(null)
+                  setFilters((p) => ({ ...p, endDate: e.target.value }))
+                }}
+                className="mt-1 h-9"
+              />
+            </div>
+          </div>
         </div>
-        <div>
-          <Label>Début</Label>
-          <Input
-            type="date"
-            value={filters.startDate || ''}
-            onChange={(e) => setFilters((p) => ({ ...p, startDate: e.target.value }))}
-            className="mt-1"
-          />
-        </div>
-        <div>
-          <Label>Fin</Label>
-          <Input
-            type="date"
-            value={filters.endDate || ''}
-            onChange={(e) => setFilters((p) => ({ ...p, endDate: e.target.value }))}
-            className="mt-1"
-          />
-        </div>
-        <div>
-          <Label>Type</Label>
-          <select
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1"
-            value={filters.type || 'all'}
-            onChange={(e) => setFilters((p) => ({ ...p, type: e.target.value }))}
-          >
-            <option value="all">Tous</option>
-            <option value="income">Recettes</option>
-            <option value="expense">Dépenses</option>
-          </select>
-        </div>
-        <div>
-          <Label>Catégorie</Label>
-          <select
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1"
-            value={filters.category || 'all'}
-            onChange={(e) => setFilters((p) => ({ ...p, category: e.target.value }))}
-          >
-            <option value="all">Toutes</option>
-            <optgroup label="── Élèves ──">
-              {STUDENT_CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="── École ──">
-              {CATEGORIES_ECOLE.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="── Transport (Bus) ──">
-              {CATEGORIES_BUS.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </optgroup>
-          </select>
-        </div>
-        <div className="flex items-end">
+
+        {/* Ligne 2 : Type, Catégorie, Reset */}
+        <div className="flex flex-wrap gap-4 items-end pt-2 border-t border-gray-100">
+          <div className="flex-1 min-w-[150px]">
+            <Label className="text-xs text-gray-500">Type</Label>
+            <select
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm mt-1"
+              value={filters.type || 'all'}
+              onChange={(e) => setFilters((p) => ({ ...p, type: e.target.value }))}
+            >
+              <option value="all">Tous</option>
+              <option value="income">Recettes</option>
+              <option value="expense">Dépenses</option>
+            </select>
+          </div>
+          <div className="flex-1 min-w-[200px]">
+            <Label className="text-xs text-gray-500">Catégorie</Label>
+            <select
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm mt-1"
+              value={filters.category === 'all' ? 'all' : `${filters.department}:${filters.category}`}
+              onChange={(e) => {
+                const val = e.target.value
+                if (val === 'all') {
+                  setFilters((p) => ({ ...p, category: 'all', department: 'all' }))
+                } else {
+                  const [dep, cat] = val.split(':')
+                  setFilters((p) => ({ ...p, department: dep, category: cat }))
+                }
+              }}
+            >
+              <option value="all">Toutes</option>
+              <optgroup label="── Élèves ──">
+                {STUDENT_CATEGORIES.map((c) => (
+                  <option key={`eleve:${c.value}`} value={`eleve:${c.value}`}>
+                    {c.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="── École ──">
+                {CATEGORIES_ECOLE.map((c) => (
+                  <option key={`ecole:${c.value}`} value={`ecole:${c.value}`}>
+                    {c.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="── Transport (Bus) ──">
+                {CATEGORIES_BUS.map((c) => (
+                  <option key={`bus:${c.value}`} value={`bus:${c.value}`}>
+                    {c.label}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          </div>
           <Button
             variant="outline"
+            className="h-9 whitespace-nowrap"
             onClick={() => {
-              setFilters({ startDate: '', endDate: '', type: 'all', category: 'all', search: '' })
+              setFilters({ startDate: '', endDate: '', type: 'all', category: 'all', department: 'all', search: '' })
               setPresetFilter('Tous')
+              setActiveDatePreset(null)
             }}
           >
             Réinitialiser
@@ -762,7 +837,9 @@ export default function FinanceJournal() {
                             'px-2 py-1 rounded text-xs',
                             entry.department === 'bus'
                               ? 'bg-amber-100 text-amber-800'
-                              : 'bg-blue-100 text-blue-800'
+                              : entry.department === 'ecole'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-blue-100 text-blue-800'
                           )}
                         >
                           {translateDepartment(entry.department)}
@@ -771,9 +848,27 @@ export default function FinanceJournal() {
                       <td className="px-6 py-4 font-medium text-gray-900">{studentName || '—'}</td>
                       <td className="px-6 py-4">
                         {entry.student_class ? (
-                          <span className="px-2 py-1 bg-gray-100 rounded text-xs">
-                            {entry.student_class}
-                          </span>
+                          entry.student_class.startsWith('Ancien') ? (
+                            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">
+                              {entry.student_class}
+                            </span>
+                          ) : entry.student_class.startsWith('Pré-inscrit') ? (
+                            <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium">
+                              {entry.student_class}
+                            </span>
+                          ) : entry.student_class.startsWith('Quitté') ? (
+                            <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-medium">
+                              {entry.student_class}
+                            </span>
+                          ) : entry.student_class === 'Non inscrit' ? (
+                            <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">
+                              {entry.student_class}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                              {entry.student_class}
+                            </span>
+                          )
                         ) : (
                           '—'
                         )}
@@ -821,19 +916,20 @@ export default function FinanceJournal() {
                               const monthMatch = entry.description?.match(/\(([^)]+)\)/)
                               const extractedMonth = monthMatch ? monthMatch[1] : undefined
 
-                              const r = await window.api.pdf.generateReceipt({
-                                student_name:
-                                  studentName ||
-                                  entry.description
-                                    ?.replace('Paiement ', '')
-                                    ?.replace(/ — .*/, '') ||
-                                  '—',
-                                class_name: entry.student_class || '-',
-                                amount: entry.amount,
-                                payment_type: entry.category || '',
-                                payment_date: entry.transaction_date,
-                                month: extractedMonth
-                              })
+                                const r = await window.api.pdf.generateReceipt({
+                                  student_name:
+                                    studentName ||
+                                    entry.description
+                                      ?.replace('Paiement ', '')
+                                      ?.replace(/ — .*/, '') ||
+                                    '—',
+                                  class_name: entry.student_class || '-',
+                                  amount: entry.amount,
+                                  payment_type: entry.category || '',
+                                  payment_date: entry.transaction_date,
+                                  month: extractedMonth,
+                                  department: entry.department
+                                })
                               if (r.success && r.filePath) await window.api.pdf.openFile(r.filePath)
                               else alert(r.error || 'Erreur PDF')
                             }}
@@ -860,29 +956,51 @@ export default function FinanceJournal() {
 
               {/* ── Summary footer ── */}
               {summary && enriched.length > 0 && (
-                <tr className="bg-gray-100 font-semibold border-t-2">
-                  <td className="px-6 py-3" colSpan={6}>
-                    <span className="text-gray-600">Total</span>
-                    {filters.startDate && (
-                      <span className="text-xs text-gray-400 ml-2">
-                        du {new Date(filters.startDate).toLocaleDateString('fr-FR')}
+                <tr className="bg-gray-50 border-t-2 font-semibold">
+                  <td className="px-6 py-4" colSpan={5}>
+                    <div className="flex items-center text-gray-700">
+                      <span className="uppercase text-xs tracking-wider">
+                        Total sur la sélection
                       </span>
-                    )}
-                    {filters.endDate && (
-                      <span className="text-xs text-gray-400 ml-1">
-                        au {new Date(filters.endDate).toLocaleDateString('fr-FR')}
-                      </span>
-                    )}
+                      {filters.startDate && (
+                        <span className="text-xs text-gray-500 ml-2 font-normal">
+                          du {new Date(filters.startDate).toLocaleDateString('fr-FR')}
+                        </span>
+                      )}
+                      {filters.endDate && (
+                        <span className="text-xs text-gray-500 ml-1 font-normal">
+                          au {new Date(filters.endDate).toLocaleDateString('fr-FR')}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex flex-col text-xs font-normal text-gray-500 gap-1">
+                      <div className="flex justify-between w-32 ml-auto">
+                        <span>Entrées :</span>
+                        <span className="text-green-600 font-medium">
+                          {summary.totalIncome.toLocaleString()} Ar
+                        </span>
+                      </div>
+                      <div className="flex justify-between w-32 ml-auto">
+                        <span>Sorties :</span>
+                        <span className="text-red-600 font-medium">
+                          {summary.totalExpense.toLocaleString()} Ar
+                        </span>
+                      </div>
+                    </div>
                   </td>
                   <td
                     className={cn(
-                      'px-6 py-4 text-right',
+                      'px-6 py-4 text-right align-bottom text-lg',
                       summary.totalIncome - summary.totalExpense >= 0
-                        ? 'text-green-700'
+                        ? 'text-blue-700'
                         : 'text-red-700'
                     )}
                   >
-                    {(summary.totalIncome - summary.totalExpense).toLocaleString()} Ar
+                    <div className="font-bold">
+                      {(summary.totalIncome - summary.totalExpense).toLocaleString()} Ar
+                    </div>
                   </td>
                   <td></td>
                 </tr>

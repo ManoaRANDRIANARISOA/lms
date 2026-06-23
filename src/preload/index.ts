@@ -27,8 +27,8 @@ const api = {
     update: (id: string, updates: Record<string, unknown>) =>
       ipcRenderer.invoke('student:update', id, updates),
     delete: (id: string) => ipcRenderer.invoke('student:delete', id),
-    reEnroll: (id: string, newClass: string, targetYear: string, framPaid?: boolean, initialPayment?: number) =>
-      ipcRenderer.invoke('student:reEnroll', id, newClass, targetYear, framPaid, initialPayment),
+    reEnroll: (id: string, newClass: string, targetYear: string, initialPaymentDroit?: number, initialPaymentFram?: number) =>
+      ipcRenderer.invoke('student:reEnroll', id, newClass, targetYear, initialPaymentDroit, initialPaymentFram),
     getServiceStats: () => ipcRenderer.invoke('student:serviceStats'),
     repair: (targetYear: string) => ipcRenderer.invoke('student:repair', targetYear),
     resetDatabase: (includeRemote: boolean) => ipcRenderer.invoke('db:reset', includeRemote)
@@ -39,7 +39,7 @@ const api = {
   // --------------------------------------------
   payment: {
     create: (data: Record<string, unknown>) => ipcRenderer.invoke('payment:create', data),
-    getByStudent: (studentId: string) => ipcRenderer.invoke('payment:getByStudent', studentId),
+    getByStudent: (studentId: string, schoolYear?: string) => ipcRenderer.invoke('payment:getByStudent', studentId, schoolYear),
     getAll: (filters?: Record<string, unknown>) => ipcRenderer.invoke('payment:getAll', filters),
     getTuitionStatus: (studentId: string, schoolYear: string) =>
       ipcRenderer.invoke('payment:getTuitionStatus', studentId, schoolYear),

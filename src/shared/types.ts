@@ -163,7 +163,7 @@ export interface Payment {
   payment_type: 'tuition' | 'bus' | 'canteen' | 'enrollment' | 'reenrollment' | 'fram' | 'uniform' | 'event' | 'other'
   month?: string // "2025-09"
   description?: string
-  payment_method?: 'cash' | 'check' | 'transfer' | 'mobile_money'
+  payment_method?: 'cash' | 'check' | 'transfer' | 'mobile_money' | 'discount'
   receipt_number?: string
   created_at?: string
   updated_at?: string
@@ -173,7 +173,7 @@ export interface CashJournalEntry {
   id: string
   transaction_date: string
   type: 'income' | 'expense'
-  department: 'bus' | 'ecole'
+  department: 'bus' | 'ecole' | 'eleve'
   category: string
   subcategory?: string
   amount: number
@@ -192,6 +192,7 @@ export interface CashJournalFilters {
   department?: string
   category?: string
   search?: string
+  schoolYear?: string
 }
 
 export interface FeeRecord {

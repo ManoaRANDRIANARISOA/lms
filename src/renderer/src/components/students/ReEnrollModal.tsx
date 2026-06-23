@@ -2,10 +2,9 @@ import React, { useState, useEffect } from 'react'
 import { Dialog } from '../ui/dialog'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
-import { Loader2, Users } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useClasses } from '@/lib/useClasses'
 import { useFinanceStore } from '@/store/useFinanceStore'
-import { Checkbox } from '../ui/checkbox'
 
 interface ReEnrollModalProps {
   isOpen: boolean
@@ -20,6 +19,7 @@ interface ReEnrollModalProps {
     parent_personnel_id?: string | null
   }
   currentYear: string
+  isNewStudent: boolean
   onSuccess: () => void
 }
 
@@ -55,11 +55,11 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
   onClose,
   student,
   currentYear,
+  isNewStudent,
   onSuccess
 }) => {
   const { classes: availableClasses } = useClasses()
 
-  const isNewStudent = !student.class || student.class === 'Classe non spécifiée'
   const title = isNewStudent ? 'Inscription' : 'Réinscription'
 
   const [targetYear, setTargetYear] = useState(
@@ -68,22 +68,27 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
   const [newClass, setNewClass] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
+  
   const [initialPayment, setInitialPayment] = useState<string>('')
+  const [framFratrieStatus, setFramFratrieStatus] = useState<{ isPaid: boolean; by?: string }>({
+    isPaid: false
+  })
   
-  let parsedSiblings: string[] = []
-  try {
-    parsedSiblings = typeof student.siblings === 'string' ? JSON.parse(student.siblings || '[]') : (student.siblings || [])
-  } catch (e) {}
-  const hasSiblings = Array.isArray(parsedSiblings) && parsedSiblings.length > 0
-  
-  const [framPaid, setFramPaid] = useState<boolean>(false) // Changed default to false, we just disable it.
-
   const { prices, fetchPrices } = useFinanceStore()
 
   useEffect(() => {
     fetchPrices()
   }, [fetchPrices])
+
+  useEffect(() => {
+    if (student.id && targetYear && window.api) {
+      window.api.payment.checkFramFratrie(student.id, targetYear).then((res) => {
+        if (res.success) {
+          setFramFratrieStatus({ isPaid: res.isPaid, by: res.by })
+        }
+      })
+    }
+  }, [student.id, targetYear])
 
   // Set initial newClass based on student and available classes
   useEffect(() => {
@@ -97,6 +102,9 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
       }
     }
   }, [student.class, availableClasses])
+  const enrollmentAmount = isNewStudent ? (prices?.registration || 85000) : (prices?.reenrollment || 75000)
+  const actualFramAmount = framFratrieStatus.isPaid ? 0 : (prices?.fram || 25000)
+  const totalExpected = enrollmentAmount + actualFramAmount
 
   const handleReEnroll = async () => {
     if (!window.api) {
@@ -106,10 +114,30 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
 
     setLoading(true)
     setError(null)
+
+    if (!newClass) {
+      setError('Veuillez sélectionner une classe.')
+      setLoading(false)
+      return
+    }
+
     try {
-      // Use the exposed API
+      // Calculate split
       const amt = initialPayment ? parseFloat(initialPayment) : 0
-      const result = await window.api.student.reEnroll(student.id, newClass, targetYear, framPaid, amt)
+      let initialPaymentFram = 0
+      let initialPaymentDroit = 0
+      
+      if (amt > 0) {
+        if (!framFratrieStatus.isPaid) {
+          initialPaymentFram = Math.min(amt, actualFramAmount)
+          initialPaymentDroit = amt - initialPaymentFram
+        } else {
+          initialPaymentDroit = amt
+        }
+      }
+
+      // Use the exposed API
+      const result = await window.api.student.reEnroll(student.id, newClass, targetYear, initialPaymentDroit, initialPaymentFram)
       if (result.success) {
         onSuccess()
         onClose()
@@ -123,10 +151,6 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
       setLoading(false)
     }
   }
-
-  const enrollmentAmount = isNewStudent ? (prices?.registration || 85000) : (prices?.reenrollment || 75000)
-  const framAmount = prices?.fram || 25000
-  const totalExpected = enrollmentAmount + framAmount
 
   return (
     <Dialog
@@ -183,50 +207,46 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
         </div>
 
         <div className="pt-4 border-t">
-          <h4 className="text-sm font-semibold mb-3">Paiement Initial (Optionnel)</h4>
+          <h4 className="text-sm font-semibold mb-3">Paiement à l'inscription</h4>
+          
           <div className="space-y-4">
+            <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+              <h5 className="text-sm font-semibold text-gray-700 mb-2">Détail du montant dû :</h5>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">{isNewStudent ? "Droits d'inscription" : 'Réinscription'} :</span>
+                  <span className="font-semibold">{enrollmentAmount.toLocaleString()} Ar</span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Cotisation FRAM :</span>
+                  <span className={`font-semibold ${framFratrieStatus.isPaid ? 'text-emerald-600' : ''}`}>
+                    {framFratrieStatus.isPaid ? `Exonéré (Déjà payé par la fratrie)` : `${actualFramAmount.toLocaleString()} Ar`}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center pt-2 mt-2 border-t border-gray-300 font-bold text-gray-800">
+                  <span>Total à payer :</span>
+                  <span>{totalExpected.toLocaleString()} Ar</span>
+                </div>
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Montant payé pour {isNewStudent ? "les Droits d'inscription" : 'la Réinscription'}
-                {!hasSiblings ? ' + Cotisation FRAM' : ''} (Ar)
+                Montant versé par le parent (Ar)
               </label>
               <Input
                 type="number"
                 value={initialPayment}
                 onChange={(e) => setInitialPayment(e.target.value)}
-                placeholder={
-                  hasSiblings
-                    ? `Ex: ${enrollmentAmount}`
-                    : `Total prévu : ${enrollmentAmount} (Droit) + ${framAmount} (FRAM) = ${totalExpected} Ar`
-                }
+                placeholder={`Ex: ${totalExpected}`}
               />
+              <p className="text-xs text-gray-500 mt-1">
+                L'argent versé couvrira d'abord le FRAM (s'il est dû), puis le reste ira au Droit.
+                Le solde non payé sera enregistré comme reste à payer.
+              </p>
             </div>
-
-            {hasSiblings ? (
-              <div className="bg-blue-50 border border-blue-200 text-blue-700 p-3 rounded-md text-sm flex items-center gap-2">
-                <Users className="w-4 h-4 shrink-0" />
-                <span>Cet élève fait partie d'une fratrie. La cotisation FRAM n'est pas requise.</span>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="framPaid"
-                    checked={framPaid}
-                    onCheckedChange={(checked) => setFramPaid(checked === true)}
-                  />
-                  <label
-                    htmlFor="framPaid"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    Confirmer que ce paiement inclut la cotisation FRAM ({framAmount} Ar)
-                  </label>
-                </div>
-                <p className="text-xs text-gray-500 ml-6">
-                  Ne pas cocher si l'enfant a un(e) aîné(e) inscrit(e) dans l'établissement, ou si le parent paiera plus tard.
-                </p>
-              </>
-            )}
           </div>
         </div>
       </div>

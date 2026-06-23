@@ -157,6 +157,12 @@ export async function wipeRemoteData() {
       .neq('id', '00000000-0000-0000-0000-000000000000')
 
     // 2. Core Student Data
+    const { error: errCash } = await supabase
+      .from('cash_journal')
+      .delete()
+      .not('related_student_id', 'is', null)
+    if (errCash) console.error('Error wiping student cash journal:', errCash)
+
     const { error: err1 } = await supabase
       .from('student_payments')
       .delete()
@@ -175,7 +181,7 @@ export async function wipeRemoteData() {
       .neq('id', '00000000-0000-0000-0000-000000000000')
     if (err3) console.error('Error wiping students:', err3)
 
-    if (err1 || err2 || err3 || errBus || errCanteen || errEventPay) {
+    if (err1 || err2 || err3 || errBus || errCanteen || errEventPay || errCash) {
       return { success: false, error: 'Partial failure checking console logs' }
     }
     return { success: true }
@@ -237,11 +243,30 @@ async function pushLocalChanges() {
       // But maybe check if we exceeded max retries? For now, infinite retry.
 
       const data = JSON.parse(item.data)
+      let payload = { ...data }
 
-      // Sanitization for Supabase
-      // Now data is already in snake_case coming from frontend/repository
+      // FIX: Ensure payload has id for upsert and localRow fetching
+      if (!payload.id && item.record_id) {
+        payload.id = item.record_id
+      }
 
-      const payload = { ...data }
+      // FIX: Merge with full local row to prevent Supabase UPSERT failures 
+      // due to missing NOT NULL columns if the remote record is missing.
+      try {
+        if (payload.id && item.action !== 'delete') {
+          const localRow = db.prepare(`SELECT * FROM ${item.table_name} WHERE id = ?`).get(payload.id)
+          if (localRow) {
+            payload = { ...localRow, ...payload }
+          }
+        }
+      } catch (e) {
+        console.warn('Could not merge local row for sync:', e)
+      }
+
+      // FIX: Remove GENERATED columns that Postgres will reject
+      if ('search_text' in payload) {
+        delete payload.search_text
+      }
 
       // FIX: Sanitize empty date strings for PostgreSQL
       // PostgreSQL rejects "" as date, must be NULL
@@ -287,7 +312,7 @@ async function pushLocalChanges() {
 
         // HARDENED VALIDATION: Prevent Ghost Records
         // If key fields are missing, DO NOT PUSH.
-        if (!payload.first_name || !payload.last_name || !payload.registration_number) {
+        if (item.action === 'create' && (!payload.first_name || !payload.last_name || !payload.registration_number)) {
           console.error(`Skipping invalid student record ${payload.id}: Missing required fields.`)
           // Mark as error to remove from pending queue, but don't delete data
           db.prepare(
@@ -313,10 +338,7 @@ async function pushLocalChanges() {
       // FIX: Check for "class" NOT NULL constraint
       // IMPORTANT: Only set default class on CREATE, never on UPDATE.
       // Partial updates (e.g. address change) do not include 'class' in the payload.
-      // Adding 'class' here would overwrite the existing correct class with the default.
-      if (item.table_name === 'students' && item.action === 'create' && !payload.class) {
-        payload.class = 'Non inscrit'
-      }
+      // We removed the 'Non inscrit' default because it overwrites local data on pull. SQLite allows empty strings.
 
       // FIX: Check for "enrollment_date" NOT NULL constraint
       if (item.table_name === 'students' && !payload.enrollment_date) {
@@ -525,7 +547,7 @@ async function pushLocalChanges() {
       db.prepare(
         `
         UPDATE ${item.table_name}
-        SET sync_status = 'synced', last_synced_at = CURRENT_TIMESTAMP
+        SET sync_status = 'synced'
         WHERE id = ?
       `
       ).run(item.record_id)
