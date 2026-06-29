@@ -29,6 +29,10 @@ export function registerDashboardHandlers(): void {
 
     try {
       const today = new Date().toISOString().split('T')[0]
+      const schoolYearSetting = SettingsRepository.get('school_year') as string
+      const targetYear =
+        schoolYearSetting?.replace(/['"]/g, '').trim() ||
+        `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`
 
       // 1. Élèves
       const totalRegistered = (
@@ -36,37 +40,44 @@ export function registerDashboardHandlers(): void {
           count: number
         }
       ).count
+
       const totalEnrolled = (
         db
           .prepare(
             `
-        SELECT COUNT(*) as count FROM students 
-        WHERE deleted = 0 AND class IS NOT NULL AND class != 'Non inscrit' AND class != 'Classe non spécifiée'
+        SELECT COUNT(DISTINCT sf.student_id) as count 
+        FROM student_fees sf
+        JOIN students s ON s.id = sf.student_id
+        WHERE s.deleted = 0 AND sf.school_year = ? AND sf.class_name IS NOT NULL AND sf.class_name != 'Non inscrit' AND sf.class_name != 'Classe non spécifiée'
       `
           )
-          .get() as { count: number }
+          .get(targetYear) as { count: number }
       ).count
 
       const newStudentsThisMonth = (
         db
           .prepare(
             `
-        SELECT COUNT(*) as count FROM students 
-        WHERE enrollment_date >= date('now', 'start of month') AND deleted = 0
+        SELECT COUNT(DISTINCT sf.student_id) as count 
+        FROM student_fees sf
+        JOIN students s ON s.id = sf.student_id
+        WHERE sf.created_at >= date('now', 'start of month') AND s.deleted = 0 AND sf.school_year = ?
       `
           )
-          .get() as { count: number }
+          .get(targetYear) as { count: number }
       ).count
 
       const studentsByClass = db
         .prepare(
           `
-        SELECT class, COUNT(*) as count FROM students 
-        WHERE deleted = 0 AND class != 'Non inscrit' AND class != 'Classe non spécifiée'
-        GROUP BY class ORDER BY count DESC
+        SELECT sf.class_name as class, COUNT(DISTINCT sf.student_id) as count 
+        FROM student_fees sf
+        JOIN students s ON s.id = sf.student_id
+        WHERE s.deleted = 0 AND sf.school_year = ? AND sf.class_name IS NOT NULL AND sf.class_name != 'Non inscrit' AND sf.class_name != 'Classe non spécifiée'
+        GROUP BY sf.class_name ORDER BY count DESC
       `
         )
-        .all() as { class: string; count: number }[]
+        .all(targetYear) as { class: string; count: number }[]
 
       // 2. Paiements (élèves)
       const todayPayments = (
@@ -113,10 +124,6 @@ export function registerDashboardHandlers(): void {
       ).total
 
       // 3. Impayés — depuis la source centralisée PaymentRepository.getUnpaidAlerts
-      const schoolYearSetting = SettingsRepository.get('school_year') as string
-      const targetYear =
-        schoolYearSetting?.replace(/['"]/g, '').trim() ||
-        `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`
       const unpaidResult = PaymentRepository.getUnpaidAlerts(targetYear)
       const unpaidAlerts = (
         unpaidResult.success && unpaidResult.alerts ? unpaidResult.alerts : []
@@ -139,11 +146,11 @@ export function registerDashboardHandlers(): void {
           `
         SELECT id, name, event_date, amount_per_parent, status
         FROM parent_events 
-        WHERE event_date >= date('now') AND deleted = 0 AND status != 'completed'
+        WHERE event_date >= date('now') AND deleted = 0 AND status != 'completed' AND school_year = ?
         ORDER BY event_date ASC LIMIT 5
       `
         )
-        .all() as {
+        .all(targetYear) as {
         id: string
         name: string
         event_date: string

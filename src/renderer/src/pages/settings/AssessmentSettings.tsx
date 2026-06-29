@@ -32,7 +32,7 @@ export default function AssessmentSettings() {
       setLoading(true)
       setError('')
       const schoolYear =
-        ((await window.api.settings.get('current_year')) as string) ||
+        ((await window.api.settings.get('school_year')) as string) ||
         useAppStore.getState().currentYear
       const result = await window.api.assessment.list(schoolYear, selectedClass)
 
@@ -54,7 +54,7 @@ export default function AssessmentSettings() {
     try {
       setLoading(true)
       const schoolYear =
-        ((await window.api.settings.get('current_year')) as string) ||
+        ((await window.api.settings.get('school_year')) as string) ||
         useAppStore.getState().currentYear
 
       const data = {

@@ -346,6 +346,7 @@ export interface SalaryCalculation {
   customDeductionsTotal: number
   netSalary: number
   isPaid?: boolean
+  isIgnored?: boolean
   details: {
     baseSalary: number
     hoursWorked?: number

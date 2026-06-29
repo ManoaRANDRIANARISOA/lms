@@ -118,6 +118,19 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     isPaid: false
   })
 
+
+
+  // Listen for custom event from StudentDetail to open the payment modal (e.g. from Dossier tab)
+  useEffect(() => {
+    const handler = (e: CustomEvent) => {
+      setFormData(prev => ({ ...prev, payment_type: e.detail, month: '' }))
+      setExpectedAmountOverride('')
+      setIsAddPaymentOpen(true)
+    }
+    window.addEventListener('open-payment-modal', handler as EventListener)
+    return () => window.removeEventListener('open-payment-modal', handler as EventListener)
+  }, [])
+
   const [formData, setFormData] = useState({
     amount: '',
     payment_type: 'tuition',

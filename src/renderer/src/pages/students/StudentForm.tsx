@@ -505,6 +505,9 @@ export default function StudentForm({
                           {cls}
                         </option>
                       ))}
+                      {initialData.class && !availableClasses.includes(initialData.class) && (
+                        <option value={initialData.class}>{initialData.class}</option>
+                      )}
                     </select>
                     {form.formState.errors.class && (
                       <p className="text-sm text-red-500">{form.formState.errors.class.message}</p>

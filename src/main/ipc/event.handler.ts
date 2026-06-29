@@ -44,11 +44,11 @@ export function registerEventHandlers(): void {
   // --------------------------------------------
   // LIST EVENTS
   // --------------------------------------------
-  ipcMain.handle('event:list', async () => {
+  ipcMain.handle('event:list', async (_, schoolYear?: string) => {
     if (!canRead('events')) {
       return { success: false, error: 'Accès refusé: lecture événements' }
     }
-    return EventRepository.list()
+    return EventRepository.list(schoolYear)
   })
 
   // --------------------------------------------
@@ -150,10 +150,10 @@ export function registerEventHandlers(): void {
   // --------------------------------------------
   // GET EVENTS BY STUDENT
   // --------------------------------------------
-  ipcMain.handle('event:getByStudent', async (_, studentId) => {
+  ipcMain.handle('event:getByStudent', async (_, studentId: string, schoolYear?: string) => {
     if (!canRead('events')) {
       return { success: false, error: 'Accès refusé: lecture événements' }
     }
-    return EventRepository.getByStudent(studentId)
+    return EventRepository.getByStudent(studentId, schoolYear)
   })
 }

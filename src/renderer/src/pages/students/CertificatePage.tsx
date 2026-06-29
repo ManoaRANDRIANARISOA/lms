@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useStudentStore } from '@/store/useStudentStore'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Printer } from 'lucide-react'
+import { getStudentPhotoUrl } from '@/lib/image-utils'
 
 export default function CertificatePage() {
   const { studentId } = useParams<{ studentId: string }>()
@@ -11,6 +12,7 @@ export default function CertificatePage() {
   const { currentStudent, getStudent, loading } = useStudentStore()
   const [schoolYear, setSchoolYear] = useState(useAppStore.getState().currentYear)
   const [schoolName, setSchoolName] = useState('Lycée Manjary Soa')
+  const [schoolLogo, setSchoolLogo] = useState<string | null>(null)
   const [certType, setCertType] = useState<'scolarite' | 'radiation' | 'assiduite'>('scolarite')
 
   useEffect(() => {
@@ -20,10 +22,15 @@ export default function CertificatePage() {
 
     // Fetch settings via IPC
     if (window.api) {
-      Promise.all([window.api.settings.get('school_year'), window.api.settings.get('school_name')])
-        .then(([year, name]) => {
-          if (year) setSchoolYear(year as string)
+      Promise.all([
+        window.api.settings.get('school_year'),
+        window.api.settings.get('school_name'),
+        window.api.settings.get('school_logo')
+      ])
+        .then(([year, name, logo]) => {
+          if (year !== undefined && year !== null) setSchoolYear(year as string)
           if (name) setSchoolName(name as string)
+          if (logo) setSchoolLogo(logo as string)
         })
         .catch((err) => {
           if (import.meta.env.DEV) console.error(err)
@@ -49,6 +56,29 @@ export default function CertificatePage() {
     }
   }
 
+  const renderParentText = () => {
+    const parents: string[] = []
+    if (currentStudent.father_name) parents.push(currentStudent.father_name)
+    if (currentStudent.mother_name) parents.push(currentStudent.mother_name)
+    
+    if (parents.length === 0) return null
+    
+    return (
+      <>
+        , fils/fille de <strong>{parents.join(' et de ')}</strong>
+      </>
+    )
+  }
+
+  const renderSchoolYearText = () => {
+    if (!schoolYear || schoolYear.trim() === '') return '.'
+    return (
+      <>
+        {' '}au titre de l'année scolaire <strong>{schoolYear}</strong>.
+      </>
+    )
+  }
+
   const getCertificateBody = () => {
     switch (certType) {
       case 'radiation':
@@ -59,10 +89,12 @@ export default function CertificatePage() {
             <strong>
               {currentStudent.last_name} {currentStudent.first_name}
             </strong>
+            {renderParentText()}
             , né(e) le {new Date(currentStudent.date_of_birth || '').toLocaleDateString('fr-FR')} à{' '}
             {currentStudent.place_of_birth || '-'}, a fréquenté notre établissement en classe de{' '}
-            <strong>{currentStudent.class}</strong> durant l'année scolaire{' '}
-            <strong>{schoolYear}</strong>.<br />
+            <strong>{currentStudent.class}</strong>
+            {renderSchoolYearText()}
+            <br />
             <br />
             Il/Elle quitte l'établissement ce jour,{' '}
             <strong>{new Date().toLocaleDateString('fr-FR')}</strong>, libre de tout engagement
@@ -77,8 +109,14 @@ export default function CertificatePage() {
             <strong>
               {currentStudent.last_name} {currentStudent.first_name}
             </strong>
-            , inscrit en classe de <strong>{currentStudent.class}</strong> pour l'année scolaire{' '}
-            <strong>{schoolYear}</strong>, fait preuve d'une assiduité et d'une conduite
+            {renderParentText()}
+            , inscrit en classe de <strong>{currentStudent.class}</strong>
+            {schoolYear ? (
+              <>
+                {' '}pour l'année scolaire <strong>{schoolYear}</strong>
+              </>
+            ) : null}
+            , fait preuve d'une assiduité et d'une conduite
             exemplaires.
           </p>
         )
@@ -90,10 +128,11 @@ export default function CertificatePage() {
             <strong>
               {currentStudent.last_name} {currentStudent.first_name}
             </strong>
+            {renderParentText()}
             , né(e) le {new Date(currentStudent.date_of_birth || '').toLocaleDateString('fr-FR')} à{' '}
             {currentStudent.place_of_birth || '-'}, est régulièrement inscrit(e) en classe de{' '}
-            <strong>{currentStudent.class}</strong> au titre de l'année scolaire{' '}
-            <strong>{schoolYear}</strong>.
+            <strong>{currentStudent.class}</strong>
+            {renderSchoolYearText()}
           </p>
         )
     }
@@ -109,6 +148,15 @@ export default function CertificatePage() {
         </Button>
 
         <div className="flex items-center gap-4">
+          <input
+            type="text"
+            className="p-2 border rounded-md w-40"
+            placeholder="Année scolaire (ex: 2023-2024)"
+            value={schoolYear}
+            onChange={(e) => setSchoolYear(e.target.value)}
+            title="Laissez vide pour masquer l'année scolaire"
+          />
+
           <select
             className="p-2 border rounded-md"
             value={certType}
@@ -119,39 +167,80 @@ export default function CertificatePage() {
             <option value="assiduite">Certificat d'Assiduité</option>
           </select>
 
-          <Button onClick={handlePrint}>
+          <Button onClick={handlePrint} variant="outline">
             <Printer className="mr-2 h-4 w-4" />
             Imprimer
+          </Button>
+
+          <Button onClick={async () => {
+            if (!currentStudent) return
+            try {
+              const res = await window.api.pdf.generateCertificate({
+                first_name: currentStudent.first_name,
+                last_name: currentStudent.last_name,
+                date_of_birth: currentStudent.date_of_birth,
+                place_of_birth: currentStudent.place_of_birth,
+                class_name: currentStudent.class || '',
+                school_year: schoolYear,
+                registration_number: currentStudent.registration_number,
+                father_name: currentStudent.father_name,
+                mother_name: currentStudent.mother_name,
+                photo_path: currentStudent.photo_path
+              })
+              if (res.success && res.filePath) {
+                // Open the generated PDF automatically
+                window.api.pdf.openFile(res.filePath)
+              } else {
+                alert('Erreur lors de la génération du PDF: ' + (res.error || 'Erreur inconnue'))
+              }
+            } catch (err) {
+              console.error(err)
+            }
+          }}>
+            Télécharger
           </Button>
         </div>
       </div>
 
       {/* Certificate Content - A4 size */}
       <div className="w-[210mm] min-h-[297mm] bg-white p-12 shadow-lg print:shadow-none print:w-full print:h-auto text-black relative flex flex-col">
-        {/* Header with Photo */}
+        {/* Header with Photo & Logo */}
         <div className="flex justify-between items-start mb-12 border-b-2 border-gray-800 pb-6">
-          <div className="w-32 h-32 bg-gray-100 border border-gray-300 flex items-center justify-center overflow-hidden">
+          <div className="w-32 flex flex-col items-center justify-center">
             {currentStudent.photo_path ? (
-              <img
-                src={`local-resource://${currentStudent.photo_path.replace(/\\/g, '/')}`}
-                alt="Photo élève"
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  ;(e.target as HTMLImageElement).style.display = 'none'
-                }}
-              />
-            ) : (
-              <span className="text-xs text-gray-400 text-center p-2">Photo</span>
-            )}
+              <div className="w-32 h-32 bg-gray-100 border border-gray-300 flex items-center justify-center overflow-hidden">
+                <img
+                  src={getStudentPhotoUrl(currentStudent.photo_path) || ''}
+                  alt="Photo élève"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    ;(e.target as HTMLImageElement).style.display = 'none'
+                  }}
+                />
+              </div>
+            ) : null}
           </div>
 
           <div className="text-center flex-1 px-8">
             <h1 className="text-3xl font-bold uppercase mb-2">{schoolName}</h1>
-            <p className="text-sm text-gray-600">Enseignement Général et Technique</p>
+            <p className="text-sm text-gray-600">Enseignement Général</p>
             <p className="text-sm text-gray-600">Antananarivo, Madagascar</p>
           </div>
 
-          <div className="w-32">{/* Spacer to balance the photo */}</div>
+          <div className="w-32 flex flex-col items-center justify-center">
+            {schoolLogo ? (
+              <div className="w-32 h-32 flex items-center justify-center overflow-hidden">
+                <img
+                  src={getStudentPhotoUrl(schoolLogo) || ''}
+                  alt="Logo école"
+                  className="max-w-full max-h-full object-contain"
+                  onError={(e) => {
+                    ;(e.target as HTMLImageElement).style.display = 'none'
+                  }}
+                />
+              </div>
+            ) : null}
+          </div>
         </div>
 
         {/* Title */}

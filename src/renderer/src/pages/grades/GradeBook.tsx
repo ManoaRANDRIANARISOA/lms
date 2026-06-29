@@ -17,7 +17,7 @@ import type { StudentTermAverage, ClassSubject } from '@shared/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, BookOpen, TrendingUp, Award } from 'lucide-react'
+import { ArrowLeft, BookOpen, TrendingUp, Award, Layers } from 'lucide-react'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 
 interface GradeCell {
@@ -145,37 +145,58 @@ export default function GradeBook(): React.JSX.Element {
         <Button variant="ghost" size="sm" onClick={() => navigate('/grades')}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <h1 className="text-2xl font-bold tracking-tight">Carnet de notes</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
+          <BookOpen className="w-6 h-6 text-primary" />
+          Carnet de notes
+        </h1>
       </div>
 
-      {/* Filtres */}
-      <div className="bg-white rounded-xl border shadow-sm p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-          <Label>Classe</Label>
-          <select
-            value={selectedClass}
-            onChange={(e) => setSelectedClass(e.target.value)}
-            className="w-full border rounded-md px-3 py-2 text-sm bg-white"
-          >
-            <option value="">— Choisir —</option>
-            {ALL_CLASSES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          {ALL_CLASSES.length === 0 && (
-            <p className="text-xs text-amber-600 mt-1">
-              Aucune classe configurée. Ajoutez des classes dans Paramètres.
-            </p>
-          )}
+      {/* Top Bar: Class Selection */}
+      <div className="flex items-center gap-2 flex-wrap pb-2 shrink-0">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 text-gray-500 font-medium text-sm">
+          <Layers className="w-4 h-4" />
+          Classes :
         </div>
-        <div>
-          <Label>Trimestre/Examen</Label>
+        
+        {ALL_CLASSES.map((c) => (
+          <React.Fragment key={c}>
+            {['CP1', '6ème', '2nde', 'TPS'].includes(c) && (
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1 mr-1 shrink-0">
+                {c === 'CP1' ? 'Primaire' : c === '6ème' ? 'Collège' : c === '2nde' ? 'Lycée' : 'Autres'}
+              </div>
+            )}
+            {c === 'PS' && (
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1 mr-1 shrink-0">
+                Préscolaire
+              </div>
+            )}
+            <button
+              onClick={() => setSelectedClass(c)}
+              className={`shrink-0 px-4 py-2 rounded-full transition-all text-sm ${
+                selectedClass === c
+                  ? 'bg-primary text-primary-foreground font-medium shadow-md shadow-primary/20'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border hover:border-gray-300'
+              }`}
+            >
+              {c}
+            </button>
+          </React.Fragment>
+        ))}
+        {ALL_CLASSES.length === 0 && (
+          <p className="text-xs text-amber-600 ml-2">
+            Aucune classe configurée. Ajoutez des classes dans Paramètres.
+          </p>
+        )}
+      </div>
+
+      {/* Secondary Filtres (Trimestre, Année) */}
+      <div className="bg-white rounded-2xl border shadow-sm p-5 flex flex-col md:flex-row gap-6 items-end">
+        <div className="flex-1 w-full md:max-w-md">
+          <Label className="text-gray-500 text-xs uppercase tracking-wider mb-2 block">Trimestre / Évaluation</Label>
           <select
             value={selectedTerm}
             onChange={(e) => setSelectedTerm(Number(e.target.value))}
-            className="w-full border rounded-md px-3 py-2 text-sm bg-white"
+            className="w-full border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 transition-all"
           >
             {assessments.length === 0 ? (
               <>
@@ -192,12 +213,16 @@ export default function GradeBook(): React.JSX.Element {
             )}
           </select>
         </div>
-        <div>
-          <Label>Année scolaire</Label>
-          <Input value={schoolYear} onChange={(e) => setSchoolYear(e.target.value)} />
+        <div className="w-full md:w-48">
+          <Label className="text-gray-500 text-xs uppercase tracking-wider mb-2 block">Année scolaire</Label>
+          <Input 
+            value={schoolYear} 
+            onChange={(e) => setSchoolYear(e.target.value)} 
+            className="border-gray-200 rounded-lg bg-gray-50 focus:bg-white"
+          />
         </div>
-        <div className="flex items-end">
-          <Button variant="outline" size="sm" onClick={() => navigate('/grades/entry')}>
+        <div className="flex items-end ml-auto">
+          <Button onClick={() => navigate('/grades/entry')} className="shadow-sm">
             <BookOpen className="w-4 h-4 mr-2" />
             Saisie des notes
           </Button>
@@ -207,35 +232,36 @@ export default function GradeBook(): React.JSX.Element {
       {loading && <p className="text-muted-foreground">Chargement...</p>}
 
       {selectedClass && (
-        <div className="bg-white rounded-xl border shadow-sm overflow-x-auto">
-          <table className="w-full text-sm min-w-[600px]">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-3 py-3 text-left font-medium text-gray-600 sticky left-0 bg-gray-50 z-10">
-                  Élève
-                </th>
-                {subjectList.map((s) => (
-                  <th
-                    key={s.id}
-                    className="px-3 py-3 text-center font-medium text-gray-600 min-w-[80px]"
-                  >
-                    {s.name}
-                    <span className="block text-xs text-muted-foreground font-normal">
-                      coef. {s.coefficient}
-                    </span>
+        <div className="bg-white rounded-2xl border shadow-sm w-full">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[800px] text-left">
+              <thead className="bg-gray-50/80 border-b">
+                <tr>
+                  <th className="px-6 py-5 font-semibold text-gray-600 sticky left-0 bg-gray-50/95 z-10 whitespace-nowrap border-r border-gray-100 shadow-[1px_0_0_0_#f3f4f6]">
+                    Élève
                   </th>
-                ))}
-                <th className="px-3 py-3 text-center font-medium text-gray-600 bg-blue-50">
-                  <TrendingUp className="w-4 h-4 inline mr-1" />
-                  Moy.
-                </th>
-                <th className="px-3 py-3 text-center font-medium text-gray-600 bg-amber-50">
-                  <Award className="w-4 h-4 inline mr-1" />
-                  Rang
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
+                  {subjectList.map((s) => (
+                    <th
+                      key={s.id}
+                      className="px-4 py-5 text-center font-semibold text-gray-600 min-w-[100px]"
+                    >
+                      <div className="line-clamp-1" title={s.name}>{s.name}</div>
+                      <span className="block text-xs text-gray-400 font-normal mt-1">
+                        coef. {s.coefficient}
+                      </span>
+                    </th>
+                  ))}
+                  <th className="px-4 py-5 text-center font-semibold text-primary bg-blue-50/50 min-w-[100px]">
+                    <TrendingUp className="w-4 h-4 inline mr-1.5" />
+                    Moyenne
+                  </th>
+                  <th className="px-4 py-5 text-center font-semibold text-amber-600 bg-amber-50/50 min-w-[100px]">
+                    <Award className="w-4 h-4 inline mr-1.5" />
+                    Rang
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
               {studentsInClass.length === 0 && classSubjects.length === 0 && (
                 <tr>
                   <td
@@ -266,10 +292,10 @@ export default function GradeBook(): React.JSX.Element {
               {studentsInClass.map((st) => {
                 const rankInfo = rankingMap[st.id]
                 return (
-                  <tr key={st.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-3 font-medium sticky left-0 bg-white z-10">
+                  <tr key={st.id} className="hover:bg-blue-50/30 transition-colors">
+                    <td className="px-6 py-4 font-medium text-gray-900 sticky left-0 bg-white z-10 border-r border-gray-50 group-hover:bg-blue-50/30">
                       <button
-                        className="text-left hover:text-primary hover:underline"
+                        className="text-left hover:text-primary hover:underline transition-all"
                         onClick={() =>
                           navigate(
                             `/grades/report/${st.id}?year=${schoolYear}&term=${selectedTerm}`
@@ -282,10 +308,16 @@ export default function GradeBook(): React.JSX.Element {
                     {subjectList.map((subj) => {
                       const cell = matrix[st.id]?.[subj.id]
                       return (
-                        <td key={subj.id} className="px-3 py-3 text-center">
+                        <td key={subj.id} className="px-4 py-4 text-center">
                           {cell ? (
                             <span
-                              className={`font-semibold ${cell.grade < 10 ? 'text-red-600' : cell.grade >= 14 ? 'text-green-600' : 'text-amber-600'}`}
+                              className={`inline-flex items-center justify-center w-12 h-8 rounded-md font-bold text-[13px] ${
+                                cell.grade < 10 
+                                  ? 'bg-red-50 text-red-600' 
+                                  : cell.grade >= 14 
+                                    ? 'bg-green-50 text-green-700' 
+                                    : 'bg-amber-50 text-amber-700'
+                              }`}
                             >
                               {cell.grade.toFixed(2)}
                             </span>
@@ -295,33 +327,40 @@ export default function GradeBook(): React.JSX.Element {
                         </td>
                       )
                     })}
-                    <td className="px-3 py-3 text-center font-bold bg-blue-50/50">
+                    <td className="px-4 py-4 text-center font-bold text-primary bg-blue-50/30">
                       {rankInfo ? rankInfo.average.toFixed(2) : '—'}
                     </td>
-                    <td className="px-3 py-3 text-center font-bold bg-amber-50/50">
-                      {rankInfo ? rankInfo.rank : '—'}
+                    <td className="px-4 py-4 text-center font-bold text-amber-700 bg-amber-50/30">
+                      {rankInfo ? (
+                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white shadow-sm border border-amber-100">
+                          {rankInfo.rank}
+                        </div>
+                      ) : '—'}
                     </td>
                   </tr>
                 )
               })}
               {/* Class averages row */}
               {classAverages.length > 0 && (
-                <tr className="bg-gray-100 font-semibold border-t-2">
-                  <td className="px-3 py-3 sticky left-0 bg-gray-100 z-10">Moyenne classe</td>
+                <tr className="bg-gray-50/80 font-bold border-t-2 border-gray-200">
+                  <td className="px-6 py-5 sticky left-0 bg-gray-50/95 z-10 border-r border-gray-200 text-gray-700">
+                    Moyenne classe
+                  </td>
                   {subjectList.map((subj) => {
                     const avg = classAverages.find((a) => a.subject_id === subj.id)
                     return (
-                      <td key={subj.id} className="px-3 py-3 text-center">
+                      <td key={subj.id} className="px-4 py-5 text-center text-gray-600">
                         {avg ? avg.average.toFixed(2) : '—'}
                       </td>
                     )
                   })}
-                  <td className="px-3 py-3 text-center bg-blue-50/50">—</td>
-                  <td className="px-3 py-3 text-center bg-amber-50/50">—</td>
+                  <td className="px-4 py-5 text-center bg-blue-50/50 text-gray-500">—</td>
+                  <td className="px-4 py-5 text-center bg-amber-50/50 text-gray-500">—</td>
                 </tr>
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

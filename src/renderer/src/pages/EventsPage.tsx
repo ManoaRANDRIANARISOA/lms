@@ -25,6 +25,7 @@ interface Event {
   amount_per_parent: number
   description: string
   status: 'planned' | 'ongoing' | 'completed'
+  school_year?: string
 }
 
 interface Participation {
@@ -60,9 +61,21 @@ export default function EventsPage() {
   const [selectedClass, setSelectedClass] = useState<string>('all')
   const { classes: classList } = useClasses()
 
+  const [schoolYear, setSchoolYear] = useState<string>('')
+
   useEffect(() => {
-    loadEvents()
+    window.api.settings.get('school_year').then((res: any) => {
+      if (res.success && res.value) {
+        setSchoolYear(res.value)
+      }
+    })
   }, [])
+
+  useEffect(() => {
+    if (schoolYear) {
+      loadEvents()
+    }
+  }, [schoolYear])
 
   useEffect(() => {
     if (selectedEvent) {
@@ -72,7 +85,7 @@ export default function EventsPage() {
 
   const loadEvents = async () => {
     try {
-      const result = await window.api.event.list()
+      const result = await window.api.event.list(schoolYear)
       if (result.success) {
         setEvents((result.events || []) as unknown as Event[])
       }
@@ -92,8 +105,26 @@ export default function EventsPage() {
     }
   }
 
+  const getSchoolYearFromDate = (dateString: string) => {
+    if (!dateString) return schoolYear
+    const d = new Date(dateString)
+    const year = d.getFullYear()
+    const month = d.getMonth() + 1 // 1-12
+    return month >= 8 ? `${year}-${year + 1}` : `${year - 1}-${year}`
+  }
+
   const handleCreateEvent = async () => {
-    const result = await window.api.event.create(newEvent)
+    const targetYear = getSchoolYearFromDate(newEvent.event_date)
+    if (targetYear !== schoolYear) {
+      if (!confirm(`Attention, la date de cet événement correspond à l'année scolaire ${targetYear}.\n\nVoulez-vous tout de même l'enregistrer sous cette année ?\n\nSi vous vous êtes trompé de date, cliquez sur "Annuler" pour rectifier.`)) {
+        return
+      }
+    }
+
+    const result = await window.api.event.create({
+      ...newEvent,
+      school_year: targetYear
+    })
     if (result.success) {
       setIsCreateOpen(false)
       loadEvents()
@@ -171,11 +202,24 @@ export default function EventsPage() {
 
   const handleUpdateEvent = async () => {
     if (!selectedEvent) return
-    const result = await window.api.event.update(selectedEvent.id, newEvent)
+    const targetYear = getSchoolYearFromDate(newEvent.event_date)
+    
+    if (targetYear !== selectedEvent.school_year && targetYear !== schoolYear) {
+      if (!confirm(`Attention, la nouvelle date correspond à l'année scolaire ${targetYear}. Voulez-vous la déplacer dans cette année ?`)) {
+        return
+      }
+    }
+
+    const updates = { ...newEvent, school_year: targetYear }
+    const result = await window.api.event.update(selectedEvent.id, updates)
     if (result.success) {
       setIsEditOpen(false)
       loadEvents()
-      setSelectedEvent({ ...selectedEvent, ...newEvent })
+      if (targetYear === schoolYear) {
+        setSelectedEvent({ ...selectedEvent, ...updates })
+      } else {
+        setSelectedEvent(null)
+      }
       setNewEvent({
         name: '',
         event_date: format(new Date(), 'yyyy-MM-dd'),
@@ -190,7 +234,20 @@ export default function EventsPage() {
       <ReadOnlyBanner resource="events" />
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Événements Parents</h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-bold tracking-tight">Événements Parents</h1>
+            <select 
+              className="border rounded-md px-3 py-1 text-sm bg-white shadow-sm"
+              value={schoolYear}
+              onChange={(e) => setSchoolYear(e.target.value)}
+            >
+              <option value="2023-2024">2023-2024</option>
+              <option value="2024-2025">2024-2025</option>
+              <option value="2025-2026">2025-2026</option>
+              <option value="2026-2027">2026-2027</option>
+              <option value="2027-2028">2027-2028</option>
+            </select>
+          </div>
           <p className="text-gray-500">Gestion des événements et participations</p>
         </div>
         {canWrite('events') && (

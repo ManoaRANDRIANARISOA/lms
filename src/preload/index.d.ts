@@ -101,6 +101,7 @@ interface DialogAPI {
 interface StudentFilters {
   search?: string
   class?: string
+  status?: string
   schoolYear?: string
   limit?: number
   offset?: number
@@ -160,7 +161,7 @@ interface APIType {
       data: Partial<Student> & Record<string, unknown>
     ) => Promise<{ success: boolean; id?: string; registration_number?: string; error?: string }>
     list: (filters?: StudentFilters) => Promise<{ students: Student[]; total: number }>
-    get: (id: string) => Promise<{
+    get: (id: string, schoolYear?: string) => Promise<{
       success: boolean
       student?: Student
       fees?: FeeRecord
@@ -184,6 +185,7 @@ interface APIType {
     repair: (
       targetYear: string
     ) => Promise<{ success: boolean; fixedCount?: number; error?: string }>
+
     resetDatabase: (includeRemote: boolean) => Promise<{ success: boolean; error?: string }>
   }
   payment: {
@@ -245,7 +247,9 @@ interface APIType {
     create: (
       data: Record<string, unknown>
     ) => Promise<{ success: boolean; id?: string; error?: string }>
-    list: () => Promise<{ success: boolean; events?: Record<string, unknown>[]; error?: string }>
+    list: (
+      schoolYear?: string
+    ) => Promise<{ success: boolean; events?: Record<string, unknown>[]; error?: string }>
     getById: (id: string) => Promise<{
       success: boolean
       event?: Record<string, unknown>
@@ -269,7 +273,8 @@ interface APIType {
       paymentMethod?: string
     ) => Promise<{ success: boolean; error?: string }>
     getByStudent: (
-      studentId: string
+      studentId: string,
+      schoolYear?: string
     ) => Promise<{ success: boolean; events?: any[]; error?: string }>
   }
   settings: {
@@ -348,12 +353,37 @@ interface APIType {
       data: Partial<DailyAttendance>
     ) => Promise<{ success: boolean; id?: string; error?: string }>
     deleteAttendance: (id: string) => Promise<{ success: boolean; error?: string }>
+    getPayrollSummary: (
+      month: string
+    ) => Promise<{
+      success: boolean
+      summary?: Record<
+        string,
+        {
+          isPaid: boolean
+          isIgnored: boolean
+          grossSalary: number
+          netSalary: number
+          hasWorked: boolean
+        }
+      >
+      error?: string
+    }>
     createSalaryExpense: (
       personnelId: string,
       month: string,
       netAmount: number,
       description?: string
     ) => Promise<{ success: boolean; id?: string; error?: string }>
+    ignoreMonth: (
+      personnelId: string,
+      month: string,
+      reason?: string
+    ) => Promise<{ success: boolean; error?: string }>
+    unignoreMonth: (
+      personnelId: string,
+      month: string
+    ) => Promise<{ success: boolean; error?: string }>
   }
   grade: {
     createSubject: (
@@ -578,6 +608,9 @@ interface APIType {
       class_name: string
       school_year: string
       registration_number?: string
+      father_name?: string
+      mother_name?: string
+      photo_path?: string
     }) => Promise<{ success: boolean; filePath?: string; error?: string }>
     generateReportCard: (
       studentData: {

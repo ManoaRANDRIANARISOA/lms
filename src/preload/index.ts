@@ -23,7 +23,7 @@ const api = {
   student: {
     create: (data: Record<string, unknown>) => ipcRenderer.invoke('student:create', data),
     list: (filters?: Record<string, unknown>) => ipcRenderer.invoke('student:list', filters),
-    get: (id: string) => ipcRenderer.invoke('student:get', id),
+    get: (id: string, schoolYear?: string) => ipcRenderer.invoke('student:get', id, schoolYear),
     update: (id: string, updates: Record<string, unknown>) =>
       ipcRenderer.invoke('student:update', id, updates),
     delete: (id: string) => ipcRenderer.invoke('student:delete', id),
@@ -31,6 +31,7 @@ const api = {
       ipcRenderer.invoke('student:reEnroll', id, newClass, targetYear, initialPaymentDroit, initialPaymentFram),
     getServiceStats: () => ipcRenderer.invoke('student:serviceStats'),
     repair: (targetYear: string) => ipcRenderer.invoke('student:repair', targetYear),
+
     resetDatabase: (includeRemote: boolean) => ipcRenderer.invoke('db:reset', includeRemote)
   },
 
@@ -72,7 +73,7 @@ const api = {
   // --------------------------------------------
   event: {
     create: (data: Record<string, unknown>) => ipcRenderer.invoke('event:create', data),
-    list: () => ipcRenderer.invoke('event:list'),
+    list: (schoolYear?: string) => ipcRenderer.invoke('event:list', schoolYear),
     getById: (id: string) => ipcRenderer.invoke('event:getById', id),
     update: (id: string, updates: Record<string, unknown>) =>
       ipcRenderer.invoke('event:update', id, updates),
@@ -81,7 +82,7 @@ const api = {
       ipcRenderer.invoke('event:addParticipants', eventId, studentIds, amountDue),
     recordPayment: (eventId: string, studentId: string, amount: number, paymentMethod?: string) =>
       ipcRenderer.invoke('event:recordPayment', eventId, studentId, amount, paymentMethod),
-    getByStudent: (studentId: string) => ipcRenderer.invoke('event:getByStudent', studentId)
+    getByStudent: (studentId: string, schoolYear?: string) => ipcRenderer.invoke('event:getByStudent', studentId, schoolYear)
   },
 
   // --------------------------------------------
@@ -137,6 +138,11 @@ const api = {
     update: (id: string, updates: Record<string, unknown>) =>
       ipcRenderer.invoke('personnel:update', id, updates),
     delete: (id: string) => ipcRenderer.invoke('personnel:delete', id),
+    getPayrollSummary: (month: string) => ipcRenderer.invoke('personnel:getPayrollSummary', month),
+    ignoreMonth: (personnelId: string, month: string, reason?: string) =>
+      ipcRenderer.invoke('personnel:ignoreMonth', personnelId, month, reason),
+    unignoreMonth: (personnelId: string, month: string) =>
+      ipcRenderer.invoke('personnel:unignoreMonth', personnelId, month),
     setTimeTracking: (data: Record<string, unknown>) =>
       ipcRenderer.invoke('personnel:setTimeTracking', data),
     getTimeTracking: (personnelId: string) =>

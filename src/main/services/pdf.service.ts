@@ -14,10 +14,8 @@ import fs from 'fs'
 
 const isDev = !app.isPackaged
 
-function getOutputDir(): string {
-  const dir = isDev
-    ? path.join(process.cwd(), 'pdf-output')
-    : path.join(app.getPath('userData'), 'pdf-output')
+function getOutputDir(category: string): string {
+  const dir = path.join(app.getPath('desktop'), 'lms', category)
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true })
   }
@@ -191,7 +189,7 @@ export class PdfService {
       addFooter(doc, 1)
 
       const filename = `recu_${sanitizeFilename(paymentData.student_name)}_${paymentData.payment_date}.pdf`
-      const filePath = path.join(getOutputDir(), filename)
+      const filePath = path.join(getOutputDir('Recus'), filename)
       doc.save(filePath)
 
       return { success: true, filePath }
@@ -212,6 +210,9 @@ export class PdfService {
     class_name: string
     school_year: string
     registration_number?: string
+    father_name?: string
+    mother_name?: string
+    photo_path?: string
   }): { success: boolean; filePath?: string; error?: string } {
     try {
       const doc = new jsPDF()
@@ -228,6 +229,23 @@ export class PdfService {
         }
       } catch (e) {
         console.error('Could not load logo', e)
+      }
+
+      // Add Student Photo if available
+      if (studentData.photo_path) {
+        try {
+          const photoPath = path.isAbsolute(studentData.photo_path) 
+            ? studentData.photo_path 
+            : path.join(app.getPath('userData'), studentData.photo_path)
+            
+          if (fs.existsSync(photoPath)) {
+            const photoData = fs.readFileSync(photoPath).toString('base64')
+            // Add on the top right
+            doc.addImage(`data:image/jpeg;base64,${photoData}`, 'JPEG', 160, 15, 30, 30)
+          }
+        } catch (e) {
+          console.error('Could not load student photo', e)
+        }
       }
 
       doc.setFontSize(12)
@@ -264,6 +282,15 @@ export class PdfService {
       )
       y += 10
 
+      const parents: string[] = []
+      if (studentData.father_name) parents.push(studentData.father_name)
+      if (studentData.mother_name) parents.push(studentData.mother_name)
+
+      if (parents.length > 0) {
+        doc.text(`Fils/Fille de : ${parents.join(' et de ')}`, 20, y)
+        y += 10
+      }
+
       const text2 = `Est inscrit(e) dans mon établissement en classe de ${studentData.class_name} durant l'année scolaire ${studentData.school_year}.`
       const splitText2 = doc.splitTextToSize(text2, 170)
       doc.text(splitText2, 20, y)
@@ -282,7 +309,7 @@ export class PdfService {
       addFooter(doc, 1)
 
       const filename = `certificat_${sanitizeFilename(studentData.last_name)}_${sanitizeFilename(studentData.first_name)}.pdf`
-      const filePath = path.join(getOutputDir(), filename)
+      const filePath = path.join(getOutputDir('Certificats'), filename)
       doc.save(filePath)
 
       return { success: true, filePath }
@@ -358,7 +385,7 @@ export class PdfService {
       addFooter(doc, pageNum)
 
       const filename = `bilan_${reportData.date}.pdf`
-      const filePath = path.join(getOutputDir(), filename)
+      const filePath = path.join(getOutputDir('Rapports'), filename)
       doc.save(filePath)
 
       return { success: true, filePath }
@@ -431,13 +458,29 @@ export class PdfService {
       doc.setFont('helvetica', 'bold')
       doc.text(`Moyenne générale : ${generalAverage.toFixed(2)}/20`, 20, y)
 
+      if (studentData.term === 4 && generalAverage > 0) {
+        y += 15
+        doc.setFontSize(14)
+        doc.text('Décision du Conseil de Classe :', 20, y)
+        y += 8
+        if (generalAverage >= 10) {
+          doc.setTextColor(0, 128, 0)
+          doc.text('Admis(e) en classe supérieure', 20, y)
+        } else {
+          doc.setTextColor(200, 0, 0)
+          doc.text('Redouble', 20, y)
+        }
+        doc.setTextColor(0, 0, 0) // reset color
+        doc.setFontSize(11)
+      }
+
       addFooter(doc, pageNum)
 
       const termSuffix = studentData.termName
         ? sanitizeFilename(studentData.termName)
         : `T${studentData.term}`
       const filename = `bulletin_${sanitizeFilename(studentData.last_name)}_${sanitizeFilename(studentData.first_name)}_${termSuffix}.pdf`
-      const filePath = path.join(getOutputDir(), filename)
+      const filePath = path.join(getOutputDir('Bulletins'), filename)
       doc.save(filePath)
 
       return { success: true, filePath }
@@ -504,7 +547,7 @@ export class PdfService {
       addFooter(doc, 1)
 
       const filename = `fiche_paie_${sanitizeFilename(personnelData.last_name)}_${personnelData.month}.pdf`
-      const filePath = path.join(getOutputDir(), filename)
+      const filePath = path.join(getOutputDir('Personnel'), filename)
       doc.save(filePath)
 
       return { success: true, filePath }

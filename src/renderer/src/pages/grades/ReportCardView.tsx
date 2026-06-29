@@ -108,8 +108,9 @@ export default function ReportCardView(): React.JSX.Element {
                   class_name: student.class || '',
                   school_year: schoolYear,
                   term,
-                  termName:
-                    assessments.find((a) => a.term_value === term)?.name || `Trimestre ${term}`
+                  termName: term === 4 
+                    ? 'Bilan Annuel' 
+                    : assessments.find((a) => a.term_value === term)?.name || `Trimestre ${term}`
                 },
                 gradesData,
                 average
@@ -122,7 +123,7 @@ export default function ReportCardView(): React.JSX.Element {
             }}
           >
             <Download className="w-4 h-4 mr-2" />
-            PDF
+            Télécharger
           </Button>
         </div>
       </div>
@@ -149,6 +150,7 @@ export default function ReportCardView(): React.JSX.Element {
                 <option value={1}>Trimestre 1</option>
                 <option value={2}>Trimestre 2</option>
                 <option value={3}>Trimestre 3</option>
+                <option value={4}>Bilan Annuel</option>
               </>
             ) : (
               assessments.map((a) => (
@@ -167,7 +169,9 @@ export default function ReportCardView(): React.JSX.Element {
           <h2 className="text-xl font-bold">Lycée Manjary Soa</h2>
           <p className="text-sm text-muted-foreground">
             Bulletin de notes — {schoolYear} —{' '}
-            {assessments.find((a) => a.term_value === term)?.name || `Trimestre ${term}`}
+            {term === 4 
+               ? 'Bilan Annuel' 
+               : assessments.find((a) => a.term_value === term)?.name || `Trimestre ${term}`}
           </p>
         </div>
         <div className="border-t pt-4 grid grid-cols-2 gap-4 text-sm">
@@ -276,6 +280,16 @@ export default function ReportCardView(): React.JSX.Element {
               La moyenne de l'élève est inférieure à 10/20. Un suivi renforcé est recommandé.
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Décision de passage pour le Bilan Annuel */}
+      {term === 4 && average > 0 && (
+        <div className={`border rounded-lg p-6 text-center shadow-sm ${average >= 10 ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+          <h3 className="text-2xl font-bold mb-2">Décision du Conseil de Classe</h3>
+          <p className="text-lg">
+            {average >= 10 ? 'Admis(e) en classe supérieure' : 'Redouble'}
+          </p>
         </div>
       )}
     </div>

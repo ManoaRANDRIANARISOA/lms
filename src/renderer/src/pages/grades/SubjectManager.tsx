@@ -1,12 +1,3 @@
-/**
- * SubjectManager.tsx — Gestion des matières par classe
- *
- * Vue unifiée : catalogue + assignation par classe dans une seule grille.
- * Toutes les données sont centralisées et dynamiques.
- *
- * @module pages/grades/SubjectManager
- */
-
 import React, { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGradeStore } from '@/store/useGradeStore'
@@ -15,37 +6,14 @@ import { useClasses } from '@/lib/useClasses'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, Plus, Trash2, Settings, Layers, Filter, BookOpen, X, Check } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Settings, BookOpen, Layers, CheckCircle2, Search } from 'lucide-react'
 import type { Subject, ClassSubject } from '@shared/types'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
-
-function groupClasses(classes: string[]): { label: string; classes: string[] }[] {
-  const groups: { label: string; classes: string[] }[] = []
-  const prescolaire = classes.filter((c) => ['PS', 'MS', 'GS'].includes(c))
-  const primaire = classes.filter((c) => /^CP|CE|CM/.test(c))
-  const college = classes.filter((c) => /^[3456]ème$/.test(c))
-  const lycee = classes.filter((c) =>
-    ['2nde', '1ère', 'TA', 'TD', 'Seconde', 'Première', 'Terminale'].includes(c)
-  )
-  const other = classes.filter(
-    (c) =>
-      !prescolaire.includes(c) &&
-      !primaire.includes(c) &&
-      !college.includes(c) &&
-      !lycee.includes(c)
-  )
-  if (prescolaire.length) groups.push({ label: 'Préscolaire', classes: prescolaire })
-  if (primaire.length) groups.push({ label: 'Primaire', classes: primaire })
-  if (college.length) groups.push({ label: 'Collège', classes: college })
-  if (lycee.length) groups.push({ label: 'Lycée', classes: lycee })
-  if (other.length) groups.push({ label: 'Autres', classes: other })
-  return groups
-}
 
 export default function SubjectManager(): React.JSX.Element {
   const navigate = useNavigate()
   const canWrite = useAuthStore((s) => s.canWrite)
-  const { classes: ALL_CLASSES } = useClasses()
+  const { sections: CLASS_SECTIONS } = useClasses()
   const {
     subjects,
     fetchSubjects,
@@ -60,17 +28,19 @@ export default function SubjectManager(): React.JSX.Element {
     error
   } = useGradeStore()
 
-  const [activeClass, setActiveClass] = useState<string>('')
+  const [activeClass, setActiveClass] = useState<string>('') // '' means Global Catalog
+  const [searchTerm, setSearchTerm] = useState('')
   const [newName, setNewName] = useState('')
   const [newCoef, setNewCoef] = useState('1')
   const [msg, setMsg] = useState('')
+  const [savingCoefId, setSavingCoefId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchSubjects()
     fetchAllClassSubjects()
   }, [])
 
-  // Build a lookup: subjectId → ClassSubject for the active class
+  // Lookup class subjects for active class
   const activeAssignments = useMemo(() => {
     if (!activeClass) return new Map<string, ClassSubject>()
     const map = new Map<string, ClassSubject>()
@@ -80,26 +50,34 @@ export default function SubjectManager(): React.JSX.Element {
     return map
   }, [allClassSubjects, activeClass])
 
-  // Assigned classes per subject (across all classes)
-  const assignedClassesMap = useMemo(() => {
-    const map = new Map<string, string[]>()
+  // Count how many classes each subject is assigned to
+  const subjectClassCounts = useMemo(() => {
+    const counts = new Map<string, number>()
     allClassSubjects.forEach((cs) => {
-      const arr = map.get(cs.subject_id) || []
-      arr.push(cs.class_name)
-      map.set(cs.subject_id, arr)
+      counts.set(cs.subject_id, (counts.get(cs.subject_id) || 0) + 1)
     })
-    return map
+    return counts
   }, [allClassSubjects])
 
-  // Filtered subjects based on active class
   const filteredSubjects = useMemo(() => {
-    if (!activeClass) return subjects
-    return subjects.filter((s) => activeAssignments.has(s.id))
-  }, [subjects, activeAssignments, activeClass])
+    return subjects.filter((s) => {
+      if (searchTerm && !s.name.toLowerCase().includes(searchTerm.toLowerCase())) return false
+      return true
+    }).sort((a, b) => {
+      if (activeClass) {
+        const aAssigned = activeAssignments.has(a.id)
+        const bAssigned = activeAssignments.has(b.id)
+        if (aAssigned && !bAssigned) return -1
+        if (!aAssigned && bAssigned) return 1
+      }
+      return a.name.localeCompare(b.name)
+    })
+  }, [subjects, searchTerm, activeClass, activeAssignments])
 
   const handleCreateSubject = async () => {
     if (!newName.trim()) {
       setMsg('Le nom de la matière est requis.')
+      setTimeout(() => setMsg(''), 3000)
       return
     }
     const coef = parseFloat(newCoef) || 1
@@ -108,285 +86,325 @@ export default function SubjectManager(): React.JSX.Element {
       setNewName('')
       setNewCoef('1')
       setMsg('Matière ajoutée au catalogue.')
+      setTimeout(() => setMsg(''), 3000)
     } else {
       setMsg('Erreur lors de la création.')
+      setTimeout(() => setMsg(''), 3000)
     }
   }
 
-  const handleAssignToClass = async (subject: Subject) => {
-    if (!activeClass) return
-    const ok = await createClassSubject({
-      class_name: activeClass,
-      subject_id: subject.id,
-      coefficient: subject.default_coefficient ?? 1
-    })
-    if (ok) {
-      setMsg(`"${subject.name}" assigné(e) à ${activeClass}.`)
-    } else {
-      setMsg('Erreur : matière déjà assignée ou problème.')
-    }
-  }
+  const toggleAssignment = async (subject: Subject, isAssigned: boolean, classSubject?: ClassSubject) => {
+    if (!activeClass || !canWrite('grades')) return
 
-  const handleUnassignFromClass = async (cs: ClassSubject) => {
-    if (!confirm(`Retirer "${cs.subject_name}" de ${cs.class_name} ?`)) return
-    const ok = await deleteClassSubject(cs.id)
-    if (ok) {
-      setMsg(`"${cs.subject_name}" retiré(e) de ${cs.class_name}.`)
-    } else {
-      setMsg('Erreur lors du retrait.')
+    if (isAssigned && classSubject) {
+      await deleteClassSubject(classSubject.id)
+    } else if (!isAssigned) {
+      await createClassSubject({
+        class_name: activeClass,
+        subject_id: subject.id,
+        coefficient: subject.default_coefficient ?? 1
+      })
     }
   }
 
   const handleUpdateCoefficient = async (cs: ClassSubject, newCoef: number) => {
+    if (newCoef === cs.coefficient) return
+    setSavingCoefId(cs.id)
     await updateClassSubject(cs.id, { coefficient: newCoef })
+    setTimeout(() => setSavingCoefId(null), 1500)
   }
 
   const handleDeleteSubject = async (id: string, name: string) => {
-    if (
-      !confirm(`Supprimer "${name}" du catalogue ?\nLes notes associées ne seront plus visibles.`)
-    )
-      return
+    if (!confirm(`Supprimer définitivement "${name}" du catalogue ?\nLes notes associées ne seront plus visibles.`)) return
     const ok = await deleteSubject(id)
-    if (ok) setMsg(`"${name}" supprimée du catalogue.`)
-    else setMsg('Erreur lors de la suppression.')
-  }
-
-  const getClassSubjectById = (subjectId: string): ClassSubject | undefined => {
-    return activeAssignments.get(subjectId)
+    if (ok) {
+      setMsg(`"${name}" supprimée du catalogue.`)
+      setTimeout(() => setMsg(''), 3000)
+    }
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 flex flex-col">
       <ReadOnlyBanner resource="grades" />
 
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/grades')}>
-          <ArrowLeft className="w-4 h-4" />
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/grades')} className="shrink-0">
+          <ArrowLeft className="w-5 h-5" />
         </Button>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <Settings className="w-6 h-6" />
-          Gestion des matières
-        </h1>
+        <div className="flex-1">
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
+            <Settings className="w-7 h-7 text-primary" />
+            Gestion des matières
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">Configurez le catalogue global et les programmes par classe.</p>
+        </div>
       </div>
 
-      {error && <p className="text-red-600 bg-red-50 p-3 rounded">{error}</p>}
+      {error && <p className="text-red-600 bg-red-50 p-3 rounded-lg border border-red-100">{error}</p>}
       {msg && (
-        <p
-          className={`p-3 rounded ${msg.includes('Erreur') ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'}`}
-        >
+        <div className={`p-3 rounded-lg border text-sm font-medium transition-all ${msg.includes('Erreur') ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
           {msg}
-        </p>
+        </div>
       )}
 
-      {/* ── Catalogue & Assignation unifiés ── */}
-      <div className="bg-white rounded-xl border shadow-sm p-4">
-        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-          <Layers className="w-5 h-5" />
-          Catalogue des matières
-        </h2>
-
-        {/* Filter bar */}
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          <Filter className="w-4 h-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Filtrer par classe :</span>
-          <Button
-            size="sm"
-            variant={activeClass === '' ? 'default' : 'outline'}
+      {/* Main Layout: Top Bar + Content */}
+      <div className="flex flex-col gap-4">
+        
+        {/* Top Bar: Class Selection */}
+        <div className="flex items-center gap-2 flex-wrap pb-2 shrink-0">
+          <button
             onClick={() => setActiveClass('')}
+            className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
+              activeClass === '' 
+                ? 'bg-primary text-primary-foreground shadow-md font-semibold' 
+                : 'bg-white text-gray-700 hover:bg-gray-50 border shadow-sm'
+            }`}
           >
-            Toutes
-          </Button>
-          {groupClasses(ALL_CLASSES).map((group) => (
-            <div key={group.label} className="flex items-center gap-1">
-              <span className="text-xs text-muted-foreground font-medium mr-1">{group.label}:</span>
-              {group.classes.map((c) => (
-                <Button
-                  key={c}
-                  size="sm"
-                  variant={activeClass === c ? 'default' : 'outline'}
-                  className="h-7 px-2 text-xs"
-                  onClick={() => setActiveClass(activeClass === c ? '' : c)}
-                >
-                  {c}
-                </Button>
-              ))}
-            </div>
-          ))}
-          {activeClass && (
-            <span className="text-xs text-muted-foreground ml-2">
-              — {filteredSubjects.length} matière{filteredSubjects.length > 1 ? 's' : ''} assignée
-              {filteredSubjects.length > 1 ? 's' : ''} à {activeClass}
-            </span>
-          )}
-        </div>
+            <Layers className="w-4 h-4" />
+            Catalogue Global
+          </button>
+          
+          <div className="w-px h-6 bg-gray-200 mx-2 shrink-0"></div>
 
-        {/* Create subject form */}
-        {canWrite('grades') && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end mb-4 p-3 bg-gray-50 rounded-lg">
-            <div>
-              <Label>Nom de la matière</Label>
-              <Input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="ex: Mathématiques"
-              />
-            </div>
-            <div>
-              <Label>Coefficient par défaut</Label>
-              <Input
-                type="number"
-                step="0.5"
-                min={0.5}
-                value={newCoef}
-                onChange={(e) => setNewCoef(e.target.value)}
-                placeholder="1"
-              />
-            </div>
-            <div>
-              <Button onClick={handleCreateSubject} disabled={loading}>
-                <Plus className="w-4 h-4 mr-2" />
-                Ajouter au catalogue
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Unified subject grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-          {filteredSubjects.length === 0 && (
-            <div className="col-span-full py-8 text-center text-muted-foreground">
-              {activeClass ? (
-                <>
-                  Aucune matière assignée à {activeClass}.<br />
-                  <span className="text-sm">
-                    Cliquez sur "Toutes" puis "Ajouter à {activeClass}" sur une matière.
-                  </span>
-                </>
-              ) : (
-                'Aucune matière dans le catalogue.'
-              )}
-            </div>
-          )}
-          {filteredSubjects.map((s) => {
-            const assigned = assignedClassesMap.get(s.id) || []
-            const classSubject = getClassSubjectById(s.id)
-            const isAssignedToActive = !!classSubject
-
+          {Object.entries(CLASS_SECTIONS).map(([label, classList], index) => {
+            if (classList.length === 0) return null
             return (
-              <div
-                key={s.id}
-                className={`relative bg-white border rounded-lg p-3 transition-shadow group ${
-                  activeClass
-                    ? isAssignedToActive
-                      ? 'border-green-300 bg-green-50/30'
-                      : 'border-orange-200 bg-orange-50/20 hover:shadow-md'
-                    : 'hover:shadow-md'
-                }`}
-              >
-                {/* Delete subject (global) */}
-                {canWrite('grades') && (
+              <React.Fragment key={label}>
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider shrink-0">{label}</span>
+                {classList.map((c) => (
                   <button
-                    className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700"
-                    onClick={() => handleDeleteSubject(s.id, s.name)}
-                    title="Supprimer du catalogue"
+                    key={c}
+                    onClick={() => setActiveClass(c)}
+                    className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                      activeClass === c 
+                        ? 'bg-primary/10 text-primary border border-primary/30' 
+                        : 'bg-white text-gray-600 hover:bg-gray-50 border shadow-sm'
+                    }`}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    {c}
                   </button>
+                ))}
+                {index < Object.entries(CLASS_SECTIONS).length - 1 && (
+                  <div className="w-px h-6 bg-gray-200 mx-2 shrink-0"></div>
                 )}
-
-                {/* Subject name */}
-                <div className="flex items-center gap-1.5 mb-2 pr-5">
-                  <BookOpen className="w-4 h-4 text-primary flex-shrink-0" />
-                  <span className="font-medium text-sm leading-tight">{s.name}</span>
-                </div>
-
-                {/* Default coefficient */}
-                <div className="text-xs text-muted-foreground mb-2">
-                  Coef. défaut :{' '}
-                  <span className="font-semibold text-foreground">
-                    {s.default_coefficient ?? 1}
-                  </span>
-                </div>
-
-                {/* Active class controls */}
-                {activeClass && canWrite('grades') && (
-                  <div className="mb-2">
-                    {isAssignedToActive ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-                          <Check className="w-3 h-3" /> Assigné à {activeClass}
-                        </span>
-                        <Input
-                          type="number"
-                          step="0.5"
-                          min={0.5}
-                          defaultValue={classSubject!.coefficient}
-                          className="w-16 h-7 text-xs"
-                          onBlur={(e) => {
-                            const val = parseFloat(e.target.value) || 1
-                            if (val !== classSubject!.coefficient) {
-                              handleUpdateCoefficient(classSubject!, val)
-                            }
-                          }}
-                          title="Coefficient pour cette classe"
-                        />
-                        <button
-                          className="text-red-400 hover:text-red-600 ml-auto"
-                          onClick={() => handleUnassignFromClass(classSubject!)}
-                          title={`Retirer de ${activeClass}`}
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full h-7 text-xs"
-                        onClick={() => handleAssignToClass(s)}
-                      >
-                        <Plus className="w-3 h-3 mr-1" />
-                        Ajouter à {activeClass}
-                      </Button>
-                    )}
-                  </div>
-                )}
-
-                {/* Assigned classes badges (always visible) */}
-                {assigned.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {assigned.map((c) => (
-                      <span
-                        key={c}
-                        className={`text-[10px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
-                          c === activeClass
-                            ? 'bg-primary text-primary-foreground font-semibold'
-                            : canWrite('grades')
-                              ? 'bg-primary/10 text-primary hover:bg-red-100 hover:text-red-700'
-                              : 'bg-primary/10 text-primary'
-                        }`}
-                        onClick={() => {
-                          if (canWrite('grades') && c !== activeClass) {
-                            const cs = allClassSubjects.find(
-                              (cs) => cs.subject_id === s.id && cs.class_name === c
-                            )
-                            if (cs) handleUnassignFromClass(cs)
-                          }
-                        }}
-                        title={
-                          canWrite('grades') && c !== activeClass
-                            ? `Cliquer pour retirer de ${c}`
-                            : undefined
-                        }
-                      >
-                        {c}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
+              </React.Fragment>
             )
           })}
+        </div>
+
+        {/* Right Content */}
+        <div className="bg-white rounded-2xl border shadow-sm flex flex-col">
+          
+          {/* Header */}
+          <div className="bg-gray-50/80 border-b px-6 py-5 shrink-0 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                {activeClass ? (
+                  <>
+                    <Layers className="w-5 h-5 text-primary" />
+                    Programme : {activeClass}
+                  </>
+                ) : (
+                  <>
+                    <BookOpen className="w-5 h-5 text-gray-500" />
+                    Catalogue Global
+                  </>
+                )}
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {activeClass 
+                  ? 'Activez les matières enseignées dans cette classe et définissez leurs coefficients.' 
+                  : 'Gérez toutes les matières disponibles dans l\'établissement.'}
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Rechercher une matière..."
+                  className="pl-9 h-9 w-64 bg-white border-gray-200 focus:bg-white"
+                />
+              </div>
+              {activeClass && (
+                <div className="text-sm font-medium bg-white px-3 py-1.5 rounded-lg border shadow-sm text-gray-600 shrink-0">
+                  <span className="text-primary font-bold">{activeAssignments.size}</span> matière(s) au programme
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Form to create global subject */}
+          {!activeClass && canWrite('grades') && (
+            <div className="px-6 py-4 border-b bg-white shrink-0">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Nouvelle matière</h3>
+              <div className="flex flex-wrap md:flex-nowrap gap-4 items-end">
+                <div className="flex-1">
+                  <Label className="text-xs text-gray-500 mb-1.5 block">Nom de la matière</Label>
+                  <Input
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="ex: Mathématiques"
+                    className="h-10 bg-gray-50"
+                  />
+                </div>
+                <div className="w-32">
+                  <Label className="text-xs text-gray-500 mb-1.5 block">Coef. par défaut</Label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    min={0.5}
+                    value={newCoef}
+                    onChange={(e) => setNewCoef(e.target.value)}
+                    placeholder="1"
+                    className="h-10 bg-gray-50"
+                  />
+                </div>
+                <Button onClick={handleCreateSubject} disabled={loading || !newName.trim()} className="h-10">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Ajouter
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Table */}
+          <div className="w-full">
+            {filteredSubjects.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-gray-400 p-8">
+                <BookOpen className="w-12 h-12 mb-4 opacity-20" />
+                <p>Aucune matière dans le catalogue.</p>
+              </div>
+            ) : (
+              <table className="w-full text-sm text-left">
+                <thead className="bg-white sticky top-0 border-b z-10 shadow-sm">
+                  <tr>
+                    <th className="px-6 py-4 font-semibold text-gray-600">Nom de la matière</th>
+                    
+                    {activeClass ? (
+                      <>
+                        <th className="px-6 py-4 font-semibold text-gray-600 text-center w-40">Au programme</th>
+                        <th className="px-6 py-4 font-semibold text-gray-600 w-48">Coefficient</th>
+                      </>
+                    ) : (
+                      <>
+                        <th className="px-6 py-4 font-semibold text-gray-600 text-center">Classes assignées</th>
+                        <th className="px-6 py-4 font-semibold text-gray-600 w-48">Coef. par défaut</th>
+                        {canWrite('grades') && <th className="px-6 py-4 font-semibold text-gray-600 text-right w-24">Actions</th>}
+                      </>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredSubjects.map((s) => {
+                    const classSubject = activeClass ? activeAssignments.get(s.id) : undefined
+                    const isAssigned = !!classSubject
+                    const count = subjectClassCounts.get(s.id) || 0
+
+                    return (
+                      <tr 
+                        key={s.id} 
+                        className={`transition-colors hover:bg-gray-50/80 ${activeClass && isAssigned ? 'bg-primary/[0.02]' : ''}`}
+                      >
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${activeClass && isAssigned ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500'}`}>
+                              <BookOpen className="w-4 h-4" />
+                            </div>
+                            <span className={`font-medium ${activeClass && !isAssigned ? 'text-gray-400' : 'text-gray-900'}`}>
+                              {s.name}
+                            </span>
+                          </div>
+                        </td>
+
+                        {activeClass ? (
+                          <>
+                            {/* Toggle Assignment */}
+                            <td className="px-6 py-4 text-center align-middle">
+                              <button
+                                type="button"
+                                disabled={!canWrite('grades')}
+                                className={`${
+                                  isAssigned ? 'bg-primary' : 'bg-gray-200 hover:bg-gray-300'
+                                } relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50`}
+                                onClick={() => toggleAssignment(s, isAssigned, classSubject)}
+                              >
+                                <span
+                                  aria-hidden="true"
+                                  className={`${
+                                    isAssigned ? 'translate-x-5' : 'translate-x-0'
+                                  } pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}
+                                />
+                              </button>
+                            </td>
+
+                            {/* Coefficient Input */}
+                            <td className="px-6 py-4 align-middle">
+                              {isAssigned ? (
+                                <div className="flex items-center gap-3">
+                                  <Input
+                                    type="number"
+                                    step="0.5"
+                                    min={0.5}
+                                    defaultValue={classSubject.coefficient}
+                                    className="w-20 h-9 bg-white text-center font-medium shadow-sm"
+                                    disabled={!canWrite('grades')}
+                                    onBlur={(e) => {
+                                      const val = parseFloat(e.target.value) || 1
+                                      handleUpdateCoefficient(classSubject, val)
+                                    }}
+                                  />
+                                  <div className="w-6 h-6 flex items-center justify-center">
+                                    {savingCoefId === classSubject.id && (
+                                      <CheckCircle2 className="w-5 h-5 text-green-500 animate-in fade-in zoom-in duration-300" />
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-gray-300 text-sm italic">Non applicable</span>
+                              )}
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            {/* Global View Columns */}
+                            <td className="px-6 py-4 text-center align-middle">
+                              {count > 0 ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  {count} classe(s)
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+                                  Aucune
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 align-middle font-medium text-gray-700">
+                              {s.default_coefficient ?? 1}
+                            </td>
+                            {canWrite('grades') && (
+                              <td className="px-6 py-4 text-right align-middle">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0 rounded-full"
+                                  onClick={() => handleDeleteSubject(s.id, s.name)}
+                                  title="Supprimer du catalogue"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </td>
+                            )}
+                          </>
+                        )}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       </div>
     </div>

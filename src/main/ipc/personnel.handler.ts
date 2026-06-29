@@ -542,4 +542,42 @@ export function registerPersonnelHandlers(): void {
       return { success: false, error: 'Erreur lors du calcul du salaire' }
     }
   })
+
+  // --------------------------------------------
+  // PAYROLL SUMMARY
+  // --------------------------------------------
+  ipcMain.handle('personnel:getPayrollSummary', async (_, month: string) => {
+    if (!canRead('personnel')) {
+      return { success: false, error: 'Accès refusé' }
+    }
+
+    try {
+      const summary = PersonnelRepository.getPayrollSummary(month)
+      return { success: true, summary }
+    } catch (error: unknown) {
+      return { success: false, error: 'Erreur lors du chargement du résumé de paie' }
+    }
+  })
+
+  ipcMain.handle('personnel:ignoreMonth', async (_, personnelId: string, month: string, reason?: string) => {
+    if (!canWrite('personnel')) {
+      return { success: false, error: 'Accès refusé' }
+    }
+    const result = PersonnelRepository.ignoreMonth(personnelId, month, reason)
+    if (result.success) {
+      logAction(getCurrentUser()?.id || null, 'ignoreMonth', 'payroll_ignores', personnelId, null, `Ignored ${month}`)
+    }
+    return result
+  })
+
+  ipcMain.handle('personnel:unignoreMonth', async (_, personnelId: string, month: string) => {
+    if (!canWrite('personnel')) {
+      return { success: false, error: 'Accès refusé' }
+    }
+    const result = PersonnelRepository.unignoreMonth(personnelId, month)
+    if (result.success) {
+      logAction(getCurrentUser()?.id || null, 'unignoreMonth', 'payroll_ignores', personnelId, null, `Unignored ${month}`)
+    }
+    return result
+  })
 }

@@ -19,6 +19,7 @@ import { SettingsRepository } from '../database/repositories/settings.repository
 import { canRead, canWrite } from '../auth/rbac.service'
 import { logAction } from '../auth/audit.service'
 import { getCurrentUser } from '../auth/rbac.service'
+import { uploadToStorage } from '../services/storage.service'
 
 export function registerSettingsHandlers(): void {
   // --------------------------------------------
@@ -63,12 +64,19 @@ export function registerSettingsHandlers(): void {
   // --------------------------------------------
   // SET SETTING (admin only)
   // --------------------------------------------
-  ipcMain.handle('settings:set', (_, key: string, value: unknown) => {
+  ipcMain.handle('settings:set', async (_, key: string, value: unknown) => {
     if (!canWrite('settings')) {
       return { success: false, error: 'Accès refusé: modification paramètres' }
     }
+    
+    // Upload school logo if provided as a local path
+    let finalValue = value
+    if (key === 'school_logo' && typeof value === 'string') {
+      finalValue = await uploadToStorage(value, 'settings')
+    }
+
     const oldValue = SettingsRepository.get(key)
-    const result = SettingsRepository.set(key, value)
+    const result = SettingsRepository.set(key, finalValue)
     if (result) {
       logAction(
         getCurrentUser()?.id || null,
@@ -76,7 +84,7 @@ export function registerSettingsHandlers(): void {
         'settings',
         key,
         oldValue !== null ? JSON.stringify(oldValue) : null,
-        JSON.stringify(value)
+        JSON.stringify(finalValue)
       )
     }
     return { success: result }

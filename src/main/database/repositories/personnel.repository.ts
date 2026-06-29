@@ -440,6 +440,26 @@ export class PersonnelRepository {
         data.repayment_date || null
       )
       addToSyncQueue('salary_advances', id, 'create', data)
+
+      // Record the cash expense so the school's balance is correct
+      const cashId = uuidv4()
+      db.prepare(
+        `
+        INSERT INTO cash_journal (id, transaction_date, type, department, category, amount, description, related_personnel_id, created_at, updated_at, version, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, 'pending')
+      `
+      ).run(cashId, data.advance_date, 'expense', 'ecole', 'avance', data.amount, `Avance sur salaire - ${data.reason || ''}`, data.personnel_id)
+      
+      addToSyncQueue('cash_journal', cashId, 'create', {
+        id: cashId,
+        transaction_date: data.advance_date,
+        type: 'expense',
+        department: 'ecole',
+        category: 'avance',
+        amount: data.amount,
+        description: `Avance sur salaire - ${data.reason || ''}`,
+        related_personnel_id: data.personnel_id
+      })
     })
 
     try {
@@ -816,6 +836,27 @@ export class PersonnelRepository {
         description: desc,
         related_personnel_id: personnelId
       })
+
+      // Mark outstanding advances as repaid since they are deducted from this salary
+      const advances = db
+        .prepare('SELECT id FROM salary_advances WHERE personnel_id = ? AND repaid = 0')
+        .all(personnelId) as { id: string }[]
+      
+      if (advances.length > 0) {
+        for (const advance of advances) {
+          db.prepare(
+            `
+            UPDATE salary_advances SET repaid = 1, repayment_date = ?, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending'
+            WHERE id = ?
+          `
+          ).run(transactionDate, advance.id)
+          addToSyncQueue('salary_advances', advance.id, 'update', {
+            id: advance.id,
+            repaid: true,
+            repayment_date: transactionDate
+          })
+        }
+      }
     })
 
     try {
@@ -899,27 +940,46 @@ export class PersonnelRepository {
       hourlyEquivalentRate = person.hourly_rate
     } else if (person.salary_type === 'monthly' && person.monthly_salary) {
       // Monthly: Exception-based calculation. Full salary minus explicitly recorded missing hours.
-      baseSalary = person.monthly_salary
-      expectedHours = this.getExpectedHoursForMonth(year, mon, person)
-      hourlyEquivalentRate = expectedHours > 0 ? person.monthly_salary / expectedHours : 0
+      const normalExpectedHours = this.getExpectedHoursForMonth(year, mon, person)
+      hourlyEquivalentRate = normalExpectedHours > 0 ? person.monthly_salary / normalExpectedHours : 0
 
-      let totalAbsentHours = 0
-      let totalOvertimeHours = 0
-      for (const a of attendance) {
-        const expectedForDay = a.expected_hours || person.daily_hours || 8
-        const workedForDay = a.status === 'paid_leave' ? expectedForDay : a.hours_worked || 0
-        if (workedForDay < expectedForDay) {
-          totalAbsentHours += expectedForDay - workedForDay
-        } else if (workedForDay > expectedForDay) {
-          totalOvertimeHours += workedForDay - expectedForDay
+      if (person.hire_date && monthEnd < person.hire_date) {
+        // PRE-HIRE MONTH: Employee was not hired yet.
+        // Base salary is 0. They only get paid for explicitly tracked hours.
+        baseSalary = 0
+        expectedHours = 0
+        
+        let trackedHours = 0
+        for (const a of attendance) {
+          trackedHours += (a.status === 'paid_leave' ? (a.expected_hours || person.daily_hours || 8) : (a.hours_worked || 0))
         }
+        hoursWorked = trackedHours
+        absencesDeduction = 0
+        overtimePay = trackedHours * hourlyEquivalentRate
+        grossSalary = overtimePay
+      } else {
+        // NORMAL MONTH
+        baseSalary = person.monthly_salary
+        expectedHours = normalExpectedHours
+        
+        let totalAbsentHours = 0
+        let totalOvertimeHours = 0
+        for (const a of attendance) {
+          const expectedForDay = a.expected_hours || person.daily_hours || 8
+          const workedForDay = a.status === 'paid_leave' ? expectedForDay : a.hours_worked || 0
+          if (workedForDay < expectedForDay) {
+            totalAbsentHours += expectedForDay - workedForDay
+          } else if (workedForDay > expectedForDay) {
+            totalOvertimeHours += workedForDay - expectedForDay
+          }
+        }
+
+        hoursWorked = Math.max(0, expectedHours - totalAbsentHours + totalOvertimeHours)
+        absencesDeduction = totalAbsentHours * hourlyEquivalentRate
+        overtimePay = totalOvertimeHours * hourlyEquivalentRate
+
+        grossSalary = baseSalary - absencesDeduction + overtimePay
       }
-
-      hoursWorked = Math.max(0, expectedHours - totalAbsentHours + totalOvertimeHours)
-      absencesDeduction = totalAbsentHours * hourlyEquivalentRate
-      overtimePay = totalOvertimeHours * hourlyEquivalentRate
-
-      grossSalary = baseSalary - absencesDeduction + overtimePay
     }
 
     // Count absence days (informational only)
@@ -998,6 +1058,18 @@ export class PersonnelRepository {
       // Ignorer si l'historique cash_journal est indisponible
     }
 
+    let isIgnored = false
+    try {
+      const ignoreRecord = db
+        .prepare('SELECT id FROM payroll_ignores WHERE personnel_id = ? AND month = ?')
+        .get(personnelId, month)
+      if (ignoreRecord) {
+        isIgnored = true
+      }
+    } catch (e) {
+      // Si la table n'existe pas encore
+    }
+
     return {
       grossSalary,
       cnapsDeduction,
@@ -1007,6 +1079,7 @@ export class PersonnelRepository {
       customDeductionsTotal,
       netSalary,
       isPaid,
+      isIgnored,
       details: {
         baseSalary,
         hoursWorked: hoursWorked !== null ? hoursWorked : undefined,
@@ -1017,6 +1090,58 @@ export class PersonnelRepository {
         overtimePay: overtimePay !== null ? overtimePay : undefined,
         totalAbsenceDays: totalAbsenceDays !== null ? totalAbsenceDays : undefined
       }
+    }
+  }
+
+  static getPayrollSummary(month: string) {
+    try {
+      const allPersonnel = db.prepare('SELECT id FROM personnel WHERE deleted = 0').all() as { id: string }[]
+      const summary: Record<string, { isPaid: boolean; isIgnored: boolean; grossSalary: number; netSalary: number; hasWorked: boolean }> = {}
+      
+      for (const p of allPersonnel) {
+        try {
+          const calc = this.calculateSalary(p.id, month)
+          if (calc) {
+            summary[p.id] = {
+              isPaid: calc.isPaid ?? false,
+              isIgnored: calc.isIgnored ?? false,
+              grossSalary: calc.grossSalary,
+              netSalary: calc.netSalary,
+              hasWorked: (calc.details.hoursWorked !== undefined && calc.details.hoursWorked > 0)
+            }
+          }
+        } catch (e: any) {
+          console.error(`Erreur calcul salaire pour ${p.id} au mois de ${month}`, e)
+        }
+      }
+      return summary
+    } catch (globalError: any) {
+      throw globalError
+    }
+  }
+
+  static ignoreMonth(personnelId: string, month: string, reason?: string) {
+    try {
+      const id = uuidv4()
+      db.prepare(
+        'INSERT INTO payroll_ignores (id, personnel_id, month, reason) VALUES (?, ?, ?, ?)'
+      ).run(id, personnelId, month, reason || null)
+      return { success: true }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { success: false, error: message }
+    }
+  }
+
+  static unignoreMonth(personnelId: string, month: string) {
+    try {
+      db.prepare(
+        'DELETE FROM payroll_ignores WHERE personnel_id = ? AND month = ?'
+      ).run(personnelId, month)
+      return { success: true }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { success: false, error: message }
     }
   }
 }

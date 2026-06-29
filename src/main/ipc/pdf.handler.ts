@@ -20,7 +20,7 @@ export function registerPdfHandlers(): void {
       return { success: false, error: 'Accès refusé' }
     }
     try {
-      const result = PdfService.generateReceipt(paymentData)
+      const result = await PdfService.generateReceipt(paymentData)
       if (result.success) {
         const user = getCurrentUser()
         logAction(user?.id || null, 'generate_pdf', 'payments', null, null, 'receipt')
@@ -38,7 +38,7 @@ export function registerPdfHandlers(): void {
       return { success: false, error: 'Accès refusé' }
     }
     try {
-      const result = PdfService.generateCertificate(studentData)
+      const result = await PdfService.generateCertificate(studentData)
       if (result.success) {
         const user = getCurrentUser()
         logAction(user?.id || null, 'generate_pdf', 'students', null, null, 'certificate')
@@ -56,7 +56,7 @@ export function registerPdfHandlers(): void {
       return { success: false, error: 'Accès refusé' }
     }
     try {
-      const result = PdfService.generateReportCard(studentData, grades, generalAverage)
+      const result = await PdfService.generateReportCard(studentData, grades, generalAverage)
       if (result.success) {
         const user = getCurrentUser()
         logAction(user?.id || null, 'generate_pdf', 'grades', null, null, 'report_card')
@@ -74,7 +74,7 @@ export function registerPdfHandlers(): void {
       return { success: false, error: 'Accès refusé' }
     }
     try {
-      const result = PdfService.generatePayslip(personnelData, salaryCalc)
+      const result = await PdfService.generatePayslip(personnelData, salaryCalc)
       if (result.success) {
         const user = getCurrentUser()
         logAction(user?.id || null, 'generate_pdf', 'personnel', null, null, 'payslip')
@@ -92,7 +92,7 @@ export function registerPdfHandlers(): void {
       return { success: false, error: 'Accès refusé' }
     }
     try {
-      const result = PdfService.generateDailyReport(reportData)
+      const result = await PdfService.generateDailyReport(reportData)
       if (result.success) {
         const user = getCurrentUser()
         logAction(user?.id || null, 'generate_pdf', 'cash_journal', null, null, 'daily_report')
@@ -117,10 +117,11 @@ export function registerPdfHandlers(): void {
           ? path.join(process.cwd(), 'pdf-output')
           : path.join(app.getPath('userData'), 'pdf-output')
       )
+      const desktopDir = path.resolve(path.join(app.getPath('desktop'), 'lms'))
       const resolvedPath = path.resolve(filePath)
 
-      if (!resolvedPath.startsWith(allowedDir)) {
-        console.warn(`Blocked path traversal attempt by user ${user.username}: ${filePath}`)
+      if (!resolvedPath.startsWith(allowedDir) && !resolvedPath.startsWith(desktopDir)) {
+        console.warn(`Blocked path traversal attempt by user ${user?.username}: ${filePath}`)
         return { success: false, error: 'Accès refusé — Chemin invalide' }
       }
 

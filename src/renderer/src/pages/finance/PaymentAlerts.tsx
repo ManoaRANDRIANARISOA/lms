@@ -145,16 +145,24 @@ export default function PaymentAlerts() {
   const [searchTerm, setSearchTerm] = useState('')
   const [minMonths, setMinMonths] = useState(1)
 
-  useEffect(() => {
-    loadAlerts()
-  }, [])
+  const { currentYear } = useAppStore()
+  const [targetYear, setTargetYear] = useState<string>(currentYear)
 
-  const loadAlerts = async () => {
+  const availableYears = useMemo(() => {
+    const baseYear = parseInt(currentYear.split('-')[0]) || new Date().getFullYear()
+    return Array.from({ length: 5 }, (_, i) => {
+      const start = baseYear - 2 + i
+      return `${start}-${start + 1}`
+    })
+  }, [currentYear])
+
+  useEffect(() => {
+    loadAlerts(targetYear)
+  }, [targetYear])
+
+  const loadAlerts = async (year: string) => {
     setLoading(true)
     try {
-      const schoolYear = await window.api.settings.get('school_year')
-      const year = (schoolYear as string) || useAppStore.getState().currentYear
-
       const result = await window.api.payment.getUnpaidAlerts(year)
       if (result.success && Array.isArray(result.alerts)) {
         setAlerts(result.alerts)
@@ -210,12 +218,28 @@ export default function PaymentAlerts() {
             Alertes Impayés
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Suivi des retards de paiement pour l'année scolaire en cours
+            Suivi des retards de paiement par année scolaire
           </p>
         </div>
-        <Button onClick={loadAlerts} variant="outline" className="gap-2">
-          Actualiser
-        </Button>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Label className="text-sm font-medium text-gray-600 whitespace-nowrap">Année scolaire :</Label>
+            <select
+              className="flex h-9 w-32 rounded-md border border-input bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              value={targetYear}
+              onChange={(e) => setTargetYear(e.target.value)}
+            >
+              {availableYears.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+          <Button onClick={() => loadAlerts(targetYear)} variant="outline" className="gap-2">
+            Actualiser
+          </Button>
+        </div>
       </div>
 
       {/* Cartes statistiques (Kpis) avec un design plus premium */}

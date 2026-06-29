@@ -422,34 +422,31 @@ async function pushLocalChanges() {
       }
 
       if (item.action === 'create' || item.action === 'update') {
-        // Convert SQLite booleans (0/1) to PostgreSQL booleans (true/false)
+        // Convert SQLite booleans (0/1 or "0.0") to PostgreSQL booleans (true/false)
         const supabasePayload: any = {}
+        const booleanFields = [
+          'deleted',
+          'active',
+          'bus_subscribed',
+          'canteen_subscribed',
+          'uniform_tshirt_purchased',
+          'uniform_apron_purchased',
+          'uniform_shorts_purchased',
+          'uniform_badge_purchased',
+          'fram_paid_by_parent',
+          'is_personnel_child',
+          'manually_edited',
+          'justified',
+          'present',
+          'paid',
+          'repaid',
+          'has_droit'
+        ]
+
         for (const key of Object.keys(payload)) {
           const val = payload[key]
-          if (val === 0 || val === 1) {
-            // Heuristic: common boolean field names
-            const booleanFields = [
-              'deleted',
-              'active',
-              'bus_subscribed',
-              'canteen_subscribed',
-              'uniform_tshirt_purchased',
-              'uniform_apron_purchased',
-              'uniform_shorts_purchased',
-              'uniform_badge_purchased',
-              'fram_paid_by_parent',
-              'manually_edited',
-              'justified',
-              'present',
-              'paid',
-              'repaid',
-              'has_droit'
-            ]
-            if (booleanFields.includes(key)) {
-              supabasePayload[key] = val === 1
-            } else {
-              supabasePayload[key] = val
-            }
+          if (booleanFields.includes(key)) {
+            supabasePayload[key] = val === 1 || val === '1' || val === '1.0' || val === 1.0 || val === true || val === 'true'
           } else if (typeof val === 'boolean') {
             supabasePayload[key] = val
           } else if (typeof val === 'object' && val !== null && !(val instanceof Date)) {

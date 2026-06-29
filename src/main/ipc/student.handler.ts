@@ -19,6 +19,7 @@ import { StudentRepository } from '../database/repositories/student.repository'
 import { syncWithCloud } from '../services/sync.service'
 import { logAction } from '../auth/audit.service'
 import { getCurrentUser } from '../auth/rbac.service'
+import { uploadToStorage } from '../services/storage.service'
 
 export function registerStudentHandlers(): void {
   // --------------------------------------------
@@ -33,6 +34,11 @@ export function registerStudentHandlers(): void {
     syncWithCloud().catch((e) => {
       console.warn('Background sync before creation failed, proceeding anyway:', e)
     })
+
+    // Upload photo if present
+    if (studentData.photo_path) {
+      studentData.photo_path = await uploadToStorage(studentData.photo_path as string, 'students')
+    }
 
     const result = StudentRepository.create(studentData) as {
       success: boolean
@@ -66,11 +72,11 @@ export function registerStudentHandlers(): void {
   // --------------------------------------------
   // GET STUDENT BY ID
   // --------------------------------------------
-  ipcMain.handle('student:get', async (_, id) => {
+  ipcMain.handle('student:get', async (_, id, schoolYear) => {
     if (!canRead('students')) {
       return { success: false, error: 'Accès refusé: lecture élèves' }
     }
-    const result = StudentRepository.getById(id)
+    const result = StudentRepository.getById(id, schoolYear)
     if (!result) return { success: false, error: 'Élève introuvable' }
     return { success: true, ...result }
   })
@@ -82,6 +88,12 @@ export function registerStudentHandlers(): void {
     if (!canWrite('students')) {
       return { success: false, error: 'Accès refusé: modification élève' }
     }
+    
+    // Upload new photo if present and changed
+    if (updates.photo_path) {
+      updates.photo_path = await uploadToStorage(updates.photo_path as string, 'students')
+    }
+
     const oldStudent = StudentRepository.getById(id)
     const result = StudentRepository.update(id, updates)
     if (result.success) {

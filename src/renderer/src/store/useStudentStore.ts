@@ -15,6 +15,8 @@ export interface Student {
   enrollment_date: string
   departure_date?: string
   previous_school?: string
+  student_status?: 'Inscrit' | 'Pré-inscrit' | 'Ancien' | 'Quitté' | 'Non inscrit'
+  status_year?: string
 
   father_name?: string
   father_contact?: string
@@ -60,9 +62,10 @@ interface StudentStore {
   fetchStudents: (filters?: {
     search?: string
     class?: string
+    status?: string
     schoolYear?: string
   }) => Promise<void>
-  getStudent: (id: string) => Promise<void>
+  getStudent: (id: string, schoolYear?: string) => Promise<void>
   createStudent: (data: Partial<Student>) => Promise<boolean>
   updateStudent: (id: string, data: Partial<Student>) => Promise<boolean>
   deleteStudent: (id: string) => Promise<void>
@@ -87,10 +90,10 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
     }
   },
 
-  getStudent: async (id) => {
+  getStudent: async (id, schoolYear) => {
     set({ loading: true, error: null })
     try {
-      const result = await window.api.student.get(id)
+      const result = await window.api.student.get(id, schoolYear)
       if (result.success) {
         set({
           currentStudent: result.student,

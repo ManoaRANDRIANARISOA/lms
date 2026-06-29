@@ -119,6 +119,31 @@ export default function PersonnelDetail(): React.JSX.Element {
         </div>
         {canWrite('personnel') && (
           <div className="flex gap-2">
+            {p.departure_date ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  if (confirm(`Marquer ${p.first_name} comme Actif ?`)) {
+                    await usePersonnelStore.getState().updatePerson(p.id!, { departure_date: null as any })
+                  }
+                }}
+              >
+                Marquer Actif
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  if (confirm(`Marquer ${p.first_name} comme Inactif (départ aujourd'hui) ?`)) {
+                    await usePersonnelStore.getState().updatePerson(p.id!, { departure_date: new Date().toISOString().split('T')[0] })
+                  }
+                }}
+              >
+                Marquer Inactif
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => navigate(`/personnel/${id}/edit`)}>
               <Edit className="w-4 h-4 mr-1" /> Modifier
             </Button>
@@ -127,7 +152,7 @@ export default function PersonnelDetail(): React.JSX.Element {
               size="sm"
               onClick={() => {
                 if (confirm(`Supprimer ${p.last_name} ${p.first_name} ?`)) {
-                  usePersonnelStore.getState().deletePerson(p.id)
+                  usePersonnelStore.getState().deletePerson(p.id!)
                   navigate('/personnel')
                 }
               }}
@@ -352,17 +377,19 @@ export default function PersonnelDetail(): React.JSX.Element {
                   </div>
                   <Button
                     size="sm"
+                    disabled={salaryCalculation?.isPaid}
                     onClick={async () => {
+                      if (salaryCalculation?.isPaid) {
+                        return alert("Ce mois est déjà payé, vous ne pouvez plus modifier le pointage.")
+                      }
                       const inputEl = document.getElementById(
                         'manualHoursInput'
                       ) as HTMLInputElement
                       const val = inputEl?.value
                       if (!val) return
-                      const d = new Date()
-                      const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
                       const success = await window.api.personnel.setTimeTracking({
                         personnel_id: id!,
-                        month: monthStr,
+                        month: currentMonth,
                         hours_worked: Number(val),
                         manually_edited: true,
                         edit_reason: 'Saisie manuelle'
@@ -512,39 +539,94 @@ export default function PersonnelDetail(): React.JSX.Element {
                             Génère le PDF et enregistre la dépense en Finance.
                           </p>
                         </div>
-                        <div className="flex gap-3">
-                          <Button
-                            variant="outline"
-                            onClick={async () => {
-                              const result = await window.api.pdf.generatePayslip(
-                                {
-                                  first_name: p.first_name,
-                                  last_name: p.last_name,
-                                  position: p.position || '',
-                                  month: currentMonth
-                                },
-                                {
-                                  gross_salary: salaryCalculation.grossSalary,
-                                  cnaps: salaryCalculation.cnapsDeduction,
-                                  ostie: 0,
-                                  irsa: salaryCalculation.irsaDeduction,
-                                  total_deductions:
-                                    salaryCalculation.grossSalary - salaryCalculation.netSalary,
-                                  net_salary: salaryCalculation.netSalary
-                                }
-                              )
-                              if (result.success && result.filePath) {
-                                await window.api.pdf.openFile(result.filePath)
-                              } else {
-                                alert(result.error || 'Erreur génération PDF')
-                              }
-                            }}
-                          >
-                            <Download className="w-4 h-4 mr-2" />
-                            Fiche PDF
-                          </Button>
+                        <div className="flex flex-wrap items-center gap-3 justify-end">
+                        {(() => {
+                          const [y, m] = currentMonth.split('-')
+                          const lastDay = new Date(parseInt(y, 10), parseInt(m, 10), 0).getDate()
+                          const monthStart = `${currentMonth}-01`
+                          const monthEnd = `${currentMonth}-${lastDay}`
+                          
+                          const isNotHiredYet = p.hire_date && p.hire_date > monthEnd
+                          const hasLeftBefore = p.departure_date && p.departure_date < monthStart
+                          const hasWorked = salaryCalculation.details.hoursWorked !== undefined && salaryCalculation.details.hoursWorked > 0
+                          const grossSalary = salaryCalculation.grossSalary
 
-                          {salaryCalculation.isPaid ? (
+                          const isOutOfContract = (!hasWorked && grossSalary === 0) && (isNotHiredYet || hasLeftBefore)
+
+                          if (salaryCalculation.isIgnored) {
+                            return (
+                              <div className="flex items-center gap-3">
+                                <span className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md font-medium text-sm">
+                                  Mois ignoré
+                                </span>
+                                <Button
+                                  variant="outline"
+                                  onClick={async () => {
+                                    await window.api.personnel.unignoreMonth(p.id!, currentMonth)
+                                    calculateSalary(p.id!, currentMonth)
+                                  }}
+                                >
+                                  Réactiver
+                                </Button>
+                              </div>
+                            )
+                          }
+
+                          if (isOutOfContract) {
+                            return (
+                              <span className="px-4 py-2 bg-gray-100 text-gray-500 rounded-md font-medium text-sm border">
+                                Hors dates de contrat (Aucune saisie)
+                              </span>
+                            )
+                          }
+
+                          return (
+                            <>
+                              <Button
+                                variant="outline"
+                                className="border-gray-300 text-gray-600 hover:bg-gray-100"
+                                onClick={async () => {
+                                  if (confirm(`Ignorer la paie de ${p.first_name} pour ${currentMonth} ?`)) {
+                                    await window.api.personnel.ignoreMonth(p.id!, currentMonth)
+                                    calculateSalary(p.id!, currentMonth)
+                                  }
+                                }}
+                              >
+                                Ignorer
+                              </Button>
+
+                              <Button
+                                variant="outline"
+                                onClick={async () => {
+                                  const result = await window.api.pdf.generatePayslip(
+                                    {
+                                      first_name: p.first_name,
+                                      last_name: p.last_name,
+                                      position: p.position || '',
+                                      month: currentMonth
+                                    },
+                                    {
+                                      gross_salary: salaryCalculation.grossSalary,
+                                      cnaps: salaryCalculation.cnapsDeduction,
+                                      ostie: 0,
+                                      irsa: salaryCalculation.irsaDeduction,
+                                      total_deductions:
+                                        salaryCalculation.grossSalary - salaryCalculation.netSalary,
+                                      net_salary: salaryCalculation.netSalary
+                                    }
+                                  )
+                                  if (result.success && result.filePath) {
+                                    await window.api.pdf.openFile(result.filePath)
+                                  } else {
+                                    alert(result.error || 'Erreur génération PDF')
+                                  }
+                                }}
+                              >
+                                <Download className="w-4 h-4 mr-2" />
+                                Fiche PDF
+                              </Button>
+
+                              {salaryCalculation.isPaid ? (
                             <div className="flex items-center px-4 py-2 bg-green-100 text-green-800 rounded-md font-medium text-sm border border-green-200">
                               <Check className="w-4 h-4 mr-2" />
                               Payé pour ce mois
@@ -574,9 +656,12 @@ export default function PersonnelDetail(): React.JSX.Element {
                               }}
                             >
                               <Save className="w-4 h-4 mr-2" />
-                              Valider le paiement
-                            </Button>
-                          )}
+                                Valider le paiement
+                              </Button>
+                            )}
+                          </>
+                        )
+                      })()}
                         </div>
                       </div>
                     )}
@@ -742,6 +827,9 @@ export default function PersonnelDetail(): React.JSX.Element {
                           } else {
                             if (!adjustmentReason)
                               return alert('Erreur : libellé requis pour une déduction')
+                            if (adjustmentMonth === currentMonth && salaryCalculation?.isPaid) {
+                              return alert("Erreur : La fiche de paie de ce mois est déjà validée, vous ne pouvez plus y ajouter de déductions.")
+                            }
                             const success = await createDeduction({
                               personnel_id: id!,
                               month: adjustmentMonth!,

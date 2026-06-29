@@ -15,7 +15,7 @@ import { useClasses } from '@/lib/useClasses'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, Save } from 'lucide-react'
+import { ArrowLeft, Save, Layers, Edit3 } from 'lucide-react'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 
 interface StudentRow {
@@ -41,7 +41,7 @@ const BEHAVIOR_LABELS: Record<string, string> = {
 export default function GradeEntry(): React.JSX.Element {
   const navigate = useNavigate()
   const canWrite = useAuthStore((s) => s.canWrite)
-  const { classSubjects, fetchClassSubjects, createGrade, updateGrade, loading, error } =
+  const { classSubjects, fetchClassSubjects, createGrade, updateGrade, deleteGrade, loading, error } =
     useGradeStore()
 
   const { classes: ALL_CLASSES } = useClasses()
@@ -87,7 +87,11 @@ export default function GradeEntry(): React.JSX.Element {
       return
     }
     try {
-      const result = await window.api.student.list({ class: selectedClass })
+      const result = await window.api.student.list({ 
+        class: selectedClass,
+        schoolYear: schoolYear,
+        status: 'Inscrit' 
+      })
       const studentList = result.students || []
       if (studentList.length > 0) {
         const rows: StudentRow[] = studentList.map((s: any) => ({
@@ -191,7 +195,14 @@ export default function GradeEntry(): React.JSX.Element {
     let failed = 0
 
     for (const row of students) {
-      if (row.grade === '') continue
+      if (row.grade === '') {
+        if (row.existingGradeId) {
+          const res = await deleteGrade(row.existingGradeId)
+          if (res) saved++
+          else failed++
+        }
+        continue
+      }
       const gradeValue = parseFloat(row.grade)
       if (Number.isNaN(gradeValue) || gradeValue < 0 || gradeValue > 20) {
         failed++
@@ -243,7 +254,10 @@ export default function GradeEntry(): React.JSX.Element {
         <Button variant="ghost" size="sm" onClick={() => navigate('/grades')}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <h1 className="text-2xl font-bold tracking-tight">Saisie des notes</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
+          <Edit3 className="w-6 h-6 text-primary" />
+          Saisie des notes
+        </h1>
       </div>
 
       {error && <p className="text-red-600 bg-red-50 p-3 rounded">{error}</p>}
@@ -255,39 +269,58 @@ export default function GradeEntry(): React.JSX.Element {
         </p>
       )}
 
-      {/* Filtres */}
-      <div className="bg-white rounded-xl border shadow-sm p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-          <Label>Classe</Label>
-          <select
-            value={selectedClass}
-            onChange={(e) => {
-              setSelectedClass(e.target.value)
-              setSelectedSubject('')
-            }}
-            className="w-full border rounded-md px-3 py-2 text-sm bg-white"
-          >
-            <option value="">— Choisir —</option>
-            {ALL_CLASSES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          {ALL_CLASSES.length === 0 && (
-            <p className="text-xs text-amber-600 mt-1">
-              Aucune classe configurée. Ajoutez des classes dans Paramètres.
-            </p>
-          )}
+      {/* Top Bar: Class Selection */}
+      <div className="flex items-center gap-2 flex-wrap pb-2 shrink-0">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 text-gray-500 font-medium text-sm">
+          <Layers className="w-4 h-4" />
+          Classes :
         </div>
-        <div>
-          <Label>Matière</Label>
+        
+        {ALL_CLASSES.map((c) => (
+          <React.Fragment key={c}>
+            {['CP1', '6ème', '2nde', 'TPS'].includes(c) && (
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1 mr-1 shrink-0">
+                {c === 'CP1' ? 'Primaire' : c === '6ème' ? 'Collège' : c === '2nde' ? 'Lycée' : 'Autres'}
+              </div>
+            )}
+            {c === 'PS' && (
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1 mr-1 shrink-0">
+                Préscolaire
+              </div>
+            )}
+            <button
+              onClick={() => {
+                setSelectedClass(c)
+                setSelectedSubject('')
+              }}
+              className={`shrink-0 px-4 py-2 rounded-full transition-all text-sm ${
+                selectedClass === c
+                  ? 'bg-primary text-primary-foreground font-medium shadow-md shadow-primary/20'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border hover:border-gray-300'
+              }`}
+            >
+              {c}
+            </button>
+          </React.Fragment>
+        ))}
+        {ALL_CLASSES.length === 0 && (
+          <p className="text-xs text-amber-600 ml-2">
+            Aucune classe configurée. Ajoutez des classes dans Paramètres.
+          </p>
+        )}
+      </div>
+
+      {/* Secondary Filtres (Matière, Trimestre, Année) */}
+      <div className="bg-white rounded-2xl border shadow-sm p-5 flex flex-col md:flex-row gap-6 items-end">
+        <div className="flex-1 w-full">
+          <Label className="text-gray-500 text-xs uppercase tracking-wider mb-2 block">Matière</Label>
           <select
             value={selectedSubject}
             onChange={(e) => setSelectedSubject(e.target.value)}
-            className="w-full border rounded-md px-3 py-2 text-sm bg-white"
+            disabled={!selectedClass}
+            className="w-full border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 transition-all disabled:opacity-50"
           >
-            <option value="">— Choisir —</option>
+            <option value="">— Choisir la matière —</option>
             {classSubjects.map((cs) => (
               <option key={cs.subject_id} value={cs.subject_id}>
                 {cs.subject_name} (coef. {cs.coefficient})
@@ -295,24 +328,24 @@ export default function GradeEntry(): React.JSX.Element {
             ))}
           </select>
           {selectedClass && classSubjects.length === 0 && (
-            <p className="text-xs text-amber-600 mt-1">
+            <p className="text-xs text-amber-600 mt-2">
               Aucune matière configurée pour cette classe.
               <button
                 onClick={() => navigate('/grades/subjects')}
-                className="underline hover:text-amber-800 ml-1"
+                className="underline hover:text-amber-800 ml-1 font-medium"
               >
                 Configurer les matières
               </button>
-              .
             </p>
           )}
         </div>
-        <div>
-          <Label>Trimestre/Examen</Label>
+        
+        <div className="w-full md:w-64">
+          <Label className="text-gray-500 text-xs uppercase tracking-wider mb-2 block">Trimestre / Évaluation</Label>
           <select
             value={selectedTerm}
             onChange={(e) => setSelectedTerm(Number(e.target.value))}
-            className="w-full border rounded-md px-3 py-2 text-sm bg-white"
+            className="w-full border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 transition-all"
           >
             {assessments.length === 0 ? (
               <>
@@ -329,9 +362,14 @@ export default function GradeEntry(): React.JSX.Element {
             )}
           </select>
         </div>
-        <div>
-          <Label>Année scolaire</Label>
-          <Input value={schoolYear} onChange={(e) => setSchoolYear(e.target.value)} />
+        
+        <div className="w-full md:w-48">
+          <Label className="text-gray-500 text-xs uppercase tracking-wider mb-2 block">Année scolaire</Label>
+          <Input 
+            value={schoolYear} 
+            onChange={(e) => setSchoolYear(e.target.value)} 
+            className="border-gray-200 rounded-lg bg-gray-50 focus:bg-white"
+          />
         </div>
       </div>
 
@@ -347,99 +385,102 @@ export default function GradeEntry(): React.JSX.Element {
 
       {/* Tableau de saisie */}
       {students.length > 0 && (
-        <div className="bg-white rounded-xl border shadow-sm overflow-hidden overflow-x-auto">
-          <table className="w-full text-sm min-w-max">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Élève</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 w-24">{label1}</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 w-24">{label2}</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 w-24">Note Déf.</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 w-20">Coef.</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Commentaire</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600 w-32">Comportement</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {students.map((row, idx) => (
-                <tr key={row.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">
-                    {row.last_name} {row.first_name}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Input
-                      type="number"
-                      min={0}
-                      max={20}
-                      step={0.25}
-                      value={row.grade_journalier}
-                      onChange={(e) => updateRow(idx, 'grade_journalier', e.target.value)}
-                      disabled={!canWrite('grades')}
-                      className="w-16"
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <Input
-                      type="number"
-                      min={0}
-                      max={20}
-                      step={0.25}
-                      value={row.grade_exam}
-                      onChange={(e) => updateRow(idx, 'grade_exam', e.target.value)}
-                      disabled={!canWrite('grades')}
-                      className="w-16"
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <Input
-                      type="number"
-                      min={0}
-                      max={20}
-                      step={0.25}
-                      value={row.grade}
-                      onChange={(e) => updateRow(idx, 'grade', e.target.value)}
-                      disabled={!canWrite('grades')}
-                      className="w-16 font-bold"
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <Input
-                      type="number"
-                      min={0.5}
-                      step={0.5}
-                      value={row.coefficient}
-                      onChange={(e) => updateRow(idx, 'coefficient', e.target.value)}
-                      disabled={!canWrite('grades')}
-                      className="w-16"
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <Input
-                      value={row.comment}
-                      onChange={(e) => updateRow(idx, 'comment', e.target.value)}
-                      disabled={!canWrite('grades')}
-                      placeholder="Appréciation..."
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={row.behavior}
-                      onChange={(e) => updateRow(idx, 'behavior', e.target.value)}
-                      disabled={!canWrite('grades')}
-                      className="w-full border rounded-md px-2 py-1 text-sm bg-white"
-                    >
-                      <option value="none">{BEHAVIOR_LABELS.none}</option>
-                      <option value="warning">{BEHAVIOR_LABELS.warning}</option>
-                      <option value="praise">{BEHAVIOR_LABELS.praise}</option>
-                    </select>
-                  </td>
+        <div className="bg-white rounded-2xl border shadow-sm w-full">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-gray-50/80 border-b">
+                <tr>
+                  <th className="px-6 py-4 font-semibold text-gray-600">Élève</th>
+                  <th className="px-4 py-4 font-semibold text-gray-600 text-center w-24">{label1}</th>
+                  <th className="px-4 py-4 font-semibold text-gray-600 text-center w-24">{label2}</th>
+                  <th className="px-4 py-4 font-semibold text-gray-600 text-center w-28">Note Déf.</th>
+                  <th className="px-4 py-4 font-semibold text-gray-600 text-center w-24">Coef.</th>
+                  <th className="px-6 py-4 font-semibold text-gray-600">Commentaire</th>
+                  <th className="px-6 py-4 font-semibold text-gray-600 w-40">Comportement</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {students.map((row, idx) => (
+                  <tr key={row.id} className="hover:bg-blue-50/30 transition-colors">
+                    <td className="px-6 py-3 font-medium text-gray-900 whitespace-nowrap">
+                      {row.last_name} {row.first_name}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={20}
+                        step={0.25}
+                        value={row.grade_journalier}
+                        onChange={(e) => updateRow(idx, 'grade_journalier', e.target.value)}
+                        disabled={!canWrite('grades')}
+                        className="w-full h-9 text-center bg-gray-50 focus:bg-white transition-all"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={20}
+                        step={0.25}
+                        value={row.grade_exam}
+                        onChange={(e) => updateRow(idx, 'grade_exam', e.target.value)}
+                        disabled={!canWrite('grades')}
+                        className="w-full h-9 text-center bg-gray-50 focus:bg-white transition-all"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={20}
+                        step={0.25}
+                        value={row.grade}
+                        onChange={(e) => updateRow(idx, 'grade', e.target.value)}
+                        disabled={!canWrite('grades')}
+                        className="w-full h-9 text-center font-bold text-primary bg-primary/5 focus:bg-white border-primary/20 focus:border-primary/50 transition-all"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Input
+                        type="number"
+                        min={0.5}
+                        step={0.5}
+                        value={row.coefficient}
+                        onChange={(e) => updateRow(idx, 'coefficient', e.target.value)}
+                        disabled={!canWrite('grades')}
+                        className="w-full h-9 text-center bg-gray-50 focus:bg-white transition-all text-gray-500"
+                      />
+                    </td>
+                    <td className="px-6 py-3">
+                      <Input
+                        value={row.comment}
+                        onChange={(e) => updateRow(idx, 'comment', e.target.value)}
+                        disabled={!canWrite('grades')}
+                        placeholder="Appréciation..."
+                        className="w-full h-9 bg-gray-50 focus:bg-white transition-all text-sm"
+                      />
+                    </td>
+                    <td className="px-6 py-3">
+                      <select
+                        value={row.behavior}
+                        onChange={(e) => updateRow(idx, 'behavior', e.target.value)}
+                        disabled={!canWrite('grades')}
+                        className="w-full h-9 border-gray-200 rounded-md px-2 text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                      >
+                        <option value="none">{BEHAVIOR_LABELS.none}</option>
+                        <option value="warning">{BEHAVIOR_LABELS.warning}</option>
+                        <option value="praise">{BEHAVIOR_LABELS.praise}</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           {canWrite('grades') && (
-            <div className="p-4 border-t flex justify-end">
-              <Button onClick={handleSaveAll} disabled={loading}>
+            <div className="p-5 border-t bg-gray-50/50 flex justify-end">
+              <Button onClick={handleSaveAll} disabled={loading} className="shadow-md hover:shadow-lg transition-all">
                 <Save className="w-4 h-4 mr-2" />
                 Enregistrer les notes
               </Button>
@@ -449,20 +490,22 @@ export default function GradeEntry(): React.JSX.Element {
       )}
 
       {students.length === 0 && selectedClass && (
-        <div className="text-center py-8 space-y-2">
-          <p className="text-muted-foreground">Aucun élève trouvé dans cette classe.</p>
-          <p className="text-sm text-muted-foreground">
+        <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border shadow-sm">
+          <Edit3 className="w-12 h-12 text-gray-200 mb-4" />
+          <p className="text-gray-500 font-medium text-lg">Aucun élève trouvé dans cette classe.</p>
+          <p className="text-sm text-gray-400 mt-1">
             Vérifiez que des élèves sont inscrits dans la classe "{selectedClass}".
           </p>
         </div>
       )}
 
       {students.length === 0 && !selectedClass && (
-        <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed">
-          <p className="text-muted-foreground text-lg font-medium">
+        <div className="flex flex-col items-center justify-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+          <Layers className="w-16 h-16 text-gray-300 mb-4" />
+          <p className="text-gray-500 text-xl font-medium">
             Sélectionnez une classe et une matière pour commencer
           </p>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-gray-400 mt-2">
             Les notes saisies seront enregistrées par trimestre et par année scolaire.
           </p>
         </div>

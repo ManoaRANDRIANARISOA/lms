@@ -150,6 +150,10 @@ export default function Sidebar(): React.JSX.Element {
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
   const location = useLocation()
+  
+  // CRITICAL: We must subscribe to permissions to trigger a re-render 
+  // when fetchPermissions() completes after login/refresh.
+  useAuthStore((s) => s.permissions)
 
   // Determine initial open module
   const getInitialModule = () => {

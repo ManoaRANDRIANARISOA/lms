@@ -170,6 +170,8 @@ ensureTableColumns('student_fees', [
   'fram_paid_by_parent'
 ])
 
+ensureTableColumns('parent_events', ['school_year'])
+
 // SCHEMA HEALING: Ensure personnel sub-tables have soft-delete columns
 // (Migration 007 was previously malformed as a single-line comment on some DBs.)
 function ensureDeletedColumn(tableName: string): void {

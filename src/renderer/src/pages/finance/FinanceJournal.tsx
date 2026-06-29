@@ -905,7 +905,7 @@ export default function FinanceJournal() {
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 p-0"
-                            title="Imprimer reçu"
+                            title="Télécharger le reçu"
                             onClick={async () => {
                               let studentName = ''
                               if (entry.first_name && entry.last_name) {

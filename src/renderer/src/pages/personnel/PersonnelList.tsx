@@ -24,8 +24,9 @@ export default function PersonnelList(): React.JSX.Element {
 
   const [search, setSearch] = useState('')
   const [positionFilter, setPositionFilter] = useState('')
+  const [activeFilter, setActiveFilter] = useState('active') // 'active', 'inactive', 'all'
   const [currentMonth, setCurrentMonth] = useState(new Date().toISOString().substring(0, 7))
-  const [paidPersonnelIds, setPaidPersonnelIds] = useState<Set<string>>(new Set())
+  const [payrollSummary, setPayrollSummary] = useState<Record<string, { isPaid: boolean; isIgnored: boolean; grossSalary: number; netSalary: number; hasWorked: boolean }>>({})
 
   useEffect(() => {
     fetchPersonnel()
@@ -34,15 +35,10 @@ export default function PersonnelList(): React.JSX.Element {
   useEffect(() => {
     const checkPaie = async () => {
       try {
-        const res = await window.api.cashJournal.list({ category: 'salaire', search: currentMonth })
-        if (res.success && res.entries) {
-          const ids = new Set<string>()
-          res.entries.forEach((e) => {
-            if (e.related_personnel_id && e.description?.includes(currentMonth)) {
-              ids.add(e.related_personnel_id)
-            }
-          })
-          setPaidPersonnelIds(ids)
+        const res = await window.api.personnel.getPayrollSummary(currentMonth)
+        console.log('--- checkPaie RES ---', currentMonth, res)
+        if (res.success && res.summary) {
+          setPayrollSummary(res.summary)
         }
       } catch (e) {
         console.error('Erreur chargement paie:', e)
@@ -62,7 +58,12 @@ export default function PersonnelList(): React.JSX.Element {
       p.last_name?.toLowerCase().includes(search.toLowerCase()) ||
       p.contact?.includes(search)
     const matchPosition = !positionFilter || p.position === positionFilter
-    return matchSearch && matchPosition
+    
+    let matchActive = true
+    if (activeFilter === 'active') matchActive = !p.departure_date
+    if (activeFilter === 'inactive') matchActive = !!p.departure_date
+    
+    return matchSearch && matchPosition && matchActive
   })
 
   return (
@@ -133,6 +134,15 @@ export default function PersonnelList(): React.JSX.Element {
           <option value="maintenance">Maintenance</option>
           <option value="other">Autre</option>
         </select>
+        <select
+          value={activeFilter}
+          onChange={(e) => setActiveFilter(e.target.value)}
+          className="border rounded-md px-3 py-2 text-sm bg-white"
+        >
+          <option value="active">Actifs</option>
+          <option value="inactive">Inactifs</option>
+          <option value="all">Tous</option>
+        </select>
         <div className="flex items-center gap-2 border rounded-md px-3 py-1 bg-white ml-auto">
           <span className="text-sm text-gray-500 whitespace-nowrap">Mois de paie :</span>
           <Input
@@ -151,28 +161,33 @@ export default function PersonnelList(): React.JSX.Element {
       {error && <p className="text-red-600 bg-red-50 p-3 rounded">{error}</p>}
 
       <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Nom</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Poste</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Statut</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Contact</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Salaire</th>
-              <th className="px-4 py-3 text-center font-medium text-gray-600">
-                Paie ({currentMonth})
-              </th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600">Actions</th>
-            </tr>
-          </thead>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-4 py-3 font-medium text-gray-600">Nom</th>
+                <th className="px-4 py-3 font-medium text-gray-600">Poste</th>
+                <th className="px-4 py-3 font-medium text-gray-600">Statut</th>
+                <th className="px-4 py-3 font-medium text-gray-600">Contact</th>
+                <th className="px-4 py-3 font-medium text-gray-600">Salaire</th>
+                <th className="px-4 py-3 text-center font-medium text-gray-600">
+                  Paie ({currentMonth})
+                </th>
+                <th className="px-4 py-3 text-right font-medium text-gray-600">Actions</th>
+              </tr>
+            </thead>
           <tbody className="divide-y">
             {filtered.map((p) => {
-              const isPaid = paidPersonnelIds.has(p.id!)
               return (
                 <tr key={p.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
-                    <div className="font-medium">
+                    <div className="font-medium flex items-center gap-2">
                       {p.last_name} {p.first_name}
+                      {p.departure_date && (
+                        <span className="bg-gray-100 text-gray-500 text-[10px] px-2 py-0.5 rounded-full border">
+                          Inactif
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3">
@@ -188,15 +203,49 @@ export default function PersonnelList(): React.JSX.Element {
                         : '-'}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    {isPaid ? (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        Payé
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                        Non Payé
-                      </span>
-                    )}
+                    {(() => {
+                      const summary = p.id ? payrollSummary[p.id] : null
+                      const isPaid = summary?.isPaid || false
+                      const isIgnored = summary?.isIgnored || false
+                      const hasWorked = summary?.hasWorked || false
+                      const grossSalary = summary?.grossSalary || 0
+                      
+                      const [y, m] = currentMonth.split('-')
+                      const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate()
+                      const monthStart = `${currentMonth}-01`
+                      const monthEnd = `${currentMonth}-${lastDay}`
+                      
+                      const isNotHiredYet = p.hire_date && p.hire_date > monthEnd
+                      const hasLeftBefore = p.departure_date && p.departure_date < monthStart
+
+                      // Si l'employé a travaillé ou a un salaire brut calculé pour ce mois, on l'affiche coûte que coûte (réalité du travail)
+                      if (!hasWorked && grossSalary === 0) {
+                        // Sinon, si on est en dehors de ses dates de contrat, on masque
+                        if (isNotHiredYet || hasLeftBefore) {
+                          return <span className="text-gray-400">-</span>
+                        }
+                      }
+
+                      if (isIgnored) {
+                        return (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border">
+                            Ignoré
+                          </span>
+                        )
+                      } else if (isPaid) {
+                        return (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Payé
+                          </span>
+                        )
+                      } else {
+                        return (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            Non Payé
+                          </span>
+                        )
+                      }
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-1">
@@ -244,6 +293,7 @@ export default function PersonnelList(): React.JSX.Element {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )

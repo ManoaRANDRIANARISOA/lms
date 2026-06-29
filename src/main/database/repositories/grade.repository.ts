@@ -363,6 +363,42 @@ export class GradeRepository {
   }
 
   static getGradesByStudent(studentId: string, schoolYear: string, term?: number) {
+    if (term === 4) {
+      const allGrades = db.prepare(`
+        SELECT g.*, s.name as subject_name, s.default_coefficient as subject_default_coefficient,
+        COALESCE(g.coefficient, cs.coefficient, s.default_coefficient, 1) as effective_coeff
+        FROM grades g
+        JOIN subjects s ON g.subject_id = s.id
+        JOIN students st ON g.student_id = st.id
+        LEFT JOIN class_subjects cs ON cs.class_name = st.class AND cs.subject_id = g.subject_id AND cs.deleted = 0
+        WHERE g.student_id = ? AND g.school_year = ? AND g.term IN (1, 2, 3) AND g.deleted = 0 AND s.deleted = 0
+      `).all(studentId, schoolYear) as any[]
+
+      const grouped = new Map<string, any[]>()
+      for (const g of allGrades) {
+         if (!grouped.has(g.subject_id)) grouped.set(g.subject_id, [])
+         grouped.get(g.subject_id)!.push(g)
+      }
+
+      const results: any[] = []
+      for (const subjectGrades of grouped.values()) {
+         const t1 = subjectGrades.find(g => g.term === 1)?.grade || 0
+         const t2 = subjectGrades.find(g => g.term === 2)?.grade || 0
+         const t3 = subjectGrades.find(g => g.term === 3)?.grade || 0
+         
+         const annualGrade = (t1 + t2 + 2 * t3) / 4
+         const baseGrade = subjectGrades[0]
+         
+         results.push({
+           ...baseGrade,
+           term: 4,
+           grade: annualGrade,
+           coefficient: baseGrade.effective_coeff
+         })
+      }
+      return results.sort((a, b) => a.subject_name.localeCompare(b.subject_name))
+    }
+
     let query = `
       SELECT g.*, s.name as subject_name, s.default_coefficient as subject_default_coefficient
       FROM grades g
@@ -405,6 +441,23 @@ export class GradeRepository {
     schoolYear: string,
     term: number
   ): { average: number; totalCoefficient: number } | null {
+    if (term === 4) {
+      const grades = this.getGradesByStudent(studentId, schoolYear, 4)
+      if (grades.length === 0) return null
+
+      let totalWeighted = 0
+      let totalCoeff = 0
+      for (const r of grades) {
+        totalWeighted += r.grade * (r.coefficient || 1)
+        totalCoeff += (r.coefficient || 1)
+      }
+
+      return {
+        average: totalCoeff > 0 ? totalWeighted / totalCoeff : 0,
+        totalCoefficient: totalCoeff
+      }
+    }
+
     const rows = db
       .prepare(
         `

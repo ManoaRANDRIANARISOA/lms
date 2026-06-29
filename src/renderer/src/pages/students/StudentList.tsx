@@ -17,6 +17,7 @@ export default function StudentList() {
   const { classes } = useClasses()
   const [search, setSearch] = useState('')
   const [selectedClass, setSelectedClass] = useState<string>('')
+  const [selectedStatus, setSelectedStatus] = useState<string>('')
   const [view, setView] = useState<'list' | 'create' | 'edit' | 'detail'>('list')
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
 
@@ -25,11 +26,11 @@ export default function StudentList() {
   }, [])
 
   useEffect(() => {
-    fetchStudents({ search, class: selectedClass, schoolYear: currentYear })
-  }, [selectedClass, currentYear])
+    fetchStudents({ search, class: selectedClass, status: selectedStatus, schoolYear: currentYear })
+  }, [selectedClass, selectedStatus, currentYear])
 
   const handleSearch = () => {
-    fetchStudents({ search, class: selectedClass, schoolYear: currentYear })
+    fetchStudents({ search, class: selectedClass, status: selectedStatus, schoolYear: currentYear })
   }
 
   if (view === 'create') {
@@ -127,6 +128,18 @@ export default function StudentList() {
           className="max-w-md"
         />
         <select
+          value={selectedStatus}
+          onChange={(e) => setSelectedStatus(e.target.value)}
+          className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          <option value="">Tous les statuts</option>
+          <option value="Inscrit">Inscrit</option>
+          <option value="Pré-inscrit">Pré-inscrit</option>
+          <option value="Ancien">Ancien</option>
+          <option value="Quitté">Quitté</option>
+          <option value="Non inscrit">Non inscrit</option>
+        </select>
+        <select
           value={selectedClass}
           onChange={(e) => setSelectedClass(e.target.value)}
           className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -180,24 +193,22 @@ export default function StudentList() {
                     <div className="text-gray-500">{student.first_name}</div>
                   </td>
                   <td className="p-4">
-                    {student.class &&
-                    student.class !== 'Non inscrit' &&
-                    student.class !== 'Classe non spécifiée' ? (
-                      student.class.startsWith('Ancien') ? (
+                    {student.student_status && student.student_status !== 'Non inscrit' ? (
+                      student.student_status === 'Ancien' ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                          {student.class}
+                          Ancien - {student.class} {student.status_year ? `(en ${student.status_year})` : ''}
                         </span>
-                      ) : student.class.startsWith('Pré-inscrit') ? (
+                      ) : student.student_status === 'Pré-inscrit' ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                          {student.class}
+                          Pré-inscrit - {student.class} {student.status_year ? `(en ${student.status_year})` : ''}
                         </span>
-                      ) : student.class.startsWith('Quitté') ? (
+                      ) : student.student_status === 'Quitté' ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                          {student.class}
+                          Quitté
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          {student.class}
+                          Inscrit - {student.class}
                         </span>
                       )
                     ) : (

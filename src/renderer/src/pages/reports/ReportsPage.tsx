@@ -94,7 +94,13 @@ export default function ReportsPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <ReadOnlyBanner resource="reports" />
 
-      <h1 className="text-2xl font-bold mb-6">Rapports</h1>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold mb-2">Rapports & Exports</h1>
+        <p className="text-sm text-gray-500 max-w-3xl">
+          Ce module vous permet de générer des rapports globaux sur la santé financière et administrative de l'établissement.
+          Sélectionnez la période (Mois/Année) et cliquez sur l'une des cartes pour afficher le rapport correspondant.
+        </p>
+      </div>
 
       {/* Period selector */}
       <div className="flex gap-4 mb-6 bg-white p-4 rounded-lg border shadow-sm">
@@ -168,8 +174,21 @@ export default function ReportsPage() {
         </button>
       </div>
 
+      {/* Messages d'erreur ou d'état vide */}
+      {financeReport && financeReport.total_income === 0 && financeReport.total_expense === 0 && (
+        <div className="mb-6 p-4 bg-amber-50 text-amber-800 rounded-lg border border-amber-200">
+          Aucune transaction financière n'a été trouvée pour ce mois ({financeReport.month}/{financeReport.year}).
+        </div>
+      )}
+
+      {payrollReport && payrollReport.total_payroll === 0 && (
+        <div className="mb-6 p-4 bg-amber-50 text-amber-800 rounded-lg border border-amber-200">
+          Aucun salaire n'a été enregistré ou payé pour ce mois ({payrollReport.month}/{payrollReport.year}).
+        </div>
+      )}
+
       {/* Finance Report */}
-      {financeReport && (
+      {financeReport && (financeReport.total_income > 0 || financeReport.total_expense > 0) && (
         <div className="mb-6 p-4 bg-white rounded-lg border shadow-sm">
           <h3 className="text-lg font-semibold mb-4">
             Rapport Financier — {financeReport.month}/{financeReport.year}
@@ -248,7 +267,7 @@ export default function ReportsPage() {
       )}
 
       {/* Payroll Report */}
-      {payrollReport && (
+      {payrollReport && payrollReport.total_payroll > 0 && (
         <div className="mb-6 p-4 bg-white rounded-lg border shadow-sm">
           <h3 className="text-lg font-semibold mb-4">
             Masse Salariale — {payrollReport.month}/{payrollReport.year}

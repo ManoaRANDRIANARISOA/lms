@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react'
 import { getStudentPhotoUrl } from '../lib/image-utils'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useClasses } from '@/lib/useClasses'
-import { ArrowUp, ArrowDown, Trash2, Plus } from 'lucide-react'
+import { Trash2, Plus } from 'lucide-react'
 import EmailSettings from '@/pages/settings/EmailSettings'
 import AssessmentSettings from '@/pages/settings/AssessmentSettings'
 
@@ -23,10 +23,12 @@ export default function Settings() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [isLoadingImage, setIsLoadingImage] = useState(false)
 
-  const { classes, addClass, removeClass, reorderClasses, renameClass } = useClasses()
+  const { sections, addClass, removeClass, renameClass, moveClass } = useClasses()
   const [newClassName, setNewClassName] = useState('')
   const [editingClass, setEditingClass] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
+  const [draggedClass, setDraggedClass] = useState<string | null>(null)
+  const [targetSectionKey, setTargetSectionKey] = useState<string | null>(null)
 
   // If user cannot read settings at all, show access denied
   if (!canRead('settings')) {
@@ -47,7 +49,7 @@ export default function Settings() {
       if (window.api) {
         try {
           const name = await window.api.settings.get('school_name')
-          const year = await window.api.settings.get('current_year')
+          const year = await window.api.settings.get('school_year')
           const logo = await window.api.settings.get('school_logo')
 
           if (name) setSchoolName(name as string)
@@ -70,7 +72,7 @@ export default function Settings() {
     try {
       if (window.api) {
         await window.api.settings.set('school_name', schoolName)
-        await window.api.settings.set('current_year', currentYear)
+        await window.api.settings.set('school_year', currentYear)
         await window.api.settings.set('school_logo', schoolLogo)
         setMessage('Configuration enregistrée avec succès.')
       }
@@ -154,11 +156,6 @@ export default function Settings() {
     setMessage('Classe supprimée.')
   }
 
-  const handleMoveClass = async (index: number, direction: 'up' | 'down') => {
-    const targetIndex = direction === 'up' ? index - 1 : index + 1
-    if (targetIndex < 0 || targetIndex >= classes.length) return
-    await reorderClasses(index, targetIndex)
-  }
 
   const handleStartRename = (cls: string) => {
     setEditingClass(cls)
@@ -252,19 +249,29 @@ export default function Settings() {
             >
               {loading ? 'Enregistrement...' : 'Enregistrer la Configuration'}
             </Button>
+            {message && message.includes('Configuration') && (
+              <p className="mt-2 text-sm font-medium text-green-600 p-2 bg-green-50 rounded border border-green-100">
+                {message}
+              </p>
+            )}
+            {message && message.includes('Erreur sauvegarde') && (
+              <p className="mt-2 text-sm font-medium text-red-600 p-2 bg-red-50 rounded border border-red-100">
+                {message}
+              </p>
+            )}
           </div>
         </div>
 
         {/* Class Management */}
-        <div className="bg-white p-6 rounded shadow max-w-xl border border-gray-100">
-          <h2 className="text-lg font-semibold mb-4 text-gray-800">Gestion des Classes</h2>
+        <div className="bg-white p-6 rounded shadow max-w-4xl border border-gray-100 mb-6">
+          <h2 className="text-lg font-semibold mb-4 text-gray-800">Gestion des Classes par Section</h2>
           <p className="text-sm text-gray-500 mb-4">
-            Liste unique utilisée par tous les modules (Élèves, Finance, Notes). Ajoutez, supprimez
-            ou réordonnez les classes ici.
+            Glissez-déposez les classes d'une section à l'autre pour les organiser. Ces catégories seront 
+            utilisées dans toute l'application (Filtres, Notes, etc.).
           </p>
 
           {canWrite('settings') && (
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-2 mb-6 max-w-md">
               <Input
                 placeholder="Nouvelle classe (ex: CP1)"
                 value={newClassName}
@@ -278,81 +285,93 @@ export default function Settings() {
             </div>
           )}
 
-          <div className="space-y-1">
-            {classes.map((cls, index) => (
-              <div
-                key={cls}
-                className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded border"
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            {Object.entries(sections).map(([sectionKey, classList]) => (
+              <div 
+                key={sectionKey} 
+                className={`bg-gray-50 rounded-lg p-3 border-2 transition-colors ${
+                  targetSectionKey === sectionKey ? 'border-indigo-400 bg-indigo-50/50' : 'border-dashed border-gray-200'
+                }`}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  if (draggedClass) setTargetSectionKey(sectionKey)
+                }}
+                onDragLeave={() => setTargetSectionKey(null)}
+                onDrop={async (e) => {
+                  e.preventDefault()
+                  setTargetSectionKey(null)
+                  if (draggedClass && canWrite('settings')) {
+                    await moveClass(draggedClass, sectionKey)
+                    setDraggedClass(null)
+                  }
+                }}
               >
-                {editingClass === cls ? (
-                  <div className="flex items-center gap-2 flex-1">
-                    <Input
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleConfirmRename()}
-                      className="h-7 text-sm"
-                      autoFocus
-                    />
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-green-600"
-                      onClick={handleConfirmRename}
+                <h3 className="font-semibold text-gray-700 text-sm mb-3 px-1 flex items-center justify-between">
+                  {sectionKey}
+                  <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{classList.length}</span>
+                </h3>
+                
+                <div className="space-y-2 min-h-[100px]">
+                  {classList.map((cls) => (
+                    <div
+                      key={cls}
+                      draggable={canWrite('settings')}
+                      onDragStart={() => setDraggedClass(cls)}
+                      onDragEnd={() => setDraggedClass(null)}
+                      className={`flex flex-col gap-2 p-2 bg-white rounded border shadow-sm cursor-grab active:cursor-grabbing transition-opacity ${
+                        draggedClass === cls ? 'opacity-50' : 'opacity-100 hover:border-indigo-300'
+                      }`}
                     >
-                      OK
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7"
-                      onClick={() => setEditingClass(null)}
-                    >
-                      Annuler
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <span className="font-medium text-sm">{cls}</span>
-                    {canWrite('settings') && (
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2 text-xs"
-                          onClick={() => handleStartRename(cls)}
-                        >
-                          Renommer
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0"
-                          disabled={index === 0}
-                          onClick={() => handleMoveClass(index, 'up')}
-                        >
-                          <ArrowUp className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0"
-                          disabled={index === classes.length - 1}
-                          onClick={() => handleMoveClass(index, 'down')}
-                        >
-                          <ArrowDown className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0 text-red-500 hover:text-red-700"
-                          onClick={() => handleRemoveClass(cls)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    )}
-                  </>
-                )}
+                      {editingClass === cls ? (
+                        <div className="flex flex-col gap-1 w-full">
+                          <Input
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleConfirmRename()}
+                            className="h-7 text-xs px-2"
+                            autoFocus
+                          />
+                          <div className="flex gap-1 justify-end">
+                            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-green-600" onClick={handleConfirmRename}>OK</Button>
+                            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setEditingClass(null)}>Annul</Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between w-full">
+                          <span className="font-medium text-sm text-gray-800 break-all">{cls}</span>
+                          {canWrite('settings') && (
+                            <div className="flex items-center gap-0.5 opacity-60 hover:opacity-100">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0 hover:text-indigo-600"
+                                onClick={() => handleStartRename(cls)}
+                                title="Renommer"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                                onClick={() => handleRemoveClass(cls)}
+                                title="Supprimer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  
+                  {classList.length === 0 && (
+                    <div className="text-center text-xs text-gray-400 py-4 italic border-2 border-dashed border-transparent rounded">
+                      Glisser ici
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>

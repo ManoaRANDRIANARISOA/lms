@@ -9,6 +9,7 @@ export interface ParentEvent {
   amount_per_parent: number
   description?: string
   status: 'planned' | 'ongoing' | 'completed'
+  school_year?: string
 }
 
 export interface EventPayment {
@@ -29,8 +30,8 @@ export class EventRepository {
     try {
       db.prepare(
         `
-        INSERT INTO parent_events (id, name, event_date, amount_per_parent, description, status)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO parent_events (id, name, event_date, amount_per_parent, description, status, school_year)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `
       ).run(
         id,
@@ -38,7 +39,8 @@ export class EventRepository {
         event.event_date,
         event.amount_per_parent,
         event.description || null,
-        event.status || 'planned'
+        event.status || 'planned',
+        event.school_year || null
       )
 
       addToSyncQueue('parent_events', id, 'create', { id, ...event })
@@ -51,11 +53,19 @@ export class EventRepository {
     }
   }
 
-  static list() {
+  static list(schoolYear?: string) {
     try {
-      const events = db
-        .prepare('SELECT * FROM parent_events WHERE deleted = 0 ORDER BY event_date DESC')
-        .all()
+      let query = 'SELECT * FROM parent_events WHERE deleted = 0'
+      const params: any[] = []
+
+      if (schoolYear) {
+        query += ' AND school_year = ?'
+        params.push(schoolYear)
+      }
+
+      query += ' ORDER BY event_date DESC'
+
+      const events = db.prepare(query).all(...params)
       return { success: true, events }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
@@ -317,7 +327,7 @@ export class EventRepository {
       return { success: false, error: message }
     }
   }
-  static getByStudent(studentId: string) {
+  static getByStudent(studentId: string, schoolYear?: string) {
     try {
       // Get student and siblings
       const student = db.prepare('SELECT siblings FROM students WHERE id = ?').get(studentId) as
@@ -351,15 +361,17 @@ export class EventRepository {
       const eventPlaceholders = eventIds.map(() => '?').join(', ')
 
       // Get event details
-      const events = db
-        .prepare(
-          `
-        SELECT * FROM parent_events 
-        WHERE id IN (${eventPlaceholders})
-        ORDER BY event_date DESC
-      `
-        )
-        .all(...eventIds) as any[]
+      let eventQuery = `SELECT * FROM parent_events WHERE id IN (${eventPlaceholders})`
+      const params = [...eventIds]
+
+      if (schoolYear) {
+        eventQuery += ` AND school_year = ?`
+        params.push(schoolYear)
+      }
+      
+      eventQuery += ` ORDER BY event_date DESC`
+
+      const events = db.prepare(eventQuery).all(...params) as any[]
 
       // Combine
       const result = events.map((ev) => {

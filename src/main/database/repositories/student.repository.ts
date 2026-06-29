@@ -438,12 +438,13 @@ export class StudentRepository {
     filters: {
       search?: string
       class?: string
+      status?: string
       schoolYear?: string
       limit?: number
       offset?: number
     } = {}
   ) {
-    const { search, class: className, schoolYear, limit = 50, offset = 0 } = filters
+    const { search, class: className, status, schoolYear, limit = 50, offset = 0 } = filters
 
     // Build WHERE clause incrementally (same conditions for data and count)
     const conditions = ['s.deleted = 0']
@@ -459,6 +460,8 @@ export class StudentRepository {
     let resolvedSubQuery = ''
     let subQueryParams: unknown[] = []
 
+    const targetSchoolYear = schoolYear ? schoolYear.replace(/['"]/g, '').trim() : ''
+
     if (schoolYear) {
       resolvedSubQuery = `
         SELECT s.*,
@@ -466,54 +469,77 @@ export class StudentRepository {
             CASE WHEN s.departure_date IS NOT NULL THEN 'Quitté le ' || strftime('%d/%m/%Y', s.departure_date) ELSE NULL END,
             (SELECT class_name FROM student_fees sf
              WHERE sf.student_id = s.id AND sf.school_year = ? AND sf.class_name IS NOT NULL AND sf.class_name != ''),
-            (SELECT 
-               CASE 
-                 WHEN school_year > ? THEN 'Pré-inscrit (' || class_name || ' en ' || school_year || ')'
-                 ELSE 'Ancien (' || class_name || ' en ' || school_year || ')'
-               END
-             FROM student_fees sf
-             WHERE sf.student_id = s.id AND sf.class_name IS NOT NULL AND sf.class_name != ''
-             ORDER BY school_year DESC LIMIT 1),
-            'Non inscrit'
-          ) as resolved_class
+            'Non spécifiée'
+          ) as resolved_class,
+          (SELECT school_year FROM student_fees sf
+           WHERE sf.student_id = s.id AND sf.class_name IS NOT NULL AND sf.class_name != ''
+           ORDER BY school_year DESC LIMIT 1) as status_year,
+          CASE
+            WHEN s.departure_date IS NOT NULL THEN 'Quitté'
+            WHEN EXISTS (SELECT 1 FROM student_fees sf WHERE sf.student_id = s.id AND REPLACE(sf.school_year, '"', '') = ?) THEN 'Inscrit'
+            WHEN EXISTS (SELECT 1 FROM student_fees sf WHERE sf.student_id = s.id AND REPLACE(sf.school_year, '"', '') > ?) THEN 'Pré-inscrit'
+            WHEN EXISTS (SELECT 1 FROM student_fees sf WHERE sf.student_id = s.id AND REPLACE(sf.school_year, '"', '') < ?) THEN 'Ancien'
+            ELSE 'Non inscrit'
+          END as student_status
         FROM students s
         WHERE ${whereClause}
       `
-      subQueryParams = [schoolYear, schoolYear, ...params]
+      subQueryParams = [schoolYear, targetSchoolYear, targetSchoolYear, targetSchoolYear, ...params]
     } else {
       resolvedSubQuery = `
         SELECT s.*,
           COALESCE(
             CASE WHEN s.departure_date IS NOT NULL THEN 'Quitté le ' || strftime('%d/%m/%Y', s.departure_date) ELSE NULL END,
             NULLIF(s.class, 'Classe non spécifiée'),
-            (SELECT class_name FROM student_fees sf
-             WHERE sf.student_id = s.id AND sf.class_name IS NOT NULL AND sf.class_name != ''
-             ORDER BY sf.school_year DESC LIMIT 1),
-            'Non inscrit'
-          ) as resolved_class
+            'Non spécifiée'
+          ) as resolved_class,
+          (SELECT school_year FROM student_fees sf
+           WHERE sf.student_id = s.id AND sf.class_name IS NOT NULL AND sf.class_name != ''
+           ORDER BY school_year DESC LIMIT 1) as status_year,
+          CASE
+            WHEN s.departure_date IS NOT NULL THEN 'Quitté'
+            WHEN EXISTS (SELECT 1 FROM student_fees sf WHERE sf.student_id = s.id AND REPLACE(sf.school_year, '"', '') = ?) THEN 'Inscrit'
+            WHEN EXISTS (SELECT 1 FROM student_fees sf WHERE sf.student_id = s.id AND REPLACE(sf.school_year, '"', '') > ?) THEN 'Pré-inscrit'
+            WHEN EXISTS (SELECT 1 FROM student_fees sf WHERE sf.student_id = s.id AND REPLACE(sf.school_year, '"', '') < ?) THEN 'Ancien'
+            ELSE 'Non inscrit'
+          END as student_status
         FROM students s
         WHERE ${whereClause}
       `
-      subQueryParams = params
+      // For fallback we might not have a targetSchoolYear, so we use the default setting
+      const fallbackYear = this.getSetting('school_year')?.replace(/['"]/g, '').trim() || '2025-2026'
+      subQueryParams = [fallbackYear, fallbackYear, fallbackYear, ...params]
     }
 
-    // Apply class filter post-resolution if needed
-    const classFilter = className ? 'WHERE resolved_class = ?' : ''
-    const classParam = className ? [className] : []
+    // Apply filters post-resolution if needed
+    const postConditions: string[] = []
+    const postParams: unknown[] = []
+
+    if (className) {
+      postConditions.push('resolved_class = ?')
+      postParams.push(className)
+    }
+    
+    if (status) {
+      postConditions.push('student_status = ?')
+      postParams.push(status)
+    }
+
+    const postFilter = postConditions.length > 0 ? `WHERE ${postConditions.join(' AND ')}` : ''
 
     const dataQuery = `
       SELECT * FROM (${resolvedSubQuery})
-      ${classFilter}
+      ${postFilter}
       ORDER BY last_name, first_name
       LIMIT ? OFFSET ?
     `
-    const dataParams = [...subQueryParams, ...classParam, limit, offset]
+    const dataParams = [...subQueryParams, ...postParams, limit, offset]
 
     const countQuery = `
       SELECT COUNT(*) as total FROM (${resolvedSubQuery})
-      ${classFilter}
+      ${postFilter}
     `
-    const countParams = [...subQueryParams, ...classParam]
+    const countParams = [...subQueryParams, ...postParams]
 
     const students = db.prepare(dataQuery).all(...dataParams) as Record<string, unknown>[]
     const mappedStudents = students.map((s) => ({
@@ -527,7 +553,15 @@ export class StudentRepository {
     return { students: mappedStudents, total: countResult.total }
   }
 
-  static getById(id: string) {
+  static getById(id: string, targetSchoolYear?: string) {
+    let yearQuery = `REPLACE((SELECT value FROM settings WHERE key = 'school_year'), '"', '')`
+    const params: unknown[] = [id]
+    
+    if (targetSchoolYear) {
+      yearQuery = '?'
+      params.unshift(targetSchoolYear, targetSchoolYear, targetSchoolYear)
+    }
+
     const student = db
       .prepare(
         `
@@ -536,13 +570,23 @@ export class StudentRepository {
                  (SELECT class_name FROM student_fees sf
                   WHERE sf.student_id = students.id AND sf.class_name IS NOT NULL AND sf.class_name != ''
                   ORDER BY sf.school_year DESC LIMIT 1),
-                 'Non inscrit'
-        ) as resolved_class
+                 'Non spécifiée'
+        ) as resolved_class,
+        CASE
+          WHEN departure_date IS NOT NULL THEN 'Quitté'
+          WHEN EXISTS (SELECT 1 FROM student_fees sf WHERE sf.student_id = students.id AND REPLACE(sf.school_year, '"', '') = ${yearQuery}) THEN 'Inscrit'
+          WHEN EXISTS (SELECT 1 FROM student_fees sf WHERE sf.student_id = students.id AND REPLACE(sf.school_year, '"', '') > ${yearQuery}) THEN 'Pré-inscrit'
+          WHEN EXISTS (SELECT 1 FROM student_fees sf WHERE sf.student_id = students.id AND REPLACE(sf.school_year, '"', '') < ${yearQuery}) THEN 'Ancien'
+          ELSE 'Non inscrit'
+        END as student_status,
+        (SELECT school_year FROM student_fees sf
+         WHERE sf.student_id = students.id AND sf.class_name IS NOT NULL AND sf.class_name != ''
+         ORDER BY school_year DESC LIMIT 1) as status_year
       FROM students
       WHERE id = ?
     `
       )
-      .get(id) as Record<string, unknown> | undefined
+      .get(...params) as Record<string, unknown> | undefined
 
     if (!student) return null
 
@@ -553,7 +597,7 @@ export class StudentRepository {
     const allFees = db
       .prepare('SELECT * FROM student_fees WHERE student_id = ? ORDER BY school_year DESC')
       .all(id) as Record<string, unknown>[]
-    const schoolYear = this.getSetting('school_year') || '2025-2026'
+    const schoolYear = targetSchoolYear || this.getSetting('school_year') || '2025-2026'
 
     // valid fees for current year
     const fees = allFees.find((f) => {

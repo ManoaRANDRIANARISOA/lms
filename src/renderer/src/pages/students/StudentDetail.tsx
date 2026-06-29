@@ -76,6 +76,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
   const [selectedYear, setSelectedYear] = useState<string>('')
   const [events, setEvents] = useState<any[]>([])
   const [personnelParent, setPersonnelParent] = useState<any>(null)
+  const [activeTab, setActiveTab] = useState('dossier')
 
   const { prices: financePrices, fetchPrices } = useFinanceStore()
   const { canWrite } = usePermissions()
@@ -88,20 +89,30 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
     if (studentId) {
       getStudent(studentId)
       setImageError(false) // Reset error state on new student
+    }
+  }, [studentId, getStudent])
 
-      // Fetch events
+  useEffect(() => {
+    if (studentId && selectedYear) {
       if (window.api?.event?.getByStudent) {
         window.api.event
-          .getByStudent(studentId)
+          .getByStudent(studentId, selectedYear)
           .then((res) => {
             if (res.success && res.events) {
               setEvents(res.events)
+            } else {
+              setEvents([])
             }
           })
-          .catch((err) => console.error('Failed to fetch events', err))
+          .catch((err) => {
+            console.error('Failed to fetch events', err)
+            setEvents([])
+          })
       }
+    } else {
+      setEvents([])
     }
-  }, [studentId, getStudent])
+  }, [studentId, selectedYear])
 
   useEffect(() => {
     if (currentStudent?.is_personnel_child && currentStudent.parent_personnel_id) {
@@ -154,11 +165,11 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
   }
 
   const handleReEnrollSuccess = () => {
-    getStudent(studentId)
+    getStudent(studentId, selectedYear || undefined)
   }
 
   const handleRefresh = () => {
-    getStudent(studentId)
+    getStudent(studentId, selectedYear || undefined)
   }
 
   const getDisplayClass = (fee: FeeRecord | null | undefined) => {
@@ -238,7 +249,10 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                   place_of_birth: currentStudent.place_of_birth,
                   class_name: currentStudent.class || currentFees?.class_name || '',
                   school_year: currentFees?.school_year || '',
-                  registration_number: currentStudent.registration_number
+                  registration_number: currentStudent.registration_number,
+                  father_name: currentStudent.father_name,
+                  mother_name: currentStudent.mother_name,
+                  photo_path: currentStudent.photo_path
                 })
                 if (result.success && result.filePath) {
                   await window.api.pdf.openFile(result.filePath)
@@ -290,13 +304,36 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                   </h1>
                   <p className="text-primary-foreground/80 mt-1">
                     Classe: {getDisplayClass(displayedFees)}
-                    <span className="text-xs opacity-75 ml-2">({selectedYear})</span>
+                    <span className="text-xs opacity-75 ml-2">({displayedFees?.school_year || selectedYear})</span>
                   </p>
                 </div>
               </div>
-              <span className="bg-white/20 px-3 py-1 rounded-full text-sm">
-                {currentStudent.registration_number}
-              </span>
+              <div className="flex flex-col items-end gap-2">
+                <span className="bg-white/20 px-3 py-1 rounded-full text-sm font-medium">
+                  {currentStudent.registration_number}
+                </span>
+                {currentStudent.student_status === 'Ancien' ? (
+                  <span className="bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
+                    Ancien {currentStudent.status_year ? `(en ${currentStudent.status_year})` : ''}
+                  </span>
+                ) : currentStudent.student_status === 'Pré-inscrit' ? (
+                  <span className="bg-purple-400 text-purple-900 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
+                    Pré-inscrit {currentStudent.status_year ? `(en ${currentStudent.status_year})` : ''}
+                  </span>
+                ) : currentStudent.student_status === 'Quitté' ? (
+                  <span className="bg-red-400 text-red-900 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
+                    Quitté
+                  </span>
+                ) : currentStudent.student_status === 'Non inscrit' ? (
+                  <span className="bg-gray-400 text-gray-900 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
+                    Non inscrit
+                  </span>
+                ) : (
+                  <span className="bg-blue-400 text-blue-900 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
+                    Inscrit
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -304,7 +341,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
 
       {/* Scrollable Content Section */}
       <div className="flex-1 overflow-y-auto px-6 pb-24">
-        <Tabs defaultValue="dossier" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="mb-4">
             <TabsTrigger value="dossier">Dossier Actuel</TabsTrigger>
             <TabsTrigger value="historique">Parcours Scolaire</TabsTrigger>
@@ -317,7 +354,10 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
               <select
                 className="border rounded p-1 text-sm bg-white"
                 value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
+                onChange={(e) => {
+                  setSelectedYear(e.target.value)
+                  getStudent(studentId, e.target.value)
+                }}
               >
                 {currentFeesHistory?.map((fee) => (
                   <option key={fee.id} value={fee.school_year}>
@@ -495,7 +535,10 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                     <select
                       className="border rounded p-1 text-xs bg-white"
                       value={selectedYear}
-                      onChange={(e) => setSelectedYear(e.target.value)}
+                      onChange={(e) => {
+                        setSelectedYear(e.target.value)
+                        getStudent(studentId, e.target.value)
+                      }}
                     >
                       {currentFeesHistory?.map((fee) => (
                         <option key={fee.id} value={fee.school_year}>
@@ -601,31 +644,55 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                       </div>
                     </div>
                     <div>
-                      <h4 className="font-medium text-sm mb-2 flex items-center">
-                        <Shirt className="w-4 h-4 mr-2" />
-                        Uniformes & Divers
+                      <h4 className="font-medium text-sm mb-2 flex items-center justify-between">
+                        <span className="flex items-center">
+                          <Shirt className="w-4 h-4 mr-2" />
+                          Uniformes & Divers
+                        </span>
+                        {canWrite('students') && (
+                          <span className="text-xs text-blue-500 font-medium">
+                            Acheter / Payer
+                          </span>
+                        )}
                       </h4>
                       <ul className="space-y-2 text-sm">
                         {Object.keys(financePrices?.uniforms || {}).map((item) => {
                           const isPurchased = displayedFees.uniform_items_purchased?.includes(item)
                           return (
-                            <li
-                              key={item}
-                              className={`flex items-center ${isPurchased ? 'text-green-600' : 'text-gray-400'}`}
-                            >
-                              {isPurchased ? (
-                                <CheckCircle2 className="w-4 h-4 mr-2" />
-                              ) : (
-                                <XCircle className="w-4 h-4 mr-2 opacity-50" />
-                              )}
-                              <span className={!isPurchased ? 'line-through opacity-70' : ''}>
-                                {item}
-                              </span>
+                            <li key={item}>
+                              <button
+                                onClick={() => {
+                                  setActiveTab('finance')
+                                  setTimeout(() => {
+                                    window.dispatchEvent(new CustomEvent('open-payment-modal', { detail: 'uniform' }))
+                                  }, 100)
+                                }}
+                                disabled={!canWrite('students')}
+                                className={`w-full flex items-center justify-between p-2 rounded transition-all ${
+                                  !canWrite('students') ? 'cursor-default' : 'hover:bg-blue-50 cursor-pointer border border-transparent hover:border-blue-200'
+                                } ${isPurchased ? 'text-green-600 font-medium' : 'text-gray-500'}`}
+                              >
+                                <div className="flex items-center">
+                                  {isPurchased ? (
+                                    <CheckCircle2 className="w-4 h-4 mr-2 flex-shrink-0" />
+                                  ) : (
+                                    <XCircle className="w-4 h-4 mr-2 flex-shrink-0 opacity-50" />
+                                  )}
+                                  <span className={!isPurchased ? 'opacity-80' : ''}>
+                                    {item}
+                                  </span>
+                                </div>
+                                {!isPurchased && canWrite('students') && (
+                                  <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full opacity-0 hover:opacity-100 transition-opacity">
+                                    Payer
+                                  </span>
+                                )}
+                              </button>
                             </li>
                           )
                         })}
                         {Object.keys(financePrices?.uniforms || {}).length === 0 && (
-                          <li className="text-gray-400 italic">Aucun article configuré</li>
+                          <li className="text-gray-400 italic p-2">Aucun article configuré</li>
                         )}
                       </ul>
                     </div>
