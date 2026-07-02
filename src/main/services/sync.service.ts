@@ -572,7 +572,6 @@ async function pushLocalChanges() {
               throw retryError
             }
           } else {
-            console.error(`Supabase Push Error [${item.table_name}]:`, upsertError)
             throw upsertError
           }
         }
