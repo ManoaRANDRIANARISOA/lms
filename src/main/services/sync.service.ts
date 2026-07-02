@@ -195,6 +195,21 @@ export async function wipeRemoteData() {
 // to avoid FK violations on Supabase.
 // This ordering is inlined in the SQL query below.
 
+const TABLE_DEPENDENCIES: Record<string, string[]> = {
+  class_subjects: ['subjects'],
+  student_fees: ['students'],
+  personnel_absences: ['personnel'],
+  salary_advances: ['personnel'],
+  custom_deductions: ['personnel'],
+  grades: ['students', 'subjects', 'class_subjects'],
+  time_tracking: ['personnel'],
+  daily_attendance: ['students'],
+  student_payments: ['students', 'student_fees'],
+  event_payments: ['students', 'parent_events'],
+  bus_attendance: ['students'],
+  canteen_attendance: ['students']
+}
+
 async function pushLocalChanges() {
   const queue = db
     .prepare(
@@ -202,33 +217,60 @@ async function pushLocalChanges() {
     SELECT * FROM sync_queue
     WHERE status IN ('pending', 'error')
     ORDER BY
-      CASE table_name
-        WHEN 'subjects' THEN 1
-        WHEN 'students' THEN 2
-        WHEN 'personnel' THEN 2
-        WHEN 'student_fees' THEN 3
-        WHEN 'class_subjects' THEN 3
-        WHEN 'grades' THEN 4
-        WHEN 'time_tracking' THEN 4
-        WHEN 'daily_attendance' THEN 4
-        WHEN 'personnel_absences' THEN 4
-        WHEN 'salary_advances' THEN 4
-        WHEN 'custom_deductions' THEN 4
-        WHEN 'student_payments' THEN 5
-        WHEN 'cash_journal' THEN 5
-        WHEN 'parent_events' THEN 5
-        WHEN 'event_payments' THEN 6
-        WHEN 'bus_attendance' THEN 6
-        WHEN 'canteen_attendance' THEN 6
-        WHEN 'users' THEN 7
-        WHEN 'settings' THEN 8
-        ELSE 99
-      END,
+      CASE WHEN action = 'delete' THEN
+        CASE table_name
+          WHEN 'settings' THEN 1
+          WHEN 'users' THEN 2
+          WHEN 'event_payments' THEN 3
+          WHEN 'bus_attendance' THEN 3
+          WHEN 'canteen_attendance' THEN 3
+          WHEN 'student_payments' THEN 4
+          WHEN 'cash_journal' THEN 4
+          WHEN 'parent_events' THEN 4
+          WHEN 'grades' THEN 5
+          WHEN 'time_tracking' THEN 5
+          WHEN 'daily_attendance' THEN 5
+          WHEN 'personnel_absences' THEN 5
+          WHEN 'salary_advances' THEN 5
+          WHEN 'custom_deductions' THEN 5
+          WHEN 'student_fees' THEN 6
+          WHEN 'class_subjects' THEN 6
+          WHEN 'students' THEN 7
+          WHEN 'personnel' THEN 7
+          WHEN 'subjects' THEN 8
+          ELSE 99
+        END
+      ELSE
+        CASE table_name
+          WHEN 'subjects' THEN 1
+          WHEN 'students' THEN 2
+          WHEN 'personnel' THEN 2
+          WHEN 'student_fees' THEN 3
+          WHEN 'class_subjects' THEN 3
+          WHEN 'grades' THEN 4
+          WHEN 'time_tracking' THEN 4
+          WHEN 'daily_attendance' THEN 4
+          WHEN 'personnel_absences' THEN 4
+          WHEN 'salary_advances' THEN 4
+          WHEN 'custom_deductions' THEN 4
+          WHEN 'student_payments' THEN 5
+          WHEN 'cash_journal' THEN 5
+          WHEN 'parent_events' THEN 5
+          WHEN 'event_payments' THEN 6
+          WHEN 'bus_attendance' THEN 6
+          WHEN 'canteen_attendance' THEN 6
+          WHEN 'users' THEN 7
+          WHEN 'settings' THEN 8
+          ELSE 99
+        END
+      END ASC,
       created_at ASC
     LIMIT 100
   `
     )
     .all() as any[]
+
+  const failedTables = new Set<string>()
 
   for (const item of queue) {
     try {
@@ -239,6 +281,17 @@ async function pushLocalChanges() {
         ).run(item.id)
         continue
       }
+
+      // Check dependencies to prevent FK violations
+      const deps = TABLE_DEPENDENCIES[item.table_name] || []
+      const hasFailedDep = deps.some(dep => failedTables.has(dep))
+      if (hasFailedDep) {
+        db.prepare(
+          `UPDATE sync_queue SET status = 'pending', error_message = 'Delayed due to parent table error' WHERE id = ?`
+        ).run(item.id)
+        continue
+      }
+
       // If status is error, we should retry.
       // But maybe check if we exceeded max retries? For now, infinite retry.
 
@@ -549,7 +602,14 @@ async function pushLocalChanges() {
       `
       ).run(item.record_id)
     } catch (error: any) {
-      // Mark as error
+      // Add to failed tables so dependents are skipped
+      failedTables.add(item.table_name)
+      
+      // Mark as error but reduce log noise for expected FK issues that might have slipped
+      if (!error.message?.includes('foreign key constraint')) {
+        console.error(`Supabase Push Error [${item.table_name}]:`, error)
+      }
+      
       db.prepare(
         `
         UPDATE sync_queue

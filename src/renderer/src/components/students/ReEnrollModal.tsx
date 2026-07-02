@@ -17,9 +17,11 @@ interface ReEnrollModalProps {
     siblings?: string | string[]
     is_personnel_child?: boolean
     parent_personnel_id?: string | null
+    student_status?: string
   }
   currentYear: string
   isNewStudent: boolean
+  enrolledYears?: string[]
   onSuccess: () => void
 }
 
@@ -50,17 +52,38 @@ const getNextYear = (currentYear: string): string => {
   return currentYear
 }
 
+const getPreviousYear = (year: string): string => {
+  if (!year) return ''
+  const parts = year.split('-')
+  if (parts.length === 2) {
+    const start = parseInt(parts[0])
+    return `${start - 1}-${start}`
+  }
+  return year
+}
+
 export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
   isOpen,
   onClose,
   student,
   currentYear,
   isNewStudent,
+  enrolledYears = [],
   onSuccess
 }) => {
   const { classes: availableClasses } = useClasses()
 
-  const title = isNewStudent ? 'Inscription' : 'Réinscription'
+  const [isReenrollmentOverride, setIsReenrollmentOverride] = useState(
+    !isNewStudent || student.student_status === 'Ancien'
+  )
+
+  // Update override state when modal opens or student changes
+  useEffect(() => {
+    setIsReenrollmentOverride(!isNewStudent || student.student_status === 'Ancien')
+  }, [isOpen, isNewStudent, student.student_status])
+
+  const actualIsNewStudent = !isReenrollmentOverride
+  const title = actualIsNewStudent ? 'Inscription' : 'Réinscription'
 
   const [targetYear, setTargetYear] = useState(
     isNewStudent ? currentYear : getNextYear(currentYear)
@@ -68,6 +91,7 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
   const [newClass, setNewClass] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [annualAverage, setAnnualAverage] = useState<number | null>(null)
   
   const [initialPayment, setInitialPayment] = useState<string>('')
   const [framFratrieStatus, setFramFratrieStatus] = useState<{ isPaid: boolean; by?: string }>({
@@ -75,6 +99,25 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
   })
   
   const { prices, fetchPrices } = useFinanceStore()
+
+  useEffect(() => {
+    if (student.id && targetYear && window.api) {
+      // Pour une inscription en targetYear, on regarde les notes de l'année précédente
+      const yearToCheck = getPreviousYear(targetYear)
+      
+      // Réinitialiser d'abord au cas où l'année change
+      setAnnualAverage(null)
+      
+      // 4 is the annual term
+      window.api.grade.getStudentAverage(student.id, yearToCheck, 4).then((res) => {
+        if (res.success && typeof res.average === 'number') {
+          setAnnualAverage(res.average)
+        }
+      }).catch((e) => {
+        if (import.meta.env.DEV) console.error('Failed to load annual average:', e)
+      })
+    }
+  }, [student.id, targetYear])
 
   useEffect(() => {
     fetchPrices()
@@ -93,18 +136,26 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
   // Set initial newClass based on student and available classes
   useEffect(() => {
     if (availableClasses.length > 0) {
-      if (student.class && student.class !== 'Classe non spécifiée') {
-        const next = getNextClass(student.class, availableClasses)
-        setNewClass(next)
+      if (student.class && student.class !== 'Classe non spécifiée' && student.class !== 'Non inscrit') {
+        if (annualAverage !== null && annualAverage < 10) {
+          // Redoublement suggéré
+          setNewClass(student.class)
+        } else {
+          // Admis ou pas de moyenne connue
+          const next = getNextClass(student.class, availableClasses)
+          setNewClass(next)
+        }
       } else {
         // Default to first class for new students
         setNewClass(availableClasses[0])
       }
     }
-  }, [student.class, availableClasses])
-  const enrollmentAmount = isNewStudent ? (prices?.registration || 85000) : (prices?.reenrollment || 75000)
+  }, [student.class, availableClasses, annualAverage])
+  const enrollmentAmount = actualIsNewStudent ? (prices?.registration || 85000) : (prices?.reenrollment || 75000)
   const actualFramAmount = framFratrieStatus.isPaid ? 0 : (prices?.fram || 25000)
   const totalExpected = enrollmentAmount + actualFramAmount
+
+  const isAlreadyEnrolled = enrolledYears.includes(targetYear)
 
   const handleReEnroll = async () => {
     if (!window.api) {
@@ -137,7 +188,7 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
       }
 
       // Use the exposed API
-      const result = await window.api.student.reEnroll(student.id, newClass, targetYear, initialPaymentDroit, initialPaymentFram)
+      const result = await window.api.student.reEnroll(student.id, newClass, targetYear, initialPaymentDroit, initialPaymentFram, actualIsNewStudent)
       if (result.success) {
         onSuccess()
         onClose()
@@ -162,7 +213,7 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
           <Button variant="outline" onClick={onClose} disabled={loading}>
             Annuler
           </Button>
-          <Button onClick={handleReEnroll} disabled={loading}>
+          <Button onClick={handleReEnroll} disabled={loading || isAlreadyEnrolled}>
             {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Confirmer {title}
           </Button>
@@ -170,12 +221,31 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
       }
     >
       <div className="space-y-4">
-        <div className="bg-blue-50 p-3 rounded-md text-sm text-blue-700">
-          Cette action inscrira l'élève dans la nouvelle classe pour l'année scolaire {targetYear}.
-          {isNewStudent
-            ? " Il s'agit d'une première inscription."
-            : " L'historique de l'année précédente sera conservé."}
+        <div className="bg-blue-50 p-3 rounded-md text-sm text-blue-700 flex flex-col gap-2">
+          <p>
+            Cette action inscrira l'élève dans la nouvelle classe pour l'année scolaire {targetYear}.
+            {actualIsNewStudent
+              ? " Il s'agit d'une première inscription."
+              : " L'historique de l'année précédente sera conservé."}
+          </p>
+          {isNewStudent && (
+             <label className="flex items-center gap-2 mt-2 font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isReenrollmentOverride}
+                  onChange={(e) => setIsReenrollmentOverride(e.target.checked)}
+                  className="rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                />
+                Considérer comme une réinscription (Ancien élève)
+             </label>
+          )}
         </div>
+
+        {isAlreadyEnrolled && (
+          <div className="bg-orange-50 border border-orange-200 text-orange-800 p-3 rounded-md text-sm font-medium">
+            Attention : L'élève est déjà inscrit pour l'année scolaire {targetYear}. Vous ne pouvez pas le réinscrire pour la même année.
+          </div>
+        )}
 
         {error && <div className="bg-red-50 p-3 rounded-md text-sm text-red-700">{error}</div>}
 
@@ -204,6 +274,11 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
               </option>
             ))}
           </select>
+          {annualAverage !== null && !isNewStudent && (
+            <p className={`text-xs mt-1 font-medium ${annualAverage >= 10 ? 'text-green-600' : 'text-amber-600'}`}>
+              Suggestion automatique basée sur la moyenne annuelle ({annualAverage.toFixed(2)}/20) : {annualAverage >= 10 ? 'Admis(e) en classe supérieure' : 'Redoublement conseillé'}
+            </p>
+          )}
         </div>
 
         <div className="pt-4 border-t">
@@ -214,7 +289,7 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
               <h5 className="text-sm font-semibold text-gray-700 mb-2">Détail du montant dû :</h5>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600">{isNewStudent ? "Droits d'inscription" : 'Réinscription'} :</span>
+                  <span className="text-gray-600">{actualIsNewStudent ? "Droits d'inscription" : 'Réinscription'} :</span>
                   <span className="font-semibold">{enrollmentAmount.toLocaleString()} Ar</span>
                 </div>
                 
