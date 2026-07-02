@@ -605,18 +605,20 @@ async function pushLocalChanges() {
       // Add to failed tables so dependents are skipped
       failedTables.add(item.table_name)
       
-      // Mark as error but reduce log noise for expected FK issues that might have slipped
-      if (!error.message?.includes('foreign key constraint')) {
+      const errorCode = error?.code || ''
+      const isUnrecoverable = errorCode === '23503' || errorCode === '23505'
+
+      if (!isUnrecoverable) {
         console.error(`Supabase Push Error [${item.table_name}]:`, error)
       }
       
       db.prepare(
         `
         UPDATE sync_queue
-        SET status = 'error', error_message = ?
+        SET status = ?, error_message = ?
         WHERE id = ?
       `
-      ).run(error.message || 'Unknown error', item.id)
+      ).run(isUnrecoverable ? 'skipped' : 'error', error.message || 'Unknown error', item.id)
     }
   }
 }
