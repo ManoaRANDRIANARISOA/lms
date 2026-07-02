@@ -226,7 +226,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
             {canWrite('students') && (
               <Button variant="outline" size="sm" onClick={() => setIsReEnrollOpen(true)}>
                 <History className="w-4 h-4 mr-2" />
-                {!currentFees ? 'Inscrire' : 'Réinscrire (Suivante)'}
+                {!currentFees && currentStudent?.student_status !== 'Ancien' ? 'Inscrire' : 'Réinscrire'}
               </Button>
             )}
             <Button
@@ -820,6 +820,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
             useAppStore.getState().currentYear
           }
           isNewStudent={!currentFees}
+          enrolledYears={currentFeesHistory?.map(f => f.school_year) || []}
           onSuccess={handleReEnrollSuccess}
         />
       </div>

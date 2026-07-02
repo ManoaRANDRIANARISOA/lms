@@ -134,11 +134,11 @@ export function registerStudentHandlers(): void {
   // --------------------------------------------
   // RE-ENROLL STUDENT
   // --------------------------------------------
-  ipcMain.handle('student:reEnroll', async (_, id, newClass, targetYear, initialPaymentDroit, initialPaymentFram) => {
+  ipcMain.handle('student:reEnroll', async (_, id, newClass, targetYear, initialPaymentDroit, initialPaymentFram, isNewStudent) => {
     if (!canWrite('students')) {
       return { success: false, error: 'Accès refusé: réinscription élève' }
     }
-    const result = StudentRepository.reEnroll(id, newClass, targetYear, initialPaymentDroit, initialPaymentFram)
+    const result = StudentRepository.reEnroll(id, newClass, targetYear, initialPaymentDroit, initialPaymentFram, isNewStudent)
     if (result.success) {
       logAction(
         getCurrentUser()?.id || null,

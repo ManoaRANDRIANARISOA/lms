@@ -27,8 +27,8 @@ const api = {
     update: (id: string, updates: Record<string, unknown>) =>
       ipcRenderer.invoke('student:update', id, updates),
     delete: (id: string) => ipcRenderer.invoke('student:delete', id),
-    reEnroll: (id: string, newClass: string, targetYear: string, initialPaymentDroit?: number, initialPaymentFram?: number) =>
-      ipcRenderer.invoke('student:reEnroll', id, newClass, targetYear, initialPaymentDroit, initialPaymentFram),
+    reEnroll: (id: string, newClass: string, targetYear: string, initialPaymentDroit?: number, initialPaymentFram?: number, isNewStudent?: boolean) =>
+      ipcRenderer.invoke('student:reEnroll', id, newClass, targetYear, initialPaymentDroit, initialPaymentFram, isNewStudent),
     getServiceStats: () => ipcRenderer.invoke('student:serviceStats'),
     repair: (targetYear: string) => ipcRenderer.invoke('student:repair', targetYear),
 

@@ -186,7 +186,8 @@ interface APIType {
       newClass: string,
       targetYear: string,
       initialPaymentDroit?: number,
-      initialPaymentFram?: number
+      initialPaymentFram?: number,
+      isNewStudent?: boolean
     ) => Promise<{ success: boolean; error?: string }>
     getServiceStats: () => Promise<Record<string, unknown>>
     repair: (

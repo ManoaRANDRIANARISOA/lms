@@ -468,7 +468,8 @@ export class StudentRepository {
           COALESCE(
             CASE WHEN s.departure_date IS NOT NULL THEN 'Quitté le ' || strftime('%d/%m/%Y', s.departure_date) ELSE NULL END,
             (SELECT class_name FROM student_fees sf
-             WHERE sf.student_id = s.id AND sf.school_year = ? AND sf.class_name IS NOT NULL AND sf.class_name != ''),
+             WHERE sf.student_id = s.id AND REPLACE(sf.school_year, '"', '') = ? AND sf.class_name IS NOT NULL AND sf.class_name != ''),
+            NULLIF(NULLIF(s.class, 'Classe non spécifiée'), 'Non inscrit'),
             'Non spécifiée'
           ) as resolved_class,
           (SELECT school_year FROM student_fees sf
@@ -484,13 +485,15 @@ export class StudentRepository {
         FROM students s
         WHERE ${whereClause}
       `
-      subQueryParams = [schoolYear, targetSchoolYear, targetSchoolYear, targetSchoolYear, ...params]
+      subQueryParams = [targetSchoolYear, targetSchoolYear, targetSchoolYear, targetSchoolYear, ...params]
     } else {
       resolvedSubQuery = `
         SELECT s.*,
           COALESCE(
             CASE WHEN s.departure_date IS NOT NULL THEN 'Quitté le ' || strftime('%d/%m/%Y', s.departure_date) ELSE NULL END,
-            NULLIF(s.class, 'Classe non spécifiée'),
+            (SELECT class_name FROM student_fees sf
+             WHERE sf.student_id = s.id AND REPLACE(sf.school_year, '"', '') = ? AND sf.class_name IS NOT NULL AND sf.class_name != ''),
+            NULLIF(NULLIF(s.class, 'Classe non spécifiée'), 'Non inscrit'),
             'Non spécifiée'
           ) as resolved_class,
           (SELECT school_year FROM student_fees sf
@@ -508,7 +511,7 @@ export class StudentRepository {
       `
       // For fallback we might not have a targetSchoolYear, so we use the default setting
       const fallbackYear = this.getSetting('school_year')?.replace(/['"]/g, '').trim() || '2025-2026'
-      subQueryParams = [fallbackYear, fallbackYear, fallbackYear, ...params]
+      subQueryParams = [fallbackYear, fallbackYear, fallbackYear, fallbackYear, ...params]
     }
 
     // Apply filters post-resolution if needed
@@ -559,14 +562,17 @@ export class StudentRepository {
     
     if (targetSchoolYear) {
       yearQuery = '?'
-      params.unshift(targetSchoolYear, targetSchoolYear, targetSchoolYear)
+      params.unshift(targetSchoolYear, targetSchoolYear, targetSchoolYear, targetSchoolYear)
     }
 
     const student = db
       .prepare(
         `
       SELECT *,
-        COALESCE(NULLIF(class, 'Classe non spécifiée'),
+        COALESCE(
+                 (SELECT class_name FROM student_fees sf
+                  WHERE sf.student_id = students.id AND REPLACE(sf.school_year, '"', '') = ${yearQuery} AND sf.class_name IS NOT NULL AND sf.class_name != ''),
+                 NULLIF(NULLIF(class, 'Classe non spécifiée'), 'Non inscrit'),
                  (SELECT class_name FROM student_fees sf
                   WHERE sf.student_id = students.id AND sf.class_name IS NOT NULL AND sf.class_name != ''
                   ORDER BY sf.school_year DESC LIMIT 1),
@@ -932,7 +938,7 @@ export class StudentRepository {
     }
   }
 
-  static reEnroll(id: string, newClass: string, targetYear: string, initialPaymentDroit?: number, initialPaymentFram?: number) {
+  static reEnroll(id: string, newClass: string, targetYear: string, initialPaymentDroit?: number, initialPaymentFram?: number, isNewStudentOverride?: boolean) {
     const student = db.prepare('SELECT * FROM students WHERE id = ?').get(id) as any
     if (!student) return { success: false, error: 'Student not found' }
 
@@ -984,7 +990,9 @@ export class StudentRepository {
       })
 
       const currentDate = new Date().toISOString().split('T')[0]
-      const isNewStudent = !student.class || student.class === 'Classe non spécifiée'
+      const isNewStudent = isNewStudentOverride !== undefined 
+        ? isNewStudentOverride 
+        : (!student.class || student.class === 'Classe non spécifiée')
 
       // Create Fram Payment Record if > 0
       if (initialPaymentFram && initialPaymentFram > 0) {

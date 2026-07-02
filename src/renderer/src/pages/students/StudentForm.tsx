@@ -364,7 +364,7 @@ export default function StudentForm({
           <TabsContent value="identity" className="space-y-4 pt-4">
             {/* Photo Field */}
             <div className="bg-gray-50 p-4 rounded-md border border-gray-200 mb-4">
-              <label className="block text-sm font-medium mb-2">Photo de l'élève</label>
+              <label htmlFor="photo_path" className="block text-sm font-medium mb-2">Photo de l'élève</label>
               <div className="flex gap-4 items-center">
                 <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden border-2 border-white shadow-sm relative">
                   {isLoadingImage && (
@@ -390,6 +390,7 @@ export default function StudentForm({
                 <div className="flex-1">
                   <div className="flex gap-2">
                     <Input
+                      id="photo_path"
                       {...form.register('photo_path')}
                       placeholder="URL de l'image ou chemin local..."
                     />
@@ -437,16 +438,16 @@ export default function StudentForm({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Nom *</label>
-                <Input {...form.register('last_name')} placeholder="Nom de famille" />
+                <label htmlFor="last_name" className="text-sm font-medium">Nom *</label>
+                <Input id="last_name" {...form.register('last_name')} placeholder="Nom de famille" />
                 {form.formState.errors.last_name && (
                   <p className="text-sm text-red-500">{form.formState.errors.last_name.message}</p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Prénom *</label>
-                <Input {...form.register('first_name')} placeholder="Prénoms" />
+                <label htmlFor="first_name" className="text-sm font-medium">Prénom *</label>
+                <Input id="first_name" {...form.register('first_name')} placeholder="Prénoms" />
                 {form.formState.errors.first_name && (
                   <p className="text-sm text-red-500">{form.formState.errors.first_name.message}</p>
                 )}
@@ -478,15 +479,15 @@ export default function StudentForm({
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Date de naissance</label>
-                <Input type="date" {...form.register('date_of_birth')} />
+                <label htmlFor="date_of_birth" className="text-sm font-medium">Date de naissance</label>
+                <Input id="date_of_birth" type="date" {...form.register('date_of_birth')} />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Lieu de naissance</label>
-                <Input {...form.register('place_of_birth')} placeholder="Ville/Commune" />
+                <label htmlFor="place_of_birth" className="text-sm font-medium">Lieu de naissance</label>
+                <Input id="place_of_birth" {...form.register('place_of_birth')} placeholder="Ville/Commune" />
               </div>
             </div>
 
@@ -494,8 +495,9 @@ export default function StudentForm({
               {initialData && (
                 <>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Classe Actuelle</label>
+                    <label htmlFor="class" className="text-sm font-medium">Classe Actuelle</label>
                     <select
+                      id="class"
                       {...form.register('class')}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
@@ -516,8 +518,8 @@ export default function StudentForm({
                 </>
               )}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Date d'inscription *</label>
-                <Input type="date" {...form.register('enrollment_date')} />
+                <label htmlFor="enrollment_date" className="text-sm font-medium">Date d'inscription *</label>
+                <Input id="enrollment_date" type="date" {...form.register('enrollment_date')} />
                 {form.formState.errors.enrollment_date && (
                   <p className="text-sm text-red-500">
                     {form.formState.errors.enrollment_date.message}
@@ -527,16 +529,16 @@ export default function StudentForm({
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Email (Optionnel)</label>
-              <Input {...form.register('email')} placeholder="email@exemple.com" type="email" />
+              <label htmlFor="email" className="text-sm font-medium">Email (Optionnel)</label>
+              <Input id="email" {...form.register('email')} placeholder="email@exemple.com" type="email" />
               {form.formState.errors.email && (
                 <p className="text-sm text-red-500">{form.formState.errors.email.message}</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">École d'origine (Optionnel)</label>
-              <Input {...form.register('previous_school')} placeholder="Établissement précédent" />
+              <label htmlFor="previous_school" className="text-sm font-medium">École d'origine (Optionnel)</label>
+              <Input id="previous_school" {...form.register('previous_school')} placeholder="Établissement précédent" />
             </div>
           </TabsContent>
 
@@ -547,48 +549,48 @@ export default function StudentForm({
               {/* Father */}
               <div className="grid grid-cols-3 gap-4 mb-4 items-end">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Nom du Père</label>
-                  <Input {...form.register('father_name')} placeholder="Nom complet" />
+                  <label htmlFor="father_name" className="text-sm font-medium">Nom du Père</label>
+                  <Input id="father_name" {...form.register('father_name')} placeholder="Nom complet" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Profession</label>
-                  <Input {...form.register('father_profession')} placeholder="Profession" />
+                  <label htmlFor="father_profession" className="text-sm font-medium">Profession</label>
+                  <Input id="father_profession" {...form.register('father_profession')} placeholder="Profession" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Contact</label>
-                  <Input {...form.register('father_contact')} placeholder="03x xx xxx xx" />
+                  <label htmlFor="father_contact" className="text-sm font-medium">Contact</label>
+                  <Input id="father_contact" {...form.register('father_contact')} placeholder="03x xx xxx xx" />
                 </div>
               </div>
 
               {/* Mother */}
               <div className="grid grid-cols-3 gap-4 mb-4 items-end">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Nom de la Mère</label>
-                  <Input {...form.register('mother_name')} placeholder="Nom complet" />
+                  <label htmlFor="mother_name" className="text-sm font-medium">Nom de la Mère</label>
+                  <Input id="mother_name" {...form.register('mother_name')} placeholder="Nom complet" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Profession</label>
-                  <Input {...form.register('mother_profession')} placeholder="Profession" />
+                  <label htmlFor="mother_profession" className="text-sm font-medium">Profession</label>
+                  <Input id="mother_profession" {...form.register('mother_profession')} placeholder="Profession" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Contact</label>
-                  <Input {...form.register('mother_contact')} placeholder="03x xx xxx xx" />
+                  <label htmlFor="mother_contact" className="text-sm font-medium">Contact</label>
+                  <Input id="mother_contact" {...form.register('mother_contact')} placeholder="03x xx xxx xx" />
                 </div>
               </div>
 
               {/* Guardian */}
               <div className="grid grid-cols-3 gap-4 mb-4 items-end">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Nom du Tuteur (Optionnel)</label>
-                  <Input {...form.register('guardian_name')} placeholder="Nom complet" />
+                  <label htmlFor="guardian_name" className="text-sm font-medium">Nom du Tuteur (Optionnel)</label>
+                  <Input id="guardian_name" {...form.register('guardian_name')} placeholder="Nom complet" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Profession</label>
-                  <Input {...form.register('guardian_profession')} placeholder="Profession" />
+                  <label htmlFor="guardian_profession" className="text-sm font-medium">Profession</label>
+                  <Input id="guardian_profession" {...form.register('guardian_profession')} placeholder="Profession" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Contact (Optionnel)</label>
-                  <Input {...form.register('guardian_contact')} placeholder="03x xx xxx xx" />
+                  <label htmlFor="guardian_contact" className="text-sm font-medium">Contact (Optionnel)</label>
+                  <Input id="guardian_contact" {...form.register('guardian_contact')} placeholder="03x xx xxx xx" />
                   {form.formState.errors.guardian_contact && (
                     <p className="text-sm text-red-500">
                       {form.formState.errors.guardian_contact.message}
@@ -598,8 +600,8 @@ export default function StudentForm({
               </div>
 
               <div className="space-y-2 mt-4">
-                <label className="text-sm font-medium">Adresse</label>
-                <Input {...form.register('address')} placeholder="Lot..." />
+                <label htmlFor="address" className="text-sm font-medium">Adresse</label>
+                <Input id="address" {...form.register('address')} placeholder="Lot..." />
               </div>
 
               {/* Personnel Parent Section */}
@@ -623,10 +625,11 @@ export default function StudentForm({
 
                 {form.watch('is_personnel_child') && (
                   <div className="space-y-2 mt-3">
-                    <label className="text-sm font-medium text-gray-700">
+                    <label htmlFor="parent_personnel_id" className="text-sm font-medium text-gray-700">
                       Sélectionner le membre du personnel
                     </label>
                     <select
+                      id="parent_personnel_id"
                       {...form.register('parent_personnel_id')}
                       value={form.watch('parent_personnel_id') || ''}
                       className="flex h-10 w-full md:w-1/2 rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
