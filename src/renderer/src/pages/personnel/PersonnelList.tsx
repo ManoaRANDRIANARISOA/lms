@@ -26,7 +26,18 @@ export default function PersonnelList(): React.JSX.Element {
   const [positionFilter, setPositionFilter] = useState('')
   const [activeFilter, setActiveFilter] = useState('active') // 'active', 'inactive', 'all'
   const [currentMonth, setCurrentMonth] = useState(new Date().toISOString().substring(0, 7))
-  const [payrollSummary, setPayrollSummary] = useState<Record<string, { isPaid: boolean; isIgnored: boolean; grossSalary: number; netSalary: number; hasWorked: boolean }>>({})
+  const [payrollSummary, setPayrollSummary] = useState<
+    Record<
+      string,
+      {
+        isPaid: boolean
+        isIgnored: boolean
+        grossSalary: number
+        netSalary: number
+        hasWorked: boolean
+      }
+    >
+  >({})
 
   useEffect(() => {
     fetchPersonnel()
@@ -58,11 +69,11 @@ export default function PersonnelList(): React.JSX.Element {
       p.last_name?.toLowerCase().includes(search.toLowerCase()) ||
       p.contact?.includes(search)
     const matchPosition = !positionFilter || p.position === positionFilter
-    
+
     let matchActive = true
     if (activeFilter === 'active') matchActive = !p.departure_date
     if (activeFilter === 'inactive') matchActive = !!p.departure_date
-    
+
     return matchSearch && matchPosition && matchActive
   })
 
@@ -176,123 +187,125 @@ export default function PersonnelList(): React.JSX.Element {
                 <th className="px-4 py-3 text-right font-medium text-gray-600">Actions</th>
               </tr>
             </thead>
-          <tbody className="divide-y">
-            {filtered.map((p) => {
-              return (
-                <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <div className="font-medium flex items-center gap-2">
-                      {p.last_name} {p.first_name}
-                      {p.departure_date && (
-                        <span className="bg-gray-100 text-gray-500 text-[10px] px-2 py-0.5 rounded-full border">
-                          Inactif
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    {POSITION_LABELS[p.position || ''] || p.position || '-'}
-                  </td>
-                  <td className="px-4 py-3">{STATUS_LABELS[p.status || ''] || p.status || '-'}</td>
-                  <td className="px-4 py-3">{p.contact || '-'}</td>
-                  <td className="px-4 py-3">
-                    {p.salary_type === 'monthly' && p.monthly_salary
-                      ? `${p.monthly_salary.toLocaleString('fr-MG')} Ar/mois`
-                      : p.salary_type === 'hourly' && p.hourly_rate
-                        ? `${p.hourly_rate.toLocaleString('fr-MG')} Ar/h`
-                        : '-'}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {(() => {
-                      const summary = p.id ? payrollSummary[p.id] : null
-                      const isPaid = summary?.isPaid || false
-                      const isIgnored = summary?.isIgnored || false
-                      const hasWorked = summary?.hasWorked || false
-                      const grossSalary = summary?.grossSalary || 0
-                      
-                      const [y, m] = currentMonth.split('-')
-                      const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate()
-                      const monthStart = `${currentMonth}-01`
-                      const monthEnd = `${currentMonth}-${lastDay}`
-                      
-                      const isNotHiredYet = p.hire_date && p.hire_date > monthEnd
-                      const hasLeftBefore = p.departure_date && p.departure_date < monthStart
+            <tbody className="divide-y">
+              {filtered.map((p) => {
+                return (
+                  <tr key={p.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <div className="font-medium flex items-center gap-2">
+                        {p.last_name} {p.first_name}
+                        {p.departure_date && (
+                          <span className="bg-gray-100 text-gray-500 text-[10px] px-2 py-0.5 rounded-full border">
+                            Inactif
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {POSITION_LABELS[p.position || ''] || p.position || '-'}
+                    </td>
+                    <td className="px-4 py-3">
+                      {STATUS_LABELS[p.status || ''] || p.status || '-'}
+                    </td>
+                    <td className="px-4 py-3">{p.contact || '-'}</td>
+                    <td className="px-4 py-3">
+                      {p.salary_type === 'monthly' && p.monthly_salary
+                        ? `${p.monthly_salary.toLocaleString('fr-MG')} Ar/mois`
+                        : p.salary_type === 'hourly' && p.hourly_rate
+                          ? `${p.hourly_rate.toLocaleString('fr-MG')} Ar/h`
+                          : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {(() => {
+                        const summary = p.id ? payrollSummary[p.id] : null
+                        const isPaid = summary?.isPaid || false
+                        const isIgnored = summary?.isIgnored || false
+                        const hasWorked = summary?.hasWorked || false
+                        const grossSalary = summary?.grossSalary || 0
 
-                      // Si l'employé a travaillé ou a un salaire brut calculé pour ce mois, on l'affiche coûte que coûte (réalité du travail)
-                      if (!hasWorked && grossSalary === 0) {
-                        // Sinon, si on est en dehors de ses dates de contrat, on masque
-                        if (isNotHiredYet || hasLeftBefore) {
-                          return <span className="text-gray-400">-</span>
+                        const [y, m] = currentMonth.split('-')
+                        const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate()
+                        const monthStart = `${currentMonth}-01`
+                        const monthEnd = `${currentMonth}-${lastDay}`
+
+                        const isNotHiredYet = p.hire_date && p.hire_date > monthEnd
+                        const hasLeftBefore = p.departure_date && p.departure_date < monthStart
+
+                        // Si l'employé a travaillé ou a un salaire brut calculé pour ce mois, on l'affiche coûte que coûte (réalité du travail)
+                        if (!hasWorked && grossSalary === 0) {
+                          // Sinon, si on est en dehors de ses dates de contrat, on masque
+                          if (isNotHiredYet || hasLeftBefore) {
+                            return <span className="text-gray-400">-</span>
+                          }
                         }
-                      }
 
-                      if (isIgnored) {
-                        return (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border">
-                            Ignoré
-                          </span>
-                        )
-                      } else if (isPaid) {
-                        return (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            Payé
-                          </span>
-                        )
-                      } else {
-                        return (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                            Non Payé
-                          </span>
-                        )
-                      }
-                    })()}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => navigate(`/personnel/${p.id}`)}
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      {canWrite('personnel') && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => navigate(`/personnel/${p.id}/edit`)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-600"
-                            onClick={() => {
-                              if (confirm(`Supprimer ${p.last_name} ${p.first_name} ?`)) {
-                                usePersonnelStore.getState().deletePerson(p.id)
-                              }
-                            }}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
+                        if (isIgnored) {
+                          return (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border">
+                              Ignoré
+                            </span>
+                          )
+                        } else if (isPaid) {
+                          return (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Payé
+                            </span>
+                          )
+                        } else {
+                          return (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              Non Payé
+                            </span>
+                          )
+                        }
+                      })()}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => navigate(`/personnel/${p.id}`)}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        {canWrite('personnel') && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => navigate(`/personnel/${p.id}/edit`)}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600"
+                              onClick={() => {
+                                if (confirm(`Supprimer ${p.last_name} ${p.first_name} ?`)) {
+                                  usePersonnelStore.getState().deletePerson(p.id)
+                                }
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+              {filtered.length === 0 && !loading && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                    Aucun membre du personnel trouvé.
                   </td>
                 </tr>
-              )
-            })}
-            {filtered.length === 0 && !loading && (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                  Aucun membre du personnel trouvé.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

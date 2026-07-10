@@ -205,7 +205,10 @@ const FILTER_PRESETS = [
   {
     label: 'Fonctionnement',
     tooltip: 'Entretien, fournitures, carburant, papier, banque',
-    filter: { department: 'ecole', category: 'entretien,fournitures,carburant,papier,banque,banques,autres' }
+    filter: {
+      department: 'ecole',
+      category: 'entretien,fournitures,carburant,papier,banque,banques,autres'
+    }
   }
 ]
 
@@ -320,7 +323,12 @@ export default function FinanceJournal() {
     fetchRecoveryRate()
   }, [entries])
 
-  const categories = form.department === 'bus' ? CATEGORIES_BUS : form.department === 'eleve' ? STUDENT_CATEGORIES : CATEGORIES_ECOLE
+  const categories =
+    form.department === 'bus'
+      ? CATEGORIES_BUS
+      : form.department === 'eleve'
+        ? STUDENT_CATEGORIES
+        : CATEGORIES_ECOLE
 
   const handleSubmit = async () => {
     if (!form.amount || parseFloat(form.amount) <= 0) {
@@ -441,56 +449,6 @@ export default function FinanceJournal() {
         </div>
       )}
 
-      {/* ── KPIs ── */}
-      <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <div className="p-4 bg-white rounded-lg border shadow-sm">
-          <div className="flex justify-between items-start mb-1">
-            <p className="text-sm text-gray-500">Solde Total</p>
-            <Wallet className="w-4 h-4 text-blue-500" />
-          </div>
-          <p
-            className={cn(
-              'text-2xl font-bold',
-              totalBalance.balance >= 0 ? 'text-blue-700' : 'text-red-700'
-            )}
-          >
-            {totalBalance.balance.toLocaleString()} Ar
-          </p>
-        </div>
-
-        <div className="p-4 bg-white rounded-lg border shadow-sm">
-          <div className="flex justify-between items-start mb-1">
-            <p className="text-sm text-gray-500">Recettes (Mois)</p>
-            <TrendingUp className="w-4 h-4 text-green-500" />
-          </div>
-          <p className="text-2xl font-bold text-green-700">{income.toLocaleString()} Ar</p>
-        </div>
-
-        <div className="p-4 bg-white rounded-lg border shadow-sm">
-          <div className="flex justify-between items-start mb-1">
-            <p className="text-sm text-gray-500">Dépenses (Mois)</p>
-            <TrendingDown className="w-4 h-4 text-red-500" />
-          </div>
-          <p className="text-2xl font-bold text-red-700">{expense.toLocaleString()} Ar</p>
-        </div>
-
-        <div className="p-4 bg-white rounded-lg border shadow-sm">
-          <div className="flex justify-between items-start mb-1">
-            <p className="text-sm text-gray-500">Taux Recouvrement</p>
-            <Percent className="w-4 h-4 text-purple-500" />
-          </div>
-          <p className="text-2xl font-bold text-purple-700">
-            {recoveryRate !== null ? `${recoveryRate}%` : '—'}
-          </p>
-          <p className="text-xs text-gray-400 mt-1">Scolarité attendue vs perçue</p>
-        </div>
-      </div>
-
-      {/* ── Chart ── */}
-      <div className="mb-6">
-        <DetailedFinanceChart data={trendData} />
-      </div>
-
       {/* ── New entry form ── */}
       {showForm && (
         <div className="mb-6 p-4 bg-white rounded-lg border shadow-sm">
@@ -609,6 +567,56 @@ export default function FinanceJournal() {
           </div>
         </div>
       )}
+
+      {/* ── KPIs ── */}
+      <div className="grid gap-4 md:grid-cols-4 mb-6">
+        <div className="p-4 bg-white rounded-lg border shadow-sm">
+          <div className="flex justify-between items-start mb-1">
+            <p className="text-sm text-gray-500">Solde Total</p>
+            <Wallet className="w-4 h-4 text-blue-500" />
+          </div>
+          <p
+            className={cn(
+              'text-2xl font-bold',
+              totalBalance.balance >= 0 ? 'text-blue-700' : 'text-red-700'
+            )}
+          >
+            {totalBalance.balance.toLocaleString()} Ar
+          </p>
+        </div>
+
+        <div className="p-4 bg-white rounded-lg border shadow-sm">
+          <div className="flex justify-between items-start mb-1">
+            <p className="text-sm text-gray-500">Recettes (Mois)</p>
+            <TrendingUp className="w-4 h-4 text-green-500" />
+          </div>
+          <p className="text-2xl font-bold text-green-700">{income.toLocaleString()} Ar</p>
+        </div>
+
+        <div className="p-4 bg-white rounded-lg border shadow-sm">
+          <div className="flex justify-between items-start mb-1">
+            <p className="text-sm text-gray-500">Dépenses (Mois)</p>
+            <TrendingDown className="w-4 h-4 text-red-500" />
+          </div>
+          <p className="text-2xl font-bold text-red-700">{expense.toLocaleString()} Ar</p>
+        </div>
+
+        <div className="p-4 bg-white rounded-lg border shadow-sm">
+          <div className="flex justify-between items-start mb-1">
+            <p className="text-sm text-gray-500">Taux Recouvrement</p>
+            <Percent className="w-4 h-4 text-purple-500" />
+          </div>
+          <p className="text-2xl font-bold text-purple-700">
+            {recoveryRate !== null ? `${recoveryRate}%` : '—'}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">Scolarité attendue vs perçue</p>
+        </div>
+      </div>
+
+      {/* ── Chart ── */}
+      <div className="mb-6">
+        <DetailedFinanceChart data={trendData} />
+      </div>
 
       {/* ── Quick filters ── */}
       <div className="flex flex-wrap gap-2 mb-4">
@@ -743,7 +751,9 @@ export default function FinanceJournal() {
             <Label className="text-xs text-gray-500">Catégorie</Label>
             <select
               className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm mt-1"
-              value={filters.category === 'all' ? 'all' : `${filters.department}:${filters.category}`}
+              value={
+                filters.category === 'all' ? 'all' : `${filters.department}:${filters.category}`
+              }
               onChange={(e) => {
                 const val = e.target.value
                 if (val === 'all') {
@@ -782,7 +792,14 @@ export default function FinanceJournal() {
             variant="outline"
             className="h-9 whitespace-nowrap"
             onClick={() => {
-              setFilters({ startDate: '', endDate: '', type: 'all', category: 'all', department: 'all', search: '' })
+              setFilters({
+                startDate: '',
+                endDate: '',
+                type: 'all',
+                category: 'all',
+                department: 'all',
+                search: ''
+              })
               setPresetFilter('Tous')
               setActiveDatePreset(null)
             }}
@@ -916,20 +933,20 @@ export default function FinanceJournal() {
                               const monthMatch = entry.description?.match(/\(([^)]+)\)/)
                               const extractedMonth = monthMatch ? monthMatch[1] : undefined
 
-                                const r = await window.api.pdf.generateReceipt({
-                                  student_name:
-                                    studentName ||
-                                    entry.description
-                                      ?.replace('Paiement ', '')
-                                      ?.replace(/ — .*/, '') ||
-                                    '—',
-                                  class_name: entry.student_class || '-',
-                                  amount: entry.amount,
-                                  payment_type: entry.category || '',
-                                  payment_date: entry.transaction_date,
-                                  month: extractedMonth,
-                                  department: entry.department
-                                })
+                              const r = await window.api.pdf.generateReceipt({
+                                student_name:
+                                  studentName ||
+                                  entry.description
+                                    ?.replace('Paiement ', '')
+                                    ?.replace(/ — .*/, '') ||
+                                  '—',
+                                class_name: entry.student_class || '-',
+                                amount: entry.amount,
+                                payment_type: entry.category || '',
+                                payment_date: entry.transaction_date,
+                                month: extractedMonth,
+                                department: entry.department
+                              })
                               if (r.success && r.filePath) await window.api.pdf.openFile(r.filePath)
                               else alert(r.error || 'Erreur PDF')
                             }}

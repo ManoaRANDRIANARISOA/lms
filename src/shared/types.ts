@@ -143,8 +143,6 @@ export interface Student {
   canteen_days_per_week?: number
   canteen_days?: string[]
 
-
-
   uniform_tshirt_purchased?: boolean
   uniform_apron_purchased?: boolean
   uniform_shorts_purchased?: boolean
@@ -160,7 +158,16 @@ export interface Payment {
   student_id: string
   payment_date: string
   amount: number
-  payment_type: 'tuition' | 'bus' | 'canteen' | 'enrollment' | 'reenrollment' | 'fram' | 'uniform' | 'event' | 'other'
+  payment_type:
+    | 'tuition'
+    | 'bus'
+    | 'canteen'
+    | 'enrollment'
+    | 'reenrollment'
+    | 'fram'
+    | 'uniform'
+    | 'event'
+    | 'other'
   month?: string // "2025-09"
   description?: string
   payment_method?: 'cash' | 'check' | 'transfer' | 'mobile_money' | 'discount'
@@ -216,6 +223,7 @@ export interface FeeRecord {
 
   monthly_tuition: number
   fram_paid_by_parent: boolean
+  is_reenrollment?: boolean | number
 
   created_at?: string
   updated_at?: string

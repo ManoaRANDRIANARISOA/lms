@@ -97,8 +97,9 @@ export default function ReportsPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold mb-2">Rapports & Exports</h1>
         <p className="text-sm text-gray-500 max-w-3xl">
-          Ce module vous permet de générer des rapports globaux sur la santé financière et administrative de l'établissement.
-          Sélectionnez la période (Mois/Année) et cliquez sur l'une des cartes pour afficher le rapport correspondant.
+          Ce module vous permet de générer des rapports globaux sur la santé financière et
+          administrative de l'établissement. Sélectionnez la période (Mois/Année) et cliquez sur
+          l'une des cartes pour afficher le rapport correspondant.
         </p>
       </div>
 
@@ -177,13 +178,15 @@ export default function ReportsPage() {
       {/* Messages d'erreur ou d'état vide */}
       {financeReport && financeReport.total_income === 0 && financeReport.total_expense === 0 && (
         <div className="mb-6 p-4 bg-amber-50 text-amber-800 rounded-lg border border-amber-200">
-          Aucune transaction financière n'a été trouvée pour ce mois ({financeReport.month}/{financeReport.year}).
+          Aucune transaction financière n'a été trouvée pour ce mois ({financeReport.month}/
+          {financeReport.year}).
         </div>
       )}
 
       {payrollReport && payrollReport.total_payroll === 0 && (
         <div className="mb-6 p-4 bg-amber-50 text-amber-800 rounded-lg border border-amber-200">
-          Aucun salaire n'a été enregistré ou payé pour ce mois ({payrollReport.month}/{payrollReport.year}).
+          Aucun salaire n'a été enregistré ou payé pour ce mois ({payrollReport.month}/
+          {payrollReport.year}).
         </div>
       )}
 

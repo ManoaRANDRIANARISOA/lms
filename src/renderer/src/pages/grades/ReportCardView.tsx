@@ -108,9 +108,11 @@ export default function ReportCardView(): React.JSX.Element {
                   class_name: student.class || '',
                   school_year: schoolYear,
                   term,
-                  termName: term === 4 
-                    ? 'Bilan Annuel' 
-                    : assessments.find((a) => a.term_value === term)?.name || `Trimestre ${term}`
+                  termName:
+                    term === 4
+                      ? 'Bilan Annuel'
+                      : assessments.find((a) => a.term_value === term)?.name || `Trimestre ${term}`,
+                  photo_path: student.photo_path
                 },
                 gradesData,
                 average
@@ -169,9 +171,9 @@ export default function ReportCardView(): React.JSX.Element {
           <h2 className="text-xl font-bold">Lycée Manjary Soa</h2>
           <p className="text-sm text-muted-foreground">
             Bulletin de notes — {schoolYear} —{' '}
-            {term === 4 
-               ? 'Bilan Annuel' 
-               : assessments.find((a) => a.term_value === term)?.name || `Trimestre ${term}`}
+            {term === 4
+              ? 'Bilan Annuel'
+              : assessments.find((a) => a.term_value === term)?.name || `Trimestre ${term}`}
           </p>
         </div>
         <div className="border-t pt-4 grid grid-cols-2 gap-4 text-sm">
@@ -285,11 +287,11 @@ export default function ReportCardView(): React.JSX.Element {
 
       {/* Décision de passage pour le Bilan Annuel */}
       {term === 4 && average > 0 && (
-        <div className={`border rounded-lg p-6 text-center shadow-sm ${average >= 10 ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+        <div
+          className={`border rounded-lg p-6 text-center shadow-sm ${average >= 10 ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}
+        >
           <h3 className="text-2xl font-bold mb-2">Décision du Conseil de Classe</h3>
-          <p className="text-lg">
-            {average >= 10 ? 'Admis(e) en classe supérieure' : 'Redouble'}
-          </p>
+          <p className="text-lg">{average >= 10 ? 'Admis(e) en classe supérieure' : 'Redouble'}</p>
         </div>
       )}
     </div>

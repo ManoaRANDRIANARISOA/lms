@@ -64,6 +64,8 @@ interface StudentStore {
     class?: string
     status?: string
     schoolYear?: string
+    sortField?: string
+    sortDirection?: 'asc' | 'desc'
   }) => Promise<void>
   getStudent: (id: string, schoolYear?: string) => Promise<void>
   createStudent: (data: Partial<Student>) => Promise<boolean>
@@ -140,7 +142,6 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
             console.error('Failed to record initial payment:', paymentErr)
           }
         }
-        await get().fetchStudents()
         return true
       } else {
         set({ error: result.error, loading: false })
@@ -157,7 +158,6 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
     try {
       const result = await window.api.student.update(id, data)
       if (result.success) {
-        await get().fetchStudents()
         const current = get().currentStudent
         if (current && current.id === id) {
           await get().getStudent(id)
@@ -177,10 +177,10 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
     set({ loading: true, error: null })
     try {
       const result = await window.api.student.delete(id)
-      if (result.success) {
-        await get().fetchStudents()
-      } else {
+      if (!result.success) {
         set({ error: result.error, loading: false })
+      } else {
+        set({ loading: false })
       }
     } catch (error: unknown) {
       handleStoreError(error, set, 'Delete student')

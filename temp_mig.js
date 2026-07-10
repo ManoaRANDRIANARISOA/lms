@@ -1,5 +1,5 @@
-const Database = require('better-sqlite3');
-const db = new Database('database.sqlite');
+const Database = require('better-sqlite3')
+const db = new Database('database.sqlite')
 db.exec(`
 CREATE TABLE IF NOT EXISTS payroll_ignores (
   id TEXT PRIMARY KEY,
@@ -10,5 +10,5 @@ CREATE TABLE IF NOT EXISTS payroll_ignores (
   FOREIGN KEY(personnel_id) REFERENCES personnel(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_payroll_ignores_personnel_month ON payroll_ignores(personnel_id, month);
-`);
-console.log('Migration OK');
+`)
+console.log('Migration OK')

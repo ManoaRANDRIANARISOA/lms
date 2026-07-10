@@ -41,8 +41,15 @@ const BEHAVIOR_LABELS: Record<string, string> = {
 export default function GradeEntry(): React.JSX.Element {
   const navigate = useNavigate()
   const canWrite = useAuthStore((s) => s.canWrite)
-  const { classSubjects, fetchClassSubjects, createGrade, updateGrade, deleteGrade, loading, error } =
-    useGradeStore()
+  const {
+    classSubjects,
+    fetchClassSubjects,
+    createGrade,
+    updateGrade,
+    deleteGrade,
+    loading,
+    error
+  } = useGradeStore()
 
   const { classes: ALL_CLASSES } = useClasses()
   const [selectedClass, setSelectedClass] = useState('')
@@ -87,10 +94,10 @@ export default function GradeEntry(): React.JSX.Element {
       return
     }
     try {
-      const result = await window.api.student.list({ 
+      const result = await window.api.student.list({
         class: selectedClass,
         schoolYear: schoolYear,
-        status: 'Inscrit' 
+        status: 'Inscrit'
       })
       const studentList = result.students || []
       if (studentList.length > 0) {
@@ -275,12 +282,18 @@ export default function GradeEntry(): React.JSX.Element {
           <Layers className="w-4 h-4" />
           Classes :
         </div>
-        
+
         {ALL_CLASSES.map((c) => (
           <React.Fragment key={c}>
             {['CP1', '6ème', '2nde', 'TPS'].includes(c) && (
               <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1 mr-1 shrink-0">
-                {c === 'CP1' ? 'Primaire' : c === '6ème' ? 'Collège' : c === '2nde' ? 'Lycée' : 'Autres'}
+                {c === 'CP1'
+                  ? 'Primaire'
+                  : c === '6ème'
+                    ? 'Collège'
+                    : c === '2nde'
+                      ? 'Lycée'
+                      : 'Autres'}
               </div>
             )}
             {c === 'PS' && (
@@ -313,7 +326,9 @@ export default function GradeEntry(): React.JSX.Element {
       {/* Secondary Filtres (Matière, Trimestre, Année) */}
       <div className="bg-white rounded-2xl border shadow-sm p-5 flex flex-col md:flex-row gap-6 items-end">
         <div className="flex-1 w-full">
-          <Label className="text-gray-500 text-xs uppercase tracking-wider mb-2 block">Matière</Label>
+          <Label className="text-gray-500 text-xs uppercase tracking-wider mb-2 block">
+            Matière
+          </Label>
           <select
             value={selectedSubject}
             onChange={(e) => setSelectedSubject(e.target.value)}
@@ -339,9 +354,11 @@ export default function GradeEntry(): React.JSX.Element {
             </p>
           )}
         </div>
-        
+
         <div className="w-full md:w-64">
-          <Label className="text-gray-500 text-xs uppercase tracking-wider mb-2 block">Trimestre / Évaluation</Label>
+          <Label className="text-gray-500 text-xs uppercase tracking-wider mb-2 block">
+            Trimestre / Évaluation
+          </Label>
           <select
             value={selectedTerm}
             onChange={(e) => setSelectedTerm(Number(e.target.value))}
@@ -362,12 +379,14 @@ export default function GradeEntry(): React.JSX.Element {
             )}
           </select>
         </div>
-        
+
         <div className="w-full md:w-48">
-          <Label className="text-gray-500 text-xs uppercase tracking-wider mb-2 block">Année scolaire</Label>
-          <Input 
-            value={schoolYear} 
-            onChange={(e) => setSchoolYear(e.target.value)} 
+          <Label className="text-gray-500 text-xs uppercase tracking-wider mb-2 block">
+            Année scolaire
+          </Label>
+          <Input
+            value={schoolYear}
+            onChange={(e) => setSchoolYear(e.target.value)}
             className="border-gray-200 rounded-lg bg-gray-50 focus:bg-white"
           />
         </div>
@@ -391,9 +410,15 @@ export default function GradeEntry(): React.JSX.Element {
               <thead className="bg-gray-50/80 border-b">
                 <tr>
                   <th className="px-6 py-4 font-semibold text-gray-600">Élève</th>
-                  <th className="px-4 py-4 font-semibold text-gray-600 text-center w-24">{label1}</th>
-                  <th className="px-4 py-4 font-semibold text-gray-600 text-center w-24">{label2}</th>
-                  <th className="px-4 py-4 font-semibold text-gray-600 text-center w-28">Note Déf.</th>
+                  <th className="px-4 py-4 font-semibold text-gray-600 text-center w-24">
+                    {label1}
+                  </th>
+                  <th className="px-4 py-4 font-semibold text-gray-600 text-center w-24">
+                    {label2}
+                  </th>
+                  <th className="px-4 py-4 font-semibold text-gray-600 text-center w-28">
+                    Note Déf.
+                  </th>
                   <th className="px-4 py-4 font-semibold text-gray-600 text-center w-24">Coef.</th>
                   <th className="px-6 py-4 font-semibold text-gray-600">Commentaire</th>
                   <th className="px-6 py-4 font-semibold text-gray-600 w-40">Comportement</th>
@@ -480,7 +505,11 @@ export default function GradeEntry(): React.JSX.Element {
           </div>
           {canWrite('grades') && (
             <div className="p-5 border-t bg-gray-50/50 flex justify-end">
-              <Button onClick={handleSaveAll} disabled={loading} className="shadow-md hover:shadow-lg transition-all">
+              <Button
+                onClick={handleSaveAll}
+                disabled={loading}
+                className="shadow-md hover:shadow-lg transition-all"
+              >
                 <Save className="w-4 h-4 mr-2" />
                 Enregistrer les notes
               </Button>

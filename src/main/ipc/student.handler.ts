@@ -88,7 +88,7 @@ export function registerStudentHandlers(): void {
     if (!canWrite('students')) {
       return { success: false, error: 'Accès refusé: modification élève' }
     }
-    
+
     // Upload new photo if present and changed
     if (updates.photo_path) {
       updates.photo_path = await uploadToStorage(updates.photo_path as string, 'students')
@@ -134,23 +134,33 @@ export function registerStudentHandlers(): void {
   // --------------------------------------------
   // RE-ENROLL STUDENT
   // --------------------------------------------
-  ipcMain.handle('student:reEnroll', async (_, id, newClass, targetYear, initialPaymentDroit, initialPaymentFram, isNewStudent) => {
-    if (!canWrite('students')) {
-      return { success: false, error: 'Accès refusé: réinscription élève' }
-    }
-    const result = StudentRepository.reEnroll(id, newClass, targetYear, initialPaymentDroit, initialPaymentFram, isNewStudent)
-    if (result.success) {
-      logAction(
-        getCurrentUser()?.id || null,
-        'reEnroll',
-        'students',
+  ipcMain.handle(
+    'student:reEnroll',
+    async (_, id, newClass, targetYear, initialPaymentDroit, initialPaymentFram, isNewStudent) => {
+      if (!canWrite('students')) {
+        return { success: false, error: 'Accès refusé: réinscription élève' }
+      }
+      const result = StudentRepository.reEnroll(
         id,
-        null,
-        JSON.stringify({ newClass, targetYear })
+        newClass,
+        targetYear,
+        initialPaymentDroit,
+        initialPaymentFram,
+        isNewStudent
       )
+      if (result.success) {
+        logAction(
+          getCurrentUser()?.id || null,
+          'reEnroll',
+          'students',
+          id,
+          null,
+          JSON.stringify({ newClass, targetYear })
+        )
+      }
+      return result
     }
-    return result
-  })
+  )
 
   // --------------------------------------------
   // SERVICE STATS
@@ -192,5 +202,9 @@ export function registerStudentHandlers(): void {
       return { success: false, error: 'Opération non autorisée en production' }
     }
     return StudentRepository.resetDatabase(includeRemote)
+  })
+
+  ipcMain.handle('student:repairSync', async () => {
+    return StudentRepository.repairSync()
   })
 }

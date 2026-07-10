@@ -118,12 +118,10 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     isPaid: false
   })
 
-
-
   // Listen for custom event from StudentDetail to open the payment modal (e.g. from Dossier tab)
   useEffect(() => {
     const handler = (e: CustomEvent) => {
-      setFormData(prev => ({ ...prev, payment_type: e.detail, month: '' }))
+      setFormData((prev) => ({ ...prev, payment_type: e.detail, month: '' }))
       setExpectedAmountOverride('')
       setIsAddPaymentOpen(true)
     }
@@ -182,7 +180,11 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     const currentRecord = status?.feeRecord || feeRecord
 
     if (formData.payment_type === 'tuition') {
-      const cost = getTuitionCost(currentRecord, configPrices, Boolean(studentInfo?.is_personnel_child))
+      const cost = getTuitionCost(
+        currentRecord,
+        configPrices,
+        Boolean(studentInfo?.is_personnel_child)
+      )
       if (cost > 0) suggestedAmount = cost.toString()
     } else if (formData.payment_type === 'canteen') {
       const cost = getCanteenCost(currentRecord, configPrices)
@@ -246,7 +248,11 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
         const currentFeeRecord = status?.feeRecord || feeRecord
 
         if (formData.payment_type === 'tuition') {
-          monthlyCost = getTuitionCost(currentFeeRecord, configPrices, Boolean(studentInfo?.is_personnel_child))
+          monthlyCost = getTuitionCost(
+            currentFeeRecord,
+            configPrices,
+            Boolean(studentInfo?.is_personnel_child)
+          )
         } else if (formData.payment_type === 'bus') {
           monthlyCost = getBusCost(currentFeeRecord, configPrices)
         } else if (formData.payment_type === 'canteen') {
@@ -259,9 +265,13 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           )
           const paidAmount = existingPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
           const actualBalance = monthlyCost - paidAmount
-          
+
           const expectedOverride = parseFloat(expectedAmountOverride)
-          if (!isNaN(expectedOverride) && expectedOverride < actualBalance && expectedOverride >= 0) {
+          if (
+            !isNaN(expectedOverride) &&
+            expectedOverride < actualBalance &&
+            expectedOverride >= 0
+          ) {
             // The user lowered the expected amount, meaning the difference is a discount
             discount = actualBalance - expectedOverride
           }
@@ -303,7 +313,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
         }
 
         result = await window.api.payment.create(paymentData)
-        
+
         // Handle discount if provided
         if (result.success && discount > 0) {
           const discountData = {
@@ -342,8 +352,6 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
 
   const totalPaid = payments.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
 
-
-
   const busFeeRecord = status?.feeRecord || feeRecord
 
   // Determine if student is new or returning
@@ -351,15 +359,23 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
   const studentEnrollmentYear = studentInfo
     ? parseInt(studentInfo.enrollment_date.split('-')[0])
     : currentStartYear
-  const isReturning = studentEnrollmentYear < currentStartYear
+  const hasReenrollmentPayment = payments.some((p) => p.payment_type === 'reenrollment')
+  const isReturning =
+    studentEnrollmentYear < currentStartYear ||
+    studentInfo?.student_status === 'Ancien' ||
+    hasReenrollmentPayment ||
+    busFeeRecord?.is_reenrollment === 1 ||
+    busFeeRecord?.is_reenrollment === true
 
   const enrollmentType = isReturning ? 'reenrollment' : 'enrollment'
   const enrollmentLabel = isReturning ? 'Réinscription' : "Frais d'inscription"
-  
+
   const enrollmentExpected = isReturning ? configPrices?.reenrollment : configPrices?.registration
-  const enrollmentPaidAmt = payments.filter(p => p.payment_type === enrollmentType).reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+  const enrollmentPaidAmt = payments
+    .filter((p) => p.payment_type === enrollmentType)
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
   const enrollmentBalance = (enrollmentExpected || 0) - enrollmentPaidAmt
-  
+
   const getEnrollmentStatus = () => {
     if (enrollmentPaidAmt >= (enrollmentExpected || 0) && enrollmentPaidAmt > 0) return 'paid'
     if (enrollmentPaidAmt > 0) return 'partial'
@@ -367,12 +383,16 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
   }
 
   const framExpected = configPrices?.fram || 0
-  const framPaidAmt = payments.filter(p => p.payment_type === 'fram').reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
-  const framBalance = (framFratrieStatus.isPaid || busFeeRecord?.fram_paid_by_parent) ? 0 : (framExpected - framPaidAmt)
-  
+  const framPaidAmt = payments
+    .filter((p) => p.payment_type === 'fram')
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+  const framBalance =
+    framFratrieStatus.isPaid || busFeeRecord?.fram_paid_by_parent ? 0 : framExpected - framPaidAmt
+
   const getFramStatus = () => {
     if (framFratrieStatus.isPaid) return 'paid_fratrie'
-    if (busFeeRecord?.fram_paid_by_parent || (framPaidAmt >= framExpected && framPaidAmt > 0)) return 'paid'
+    if (busFeeRecord?.fram_paid_by_parent || (framPaidAmt >= framExpected && framPaidAmt > 0))
+      return 'paid'
     if (framPaidAmt > 0) return 'partial'
     return 'pending'
   }
@@ -457,7 +477,11 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     if (!service.enabled) return
 
     if (!status?.feeRecord && service.id !== 'other') {
-      alert("Cet élève n'est pas encore inscrit dans une classe pour l'année " + schoolYear + ". Veuillez d'abord l'inscrire via le bouton 'Inscrire' en haut à droite.")
+      alert(
+        "Cet élève n'est pas encore inscrit dans une classe pour l'année " +
+          schoolYear +
+          ". Veuillez d'abord l'inscrire via le bouton 'Inscrire' en haut à droite."
+      )
       return
     }
 
@@ -469,7 +493,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
       } else if (service.status === 'paid_fratrie') {
         alert('Cette cotisation a déjà été couverte par un membre de la fratrie.')
       } else {
-        alert('Le paiement a été enregistré avec l\'inscription.')
+        alert("Le paiement a été enregistré avec l'inscription.")
       }
     } else {
       setFormData((prev) => ({
@@ -486,7 +510,11 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
 
   const handleMonthClick = (type: string, monthData: MonthStatus) => {
     if (!status?.feeRecord) {
-      alert("Cet élève n'est pas encore inscrit dans une classe pour l'année " + schoolYear + ". Veuillez d'abord l'inscrire via le bouton 'Inscrire' en haut à droite.")
+      alert(
+        "Cet élève n'est pas encore inscrit dans une classe pour l'année " +
+          schoolYear +
+          ". Veuillez d'abord l'inscrire via le bouton 'Inscrire' en haut à droite."
+      )
       return
     }
 
@@ -595,12 +623,14 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                 }`}
               >
                 {month.expected === 0 && type === 'tuition'
-                  ? 'EXONÉRÉ'
+                  ? studentInfo?.student_status === 'Non inscrit' || !status?.feeRecord
+                    ? 'NON INSCRIT'
+                    : 'EXONÉRÉ'
                   : month.status === 'paid'
-                  ? 'PAYÉ'
-                  : month.status === 'partial'
-                    ? `Reste: ${month.balance?.toLocaleString()} Ar`
-                    : `${(month.cost || month.expected || 0).toLocaleString()} Ar`}
+                    ? 'PAYÉ'
+                    : month.status === 'partial'
+                      ? `Reste: ${month.balance?.toLocaleString()} Ar`
+                      : `${(month.cost || month.expected || 0).toLocaleString()} Ar`}
               </span>
             </div>
           ))}
@@ -621,12 +651,16 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
             <span className="text-sm font-medium truncate">Écolage Mensuel</span>
           </div>
           <p
-            className={`text-2xl font-bold truncate ${studentInfo?.is_personnel_child ? 'text-purple-600 text-lg' : 'text-gray-900'}`}
-            title={`${(studentInfo?.is_personnel_child ? 0 : (configPrices?.tuition?.[status?.feeRecord?.tuition_level ?? ''] || status?.feeRecord?.monthly_tuition || 0)).toLocaleString()} Ar`}
+            className={`text-2xl font-bold truncate ${studentInfo?.is_personnel_child && studentInfo?.student_status !== 'Non inscrit' && status?.feeRecord ? 'text-purple-600 text-lg' : 'text-gray-900'}`}
+            title={`${(studentInfo?.is_personnel_child && studentInfo?.student_status !== 'Non inscrit' && status?.feeRecord ? 0 : configPrices?.tuition?.[status?.feeRecord?.tuition_level ?? ''] || status?.feeRecord?.monthly_tuition || 0).toLocaleString()} Ar`}
           >
-            {studentInfo?.is_personnel_child
+            {studentInfo?.is_personnel_child &&
+            studentInfo?.student_status !== 'Non inscrit' &&
+            status?.feeRecord
               ? 'EXONÉRÉ (Enfant Personnel)'
-              : `${(configPrices?.tuition?.[status?.feeRecord?.tuition_level ?? ''] || status?.feeRecord?.monthly_tuition || 0).toLocaleString()} Ar`}
+              : studentInfo?.student_status === 'Non inscrit' || !status?.feeRecord
+                ? 'NON INSCRIT'
+                : `${(configPrices?.tuition?.[status?.feeRecord?.tuition_level ?? ''] || status?.feeRecord?.monthly_tuition || 0).toLocaleString()} Ar`}
           </p>
           <p className="text-xs text-gray-500 truncate">
             Niveau: {status?.feeRecord?.tuition_level || '-'}
@@ -718,9 +752,12 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {events.map((event) => {
-              const isPaid = event.family_payment_status?.is_paid;
-              const balance = Math.max(0, event.amount_per_parent - (event.family_payment_status?.total_paid || 0));
-              
+              const isPaid = event.family_payment_status?.is_paid
+              const balance = Math.max(
+                0,
+                event.amount_per_parent - (event.family_payment_status?.total_paid || 0)
+              )
+
               return (
                 <div
                   key={event.id}
@@ -736,7 +773,10 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                   `}
                 >
                   <div className="flex items-start justify-between mb-2">
-                    <h4 className="font-semibold text-gray-800 leading-tight" title={event.event_name}>
+                    <h4
+                      className="font-semibold text-gray-800 leading-tight"
+                      title={event.event_name}
+                    >
                       {event.event_name}
                     </h4>
                     {isPaid ? (
@@ -747,25 +787,25 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                       <XCircle className="w-6 h-6 text-rose-400 flex-shrink-0 ml-2" />
                     )}
                   </div>
-                  
+
                   <div className="mt-auto pt-4 flex flex-col">
                     <div className="text-xs text-gray-500 mb-1 flex items-center">
                       <Calendar className="w-3 h-3 mr-1" />
                       {format(new Date(event.event_date), 'dd MMM yyyy', { locale: fr })}
                     </div>
-                    
+
                     <div className="flex items-center justify-between">
                       <span
                         className={`text-sm font-bold ${
-                          isPaid 
-                            ? 'text-indigo-700' 
-                            : balance < event.amount_per_parent 
-                              ? 'text-yellow-700' 
+                          isPaid
+                            ? 'text-indigo-700'
+                            : balance < event.amount_per_parent
+                              ? 'text-yellow-700'
                               : 'text-rose-700'
                         }`}
                       >
-                        {isPaid 
-                          ? 'RÉGLÉ (FRATRIE)' 
+                        {isPaid
+                          ? 'RÉGLÉ (FRATRIE)'
                           : balance < event.amount_per_parent
                             ? `RESTE: ${balance.toLocaleString()} Ar`
                             : `${event.amount_per_parent.toLocaleString()} Ar`}
@@ -773,7 +813,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                     </div>
                   </div>
                 </div>
-              );
+              )
             })}
           </div>
         </div>
@@ -826,10 +866,12 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                 value={formData.month}
                 onChange={(e) => {
                   setFormData({ ...formData, month: e.target.value })
-                  
+
                   // Auto-fill the expectedAmountOverride when a month is selected
                   if (e.target.value) {
-                    const selectedMonthData = getMonthsForPaymentType().find(m => m.key === e.target.value)
+                    const selectedMonthData = getMonthsForPaymentType().find(
+                      (m) => m.key === e.target.value
+                    )
                     if (selectedMonthData && selectedMonthData.balance !== undefined) {
                       setExpectedAmountOverride(selectedMonthData.balance.toString())
                     } else {
@@ -899,11 +941,16 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
 
           {/* Expected amount override if partial payment on a monthly fee */}
           {(() => {
-            if (!['tuition', 'canteen', 'bus'].includes(formData.payment_type) || !formData.month) return null
+            if (!['tuition', 'canteen', 'bus'].includes(formData.payment_type) || !formData.month)
+              return null
             let monthlyCost = 0
             const currentFeeRecord = status?.feeRecord || feeRecord
             if (formData.payment_type === 'tuition') {
-              monthlyCost = getTuitionCost(currentFeeRecord, configPrices, Boolean(studentInfo?.is_personnel_child))
+              monthlyCost = getTuitionCost(
+                currentFeeRecord,
+                configPrices,
+                Boolean(studentInfo?.is_personnel_child)
+              )
             } else if (formData.payment_type === 'bus') {
               monthlyCost = getBusCost(currentFeeRecord, configPrices)
             } else if (formData.payment_type === 'canteen') {
@@ -915,9 +962,10 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
             const paidAmount = existingPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
             const actualBalance = monthlyCost - paidAmount
             const expectedOverride = parseFloat(expectedAmountOverride)
-            const discountCalculated = (!isNaN(expectedOverride) && expectedOverride < actualBalance && expectedOverride >= 0) 
-              ? actualBalance - expectedOverride 
-              : 0
+            const discountCalculated =
+              !isNaN(expectedOverride) && expectedOverride < actualBalance && expectedOverride >= 0
+                ? actualBalance - expectedOverride
+                : 0
 
             return (
               <div className="grid gap-2 mb-4 p-3 bg-gray-50 border border-gray-200 rounded-md">
@@ -932,11 +980,13 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                   onChange={(e) => setExpectedAmountOverride(e.target.value)}
                 />
                 <p className="text-xs text-gray-500">
-                  Par défaut, le système attend {actualBalance.toLocaleString()} Ar. Modifiez cette valeur si un tarif réduit a été convenu pour ce mois spécifiquement.
+                  Par défaut, le système attend {actualBalance.toLocaleString()} Ar. Modifiez cette
+                  valeur si un tarif réduit a été convenu pour ce mois spécifiquement.
                 </p>
                 {discountCalculated > 0 && (
                   <p className="text-xs text-orange-600 font-medium">
-                    Une remise de {discountCalculated.toLocaleString()} Ar sera automatiquement appliquée pour ajuster le solde.
+                    Une remise de {discountCalculated.toLocaleString()} Ar sera automatiquement
+                    appliquée pour ajuster le solde.
                   </p>
                 )}
               </div>
@@ -1003,7 +1053,9 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
               <div>
                 <Label>Mode de paiement</Label>
                 <p className="text-sm font-medium capitalize">
-                  {selectedPayment.payment_method === 'discount' ? 'Remise' : selectedPayment.payment_method}
+                  {selectedPayment.payment_method === 'discount'
+                    ? 'Remise'
+                    : selectedPayment.payment_method}
                 </p>
               </div>
               <div>
@@ -1011,7 +1063,9 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                 <p className="text-sm font-medium capitalize">
                   {selectedPayment.payment_type === 'enrollment'
                     ? "Frais d'inscription"
-                    : selectedPayment.payment_type}
+                    : selectedPayment.payment_type === 'reenrollment'
+                      ? 'Frais de réinscription'
+                      : selectedPayment.payment_type}
                 </p>
               </div>
             </div>
@@ -1033,12 +1087,11 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
       {/* Monthly Tracking Grid (Tuition) */}
       {!status?.feeRecord ? (
         <div className="bg-amber-50 p-6 rounded-lg shadow border border-amber-200 mt-6 text-center">
-          <h3 className="text-lg font-semibold text-amber-800 mb-2">
-            Élève non inscrit
-          </h3>
+          <h3 className="text-lg font-semibold text-amber-800 mb-2">Élève non inscrit</h3>
           <p className="text-amber-700">
-            Cet élève n'est pas encore inscrit dans une classe pour l'année scolaire {schoolYear}. 
-            Veuillez l'inscrire via le bouton "Inscrire" en haut de la page pour activer le suivi des paiements.
+            Cet élève n'est pas encore inscrit dans une classe pour l'année scolaire {schoolYear}.
+            Veuillez l'inscrire via le bouton "Inscrire" en haut de la page pour activer le suivi
+            des paiements.
           </p>
         </div>
       ) : (
@@ -1090,11 +1143,13 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                           ? 'Écolage'
                           : payment.payment_type === 'enrollment'
                             ? 'Inscription'
-                            : payment.payment_type === 'bus'
-                              ? 'Transport'
-                              : payment.payment_type === 'canteen'
-                                ? 'Cantine'
-                                : payment.payment_type}
+                            : payment.payment_type === 'reenrollment'
+                              ? 'Réinscription'
+                              : payment.payment_type === 'bus'
+                                ? 'Transport'
+                                : payment.payment_type === 'canteen'
+                                  ? 'Cantine'
+                                  : payment.payment_type}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-gray-500">

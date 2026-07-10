@@ -68,7 +68,7 @@ export function registerSettingsHandlers(): void {
     if (!canWrite('settings')) {
       return { success: false, error: 'Accès refusé: modification paramètres' }
     }
-    
+
     // Upload school logo if provided as a local path
     let finalValue = value
     if (key === 'school_logo' && typeof value === 'string') {

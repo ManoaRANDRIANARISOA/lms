@@ -49,10 +49,10 @@ export default function PersonnelPayroll(): React.JSX.Element {
             // Tous les impayés (remonter jusqu'à 12 mois maximum ou depuis hire_date)
             const monthsToCheck: string[] = []
 
-            // Generates up to 12 months in the past, regardless of hire_date, 
+            // Generates up to 12 months in the past, regardless of hire_date,
             // so we can catch any manually added hours before hire_date.
             const endDate = new Date() // current
-            
+
             const limitDate = new Date()
             limitDate.setMonth(limitDate.getMonth() - 12)
             limitDate.setDate(1)
@@ -60,10 +60,16 @@ export default function PersonnelPayroll(): React.JSX.Element {
             const actualStart = limitDate
 
             const curr = new Date(actualStart)
+
+            // Limit by hire_date if present
+            const hireDate = p.hire_date ? new Date(p.hire_date) : new Date('2000-01-01')
+            const hireMonthStr = `${hireDate.getFullYear()}-${String(hireDate.getMonth() + 1).padStart(2, '0')}`
+
             while (curr <= endDate) {
-              monthsToCheck.push(
-                `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}`
-              )
+              const monthStr = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}`
+              if (monthStr >= hireMonthStr) {
+                monthsToCheck.push(monthStr)
+              }
               curr.setMonth(curr.getMonth() + 1)
             }
             // always include current month just in case

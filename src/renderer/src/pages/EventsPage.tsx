@@ -116,7 +116,11 @@ export default function EventsPage() {
   const handleCreateEvent = async () => {
     const targetYear = getSchoolYearFromDate(newEvent.event_date)
     if (targetYear !== schoolYear) {
-      if (!confirm(`Attention, la date de cet événement correspond à l'année scolaire ${targetYear}.\n\nVoulez-vous tout de même l'enregistrer sous cette année ?\n\nSi vous vous êtes trompé de date, cliquez sur "Annuler" pour rectifier.`)) {
+      if (
+        !confirm(
+          `Attention, la date de cet événement correspond à l'année scolaire ${targetYear}.\n\nVoulez-vous tout de même l'enregistrer sous cette année ?\n\nSi vous vous êtes trompé de date, cliquez sur "Annuler" pour rectifier.`
+        )
+      ) {
         return
       }
     }
@@ -203,9 +207,13 @@ export default function EventsPage() {
   const handleUpdateEvent = async () => {
     if (!selectedEvent) return
     const targetYear = getSchoolYearFromDate(newEvent.event_date)
-    
+
     if (targetYear !== selectedEvent.school_year && targetYear !== schoolYear) {
-      if (!confirm(`Attention, la nouvelle date correspond à l'année scolaire ${targetYear}. Voulez-vous la déplacer dans cette année ?`)) {
+      if (
+        !confirm(
+          `Attention, la nouvelle date correspond à l'année scolaire ${targetYear}. Voulez-vous la déplacer dans cette année ?`
+        )
+      ) {
         return
       }
     }
@@ -236,7 +244,7 @@ export default function EventsPage() {
         <div>
           <div className="flex items-center gap-4">
             <h1 className="text-2xl font-bold tracking-tight">Événements Parents</h1>
-            <select 
+            <select
               className="border rounded-md px-3 py-1 text-sm bg-white shadow-sm"
               value={schoolYear}
               onChange={(e) => setSchoolYear(e.target.value)}
@@ -400,38 +408,38 @@ export default function EventsPage() {
                       })
                       .map((p) => (
                         <tr key={p.id} className="hover:bg-gray-50/50">
-                        <td className="px-4 py-3 font-medium">
-                          {p.last_name} {p.first_name}
-                        </td>
-                        <td className="px-4 py-3 text-gray-500">{p.class}</td>
-                        <td className="px-4 py-3 text-right font-mono">
-                          {p.amount_due.toLocaleString()} Ar
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          {p.paid ? (
-                            <span className="inline-flex items-center text-green-600 bg-green-50 px-2 py-1 rounded-full text-xs font-medium">
-                              <CheckCircle2 className="w-3 h-3 mr-1" /> Payé
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center text-red-600 bg-red-50 px-2 py-1 rounded-full text-xs font-medium">
-                              <XCircle className="w-3 h-3 mr-1" /> Non Payé
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          {!p.paid && canWrite('events') && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                              onClick={() => handlePayment(p)}
-                            >
-                              Encaisser
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          <td className="px-4 py-3 font-medium">
+                            {p.last_name} {p.first_name}
+                          </td>
+                          <td className="px-4 py-3 text-gray-500">{p.class}</td>
+                          <td className="px-4 py-3 text-right font-mono">
+                            {p.amount_due.toLocaleString()} Ar
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {p.paid ? (
+                              <span className="inline-flex items-center text-green-600 bg-green-50 px-2 py-1 rounded-full text-xs font-medium">
+                                <CheckCircle2 className="w-3 h-3 mr-1" /> Payé
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center text-red-600 bg-red-50 px-2 py-1 rounded-full text-xs font-medium">
+                                <XCircle className="w-3 h-3 mr-1" /> Non Payé
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {!p.paid && canWrite('events') && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                onClick={() => handlePayment(p)}
+                              >
+                                Encaisser
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
                     {participation.length === 0 && (
                       <tr>
                         <td colSpan={5} className="p-8 text-center text-gray-400">

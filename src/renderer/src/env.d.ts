@@ -100,6 +100,7 @@ interface AuthAPI {
 // --------------------------------------------
 interface DialogAPI {
   openFile: () => Promise<{ filePath: string; preview: string | null } | null>
+  confirmSync: (message: string) => boolean
 }
 
 // --------------------------------------------
@@ -168,7 +169,10 @@ interface APIType {
       data: Partial<Student> & Record<string, unknown>
     ) => Promise<{ success: boolean; id?: string; registration_number?: string; error?: string }>
     list: (filters?: StudentFilters) => Promise<{ students: Student[]; total: number }>
-    get: (id: string, schoolYear?: string) => Promise<{
+    get: (
+      id: string,
+      schoolYear?: string
+    ) => Promise<{
       success: boolean
       student?: Student
       fees?: FeeRecord
@@ -194,6 +198,7 @@ interface APIType {
       targetYear: string
     ) => Promise<{ success: boolean; fixedCount?: number; error?: string }>
 
+    repairSync: () => Promise<{ success: boolean; error?: string }>
     resetDatabase: (includeRemote: boolean) => Promise<{ success: boolean; error?: string }>
   }
   payment: {
@@ -346,9 +351,7 @@ interface APIType {
       personnelId: string,
       month: string
     ) => Promise<{ success: boolean; calculation?: SalaryCalculation; error?: string }>
-    getPayrollSummary: (
-      month: string
-    ) => Promise<{
+    getPayrollSummary: (month: string) => Promise<{
       success: boolean
       summary?: Record<
         string,
@@ -618,6 +621,7 @@ interface APIType {
         school_year: string
         term: number
         termName?: string
+        photo_path?: string
       },
       grades: Array<{ subject: string; grade: number; coefficient: number; average: number }>,
       generalAverage: number

@@ -62,4 +62,19 @@ export function registerDialogHandlers(): void {
       }
     }
   })
+
+  // --------------------------------------------
+  // CONFIRM DIALOG (Sync)
+  // --------------------------------------------
+  ipcMain.on('dialog:confirmSync', (event, message) => {
+    const result = dialog.showMessageBoxSync({
+      type: 'question',
+      buttons: ['Oui', 'Non'],
+      defaultId: 1, // Non by default
+      cancelId: 1,
+      title: 'Confirmation',
+      message: message
+    })
+    event.returnValue = result === 0 // 0 is "Oui"
+  })
 }

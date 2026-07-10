@@ -96,7 +96,7 @@ export class PdfService {
       doc.setFontSize(9)
       doc.setFont('helvetica', 'normal')
       doc.text('Lot H 61 Miadana Alasora, Antananarivo', 74, 24, { align: 'center' })
-      
+
       // Separator
       doc.setDrawColor(200, 200, 200)
       doc.setLineWidth(0.5)
@@ -157,7 +157,14 @@ export class PdfService {
         doc.setFont('helvetica', 'bold')
         doc.text('Paiement :', 20, y)
         doc.setFont('helvetica', 'normal')
-        const pMethod = paymentData.payment_method === 'cash' ? 'Espèces' : paymentData.payment_method === 'bank' ? 'Banque' : paymentData.payment_method === 'mobile' ? 'Mobile Money' : paymentData.payment_method
+        const pMethod =
+          paymentData.payment_method === 'cash'
+            ? 'Espèces'
+            : paymentData.payment_method === 'bank'
+              ? 'Banque'
+              : paymentData.payment_method === 'mobile'
+                ? 'Mobile Money'
+                : paymentData.payment_method
         doc.text(pMethod, 45, y)
         y += 8
       }
@@ -167,15 +174,15 @@ export class PdfService {
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(12)
       doc.text('Montant :', 20, y)
-      
-      const safeAmount = paymentData.amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")
+
+      const safeAmount = paymentData.amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
       doc.text(`${safeAmount} Ar`, 45, y)
 
       doc.setFontSize(10)
       y += 12
       doc.setFont('helvetica', 'normal')
       doc.text(`Date : ${new Date(paymentData.payment_date).toLocaleDateString('fr-FR')}`, 20, y)
-      
+
       if (paymentData.receipt_number) {
         doc.text(`N° Reçu : ${paymentData.receipt_number}`, 80, y)
       }
@@ -234,10 +241,10 @@ export class PdfService {
       // Add Student Photo if available
       if (studentData.photo_path) {
         try {
-          const photoPath = path.isAbsolute(studentData.photo_path) 
-            ? studentData.photo_path 
+          const photoPath = path.isAbsolute(studentData.photo_path)
+            ? studentData.photo_path
             : path.join(app.getPath('userData'), studentData.photo_path)
-            
+
           if (fs.existsSync(photoPath)) {
             const photoData = fs.readFileSync(photoPath).toString('base64')
             // Add on the top right
@@ -406,12 +413,35 @@ export class PdfService {
       school_year: string
       term: number
       termName?: string
+      photo_path?: string
     },
     grades: Array<{ subject: string; grade: number; coefficient: number; average: number }>,
     generalAverage: number
   ): { success: boolean; filePath?: string; error?: string } {
     try {
       const doc = new jsPDF()
+
+      // Add Logo
+      try {
+        const logoPath = 'c:\\rep\\School\\assets\\logo.png'
+        if (fs.existsSync(logoPath)) {
+          const logoData = fs.readFileSync(logoPath).toString('base64')
+          doc.addImage(`data:image/png;base64,${logoData}`, 'PNG', 15, 10, 20, 20)
+        }
+      } catch (e) {
+        console.error('Could not load logo', e)
+      }
+
+      // Add Photo
+      try {
+        if (studentData.photo_path && fs.existsSync(studentData.photo_path)) {
+          const photoData = fs.readFileSync(studentData.photo_path).toString('base64')
+          doc.addImage(`data:image/jpeg;base64,${photoData}`, 'JPEG', 165, 10, 25, 25)
+        }
+      } catch (e) {
+        console.error('Could not load student photo', e)
+      }
+
       const title = studentData.termName
         ? `BULLETIN DE NOTES — ${studentData.termName}`
         : `BULLETIN DE NOTES — Trimestre ${studentData.term}`

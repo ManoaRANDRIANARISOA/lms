@@ -92,30 +92,34 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [annualAverage, setAnnualAverage] = useState<number | null>(null)
-  
-  const [initialPayment, setInitialPayment] = useState<string>('')
+
+  const [initialPaymentDroit, setInitialPaymentDroit] = useState<string>('')
+  const [initialPaymentFram, setInitialPaymentFram] = useState<string>('')
   const [framFratrieStatus, setFramFratrieStatus] = useState<{ isPaid: boolean; by?: string }>({
     isPaid: false
   })
-  
+
   const { prices, fetchPrices } = useFinanceStore()
 
   useEffect(() => {
     if (student.id && targetYear && window.api) {
       // Pour une inscription en targetYear, on regarde les notes de l'année précédente
       const yearToCheck = getPreviousYear(targetYear)
-      
+
       // Réinitialiser d'abord au cas où l'année change
       setAnnualAverage(null)
-      
+
       // 4 is the annual term
-      window.api.grade.getStudentAverage(student.id, yearToCheck, 4).then((res) => {
-        if (res.success && typeof res.average === 'number') {
-          setAnnualAverage(res.average)
-        }
-      }).catch((e) => {
-        if (import.meta.env.DEV) console.error('Failed to load annual average:', e)
-      })
+      window.api.grade
+        .getStudentAverage(student.id, yearToCheck, 4)
+        .then((res) => {
+          if (res.success && typeof res.average === 'number') {
+            setAnnualAverage(res.average)
+          }
+        })
+        .catch((e) => {
+          if (import.meta.env.DEV) console.error('Failed to load annual average:', e)
+        })
     }
   }, [student.id, targetYear])
 
@@ -136,7 +140,11 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
   // Set initial newClass based on student and available classes
   useEffect(() => {
     if (availableClasses.length > 0) {
-      if (student.class && student.class !== 'Classe non spécifiée' && student.class !== 'Non inscrit') {
+      if (
+        student.class &&
+        student.class !== 'Classe non spécifiée' &&
+        student.class !== 'Non inscrit'
+      ) {
         if (annualAverage !== null && annualAverage < 10) {
           // Redoublement suggéré
           setNewClass(student.class)
@@ -151,8 +159,10 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
       }
     }
   }, [student.class, availableClasses, annualAverage])
-  const enrollmentAmount = actualIsNewStudent ? (prices?.registration || 85000) : (prices?.reenrollment || 75000)
-  const actualFramAmount = framFratrieStatus.isPaid ? 0 : (prices?.fram || 25000)
+  const enrollmentAmount = actualIsNewStudent
+    ? prices?.registration || 85000
+    : prices?.reenrollment || 75000
+  const actualFramAmount = framFratrieStatus.isPaid ? 0 : prices?.fram || 25000
   const totalExpected = enrollmentAmount + actualFramAmount
 
   const isAlreadyEnrolled = enrolledYears.includes(targetYear)
@@ -173,22 +183,34 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
     }
 
     try {
-      // Calculate split
-      const amt = initialPayment ? parseFloat(initialPayment) : 0
-      let initialPaymentFram = 0
-      let initialPaymentDroit = 0
-      
-      if (amt > 0) {
-        if (!framFratrieStatus.isPaid) {
-          initialPaymentFram = Math.min(amt, actualFramAmount)
-          initialPaymentDroit = amt - initialPaymentFram
-        } else {
-          initialPaymentDroit = amt
-        }
+      const amtDroit = initialPaymentDroit ? parseFloat(initialPaymentDroit) : 0
+      const amtFram = initialPaymentFram ? parseFloat(initialPaymentFram) : 0
+
+      if (amtDroit > enrollmentAmount) {
+        setError(
+          `Le paiement pour le droit d'inscription (${amtDroit} Ar) dépasse le montant attendu (${enrollmentAmount} Ar).`
+        )
+        setLoading(false)
+        return
+      }
+
+      if (amtFram > actualFramAmount) {
+        setError(
+          `Le paiement pour la cotisation FRAM (${amtFram} Ar) dépasse le montant attendu (${actualFramAmount} Ar).`
+        )
+        setLoading(false)
+        return
       }
 
       // Use the exposed API
-      const result = await window.api.student.reEnroll(student.id, newClass, targetYear, initialPaymentDroit, initialPaymentFram, actualIsNewStudent)
+      const result = await window.api.student.reEnroll(
+        student.id,
+        newClass,
+        targetYear,
+        amtDroit,
+        amtFram,
+        actualIsNewStudent
+      )
       if (result.success) {
         onSuccess()
         onClose()
@@ -223,27 +245,29 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
       <div className="space-y-4">
         <div className="bg-blue-50 p-3 rounded-md text-sm text-blue-700 flex flex-col gap-2">
           <p>
-            Cette action inscrira l'élève dans la nouvelle classe pour l'année scolaire {targetYear}.
+            Cette action inscrira l'élève dans la nouvelle classe pour l'année scolaire {targetYear}
+            .
             {actualIsNewStudent
               ? " Il s'agit d'une première inscription."
               : " L'historique de l'année précédente sera conservé."}
           </p>
           {isNewStudent && (
-             <label className="flex items-center gap-2 mt-2 font-medium cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isReenrollmentOverride}
-                  onChange={(e) => setIsReenrollmentOverride(e.target.checked)}
-                  className="rounded border-blue-300 text-blue-600 focus:ring-blue-500"
-                />
-                Considérer comme une réinscription (Ancien élève)
-             </label>
+            <label className="flex items-center gap-2 mt-2 font-medium cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isReenrollmentOverride}
+                onChange={(e) => setIsReenrollmentOverride(e.target.checked)}
+                className="rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+              />
+              Considérer comme une réinscription (Ancien élève)
+            </label>
           )}
         </div>
 
         {isAlreadyEnrolled && (
           <div className="bg-orange-50 border border-orange-200 text-orange-800 p-3 rounded-md text-sm font-medium">
-            Attention : L'élève est déjà inscrit pour l'année scolaire {targetYear}. Vous ne pouvez pas le réinscrire pour la même année.
+            Attention : L'élève est déjà inscrit pour l'année scolaire {targetYear}. Vous ne pouvez
+            pas le réinscrire pour la même année.
           </div>
         )}
 
@@ -275,31 +299,40 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
             ))}
           </select>
           {annualAverage !== null && !isNewStudent && (
-            <p className={`text-xs mt-1 font-medium ${annualAverage >= 10 ? 'text-green-600' : 'text-amber-600'}`}>
-              Suggestion automatique basée sur la moyenne annuelle ({annualAverage.toFixed(2)}/20) : {annualAverage >= 10 ? 'Admis(e) en classe supérieure' : 'Redoublement conseillé'}
+            <p
+              className={`text-xs mt-1 font-medium ${annualAverage >= 10 ? 'text-green-600' : 'text-amber-600'}`}
+            >
+              Suggestion automatique basée sur la moyenne annuelle ({annualAverage.toFixed(2)}/20) :{' '}
+              {annualAverage >= 10 ? 'Admis(e) en classe supérieure' : 'Redoublement conseillé'}
             </p>
           )}
         </div>
 
         <div className="pt-4 border-t">
           <h4 className="text-sm font-semibold mb-3">Paiement à l'inscription</h4>
-          
+
           <div className="space-y-4">
             <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
               <h5 className="text-sm font-semibold text-gray-700 mb-2">Détail du montant dû :</h5>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600">{actualIsNewStudent ? "Droits d'inscription" : 'Réinscription'} :</span>
+                  <span className="text-gray-600">
+                    {actualIsNewStudent ? "Droits d'inscription" : 'Réinscription'} :
+                  </span>
                   <span className="font-semibold">{enrollmentAmount.toLocaleString()} Ar</span>
                 </div>
-                
+
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Cotisation FRAM :</span>
-                  <span className={`font-semibold ${framFratrieStatus.isPaid ? 'text-emerald-600' : ''}`}>
-                    {framFratrieStatus.isPaid ? `Exonéré (Déjà payé par la fratrie)` : `${actualFramAmount.toLocaleString()} Ar`}
+                  <span
+                    className={`font-semibold ${framFratrieStatus.isPaid ? 'text-emerald-600' : ''}`}
+                  >
+                    {framFratrieStatus.isPaid
+                      ? `Exonéré (Déjà payé par la fratrie)`
+                      : `${actualFramAmount.toLocaleString()} Ar`}
                   </span>
                 </div>
-                
+
                 <div className="flex justify-between items-center pt-2 mt-2 border-t border-gray-300 font-bold text-gray-800">
                   <span>Total à payer :</span>
                   <span>{totalExpected.toLocaleString()} Ar</span>
@@ -307,21 +340,36 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Montant versé par le parent (Ar)
-              </label>
-              <Input
-                type="number"
-                value={initialPayment}
-                onChange={(e) => setInitialPayment(e.target.value)}
-                placeholder={`Ex: ${totalExpected}`}
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                L'argent versé couvrira d'abord le FRAM (s'il est dû), puis le reste ira au Droit.
-                Le solde non payé sera enregistré comme reste à payer.
-              </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Paiement Droit (Ar)
+                </label>
+                <Input
+                  type="number"
+                  value={initialPaymentDroit}
+                  onChange={(e) => setInitialPaymentDroit(e.target.value)}
+                  placeholder="Laisser vide si non payé"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Paiement FRAM (Ar)
+                </label>
+                <Input
+                  type="number"
+                  value={initialPaymentFram}
+                  onChange={(e) => setInitialPaymentFram(e.target.value)}
+                  placeholder="Laisser vide si non payé"
+                  disabled={framFratrieStatus.isPaid}
+                  className={framFratrieStatus.isPaid ? 'bg-gray-100 cursor-not-allowed' : ''}
+                />
+              </div>
             </div>
+            <p className="text-xs text-gray-500">
+              Saisissez les montants payés par le parent aujourd'hui pour chaque catégorie. Le solde
+              non payé sera enregistré comme reste à payer.
+            </p>
           </div>
         </div>
       </div>

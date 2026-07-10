@@ -1,6 +1,11 @@
 import { app, shell, BrowserWindow, protocol } from 'electron'
 import path, { join } from 'path'
 import fs from 'fs'
+
+process.on('uncaughtException', (err) => {
+  fs.writeFileSync(path.join(app.getPath('userData'), 'crash.log'), err.stack || err.message)
+})
+
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import './database/db' // Initialize DB
@@ -34,7 +39,7 @@ function createWindow(): void {
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
+      preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true
     }

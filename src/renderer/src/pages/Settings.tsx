@@ -156,7 +156,6 @@ export default function Settings() {
     setMessage('Classe supprimée.')
   }
 
-
   const handleStartRename = (cls: string) => {
     setEditingClass(cls)
     setEditValue(cls)
@@ -264,10 +263,12 @@ export default function Settings() {
 
         {/* Class Management */}
         <div className="bg-white p-6 rounded shadow max-w-4xl border border-gray-100 mb-6">
-          <h2 className="text-lg font-semibold mb-4 text-gray-800">Gestion des Classes par Section</h2>
+          <h2 className="text-lg font-semibold mb-4 text-gray-800">
+            Gestion des Classes par Section
+          </h2>
           <p className="text-sm text-gray-500 mb-4">
-            Glissez-déposez les classes d'une section à l'autre pour les organiser. Ces catégories seront 
-            utilisées dans toute l'application (Filtres, Notes, etc.).
+            Glissez-déposez les classes d'une section à l'autre pour les organiser. Ces catégories
+            seront utilisées dans toute l'application (Filtres, Notes, etc.).
           </p>
 
           {canWrite('settings') && (
@@ -287,10 +288,12 @@ export default function Settings() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             {Object.entries(sections).map(([sectionKey, classList]) => (
-              <div 
-                key={sectionKey} 
+              <div
+                key={sectionKey}
                 className={`bg-gray-50 rounded-lg p-3 border-2 transition-colors ${
-                  targetSectionKey === sectionKey ? 'border-indigo-400 bg-indigo-50/50' : 'border-dashed border-gray-200'
+                  targetSectionKey === sectionKey
+                    ? 'border-indigo-400 bg-indigo-50/50'
+                    : 'border-dashed border-gray-200'
                 }`}
                 onDragOver={(e) => {
                   e.preventDefault()
@@ -308,9 +311,11 @@ export default function Settings() {
               >
                 <h3 className="font-semibold text-gray-700 text-sm mb-3 px-1 flex items-center justify-between">
                   {sectionKey}
-                  <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{classList.length}</span>
+                  <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
+                    {classList.length}
+                  </span>
                 </h3>
-                
+
                 <div className="space-y-2 min-h-[100px]">
                   {classList.map((cls) => (
                     <div
@@ -332,8 +337,22 @@ export default function Settings() {
                             autoFocus
                           />
                           <div className="flex gap-1 justify-end">
-                            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-green-600" onClick={handleConfirmRename}>OK</Button>
-                            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setEditingClass(null)}>Annul</Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-2 text-xs text-green-600"
+                              onClick={handleConfirmRename}
+                            >
+                              OK
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-2 text-xs"
+                              onClick={() => setEditingClass(null)}
+                            >
+                              Annul
+                            </Button>
                           </div>
                         </div>
                       ) : (
@@ -348,7 +367,16 @@ export default function Settings() {
                                 onClick={() => handleStartRename(cls)}
                                 title="Renommer"
                               >
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                >
+                                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                                </svg>
                               </Button>
                               <Button
                                 size="sm"
@@ -365,7 +393,7 @@ export default function Settings() {
                       )}
                     </div>
                   ))}
-                  
+
                   {classList.length === 0 && (
                     <div className="text-center text-xs text-gray-400 py-4 italic border-2 border-dashed border-transparent rounded">
                       Glisser ici
@@ -387,8 +415,50 @@ export default function Settings() {
         <div className="bg-white p-6 rounded shadow max-w-xl border-red-100 border">
           <h2 className="text-lg font-semibold mb-4 text-red-600">Zone de Danger</h2>
           <p className="text-gray-600 mb-4">
-            Utilisez ce bouton pour effacer toutes les données locales et repartir à zéro.
+            Utilisez ces outils pour réparer la synchronisation avec le cloud ou pour réinitialiser
+            la base de données.
           </p>
+
+          <div className="mb-8 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+            <h3 className="font-semibold text-orange-800 mb-2">Réparation de la Synchronisation</h3>
+            <p className="text-sm text-orange-700 mb-4">
+              Si des données manquent par rapport à Supabase ou si des erreurs bloquent l'envoi, ce
+              bouton va réinitialiser l'état de la synchronisation pour tout forcer à se télécharger
+              et s'envoyer correctement (AUCUNE donnée ne sera perdue).
+            </p>
+            <Button
+              variant="outline"
+              className="bg-white hover:bg-orange-100 border-orange-300 text-orange-700"
+              onClick={async () => {
+                if (
+                  !confirm(
+                    "Êtes-vous sûr de vouloir réparer la synchronisation ? L'application va recompter et re-vérifier toutes les données avec le serveur."
+                  )
+                )
+                  return
+                setLoading(true)
+                try {
+                  const res = await window.api.student.repairSync()
+                  if (res.success) {
+                    setMessage(
+                      'Synchronisation réparée. Les données manquantes vont se télécharger dans les prochaines minutes.'
+                    )
+                  } else {
+                    setMessage('Erreur de réparation: ' + res.error)
+                  }
+                } catch (e: any) {
+                  setMessage('Erreur: ' + e.message)
+                } finally {
+                  setLoading(false)
+                }
+              }}
+              disabled={loading}
+            >
+              Forcer la Réparation de la Synchronisation
+            </Button>
+          </div>
+
+          <h3 className="font-semibold text-red-600 mb-2">Réinitialisation Complète</h3>
 
           <div className="flex items-center gap-2 mb-4">
             <input

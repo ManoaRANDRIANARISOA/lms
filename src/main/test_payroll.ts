@@ -1,9 +1,12 @@
 import 'module'
 const Module = require('module')
 const originalRequire = Module.prototype.require
-Module.prototype.require = function(request) {
+Module.prototype.require = function (request) {
   if (request === 'electron') {
-    return { app: { isPackaged: false, getPath: () => 'C:/rep/School/lms/out' }, ipcMain: { handle: () => {} } }
+    return {
+      app: { isPackaged: false, getPath: () => 'C:/rep/School/lms/out' },
+      ipcMain: { handle: () => {} }
+    }
   }
   return originalRequire.apply(this, arguments)
 }

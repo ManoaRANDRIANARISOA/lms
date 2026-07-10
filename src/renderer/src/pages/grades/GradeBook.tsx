@@ -157,12 +157,18 @@ export default function GradeBook(): React.JSX.Element {
           <Layers className="w-4 h-4" />
           Classes :
         </div>
-        
+
         {ALL_CLASSES.map((c) => (
           <React.Fragment key={c}>
             {['CP1', '6ème', '2nde', 'TPS'].includes(c) && (
               <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1 mr-1 shrink-0">
-                {c === 'CP1' ? 'Primaire' : c === '6ème' ? 'Collège' : c === '2nde' ? 'Lycée' : 'Autres'}
+                {c === 'CP1'
+                  ? 'Primaire'
+                  : c === '6ème'
+                    ? 'Collège'
+                    : c === '2nde'
+                      ? 'Lycée'
+                      : 'Autres'}
               </div>
             )}
             {c === 'PS' && (
@@ -192,7 +198,9 @@ export default function GradeBook(): React.JSX.Element {
       {/* Secondary Filtres (Trimestre, Année) */}
       <div className="bg-white rounded-2xl border shadow-sm p-5 flex flex-col md:flex-row gap-6 items-end">
         <div className="flex-1 w-full md:max-w-md">
-          <Label className="text-gray-500 text-xs uppercase tracking-wider mb-2 block">Trimestre / Évaluation</Label>
+          <Label className="text-gray-500 text-xs uppercase tracking-wider mb-2 block">
+            Trimestre / Évaluation
+          </Label>
           <select
             value={selectedTerm}
             onChange={(e) => setSelectedTerm(Number(e.target.value))}
@@ -214,10 +222,12 @@ export default function GradeBook(): React.JSX.Element {
           </select>
         </div>
         <div className="w-full md:w-48">
-          <Label className="text-gray-500 text-xs uppercase tracking-wider mb-2 block">Année scolaire</Label>
-          <Input 
-            value={schoolYear} 
-            onChange={(e) => setSchoolYear(e.target.value)} 
+          <Label className="text-gray-500 text-xs uppercase tracking-wider mb-2 block">
+            Année scolaire
+          </Label>
+          <Input
+            value={schoolYear}
+            onChange={(e) => setSchoolYear(e.target.value)}
             className="border-gray-200 rounded-lg bg-gray-50 focus:bg-white"
           />
         </div>
@@ -245,7 +255,9 @@ export default function GradeBook(): React.JSX.Element {
                       key={s.id}
                       className="px-4 py-5 text-center font-semibold text-gray-600 min-w-[100px]"
                     >
-                      <div className="line-clamp-1" title={s.name}>{s.name}</div>
+                      <div className="line-clamp-1" title={s.name}>
+                        {s.name}
+                      </div>
                       <span className="block text-xs text-gray-400 font-normal mt-1">
                         coef. {s.coefficient}
                       </span>
@@ -262,104 +274,106 @@ export default function GradeBook(): React.JSX.Element {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-              {studentsInClass.length === 0 && classSubjects.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={subjectList.length + 3}
-                    className="px-3 py-8 text-center text-muted-foreground"
-                  >
-                    Aucune note enregistrée pour cette classe.
-                    <br />
-                    <button
-                      onClick={() => navigate('/grades/entry')}
-                      className="text-primary hover:underline text-sm mt-1"
+                {studentsInClass.length === 0 && classSubjects.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={subjectList.length + 3}
+                      className="px-3 py-8 text-center text-muted-foreground"
                     >
-                      Aller à la saisie des notes →
-                    </button>
-                  </td>
-                </tr>
-              )}
-              {studentsInClass.length === 0 && classSubjects.length > 0 && (
-                <tr>
-                  <td
-                    colSpan={subjectList.length + 3}
-                    className="px-3 py-8 text-center text-muted-foreground"
-                  >
-                    Aucun élève avec des notes dans cette classe.
-                  </td>
-                </tr>
-              )}
-              {studentsInClass.map((st) => {
-                const rankInfo = rankingMap[st.id]
-                return (
-                  <tr key={st.id} className="hover:bg-blue-50/30 transition-colors">
-                    <td className="px-6 py-4 font-medium text-gray-900 sticky left-0 bg-white z-10 border-r border-gray-50 group-hover:bg-blue-50/30">
+                      Aucune note enregistrée pour cette classe.
+                      <br />
                       <button
-                        className="text-left hover:text-primary hover:underline transition-all"
-                        onClick={() =>
-                          navigate(
-                            `/grades/report/${st.id}?year=${schoolYear}&term=${selectedTerm}`
-                          )
-                        }
+                        onClick={() => navigate('/grades/entry')}
+                        className="text-primary hover:underline text-sm mt-1"
                       >
-                        {st.last_name} {st.first_name}
+                        Aller à la saisie des notes →
                       </button>
                     </td>
+                  </tr>
+                )}
+                {studentsInClass.length === 0 && classSubjects.length > 0 && (
+                  <tr>
+                    <td
+                      colSpan={subjectList.length + 3}
+                      className="px-3 py-8 text-center text-muted-foreground"
+                    >
+                      Aucun élève avec des notes dans cette classe.
+                    </td>
+                  </tr>
+                )}
+                {studentsInClass.map((st) => {
+                  const rankInfo = rankingMap[st.id]
+                  return (
+                    <tr key={st.id} className="hover:bg-blue-50/30 transition-colors">
+                      <td className="px-6 py-4 font-medium text-gray-900 sticky left-0 bg-white z-10 border-r border-gray-50 group-hover:bg-blue-50/30">
+                        <button
+                          className="text-left hover:text-primary hover:underline transition-all"
+                          onClick={() =>
+                            navigate(
+                              `/grades/report/${st.id}?year=${schoolYear}&term=${selectedTerm}`
+                            )
+                          }
+                        >
+                          {st.last_name} {st.first_name}
+                        </button>
+                      </td>
+                      {subjectList.map((subj) => {
+                        const cell = matrix[st.id]?.[subj.id]
+                        return (
+                          <td key={subj.id} className="px-4 py-4 text-center">
+                            {cell ? (
+                              <span
+                                className={`inline-flex items-center justify-center w-12 h-8 rounded-md font-bold text-[13px] ${
+                                  cell.grade < 10
+                                    ? 'bg-red-50 text-red-600'
+                                    : cell.grade >= 14
+                                      ? 'bg-green-50 text-green-700'
+                                      : 'bg-amber-50 text-amber-700'
+                                }`}
+                              >
+                                {cell.grade.toFixed(2)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-300">—</span>
+                            )}
+                          </td>
+                        )
+                      })}
+                      <td className="px-4 py-4 text-center font-bold text-primary bg-blue-50/30">
+                        {rankInfo ? rankInfo.average.toFixed(2) : '—'}
+                      </td>
+                      <td className="px-4 py-4 text-center font-bold text-amber-700 bg-amber-50/30">
+                        {rankInfo ? (
+                          <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white shadow-sm border border-amber-100">
+                            {rankInfo.rank}
+                          </div>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+                {/* Class averages row */}
+                {classAverages.length > 0 && (
+                  <tr className="bg-gray-50/80 font-bold border-t-2 border-gray-200">
+                    <td className="px-6 py-5 sticky left-0 bg-gray-50/95 z-10 border-r border-gray-200 text-gray-700">
+                      Moyenne classe
+                    </td>
                     {subjectList.map((subj) => {
-                      const cell = matrix[st.id]?.[subj.id]
+                      const avg = classAverages.find((a) => a.subject_id === subj.id)
                       return (
-                        <td key={subj.id} className="px-4 py-4 text-center">
-                          {cell ? (
-                            <span
-                              className={`inline-flex items-center justify-center w-12 h-8 rounded-md font-bold text-[13px] ${
-                                cell.grade < 10 
-                                  ? 'bg-red-50 text-red-600' 
-                                  : cell.grade >= 14 
-                                    ? 'bg-green-50 text-green-700' 
-                                    : 'bg-amber-50 text-amber-700'
-                              }`}
-                            >
-                              {cell.grade.toFixed(2)}
-                            </span>
-                          ) : (
-                            <span className="text-gray-300">—</span>
-                          )}
+                        <td key={subj.id} className="px-4 py-5 text-center text-gray-600">
+                          {avg ? avg.average.toFixed(2) : '—'}
                         </td>
                       )
                     })}
-                    <td className="px-4 py-4 text-center font-bold text-primary bg-blue-50/30">
-                      {rankInfo ? rankInfo.average.toFixed(2) : '—'}
-                    </td>
-                    <td className="px-4 py-4 text-center font-bold text-amber-700 bg-amber-50/30">
-                      {rankInfo ? (
-                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white shadow-sm border border-amber-100">
-                          {rankInfo.rank}
-                        </div>
-                      ) : '—'}
-                    </td>
+                    <td className="px-4 py-5 text-center bg-blue-50/50 text-gray-500">—</td>
+                    <td className="px-4 py-5 text-center bg-amber-50/50 text-gray-500">—</td>
                   </tr>
-                )
-              })}
-              {/* Class averages row */}
-              {classAverages.length > 0 && (
-                <tr className="bg-gray-50/80 font-bold border-t-2 border-gray-200">
-                  <td className="px-6 py-5 sticky left-0 bg-gray-50/95 z-10 border-r border-gray-200 text-gray-700">
-                    Moyenne classe
-                  </td>
-                  {subjectList.map((subj) => {
-                    const avg = classAverages.find((a) => a.subject_id === subj.id)
-                    return (
-                      <td key={subj.id} className="px-4 py-5 text-center text-gray-600">
-                        {avg ? avg.average.toFixed(2) : '—'}
-                      </td>
-                    )
-                  })}
-                  <td className="px-4 py-5 text-center bg-blue-50/50 text-gray-500">—</td>
-                  <td className="px-4 py-5 text-center bg-amber-50/50 text-gray-500">—</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

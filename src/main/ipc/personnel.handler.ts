@@ -559,16 +559,26 @@ export function registerPersonnelHandlers(): void {
     }
   })
 
-  ipcMain.handle('personnel:ignoreMonth', async (_, personnelId: string, month: string, reason?: string) => {
-    if (!canWrite('personnel')) {
-      return { success: false, error: 'Accès refusé' }
+  ipcMain.handle(
+    'personnel:ignoreMonth',
+    async (_, personnelId: string, month: string, reason?: string) => {
+      if (!canWrite('personnel')) {
+        return { success: false, error: 'Accès refusé' }
+      }
+      const result = PersonnelRepository.ignoreMonth(personnelId, month, reason)
+      if (result.success) {
+        logAction(
+          getCurrentUser()?.id || null,
+          'ignoreMonth',
+          'payroll_ignores',
+          personnelId,
+          null,
+          `Ignored ${month}`
+        )
+      }
+      return result
     }
-    const result = PersonnelRepository.ignoreMonth(personnelId, month, reason)
-    if (result.success) {
-      logAction(getCurrentUser()?.id || null, 'ignoreMonth', 'payroll_ignores', personnelId, null, `Ignored ${month}`)
-    }
-    return result
-  })
+  )
 
   ipcMain.handle('personnel:unignoreMonth', async (_, personnelId: string, month: string) => {
     if (!canWrite('personnel')) {
@@ -576,7 +586,14 @@ export function registerPersonnelHandlers(): void {
     }
     const result = PersonnelRepository.unignoreMonth(personnelId, month)
     if (result.success) {
-      logAction(getCurrentUser()?.id || null, 'unignoreMonth', 'payroll_ignores', personnelId, null, `Unignored ${month}`)
+      logAction(
+        getCurrentUser()?.id || null,
+        'unignoreMonth',
+        'payroll_ignores',
+        personnelId,
+        null,
+        `Unignored ${month}`
+      )
     }
     return result
   })

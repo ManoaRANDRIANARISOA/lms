@@ -241,12 +241,14 @@ export class EventRepository {
 
       // 3. Record in General Ledger (Student Payments)
       const ledgerId = uuidv4()
-      const setting = db.prepare("SELECT value FROM settings WHERE key = 'school_year'").get() as { value: string } | undefined
+      const setting = db.prepare("SELECT value FROM settings WHERE key = 'school_year'").get() as
+        | { value: string }
+        | undefined
       let schoolYear = '2025-2026'
       if (setting?.value) {
         try {
           schoolYear = JSON.parse(setting.value)
-        } catch(e) {
+        } catch (e) {
           schoolYear = setting.value
         }
       }
@@ -282,10 +284,10 @@ export class EventRepository {
       const studentName = db
         .prepare('SELECT first_name, last_name FROM students WHERE id = ?')
         .get(studentId) as { first_name: string; last_name: string } | undefined
-        
-      const eventName = db
-        .prepare('SELECT name FROM parent_events WHERE id = ?')
-        .get(eventId) as { name: string } | undefined
+
+      const eventName = db.prepare('SELECT name FROM parent_events WHERE id = ?').get(eventId) as
+        | { name: string }
+        | undefined
 
       const cashDescription = studentName
         ? `Paiement événement (${eventName?.name || eventId}) — ${studentName.last_name} ${studentName.first_name}`
@@ -297,14 +299,7 @@ export class EventRepository {
         INSERT INTO cash_journal (id, transaction_date, type, department, category, amount, description, payment_method, related_student_id)
         VALUES (?, ?, 'income', 'eleve', 'événement', ?, ?, ?, ?)
       `
-      ).run(
-        cashId,
-        paymentDate,
-        amount,
-        cashDescription,
-        paymentMethod,
-        studentId
-      )
+      ).run(cashId, paymentDate, amount, cashDescription, paymentMethod, studentId)
 
       addToSyncQueue('cash_journal', cashId, 'create', {
         id: cashId,
@@ -368,7 +363,7 @@ export class EventRepository {
         eventQuery += ` AND school_year = ?`
         params.push(schoolYear)
       }
-      
+
       eventQuery += ` ORDER BY event_date DESC`
 
       const events = db.prepare(eventQuery).all(...params) as any[]

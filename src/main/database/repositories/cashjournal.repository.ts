@@ -111,7 +111,9 @@ export class CashJournalRepository {
         WHERE cj.deleted = 0
       `
     }
-    const params: (string | number)[] = filters.schoolYear ? [filters.schoolYear, filters.schoolYear] : []
+    const params: (string | number)[] = filters.schoolYear
+      ? [filters.schoolYear, filters.schoolYear]
+      : []
 
     if (filters.startDate) {
       query += ' AND cj.transaction_date >= ?'

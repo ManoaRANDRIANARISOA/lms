@@ -60,9 +60,9 @@ export default function CertificatePage() {
     const parents: string[] = []
     if (currentStudent.father_name) parents.push(currentStudent.father_name)
     if (currentStudent.mother_name) parents.push(currentStudent.mother_name)
-    
+
     if (parents.length === 0) return null
-    
+
     return (
       <>
         , fils/fille de <strong>{parents.join(' et de ')}</strong>
@@ -74,7 +74,8 @@ export default function CertificatePage() {
     if (!schoolYear || schoolYear.trim() === '') return '.'
     return (
       <>
-        {' '}au titre de l'année scolaire <strong>{schoolYear}</strong>.
+        {' '}
+        au titre de l'année scolaire <strong>{schoolYear}</strong>.
       </>
     )
   }
@@ -89,8 +90,8 @@ export default function CertificatePage() {
             <strong>
               {currentStudent.last_name} {currentStudent.first_name}
             </strong>
-            {renderParentText()}
-            , né(e) le {new Date(currentStudent.date_of_birth || '').toLocaleDateString('fr-FR')} à{' '}
+            {renderParentText()}, né(e) le{' '}
+            {new Date(currentStudent.date_of_birth || '').toLocaleDateString('fr-FR')} à{' '}
             {currentStudent.place_of_birth || '-'}, a fréquenté notre établissement en classe de{' '}
             <strong>{currentStudent.class}</strong>
             {renderSchoolYearText()}
@@ -109,15 +110,14 @@ export default function CertificatePage() {
             <strong>
               {currentStudent.last_name} {currentStudent.first_name}
             </strong>
-            {renderParentText()}
-            , inscrit en classe de <strong>{currentStudent.class}</strong>
+            {renderParentText()}, inscrit en classe de <strong>{currentStudent.class}</strong>
             {schoolYear ? (
               <>
-                {' '}pour l'année scolaire <strong>{schoolYear}</strong>
+                {' '}
+                pour l'année scolaire <strong>{schoolYear}</strong>
               </>
             ) : null}
-            , fait preuve d'une assiduité et d'une conduite
-            exemplaires.
+            , fait preuve d'une assiduité et d'une conduite exemplaires.
           </p>
         )
       default:
@@ -128,8 +128,8 @@ export default function CertificatePage() {
             <strong>
               {currentStudent.last_name} {currentStudent.first_name}
             </strong>
-            {renderParentText()}
-            , né(e) le {new Date(currentStudent.date_of_birth || '').toLocaleDateString('fr-FR')} à{' '}
+            {renderParentText()}, né(e) le{' '}
+            {new Date(currentStudent.date_of_birth || '').toLocaleDateString('fr-FR')} à{' '}
             {currentStudent.place_of_birth || '-'}, est régulièrement inscrit(e) en classe de{' '}
             <strong>{currentStudent.class}</strong>
             {renderSchoolYearText()}
@@ -172,31 +172,33 @@ export default function CertificatePage() {
             Imprimer
           </Button>
 
-          <Button onClick={async () => {
-            if (!currentStudent) return
-            try {
-              const res = await window.api.pdf.generateCertificate({
-                first_name: currentStudent.first_name,
-                last_name: currentStudent.last_name,
-                date_of_birth: currentStudent.date_of_birth,
-                place_of_birth: currentStudent.place_of_birth,
-                class_name: currentStudent.class || '',
-                school_year: schoolYear,
-                registration_number: currentStudent.registration_number,
-                father_name: currentStudent.father_name,
-                mother_name: currentStudent.mother_name,
-                photo_path: currentStudent.photo_path
-              })
-              if (res.success && res.filePath) {
-                // Open the generated PDF automatically
-                window.api.pdf.openFile(res.filePath)
-              } else {
-                alert('Erreur lors de la génération du PDF: ' + (res.error || 'Erreur inconnue'))
+          <Button
+            onClick={async () => {
+              if (!currentStudent) return
+              try {
+                const res = await window.api.pdf.generateCertificate({
+                  first_name: currentStudent.first_name,
+                  last_name: currentStudent.last_name,
+                  date_of_birth: currentStudent.date_of_birth,
+                  place_of_birth: currentStudent.place_of_birth,
+                  class_name: currentStudent.class || '',
+                  school_year: schoolYear,
+                  registration_number: currentStudent.registration_number,
+                  father_name: currentStudent.father_name,
+                  mother_name: currentStudent.mother_name,
+                  photo_path: currentStudent.photo_path
+                })
+                if (res.success && res.filePath) {
+                  // Open the generated PDF automatically
+                  window.api.pdf.openFile(res.filePath)
+                } else {
+                  alert('Erreur lors de la génération du PDF: ' + (res.error || 'Erreur inconnue'))
+                }
+              } catch (err) {
+                console.error(err)
               }
-            } catch (err) {
-              console.error(err)
-            }
-          }}>
+            }}
+          >
             Télécharger
           </Button>
         </div>

@@ -198,7 +198,7 @@ export class PaymentRepository {
         )
         .all(studentId, schoolYear)
     }
-    
+
     return db
       .prepare(
         `
@@ -293,9 +293,12 @@ export class PaymentRepository {
     let globalMonthlyTuition: number | null = null
     try {
       if (feeRecord && feeRecord.tuition_level) {
-        const studentObj = db.prepare('SELECT is_personnel_child FROM students WHERE id = ?').get(studentId) as { is_personnel_child: any } | undefined
+        const studentObj = db
+          .prepare('SELECT is_personnel_child FROM students WHERE id = ?')
+          .get(studentId) as { is_personnel_child: any } | undefined
         const rawPC = studentObj?.is_personnel_child
-        const isPersonnelChild = rawPC == 1 || rawPC === '1' || rawPC === '1.0' || rawPC === true || rawPC === 'true'
+        const isPersonnelChild =
+          rawPC == 1 || rawPC === '1' || rawPC === '1.0' || rawPC === true || rawPC === 'true'
         if (isPersonnelChild) {
           globalMonthlyTuition = 0
         } else {
@@ -495,8 +498,12 @@ export class PaymentRepository {
         }
 
         // --- Tuition ---
-        const isPersonnelChild = student.is_personnel_child === 1 || student.is_personnel_child === '1' || student.is_personnel_child === true || student.is_personnel_child === 'true'
-        const tuitionCost = isPersonnelChild ? 0 : (student.monthly_tuition || 0)
+        const isPersonnelChild =
+          student.is_personnel_child === 1 ||
+          student.is_personnel_child === '1' ||
+          student.is_personnel_child === true ||
+          student.is_personnel_child === 'true'
+        const tuitionCost = isPersonnelChild ? 0 : student.monthly_tuition || 0
         checkMonthlyService('tuition', tuitionCost, 'Écolage')
 
         // --- Bus ---

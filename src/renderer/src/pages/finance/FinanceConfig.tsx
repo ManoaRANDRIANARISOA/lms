@@ -55,7 +55,7 @@ export default function FinanceConfig() {
   }
 
   const handleTuitionChange = (level: string, value: string) => {
-    const numValue = parseInt(value) || 0
+    const numValue = value === '' ? ('' as unknown as number) : parseInt(value) || 0
     setPrices((prev) => ({
       ...prev,
       tuition: { ...prev.tuition, [level]: numValue }
@@ -63,7 +63,7 @@ export default function FinanceConfig() {
   }
 
   const handleCanteenChange = (type: 'daily' | 'monthly', value: string) => {
-    const numValue = parseInt(value) || 0
+    const numValue = value === '' ? ('' as unknown as number) : parseInt(value) || 0
     setPrices((prev) => ({
       ...prev,
       canteen: { ...prev.canteen, [type]: numValue }
@@ -71,7 +71,7 @@ export default function FinanceConfig() {
   }
 
   const handleBusChange = (zone: string, value: string) => {
-    const numValue = parseInt(value) || 0
+    const numValue = value === '' ? ('' as unknown as number) : parseInt(value) || 0
     setPrices((prev) => ({
       ...prev,
       bus: { ...prev.bus, [zone]: numValue }
@@ -79,7 +79,7 @@ export default function FinanceConfig() {
   }
 
   const handleUniformChange = (item: string, value: string) => {
-    const numValue = parseInt(value) || 0
+    const numValue = value === '' ? ('' as unknown as number) : parseInt(value) || 0
     setPrices((prev) => ({
       ...prev,
       uniforms: { ...prev.uniforms, [item]: numValue }
@@ -200,7 +200,10 @@ export default function FinanceConfig() {
                 onChange={(e) =>
                   setPrices((prev) => ({
                     ...prev,
-                    registration: parseInt(e.target.value) || 0
+                    registration:
+                      e.target.value === ''
+                        ? ('' as unknown as number)
+                        : parseInt(e.target.value) || 0
                   }))
                 }
                 className="pl-8"
@@ -220,7 +223,10 @@ export default function FinanceConfig() {
                 onChange={(e) =>
                   setPrices((prev) => ({
                     ...prev,
-                    reenrollment: parseInt(e.target.value) || 0
+                    reenrollment:
+                      e.target.value === ''
+                        ? ('' as unknown as number)
+                        : parseInt(e.target.value) || 0
                   }))
                 }
                 className="pl-8"
@@ -242,7 +248,10 @@ export default function FinanceConfig() {
                 onChange={(e) =>
                   setPrices((prev) => ({
                     ...prev,
-                    fram: parseInt(e.target.value) || 0
+                    fram:
+                      e.target.value === ''
+                        ? ('' as unknown as number)
+                        : parseInt(e.target.value) || 0
                   }))
                 }
                 className="pl-8"

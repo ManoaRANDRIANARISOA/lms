@@ -27,11 +27,27 @@ const api = {
     update: (id: string, updates: Record<string, unknown>) =>
       ipcRenderer.invoke('student:update', id, updates),
     delete: (id: string) => ipcRenderer.invoke('student:delete', id),
-    reEnroll: (id: string, newClass: string, targetYear: string, initialPaymentDroit?: number, initialPaymentFram?: number, isNewStudent?: boolean) =>
-      ipcRenderer.invoke('student:reEnroll', id, newClass, targetYear, initialPaymentDroit, initialPaymentFram, isNewStudent),
+    reEnroll: (
+      id: string,
+      newClass: string,
+      targetYear: string,
+      initialPaymentDroit?: number,
+      initialPaymentFram?: number,
+      isNewStudent?: boolean
+    ) =>
+      ipcRenderer.invoke(
+        'student:reEnroll',
+        id,
+        newClass,
+        targetYear,
+        initialPaymentDroit,
+        initialPaymentFram,
+        isNewStudent
+      ),
     getServiceStats: () => ipcRenderer.invoke('student:serviceStats'),
     repair: (targetYear: string) => ipcRenderer.invoke('student:repair', targetYear),
 
+    repairSync: () => ipcRenderer.invoke('student:repairSync'),
     resetDatabase: (includeRemote: boolean) => ipcRenderer.invoke('db:reset', includeRemote)
   },
 
@@ -40,7 +56,8 @@ const api = {
   // --------------------------------------------
   payment: {
     create: (data: Record<string, unknown>) => ipcRenderer.invoke('payment:create', data),
-    getByStudent: (studentId: string, schoolYear?: string) => ipcRenderer.invoke('payment:getByStudent', studentId, schoolYear),
+    getByStudent: (studentId: string, schoolYear?: string) =>
+      ipcRenderer.invoke('payment:getByStudent', studentId, schoolYear),
     getAll: (filters?: Record<string, unknown>) => ipcRenderer.invoke('payment:getAll', filters),
     getTuitionStatus: (studentId: string, schoolYear: string) =>
       ipcRenderer.invoke('payment:getTuitionStatus', studentId, schoolYear),
@@ -82,7 +99,8 @@ const api = {
       ipcRenderer.invoke('event:addParticipants', eventId, studentIds, amountDue),
     recordPayment: (eventId: string, studentId: string, amount: number, paymentMethod?: string) =>
       ipcRenderer.invoke('event:recordPayment', eventId, studentId, amount, paymentMethod),
-    getByStudent: (studentId: string, schoolYear?: string) => ipcRenderer.invoke('event:getByStudent', studentId, schoolYear)
+    getByStudent: (studentId: string, schoolYear?: string) =>
+      ipcRenderer.invoke('event:getByStudent', studentId, schoolYear)
   },
 
   // --------------------------------------------
@@ -313,7 +331,8 @@ const api = {
   // Dialogs
   // --------------------------------------------
   dialog: {
-    openFile: () => ipcRenderer.invoke('dialog:openFile')
+    openFile: () => ipcRenderer.invoke('dialog:openFile'),
+    confirmSync: (message: string) => ipcRenderer.sendSync('dialog:confirmSync', message)
   }
 }
 

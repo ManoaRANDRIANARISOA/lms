@@ -2,7 +2,7 @@ import { useEffect, useState, type ChangeEvent } from 'react'
 import { useStudentStore } from '@/store/useStudentStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search, Plus, User, Download } from 'lucide-react'
+import { Search, Plus, User, Download, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
 import StudentForm from './StudentForm'
 import StudentDetail from './StudentDetail'
@@ -18,6 +18,8 @@ export default function StudentList() {
   const [search, setSearch] = useState('')
   const [selectedClass, setSelectedClass] = useState<string>('')
   const [selectedStatus, setSelectedStatus] = useState<string>('')
+  const [sortField, setSortField] = useState<string>('registration_number')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [view, setView] = useState<'list' | 'create' | 'edit' | 'detail'>('list')
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
 
@@ -26,11 +28,45 @@ export default function StudentList() {
   }, [])
 
   useEffect(() => {
-    fetchStudents({ search, class: selectedClass, status: selectedStatus, schoolYear: currentYear })
-  }, [selectedClass, selectedStatus, currentYear])
+    if (view === 'list') {
+      fetchStudents({
+        search,
+        class: selectedClass,
+        status: selectedStatus,
+        schoolYear: currentYear,
+        sortField,
+        sortDirection
+      })
+    }
+  }, [search, selectedClass, selectedStatus, currentYear, view, sortField, sortDirection])
 
   const handleSearch = () => {
-    fetchStudents({ search, class: selectedClass, status: selectedStatus, schoolYear: currentYear })
+    fetchStudents({
+      search,
+      class: selectedClass,
+      status: selectedStatus,
+      schoolYear: currentYear,
+      sortField,
+      sortDirection
+    })
+  }
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }
+
+  const renderSortIcon = (field: string) => {
+    if (sortField !== field) return <ArrowUpDown className="w-4 h-4 ml-1 opacity-50 inline-block" />
+    return sortDirection === 'asc' ? (
+      <ArrowUp className="w-4 h-4 ml-1 inline-block" />
+    ) : (
+      <ArrowDown className="w-4 h-4 ml-1 inline-block" />
+    )
   }
 
   if (view === 'create') {
@@ -39,7 +75,6 @@ export default function StudentList() {
         <StudentForm
           onSuccess={() => {
             setView('list')
-            fetchStudents()
           }}
           onCancel={() => setView('list')}
         />
@@ -125,6 +160,11 @@ export default function StudentList() {
           placeholder="Rechercher un élève (Nom, Matricule)..."
           value={search}
           onChange={(e: ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+            if (e.key === 'Enter') {
+              handleSearch()
+            }
+          }}
           className="max-w-md"
         />
         <select
@@ -163,9 +203,28 @@ export default function StudentList() {
           <table className="w-full text-sm text-left">
             <thead className="bg-gray-100 text-gray-600 uppercase">
               <tr>
-                <th className="p-4">Matricule</th>
-                <th className="p-4">Nom & Prénoms</th>
-                <th className="p-4">Classe</th>
+                <th
+                  className="p-4 cursor-pointer hover:bg-gray-200 transition-colors"
+                  onClick={() => handleSort('registration_number')}
+                >
+                  <div className="flex items-center">
+                    Matricule {renderSortIcon('registration_number')}
+                  </div>
+                </th>
+                <th
+                  className="p-4 cursor-pointer hover:bg-gray-200 transition-colors"
+                  onClick={() => handleSort('last_name')}
+                >
+                  <div className="flex items-center">
+                    Nom & Prénoms {renderSortIcon('last_name')}
+                  </div>
+                </th>
+                <th
+                  className="p-4 cursor-pointer hover:bg-gray-200 transition-colors"
+                  onClick={() => handleSort('resolved_class')}
+                >
+                  <div className="flex items-center">Classe {renderSortIcon('resolved_class')}</div>
+                </th>
                 <th className="p-4">Contact Tuteur</th>
                 <th className="p-4 text-right">Actions</th>
               </tr>
@@ -196,11 +255,13 @@ export default function StudentList() {
                     {student.student_status && student.student_status !== 'Non inscrit' ? (
                       student.student_status === 'Ancien' ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                          Ancien - {student.class} {student.status_year ? `(en ${student.status_year})` : ''}
+                          Ancien - {student.class}{' '}
+                          {student.status_year ? `(en ${student.status_year})` : ''}
                         </span>
                       ) : student.student_status === 'Pré-inscrit' ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                          Pré-inscrit - {student.class} {student.status_year ? `(en ${student.status_year})` : ''}
+                          Pré-inscrit - {student.class}{' '}
+                          {student.status_year ? `(en ${student.status_year})` : ''}
                         </span>
                       ) : student.student_status === 'Quitté' ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
@@ -217,7 +278,12 @@ export default function StudentList() {
                       </span>
                     )}
                   </td>
-                  <td className="p-4">{student.guardian_contact || student.father_contact || student.mother_contact || '-'}</td>
+                  <td className="p-4">
+                    {student.guardian_contact ||
+                      student.father_contact ||
+                      student.mother_contact ||
+                      '-'}
+                  </td>
                   <td className="p-4 text-right">
                     <Button
                       variant="ghost"

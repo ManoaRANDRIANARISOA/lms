@@ -1,0 +1,1 @@
+const Database = require('better-sqlite3'); const db = new Database('./src/main/database/lms.db'); console.log(db.prepare(SELECT key, value FROM settings WHERE key IN ('school_year', 'school_logo')).all());

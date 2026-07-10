@@ -6,7 +6,16 @@ import { useClasses } from '@/lib/useClasses'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, Plus, Trash2, Settings, BookOpen, Layers, CheckCircle2, Search } from 'lucide-react'
+import {
+  ArrowLeft,
+  Plus,
+  Trash2,
+  Settings,
+  BookOpen,
+  Layers,
+  CheckCircle2,
+  Search
+} from 'lucide-react'
 import type { Subject, ClassSubject } from '@shared/types'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 
@@ -60,18 +69,20 @@ export default function SubjectManager(): React.JSX.Element {
   }, [allClassSubjects])
 
   const filteredSubjects = useMemo(() => {
-    return subjects.filter((s) => {
-      if (searchTerm && !s.name.toLowerCase().includes(searchTerm.toLowerCase())) return false
-      return true
-    }).sort((a, b) => {
-      if (activeClass) {
-        const aAssigned = activeAssignments.has(a.id)
-        const bAssigned = activeAssignments.has(b.id)
-        if (aAssigned && !bAssigned) return -1
-        if (!aAssigned && bAssigned) return 1
-      }
-      return a.name.localeCompare(b.name)
-    })
+    return subjects
+      .filter((s) => {
+        if (searchTerm && !s.name.toLowerCase().includes(searchTerm.toLowerCase())) return false
+        return true
+      })
+      .sort((a, b) => {
+        if (activeClass) {
+          const aAssigned = activeAssignments.has(a.id)
+          const bAssigned = activeAssignments.has(b.id)
+          if (aAssigned && !bAssigned) return -1
+          if (!aAssigned && bAssigned) return 1
+        }
+        return a.name.localeCompare(b.name)
+      })
   }, [subjects, searchTerm, activeClass, activeAssignments])
 
   const handleCreateSubject = async () => {
@@ -93,7 +104,11 @@ export default function SubjectManager(): React.JSX.Element {
     }
   }
 
-  const toggleAssignment = async (subject: Subject, isAssigned: boolean, classSubject?: ClassSubject) => {
+  const toggleAssignment = async (
+    subject: Subject,
+    isAssigned: boolean,
+    classSubject?: ClassSubject
+  ) => {
     if (!activeClass || !canWrite('grades')) return
 
     if (isAssigned && classSubject) {
@@ -115,7 +130,12 @@ export default function SubjectManager(): React.JSX.Element {
   }
 
   const handleDeleteSubject = async (id: string, name: string) => {
-    if (!confirm(`Supprimer définitivement "${name}" du catalogue ?\nLes notes associées ne seront plus visibles.`)) return
+    if (
+      !confirm(
+        `Supprimer définitivement "${name}" du catalogue ?\nLes notes associées ne seront plus visibles.`
+      )
+    )
+      return
     const ok = await deleteSubject(id)
     if (ok) {
       setMsg(`"${name}" supprimée du catalogue.`)
@@ -136,48 +156,55 @@ export default function SubjectManager(): React.JSX.Element {
             <Settings className="w-7 h-7 text-primary" />
             Gestion des matières
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Configurez le catalogue global et les programmes par classe.</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Configurez le catalogue global et les programmes par classe.
+          </p>
         </div>
       </div>
 
-      {error && <p className="text-red-600 bg-red-50 p-3 rounded-lg border border-red-100">{error}</p>}
+      {error && (
+        <p className="text-red-600 bg-red-50 p-3 rounded-lg border border-red-100">{error}</p>
+      )}
       {msg && (
-        <div className={`p-3 rounded-lg border text-sm font-medium transition-all ${msg.includes('Erreur') ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+        <div
+          className={`p-3 rounded-lg border text-sm font-medium transition-all ${msg.includes('Erreur') ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}
+        >
           {msg}
         </div>
       )}
 
       {/* Main Layout: Top Bar + Content */}
       <div className="flex flex-col gap-4">
-        
         {/* Top Bar: Class Selection */}
         <div className="flex items-center gap-2 flex-wrap pb-2 shrink-0">
           <button
             onClick={() => setActiveClass('')}
             className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
-              activeClass === '' 
-                ? 'bg-primary text-primary-foreground shadow-md font-semibold' 
+              activeClass === ''
+                ? 'bg-primary text-primary-foreground shadow-md font-semibold'
                 : 'bg-white text-gray-700 hover:bg-gray-50 border shadow-sm'
             }`}
           >
             <Layers className="w-4 h-4" />
             Catalogue Global
           </button>
-          
+
           <div className="w-px h-6 bg-gray-200 mx-2 shrink-0"></div>
 
           {Object.entries(CLASS_SECTIONS).map(([label, classList], index) => {
             if (classList.length === 0) return null
             return (
               <React.Fragment key={label}>
-                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider shrink-0">{label}</span>
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider shrink-0">
+                  {label}
+                </span>
                 {classList.map((c) => (
                   <button
                     key={c}
                     onClick={() => setActiveClass(c)}
                     className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                      activeClass === c 
-                        ? 'bg-primary/10 text-primary border border-primary/30' 
+                      activeClass === c
+                        ? 'bg-primary/10 text-primary border border-primary/30'
                         : 'bg-white text-gray-600 hover:bg-gray-50 border shadow-sm'
                     }`}
                   >
@@ -194,7 +221,6 @@ export default function SubjectManager(): React.JSX.Element {
 
         {/* Right Content */}
         <div className="bg-white rounded-2xl border shadow-sm flex flex-col">
-          
           {/* Header */}
           <div className="bg-gray-50/80 border-b px-6 py-5 shrink-0 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
             <div>
@@ -212,24 +238,25 @@ export default function SubjectManager(): React.JSX.Element {
                 )}
               </h2>
               <p className="text-sm text-gray-500 mt-1">
-                {activeClass 
-                  ? 'Activez les matières enseignées dans cette classe et définissez leurs coefficients.' 
-                  : 'Gérez toutes les matières disponibles dans l\'établissement.'}
+                {activeClass
+                  ? 'Activez les matières enseignées dans cette classe et définissez leurs coefficients.'
+                  : "Gérez toutes les matières disponibles dans l'établissement."}
               </p>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="relative">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="relative flex-1 min-w-[200px]">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <Input
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Rechercher une matière..."
-                  className="pl-9 h-9 w-64 bg-white border-gray-200 focus:bg-white"
+                  className="pl-9 h-9 w-full md:w-64 bg-white border-gray-200 focus:bg-white"
                 />
               </div>
               {activeClass && (
                 <div className="text-sm font-medium bg-white px-3 py-1.5 rounded-lg border shadow-sm text-gray-600 shrink-0">
-                  <span className="text-primary font-bold">{activeAssignments.size}</span> matière(s) au programme
+                  <span className="text-primary font-bold">{activeAssignments.size}</span>{' '}
+                  matière(s) au programme
                 </div>
               )}
             </div>
@@ -261,7 +288,11 @@ export default function SubjectManager(): React.JSX.Element {
                     className="h-10 bg-gray-50"
                   />
                 </div>
-                <Button onClick={handleCreateSubject} disabled={loading || !newName.trim()} className="h-10">
+                <Button
+                  onClick={handleCreateSubject}
+                  disabled={loading || !newName.trim()}
+                  className="h-10"
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Ajouter
                 </Button>
@@ -281,17 +312,27 @@ export default function SubjectManager(): React.JSX.Element {
                 <thead className="bg-white sticky top-0 border-b z-10 shadow-sm">
                   <tr>
                     <th className="px-6 py-4 font-semibold text-gray-600">Nom de la matière</th>
-                    
+
                     {activeClass ? (
                       <>
-                        <th className="px-6 py-4 font-semibold text-gray-600 text-center w-40">Au programme</th>
+                        <th className="px-6 py-4 font-semibold text-gray-600 text-center w-40">
+                          Au programme
+                        </th>
                         <th className="px-6 py-4 font-semibold text-gray-600 w-48">Coefficient</th>
                       </>
                     ) : (
                       <>
-                        <th className="px-6 py-4 font-semibold text-gray-600 text-center">Classes assignées</th>
-                        <th className="px-6 py-4 font-semibold text-gray-600 w-48">Coef. par défaut</th>
-                        {canWrite('grades') && <th className="px-6 py-4 font-semibold text-gray-600 text-right w-24">Actions</th>}
+                        <th className="px-6 py-4 font-semibold text-gray-600 text-center">
+                          Classes assignées
+                        </th>
+                        <th className="px-6 py-4 font-semibold text-gray-600 w-48">
+                          Coef. par défaut
+                        </th>
+                        {canWrite('grades') && (
+                          <th className="px-6 py-4 font-semibold text-gray-600 text-right w-24">
+                            Actions
+                          </th>
+                        )}
                       </>
                     )}
                   </tr>
@@ -303,16 +344,20 @@ export default function SubjectManager(): React.JSX.Element {
                     const count = subjectClassCounts.get(s.id) || 0
 
                     return (
-                      <tr 
-                        key={s.id} 
+                      <tr
+                        key={s.id}
                         className={`transition-colors hover:bg-gray-50/80 ${activeClass && isAssigned ? 'bg-primary/[0.02]' : ''}`}
                       >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${activeClass && isAssigned ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500'}`}>
+                            <div
+                              className={`w-8 h-8 rounded-lg flex items-center justify-center ${activeClass && isAssigned ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500'}`}
+                            >
                               <BookOpen className="w-4 h-4" />
                             </div>
-                            <span className={`font-medium ${activeClass && !isAssigned ? 'text-gray-400' : 'text-gray-900'}`}>
+                            <span
+                              className={`font-medium ${activeClass && !isAssigned ? 'text-gray-400' : 'text-gray-900'}`}
+                            >
                               {s.name}
                             </span>
                           </div>

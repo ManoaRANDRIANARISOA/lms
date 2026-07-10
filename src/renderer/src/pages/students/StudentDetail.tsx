@@ -24,8 +24,7 @@ import {
   Shirt,
   RefreshCw,
   ToggleLeft,
-  ToggleRight,
-  Download
+  ToggleRight
 } from 'lucide-react'
 import { getStudentPhotoUrl } from '@/lib/image-utils'
 import { useNavigate } from 'react-router-dom'
@@ -116,11 +115,14 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
 
   useEffect(() => {
     if (currentStudent?.is_personnel_child && currentStudent.parent_personnel_id) {
-       window.api.personnel.get(currentStudent.parent_personnel_id).then((res: any) => {
+      window.api.personnel
+        .get(currentStudent.parent_personnel_id)
+        .then((res: any) => {
           if (res.success && res.personnel) setPersonnelParent(res.personnel)
-       }).catch((err: any) => console.error('Failed to fetch personnel parent', err))
+        })
+        .catch((err: any) => console.error('Failed to fetch personnel parent', err))
     } else {
-       setPersonnelParent(null)
+      setPersonnelParent(null)
     }
   }, [currentStudent?.is_personnel_child, currentStudent?.parent_personnel_id])
 
@@ -226,7 +228,9 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
             {canWrite('students') && (
               <Button variant="outline" size="sm" onClick={() => setIsReEnrollOpen(true)}>
                 <History className="w-4 h-4 mr-2" />
-                {!currentFees && currentStudent?.student_status !== 'Ancien' ? 'Inscrire' : 'Réinscrire'}
+                {!currentFees && currentStudent?.student_status !== 'Ancien'
+                  ? 'Inscrire'
+                  : 'Réinscrire'}
               </Button>
             )}
             <Button
@@ -237,33 +241,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
               <FileText className="w-4 h-4 mr-2" />
               Certificat
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                if (!currentStudent) return
-                const result = await window.api.pdf.generateCertificate({
-                  first_name: currentStudent.first_name,
-                  last_name: currentStudent.last_name,
-                  date_of_birth: currentStudent.date_of_birth,
-                  place_of_birth: currentStudent.place_of_birth,
-                  class_name: currentStudent.class || currentFees?.class_name || '',
-                  school_year: currentFees?.school_year || '',
-                  registration_number: currentStudent.registration_number,
-                  father_name: currentStudent.father_name,
-                  mother_name: currentStudent.mother_name,
-                  photo_path: currentStudent.photo_path
-                })
-                if (result.success && result.filePath) {
-                  await window.api.pdf.openFile(result.filePath)
-                } else {
-                  alert(result.error || 'Erreur génération PDF')
-                }
-              }}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              PDF
-            </Button>
+
             {canWrite('students') && (
               <Button variant="outline" size="sm" onClick={onEdit}>
                 <Edit className="w-4 h-4 mr-2" />
@@ -304,7 +282,9 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                   </h1>
                   <p className="text-primary-foreground/80 mt-1">
                     Classe: {getDisplayClass(displayedFees)}
-                    <span className="text-xs opacity-75 ml-2">({displayedFees?.school_year || selectedYear})</span>
+                    <span className="text-xs opacity-75 ml-2">
+                      ({displayedFees?.school_year || selectedYear})
+                    </span>
                   </p>
                 </div>
               </div>
@@ -318,7 +298,8 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                   </span>
                 ) : currentStudent.student_status === 'Pré-inscrit' ? (
                   <span className="bg-purple-400 text-purple-900 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
-                    Pré-inscrit {currentStudent.status_year ? `(en ${currentStudent.status_year})` : ''}
+                    Pré-inscrit{' '}
+                    {currentStudent.status_year ? `(en ${currentStudent.status_year})` : ''}
                   </span>
                 ) : currentStudent.student_status === 'Quitté' ? (
                   <span className="bg-red-400 text-red-900 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
@@ -388,7 +369,9 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                     {currentStudent.gender && (
                       <div className="grid grid-cols-3">
                         <dt className="text-gray-500 text-sm">Sexe</dt>
-                        <dd className="col-span-2 text-sm">{currentStudent.gender === 'M' ? 'Garçon' : 'Fille'}</dd>
+                        <dd className="col-span-2 text-sm">
+                          {currentStudent.gender === 'M' ? 'Garçon' : 'Fille'}
+                        </dd>
                       </div>
                     )}
                     <div className="grid grid-cols-3">
@@ -433,7 +416,10 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                         Contact
                       </dt>
                       <dd className="col-span-2 text-sm font-medium">
-                        {currentStudent.guardian_contact || currentStudent.father_contact || currentStudent.mother_contact || '-'}
+                        {currentStudent.guardian_contact ||
+                          currentStudent.father_contact ||
+                          currentStudent.mother_contact ||
+                          '-'}
                       </dd>
                     </div>
                   </dl>
@@ -446,9 +432,13 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                       </h4>
                       <div className="grid grid-cols-3 gap-2">
                         <dt className="text-purple-600 text-xs mt-0.5">Nom</dt>
-                        <dd className="col-span-2 text-sm font-semibold text-purple-900">{personnelParent.last_name} {personnelParent.first_name}</dd>
+                        <dd className="col-span-2 text-sm font-semibold text-purple-900">
+                          {personnelParent.last_name} {personnelParent.first_name}
+                        </dd>
                         <dt className="text-purple-600 text-xs mt-0.5">Poste</dt>
-                        <dd className="col-span-2 text-sm text-purple-800">{personnelParent.position || '-'}</dd>
+                        <dd className="col-span-2 text-sm text-purple-800">
+                          {personnelParent.position || '-'}
+                        </dd>
                       </div>
                     </div>
                   )}
@@ -497,7 +487,9 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                       )}
                     </div>
                   ) : (
-                    canWrite('students') && currentFeesHistory && currentFeesHistory.length > 0 && (
+                    canWrite('students') &&
+                    currentFeesHistory &&
+                    currentFeesHistory.length > 0 && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -650,9 +642,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                           Uniformes & Divers
                         </span>
                         {canWrite('students') && (
-                          <span className="text-xs text-blue-500 font-medium">
-                            Acheter / Payer
-                          </span>
+                          <span className="text-xs text-blue-500 font-medium">Acheter / Payer</span>
                         )}
                       </h4>
                       <ul className="space-y-2 text-sm">
@@ -664,12 +654,16 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                                 onClick={() => {
                                   setActiveTab('finance')
                                   setTimeout(() => {
-                                    window.dispatchEvent(new CustomEvent('open-payment-modal', { detail: 'uniform' }))
+                                    window.dispatchEvent(
+                                      new CustomEvent('open-payment-modal', { detail: 'uniform' })
+                                    )
                                   }, 100)
                                 }}
                                 disabled={!canWrite('students')}
                                 className={`w-full flex items-center justify-between p-2 rounded transition-all ${
-                                  !canWrite('students') ? 'cursor-default' : 'hover:bg-blue-50 cursor-pointer border border-transparent hover:border-blue-200'
+                                  !canWrite('students')
+                                    ? 'cursor-default'
+                                    : 'hover:bg-blue-50 cursor-pointer border border-transparent hover:border-blue-200'
                                 } ${isPurchased ? 'text-green-600 font-medium' : 'text-gray-500'}`}
                               >
                                 <div className="flex items-center">
@@ -678,9 +672,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                                   ) : (
                                     <XCircle className="w-4 h-4 mr-2 flex-shrink-0 opacity-50" />
                                   )}
-                                  <span className={!isPurchased ? 'opacity-80' : ''}>
-                                    {item}
-                                  </span>
+                                  <span className={!isPurchased ? 'opacity-80' : ''}>{item}</span>
                                 </div>
                                 {!isPurchased && canWrite('students') && (
                                   <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full opacity-0 hover:opacity-100 transition-opacity">
@@ -820,7 +812,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
             useAppStore.getState().currentYear
           }
           isNewStudent={!currentFees}
-          enrolledYears={currentFeesHistory?.map(f => f.school_year) || []}
+          enrolledYears={currentFeesHistory?.map((f) => f.school_year) || []}
           onSuccess={handleReEnrollSuccess}
         />
       </div>

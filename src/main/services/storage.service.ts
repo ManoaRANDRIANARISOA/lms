@@ -10,7 +10,12 @@ import { supabase } from './sync.service'
  */
 export async function uploadToStorage(localPath: string, folder: string = ''): Promise<string> {
   // If it's already a URL or a base64, do not upload
-  if (!localPath || localPath.startsWith('http://') || localPath.startsWith('https://') || localPath.startsWith('data:')) {
+  if (
+    !localPath ||
+    localPath.startsWith('http://') ||
+    localPath.startsWith('https://') ||
+    localPath.startsWith('data:')
+  ) {
     return localPath
   }
 
@@ -24,7 +29,7 @@ export async function uploadToStorage(localPath: string, folder: string = ''): P
     }
 
     const fileBuffer = await fs.promises.readFile(normalizedPath)
-    
+
     // Determine mime type
     const ext = path.extname(normalizedPath).toLowerCase()
     let mimeType = 'application/octet-stream'
@@ -50,7 +55,7 @@ export async function uploadToStorage(localPath: string, folder: string = ''): P
 
     // Get public URL
     const { data: urlData } = supabase.storage.from('lms_files').getPublicUrl(fileName)
-    
+
     if (urlData && urlData.publicUrl) {
       console.log(`[StorageService] Upload successful: ${urlData.publicUrl}`)
       return urlData.publicUrl

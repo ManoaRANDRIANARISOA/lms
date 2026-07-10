@@ -223,7 +223,9 @@ export default function PaymentAlerts() {
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <Label className="text-sm font-medium text-gray-600 whitespace-nowrap">Année scolaire :</Label>
+            <Label className="text-sm font-medium text-gray-600 whitespace-nowrap">
+              Année scolaire :
+            </Label>
             <select
               className="flex h-9 w-32 rounded-md border border-input bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               value={targetYear}

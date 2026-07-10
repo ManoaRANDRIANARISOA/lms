@@ -110,14 +110,14 @@ export class StudentRepository {
   }
 
   static parseBoolean(val: unknown): boolean {
-    if (val === null || val === undefined) return false;
-    if (typeof val === 'boolean') return val;
-    if (typeof val === 'number') return val === 1;
+    if (val === null || val === undefined) return false
+    if (typeof val === 'boolean') return val
+    if (typeof val === 'number') return val === 1
     if (typeof val === 'string') {
-      const trimmed = val.trim().toLowerCase();
-      return trimmed === '1' || trimmed === '1.0' || trimmed === 'true';
+      const trimmed = val.trim().toLowerCase()
+      return trimmed === '1' || trimmed === '1.0' || trimmed === 'true'
     }
-    return false;
+    return false
   }
 
   static generateRegistrationNumber(): string {
@@ -384,8 +384,8 @@ export class StudentRepository {
                     bus_subscribed, bus_route, 
                     canteen_subscribed, canteen_days_per_week,
                     uniform_items_purchased,
-                    fram_paid_by_parent
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    fram_paid_by_parent, is_reenrollment
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
             `
         ).run(
           feeId,
@@ -409,6 +409,7 @@ export class StudentRepository {
           tuition_level: level,
           monthly_tuition: tuitionFee,
           class_name: studentDataClean.class,
+          is_reenrollment: 0,
           ...feeData
         })
       }
@@ -442,9 +443,20 @@ export class StudentRepository {
       schoolYear?: string
       limit?: number
       offset?: number
+      sortField?: string
+      sortDirection?: 'asc' | 'desc'
     } = {}
   ) {
-    const { search, class: className, status, schoolYear, limit = 50, offset = 0 } = filters
+    const {
+      search,
+      class: className,
+      status,
+      schoolYear,
+      limit = 5000,
+      offset = 0,
+      sortField,
+      sortDirection = 'asc'
+    } = filters
 
     // Build WHERE clause incrementally (same conditions for data and count)
     const conditions = ['s.deleted = 0']
@@ -485,7 +497,13 @@ export class StudentRepository {
         FROM students s
         WHERE ${whereClause}
       `
-      subQueryParams = [targetSchoolYear, targetSchoolYear, targetSchoolYear, targetSchoolYear, ...params]
+      subQueryParams = [
+        targetSchoolYear,
+        targetSchoolYear,
+        targetSchoolYear,
+        targetSchoolYear,
+        ...params
+      ]
     } else {
       resolvedSubQuery = `
         SELECT s.*,
@@ -510,7 +528,8 @@ export class StudentRepository {
         WHERE ${whereClause}
       `
       // For fallback we might not have a targetSchoolYear, so we use the default setting
-      const fallbackYear = this.getSetting('school_year')?.replace(/['"]/g, '').trim() || '2025-2026'
+      const fallbackYear =
+        this.getSetting('school_year')?.replace(/['"]/g, '').trim() || '2025-2026'
       subQueryParams = [fallbackYear, fallbackYear, fallbackYear, fallbackYear, ...params]
     }
 
@@ -522,7 +541,7 @@ export class StudentRepository {
       postConditions.push('resolved_class = ?')
       postParams.push(className)
     }
-    
+
     if (status) {
       postConditions.push('student_status = ?')
       postParams.push(status)
@@ -530,10 +549,32 @@ export class StudentRepository {
 
     const postFilter = postConditions.length > 0 ? `WHERE ${postConditions.join(' AND ')}` : ''
 
+    let orderClause = `
+      ORDER BY 
+        CASE WHEN registration_number IS NULL OR registration_number = '' THEN 1 ELSE 0 END ASC,
+        registration_number ASC, 
+        last_name ASC, 
+        first_name ASC
+    `
+    if (sortField) {
+      const allowedSortFields = ['registration_number', 'last_name', 'first_name', 'resolved_class']
+      if (allowedSortFields.includes(sortField)) {
+        const direction = sortDirection === 'desc' ? 'DESC' : 'ASC'
+        orderClause = `
+          ORDER BY 
+            CASE WHEN ${sortField} IS NULL OR ${sortField} = '' THEN 1 ELSE 0 END ASC,
+            ${sortField} ${direction}
+        `
+        if (sortField === 'last_name') {
+          orderClause += `, first_name ${direction}`
+        }
+      }
+    }
+
     const dataQuery = `
       SELECT * FROM (${resolvedSubQuery})
       ${postFilter}
-      ORDER BY last_name, first_name
+      ${orderClause}
       LIMIT ? OFFSET ?
     `
     const dataParams = [...subQueryParams, ...postParams, limit, offset]
@@ -559,7 +600,7 @@ export class StudentRepository {
   static getById(id: string, targetSchoolYear?: string) {
     let yearQuery = `REPLACE((SELECT value FROM settings WHERE key = 'school_year'), '"', '')`
     const params: unknown[] = [id]
-    
+
     if (targetSchoolYear) {
       yearQuery = '?'
       params.unshift(targetSchoolYear, targetSchoolYear, targetSchoolYear, targetSchoolYear)
@@ -634,22 +675,27 @@ export class StudentRepository {
         }
       } catch (e) {
         let isHandled = false
-        if (typeof f.uniform_items_purchased === 'string' && !f.uniform_items_purchased.startsWith('[')) {
-          f.uniform_items_purchased = f.uniform_items_purchased ? f.uniform_items_purchased.split(',').filter(Boolean) : []
+        if (
+          typeof f.uniform_items_purchased === 'string' &&
+          !f.uniform_items_purchased.startsWith('[')
+        ) {
+          f.uniform_items_purchased = f.uniform_items_purchased
+            ? f.uniform_items_purchased.split(',').filter(Boolean)
+            : []
           isHandled = true
         }
         if (typeof f.canteen_days === 'string' && !f.canteen_days.startsWith('[')) {
           f.canteen_days = f.canteen_days ? f.canteen_days.split(',').filter(Boolean) : []
           isHandled = true
         }
-        
+
         if (!isHandled) {
           console.error('Error parsing fee JSON fields:', e)
         }
       }
-      
+
       // Parse boolean fields to avoid "0.0" truthiness
-      StudentRepository.feeFields.forEach(field => {
+      StudentRepository.feeFields.forEach((field) => {
         if (f[field] !== undefined) {
           if (!field.includes('days') && !field.includes('route') && !field.includes('items')) {
             f[field] = this.parseBoolean(f[field])
@@ -755,7 +801,9 @@ export class StudentRepository {
                 : (db.prepare('SELECT class FROM students WHERE id = ?').get(id) as any)?.class ||
                   ''
 
-            const dbStudent = db.prepare('SELECT is_personnel_child FROM students WHERE id = ?').get(id) as any
+            const dbStudent = db
+              .prepare('SELECT is_personnel_child FROM students WHERE id = ?')
+              .get(id) as any
             const dbIsPersonnelChild = this.parseBoolean(dbStudent?.is_personnel_child)
 
             const currentIsPersonnelChild =
@@ -906,6 +954,24 @@ export class StudentRepository {
     }
   }
 
+  static async repairSync() {
+    try {
+      db.prepare(
+        "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('last_sync_time', '\"2020-01-01T00:00:00.000Z\"', CURRENT_TIMESTAMP)"
+      ).run()
+      db.prepare(
+        "UPDATE sync_queue SET error_message = NULL WHERE status = 'synced' AND error_message IS NOT NULL"
+      ).run()
+      db.prepare(
+        "UPDATE sync_queue SET status = 'pending', error_message = NULL WHERE status IN ('skipped', 'error')"
+      ).run()
+      return { success: true }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { success: false, error: message }
+    }
+  }
+
   // New method to clear database (for development/reset)
   static async resetDatabase(includeRemote: boolean = false) {
     try {
@@ -925,10 +991,12 @@ export class StudentRepository {
       db.prepare('DELETE FROM students').run()
 
       // 3. Clear Sync Queue for student related tables only
-      db.prepare(`
+      db.prepare(
+        `
         DELETE FROM sync_queue 
         WHERE table_name IN ('students', 'student_fees', 'student_payments', 'event_payments', 'bus_attendance', 'canteen_attendance')
-      `).run()
+      `
+      ).run()
 
       // Reset other tables as needed
       return { success: true }
@@ -938,7 +1006,14 @@ export class StudentRepository {
     }
   }
 
-  static reEnroll(id: string, newClass: string, targetYear: string, initialPaymentDroit?: number, initialPaymentFram?: number, isNewStudentOverride?: boolean) {
+  static reEnroll(
+    id: string,
+    newClass: string,
+    targetYear: string,
+    initialPaymentDroit?: number,
+    initialPaymentFram?: number,
+    isNewStudentOverride?: boolean
+  ) {
     const student = db.prepare('SELECT * FROM students WHERE id = ?').get(id) as any
     if (!student) return { success: false, error: 'Student not found' }
 
@@ -957,6 +1032,11 @@ export class StudentRepository {
     const tuitionFee = this.getTuitionPrice(newClass, isPersonnelChild)
 
     const transaction = db.transaction(() => {
+      const isNewStudent =
+        isNewStudentOverride !== undefined
+          ? isNewStudentOverride
+          : !student.class || student.class === 'Classe non spécifiée'
+
       // Update Student Class (Current Status)
       db.prepare(
         `
@@ -974,10 +1054,19 @@ export class StudentRepository {
       db.prepare(
         `
             INSERT INTO student_fees (
-                id, student_id, school_year, tuition_level, monthly_tuition, class_name, fram_paid_by_parent
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                id, student_id, school_year, tuition_level, monthly_tuition, class_name, fram_paid_by_parent, is_reenrollment
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `
-      ).run(feeId, id, targetYear, level, tuitionFee, newClass, isFramFullyPaid ? 1 : 0)
+      ).run(
+        feeId,
+        id,
+        targetYear,
+        level,
+        tuitionFee,
+        newClass,
+        isFramFullyPaid ? 1 : 0,
+        !isNewStudent ? 1 : 0
+      )
 
       addToSyncQueue('student_fees', feeId, 'create', {
         id: feeId,
@@ -986,19 +1075,17 @@ export class StudentRepository {
         tuition_level: level,
         monthly_tuition: tuitionFee,
         class_name: newClass,
-        fram_paid_by_parent: isFramFullyPaid ? 1 : 0
+        fram_paid_by_parent: isFramFullyPaid ? 1 : 0,
+        is_reenrollment: !isNewStudent ? 1 : 0
       })
 
       const currentDate = new Date().toISOString().split('T')[0]
-      const isNewStudent = isNewStudentOverride !== undefined 
-        ? isNewStudentOverride 
-        : (!student.class || student.class === 'Classe non spécifiée')
 
       // Create Fram Payment Record if > 0
       if (initialPaymentFram && initialPaymentFram > 0) {
         const paymentId = uuidv4()
-        const desc = "Cotisation FRAM"
-        
+        const desc = 'Cotisation FRAM'
+
         db.prepare(
           `
             INSERT INTO student_payments (
@@ -1044,9 +1131,9 @@ export class StudentRepository {
       // Create Enrollment Payment Record if > 0
       if (initialPaymentDroit && initialPaymentDroit > 0) {
         const paymentId = uuidv4()
-        const paymentType = isNewStudent ? 'enrollment' : 'enrollment' // Use enrollment for both so CashJournal maps it properly
-        const desc = isNewStudent ? "Droits d'inscription" : "Droits de réinscription"
-        
+        const paymentType = isNewStudent ? 'enrollment' : 'reenrollment'
+        const desc = isNewStudent ? "Droits d'inscription" : 'Droits de réinscription'
+
         db.prepare(
           `
             INSERT INTO student_payments (
@@ -1069,19 +1156,20 @@ export class StudentRepository {
         // Add to cash_journal
         const cashId = uuidv4()
         const cashDesc = `Paiement ${desc} — ${student.last_name} ${student.first_name}`
+        const cashCategory = isNewStudent ? 'inscription' : 'réinscription'
         db.prepare(
           `
           INSERT INTO cash_journal (id, transaction_date, type, department, category, amount, description, payment_method, related_student_id)
-          VALUES (?, ?, 'income', 'eleve', 'inscription', ?, ?, 'cash', ?)
+          VALUES (?, ?, 'income', 'eleve', ?, ?, ?, 'cash', ?)
         `
-        ).run(cashId, currentDate, initialPaymentDroit, cashDesc, id)
+        ).run(cashId, currentDate, cashCategory, initialPaymentDroit, cashDesc, id)
 
         addToSyncQueue('cash_journal', cashId, 'create', {
           id: cashId,
           transaction_date: currentDate,
           type: 'income',
           department: 'eleve',
-          category: 'inscription',
+          category: cashCategory,
           amount: initialPaymentDroit,
           description: cashDesc,
           payment_method: 'cash',
