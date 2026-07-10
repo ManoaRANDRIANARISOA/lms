@@ -43,28 +43,6 @@ export class StudentRepository {
     'departure_date'
   ]
 
-  private static DEFAULT_PRICES = {
-    tuition: {
-      PS: 60000,
-      MS: 60000,
-      GS: 60000,
-      CP: 70000,
-      CE1: 70000,
-      CE2: 70000,
-      CM1: 80000,
-      CM2: 80000,
-      '6ème': 90000,
-      '5ème': 90000,
-      '4ème': 100000,
-      '3ème': 100000,
-      Seconde: 110000,
-      Première: 110000,
-      Terminale: 120000
-    },
-    fram: 15000,
-    registration: 50000
-  }
-
   private static translateError(error: unknown): string {
     const msg = error instanceof Error ? error.message : String(error)
     if (msg.includes('no column named'))
@@ -173,8 +151,7 @@ export class StudentRepository {
       console.error('Error resolving tuition config:', e)
     }
 
-    const tuitionPrices =
-      prices && prices.tuition ? prices.tuition : StudentRepository.DEFAULT_PRICES.tuition
+    const tuitionPrices = prices && prices.tuition ? prices.tuition : {}
 
     // Try to find matching key in tuition prices
     const keys = Object.keys(tuitionPrices)
@@ -195,37 +172,7 @@ export class StudentRepository {
   static determineTuitionLevel(className: string): string {
     const config = this.resolveTuitionConfig(className)
     if (config.key) return config.key
-
-    // Fallback for legacy compatibility
-    const lowerClass = className.toLowerCase()
-    if (
-      lowerClass.includes('maternelle') ||
-      lowerClass.includes('ps') ||
-      lowerClass.includes('ms') ||
-      lowerClass.includes('gs')
-    )
-      return 'preschool'
-    if (
-      lowerClass.includes('cp') ||
-      lowerClass.includes('ce') ||
-      lowerClass.includes('cm') ||
-      lowerClass.includes('11') ||
-      lowerClass.includes('10') ||
-      lowerClass.includes('9') ||
-      lowerClass.includes('8') ||
-      lowerClass.includes('7')
-    )
-      return 'primary'
-    if (
-      lowerClass.includes('6') ||
-      lowerClass.includes('5') ||
-      lowerClass.includes('4') ||
-      lowerClass.includes('3')
-    )
-      return 'middle'
-    if (lowerClass.includes('2') || lowerClass.includes('1') || lowerClass.includes('term'))
-      return 'high'
-    return 'primary' // Default
+    return className || 'unknown'
   }
 
   // Helper to handle bidirectional sibling updates
