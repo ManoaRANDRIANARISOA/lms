@@ -1,2 +1,0 @@
-
-[dotenv@17.2.4] injecting env (4) from dist\win-unpacked\resources\.env -- tip: 🔄 add secrets lifecycle management: https://dotenvx.com/ops
