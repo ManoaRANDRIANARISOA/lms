@@ -29,6 +29,7 @@ export default function PersonnelForm(): React.JSX.Element {
     status: 'fulltime',
     position: 'teacher',
     hire_date: new Date().toISOString().split('T')[0],
+    payroll_start_date: new Date().toISOString().substring(0, 7),
     departure_date: '',
     teacher_level: '',
     teacher_subjects: '[]',
@@ -61,6 +62,7 @@ export default function PersonnelForm(): React.JSX.Element {
     if (isEdit && currentPerson) {
       setFormData({
         ...currentPerson,
+        payroll_start_date: currentPerson.payroll_start_date || '',
         teacher_subjects: JSON.stringify(currentPerson.teacher_subjects || []),
         monthly_salary: currentPerson.monthly_salary || '',
         hourly_rate: currentPerson.hourly_rate || '',
@@ -250,6 +252,16 @@ export default function PersonnelForm(): React.JSX.Element {
                 onChange={(e) => handleChange('hire_date', e.target.value)}
                 required
               />
+            </div>
+            <div>
+              <Label htmlFor="payroll_start_date">Début de paie (Exercice)</Label>
+              <Input
+                id="payroll_start_date"
+                type="month"
+                value={formData.payroll_start_date}
+                onChange={(e) => handleChange('payroll_start_date', e.target.value)}
+              />
+              <p className="text-xs text-gray-500 mt-1">Ignorer le passif avant ce mois.</p>
             </div>
             <div>
               <Label htmlFor="departure_date">Date de départ</Label>

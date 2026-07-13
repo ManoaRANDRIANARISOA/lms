@@ -36,6 +36,7 @@ export class PersonnelRepository {
     'status',
     'position',
     'hire_date',
+    'payroll_start_date',
     'departure_date',
     'teacher_level',
     'teacher_subjects',

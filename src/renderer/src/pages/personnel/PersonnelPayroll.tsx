@@ -24,6 +24,7 @@ export default function PersonnelPayroll(): React.JSX.Element {
   })
 
   const [unpaidData, setUnpaidData] = useState<UnpaidRow[]>([])
+  const [missingHireDate, setMissingHireDate] = useState<Personnel[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -34,23 +35,42 @@ export default function PersonnelPayroll(): React.JSX.Element {
     async function computeAll() {
       setLoading(true)
       const data: UnpaidRow[] = []
+      const missing: Personnel[] = []
 
       const d = new Date()
       const realCurrentMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 
       for (const p of personnel) {
         if (p.status === 'parttime' || p.status === 'fulltime') {
+          if (!p.hire_date) {
+            missing.push(p)
+            continue
+          }
+
+          const hireDate = new Date(p.hire_date)
+          const hireMonthStr = `${hireDate.getFullYear()}-${String(hireDate.getMonth() + 1).padStart(2, '0')}`
+          
+          let effectiveStartMonth = hireMonthStr
+          if (p.payroll_start_date) {
+            effectiveStartMonth = p.payroll_start_date > hireMonthStr ? p.payroll_start_date : hireMonthStr
+          }
+
           if (filterType === 'specific') {
-            const res = await window.api.personnel.calculateSalary(p.id, specificMonth)
-            if (res.success && res.calculation && !res.calculation.isPaid) {
-              data.push({ person: p, month: specificMonth, calc: res.calculation })
+            if (specificMonth >= effectiveStartMonth) {
+              const res = await window.api.personnel.calculateSalary(p.id, specificMonth)
+              if (
+                res.success &&
+                res.calculation &&
+                !res.calculation.isPaid &&
+                res.calculation.netSalary > 0
+              ) {
+                data.push({ person: p, month: specificMonth, calc: res.calculation })
+              }
             }
           } else {
             // Tous les impayés (remonter jusqu'à 12 mois maximum ou depuis hire_date)
             const monthsToCheck: string[] = []
 
-            // Generates up to 12 months in the past, regardless of hire_date,
-            // so we can catch any manually added hours before hire_date.
             const endDate = new Date() // current
 
             const limitDate = new Date()
@@ -61,19 +81,15 @@ export default function PersonnelPayroll(): React.JSX.Element {
 
             const curr = new Date(actualStart)
 
-            // Limit by hire_date if present
-            const hireDate = p.hire_date ? new Date(p.hire_date) : new Date('2000-01-01')
-            const hireMonthStr = `${hireDate.getFullYear()}-${String(hireDate.getMonth() + 1).padStart(2, '0')}`
-
             while (curr <= endDate) {
               const monthStr = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}`
-              if (monthStr >= hireMonthStr) {
+              if (monthStr >= effectiveStartMonth) {
                 monthsToCheck.push(monthStr)
               }
               curr.setMonth(curr.getMonth() + 1)
             }
             // always include current month just in case
-            if (!monthsToCheck.includes(realCurrentMonth)) {
+            if (!monthsToCheck.includes(realCurrentMonth) && realCurrentMonth >= effectiveStartMonth) {
               monthsToCheck.push(realCurrentMonth)
             }
 
@@ -85,7 +101,6 @@ export default function PersonnelPayroll(): React.JSX.Element {
                 !res.calculation.isPaid &&
                 res.calculation.netSalary > 0
               ) {
-                // If netSalary is 0, it means the employee didn't work and has no base salary, no need to pay 0.
                 data.push({ person: p, month: m, calc: res.calculation })
               }
             }
@@ -100,6 +115,7 @@ export default function PersonnelPayroll(): React.JSX.Element {
       })
 
       setUnpaidData(data)
+      setMissingHireDate(missing)
       setLoading(false)
     }
 
@@ -145,6 +161,22 @@ export default function PersonnelPayroll(): React.JSX.Element {
       </div>
 
       <div className="bg-white rounded-xl border border-red-100 shadow-sm overflow-hidden">
+        {missingHireDate.length > 0 && (
+          <div className="bg-amber-50 border-b border-amber-200 p-4 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-semibold text-amber-800">
+                Action requise : Dates d'embauche manquantes
+              </h3>
+              <p className="text-sm text-amber-700 mt-1">
+                <span className="font-bold">{missingHireDate.length} employé(s)</span> n'ont pas de date d'embauche définie dans leur dossier. 
+                Afin de garantir l'exactitude des calculs, ils sont temporairement masqués de la liste des salaires à payer. 
+                Veuillez aller dans la "Liste du personnel" et mettre à jour leur dossier.
+              </p>
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="p-8 text-center text-gray-500 flex flex-col items-center">
             <Calculator className="w-8 h-8 animate-spin text-red-400 mb-2" />

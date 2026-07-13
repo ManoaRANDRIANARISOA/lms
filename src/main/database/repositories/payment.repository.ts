@@ -62,8 +62,16 @@ export class PaymentRepository {
           .prepare('SELECT first_name, last_name FROM students WHERE id = ?')
           .get(payment.student_id) as { first_name: string; last_name: string } | undefined
         const cashDescription = studentName
-          ? `Paiement ${cashCategory}${payment.month ? ` (${payment.month})` : ''} — ${studentName.last_name} ${studentName.first_name}`
-          : `Paiement ${cashCategory}${payment.month ? ` (${payment.month})` : ''}`
+          ? `Paiement ${cashCategory}${payment.month ? ` (${payment.month})` : ''}${
+              (payment.payment_type === 'uniform' || payment.payment_type === 'other') && payment.description
+                ? ` (${payment.description})`
+                : ''
+            } — ${studentName.last_name} ${studentName.first_name}`
+          : `Paiement ${cashCategory}${payment.month ? ` (${payment.month})` : ''}${
+              (payment.payment_type === 'uniform' || payment.payment_type === 'other') && payment.description
+                ? ` (${payment.description})`
+                : ''
+            }`
 
         const cashDepartment = payment.payment_type === 'bus' ? 'bus' : 'eleve'
 

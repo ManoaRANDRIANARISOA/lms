@@ -251,6 +251,7 @@ export interface Personnel {
   status?: 'fulltime' | 'parttime'
   position?: 'teacher' | 'admin' | 'direction' | 'maintenance' | 'other'
   hire_date: string
+  payroll_start_date?: string
   departure_date?: string
   teacher_level?: 'preschool' | 'primary' | 'middle' | 'high' | 'multi'
   teacher_subjects?: string[]

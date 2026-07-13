@@ -355,24 +355,27 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
   const busFeeRecord = status?.feeRecord || feeRecord
 
   // Determine if student is new or returning
-  const currentStartYear = parseInt(schoolYear.split('-')[0])
-  const studentEnrollmentYear = studentInfo
-    ? parseInt(studentInfo.enrollment_date.split('-')[0])
-    : currentStartYear
   const hasReenrollmentPayment = payments.some((p) => p.payment_type === 'reenrollment')
-  const isReturning =
-    studentEnrollmentYear < currentStartYear ||
-    studentInfo?.student_status === 'Ancien' ||
-    hasReenrollmentPayment ||
-    busFeeRecord?.is_reenrollment === 1 ||
-    busFeeRecord?.is_reenrollment === true
+  const hasEnrollmentPayment = payments.some((p) => p.payment_type === 'enrollment')
+
+  let isReturning = false
+  if (hasReenrollmentPayment) {
+    isReturning = true
+  } else if (hasEnrollmentPayment) {
+    isReturning = false
+  } else {
+    isReturning =
+      studentInfo?.student_status === 'Ancien' ||
+      busFeeRecord?.is_reenrollment === 1 ||
+      busFeeRecord?.is_reenrollment === true
+  }
 
   const enrollmentType = isReturning ? 'reenrollment' : 'enrollment'
   const enrollmentLabel = isReturning ? 'Réinscription' : "Frais d'inscription"
 
   const enrollmentExpected = isReturning ? configPrices?.reenrollment : configPrices?.registration
   const enrollmentPaidAmt = payments
-    .filter((p) => p.payment_type === enrollmentType)
+    .filter((p) => p.payment_type === 'enrollment' || p.payment_type === 'reenrollment')
     .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
   const enrollmentBalance = (enrollmentExpected || 0) - enrollmentPaidAmt
 
@@ -447,8 +450,8 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
       icon: Shirt,
       color: 'text-pink-600',
       bg: 'bg-pink-50',
-      enabled: true,
-      status: 'any',
+      enabled: Object.keys(configPrices?.uniforms || {}).length > 0,
+      status: payments.some((p) => p.payment_type === 'uniform') ? 'paid' : 'any',
       isOneTime: false
     },
     {
@@ -902,20 +905,40 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           {formData.payment_type === 'uniform' &&
             configPrices?.uniforms &&
             Object.keys(configPrices.uniforms).length > 0 && (
-              <div className="grid gap-2">
-                <Label htmlFor="item">Article</Label>
-                <select
-                  id="item"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  value={formData.item}
-                  onChange={(e) => setFormData({ ...formData, item: e.target.value })}
-                >
-                  {Object.keys(configPrices.uniforms).map((item) => (
-                    <option key={item} value={item}>
-                      {item} ({configPrices.uniforms[item].toLocaleString()} Ar)
-                    </option>
-                  ))}
-                </select>
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="item">Article</Label>
+                  <select
+                    id="item"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={formData.item}
+                    onChange={(e) => setFormData({ ...formData, item: e.target.value })}
+                  >
+                    {Object.keys(configPrices.uniforms).map((item) => (
+                      <option key={item} value={item}>
+                        {item} ({configPrices.uniforms[item].toLocaleString()} Ar)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {payments.filter((p) => p.payment_type === 'uniform').length > 0 && (
+                  <div className="text-sm border p-3 rounded-md bg-gray-50">
+                    <p className="font-semibold text-gray-700 mb-1">Articles déjà achetés :</p>
+                    <ul className="list-disc pl-5 text-gray-600 space-y-1">
+                      {payments
+                        .filter((p) => p.payment_type === 'uniform')
+                        .map((p) => (
+                          <li key={p.id}>
+                            <span className="font-medium">{p.description || 'Uniforme'}</span> -{' '}
+                            {Number(p.amount).toLocaleString()} Ar{' '}
+                            <span className="text-gray-400 text-xs">
+                              ({new Date(p.payment_date).toLocaleDateString('fr-FR')})
+                            </span>
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
 

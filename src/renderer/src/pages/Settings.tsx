@@ -74,6 +74,10 @@ export default function Settings() {
         await window.api.settings.set('school_name', schoolName)
         await window.api.settings.set('school_year', currentYear)
         await window.api.settings.set('school_logo', schoolLogo)
+        
+        // Mettre à jour le store global instantanément pour éviter de devoir redémarrer
+        await useAppStore.getState().fetchSettings()
+        
         setMessage('Configuration enregistrée avec succès.')
       }
     } catch (e: any) {
