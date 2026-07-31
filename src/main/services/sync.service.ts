@@ -9,13 +9,9 @@ const envPath = isDev ? path.join(process.cwd(), '.env') : path.join(process.res
 
 dotenv.config({ path: envPath })
 
-const FALLBACK_URL = 'https://onxnctfgxxgxipehmfqb.supabase.co'
-const FALLBACK_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ueG5jdGZneHhneGlwZWhtZnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3ODg3NjUsImV4cCI6MjA4NjM2NDc2NX0.WuVMhj07pbkuuWFfG-AsOrVJM-LrWmvts0vhvfwVWdc'
-
-// Supabase credentials (prioritize .env, fallback to project credentials)
-const supabaseUrl = process.env.SUPABASE_URL || FALLBACK_URL
-const supabaseKey = process.env.SUPABASE_ANON_KEY || FALLBACK_KEY
+// Supabase credentials MUST be provided by the .env file
+const supabaseUrl = process.env.SUPABASE_URL
+const supabaseKey = process.env.SUPABASE_ANON_KEY
 
 let supabaseClient: any = null
 
