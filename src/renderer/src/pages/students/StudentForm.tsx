@@ -20,7 +20,7 @@ const studentSchema = z.object({
   gender: z.enum(['M', 'F']).optional(),
   date_of_birth: z.string().optional(),
   place_of_birth: z.string().optional(),
-  class: z.string().optional(),
+  class: z.string().min(1, 'La classe est requise'),
   enrollment_date: z.string().min(1, "La date d'inscription est requise"),
 
   email: z

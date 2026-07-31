@@ -49,10 +49,11 @@ export default function PersonnelPayroll(): React.JSX.Element {
 
           const hireDate = new Date(p.hire_date)
           const hireMonthStr = `${hireDate.getFullYear()}-${String(hireDate.getMonth() + 1).padStart(2, '0')}`
-          
+
           let effectiveStartMonth = hireMonthStr
           if (p.payroll_start_date) {
-            effectiveStartMonth = p.payroll_start_date > hireMonthStr ? p.payroll_start_date : hireMonthStr
+            effectiveStartMonth =
+              p.payroll_start_date > hireMonthStr ? p.payroll_start_date : hireMonthStr
           }
 
           if (filterType === 'specific') {
@@ -89,7 +90,10 @@ export default function PersonnelPayroll(): React.JSX.Element {
               curr.setMonth(curr.getMonth() + 1)
             }
             // always include current month just in case
-            if (!monthsToCheck.includes(realCurrentMonth) && realCurrentMonth >= effectiveStartMonth) {
+            if (
+              !monthsToCheck.includes(realCurrentMonth) &&
+              realCurrentMonth >= effectiveStartMonth
+            ) {
               monthsToCheck.push(realCurrentMonth)
             }
 
@@ -169,9 +173,10 @@ export default function PersonnelPayroll(): React.JSX.Element {
                 Action requise : Dates d'embauche manquantes
               </h3>
               <p className="text-sm text-amber-700 mt-1">
-                <span className="font-bold">{missingHireDate.length} employé(s)</span> n'ont pas de date d'embauche définie dans leur dossier. 
-                Afin de garantir l'exactitude des calculs, ils sont temporairement masqués de la liste des salaires à payer. 
-                Veuillez aller dans la "Liste du personnel" et mettre à jour leur dossier.
+                <span className="font-bold">{missingHireDate.length} employé(s)</span> n'ont pas de
+                date d'embauche définie dans leur dossier. Afin de garantir l'exactitude des
+                calculs, ils sont temporairement masqués de la liste des salaires à payer. Veuillez
+                aller dans la "Liste du personnel" et mettre à jour leur dossier.
               </p>
             </div>
           </div>

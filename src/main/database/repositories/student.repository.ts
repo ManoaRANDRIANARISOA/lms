@@ -115,6 +115,17 @@ export class StudentRepository {
     return `${year}-${String(nextNum).padStart(5, '0')}`
   }
 
+  static getCurrentSchoolYear(): string {
+    const saved = this.getSetting('school_year')
+    if (saved && saved.trim()) {
+      return saved.replace(/['"]/g, '').trim()
+    }
+    const now = new Date()
+    const month = now.getMonth() + 1
+    const year = now.getFullYear()
+    return month >= 9 ? `${year}-${year + 1}` : `${year - 1}-${year}`
+  }
+
   static getSetting(key: string): string {
     const result = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as {
       value: string
@@ -124,7 +135,7 @@ export class StudentRepository {
     try {
       const parsed = JSON.parse(result.value)
       return typeof parsed === 'string' ? parsed.trim() : String(parsed).trim()
-    } catch (e) {
+    } catch {
       // Fallback for raw strings
       return result.value.replace(/['"]/g, '').trim()
     }
@@ -180,7 +191,7 @@ export class StudentRepository {
     studentId: string,
     newSiblingIds: string[],
     oldSiblingIds: string[] = []
-  ) {
+  ): void {
     const added = newSiblingIds.filter((id) => !oldSiblingIds.includes(id))
     const removed = oldSiblingIds.filter((id) => !newSiblingIds.includes(id))
 
@@ -232,7 +243,12 @@ export class StudentRepository {
     return className.trim().replace(/\s+/g, ' ') // Trim and single spaces
   }
 
-  static create(studentData: Record<string, unknown>) {
+  static create(studentData: Record<string, unknown>): {
+    success: boolean
+    id?: string
+    registration_number?: string
+    error?: string
+  } {
     // Handle photo path before transaction
     if (studentData.photo_path) {
       studentData.photo_path = this.handlePhoto(studentData.photo_path as string)
@@ -393,7 +409,7 @@ export class StudentRepository {
       sortField?: string
       sortDirection?: 'asc' | 'desc'
     } = {}
-  ) {
+  ): { students: Record<string, unknown>[]; total: number } {
     const {
       search,
       class: className,
@@ -428,7 +444,11 @@ export class StudentRepository {
             CASE WHEN s.departure_date IS NOT NULL THEN 'Quitté le ' || strftime('%d/%m/%Y', s.departure_date) ELSE NULL END,
             (SELECT class_name FROM student_fees sf
              WHERE sf.student_id = s.id AND REPLACE(sf.school_year, '"', '') = ? AND sf.class_name IS NOT NULL AND sf.class_name != ''),
+            (SELECT class_name FROM student_fees sf
+             WHERE sf.student_id = s.id AND sf.class_name IS NOT NULL AND sf.class_name != ''
+             ORDER BY sf.school_year DESC LIMIT 1),
             NULLIF(NULLIF(s.class, 'Classe non spécifiée'), 'Non inscrit'),
+            NULLIF(s.class, 'Classe non spécifiée'),
             'Non spécifiée'
           ) as resolved_class,
           (SELECT school_year FROM student_fees sf
@@ -437,6 +457,7 @@ export class StudentRepository {
           CASE
             WHEN s.departure_date IS NOT NULL THEN 'Quitté'
             WHEN EXISTS (SELECT 1 FROM student_fees sf WHERE sf.student_id = s.id AND REPLACE(sf.school_year, '"', '') = ?) THEN 'Inscrit'
+            WHEN (s.class IS NOT NULL AND s.class != '' AND s.class != 'Classe non spécifiée' AND s.class != 'Non inscrit') THEN 'Inscrit'
             WHEN EXISTS (SELECT 1 FROM student_fees sf WHERE sf.student_id = s.id AND REPLACE(sf.school_year, '"', '') > ?) THEN 'Pré-inscrit'
             WHEN EXISTS (SELECT 1 FROM student_fees sf WHERE sf.student_id = s.id AND REPLACE(sf.school_year, '"', '') < ?) THEN 'Ancien'
             ELSE 'Non inscrit'
@@ -458,7 +479,11 @@ export class StudentRepository {
             CASE WHEN s.departure_date IS NOT NULL THEN 'Quitté le ' || strftime('%d/%m/%Y', s.departure_date) ELSE NULL END,
             (SELECT class_name FROM student_fees sf
              WHERE sf.student_id = s.id AND REPLACE(sf.school_year, '"', '') = ? AND sf.class_name IS NOT NULL AND sf.class_name != ''),
+            (SELECT class_name FROM student_fees sf
+             WHERE sf.student_id = s.id AND sf.class_name IS NOT NULL AND sf.class_name != ''
+             ORDER BY sf.school_year DESC LIMIT 1),
             NULLIF(NULLIF(s.class, 'Classe non spécifiée'), 'Non inscrit'),
+            NULLIF(s.class, 'Classe non spécifiée'),
             'Non spécifiée'
           ) as resolved_class,
           (SELECT school_year FROM student_fees sf
@@ -467,6 +492,7 @@ export class StudentRepository {
           CASE
             WHEN s.departure_date IS NOT NULL THEN 'Quitté'
             WHEN EXISTS (SELECT 1 FROM student_fees sf WHERE sf.student_id = s.id AND REPLACE(sf.school_year, '"', '') = ?) THEN 'Inscrit'
+            WHEN (s.class IS NOT NULL AND s.class != '' AND s.class != 'Classe non spécifiée' AND s.class != 'Non inscrit') THEN 'Inscrit'
             WHEN EXISTS (SELECT 1 FROM student_fees sf WHERE sf.student_id = s.id AND REPLACE(sf.school_year, '"', '') > ?) THEN 'Pré-inscrit'
             WHEN EXISTS (SELECT 1 FROM student_fees sf WHERE sf.student_id = s.id AND REPLACE(sf.school_year, '"', '') < ?) THEN 'Ancien'
             ELSE 'Non inscrit'
@@ -475,8 +501,7 @@ export class StudentRepository {
         WHERE ${whereClause}
       `
       // For fallback we might not have a targetSchoolYear, so we use the default setting
-      const fallbackYear =
-        this.getSetting('school_year')?.replace(/['"]/g, '').trim() || '2025-2026'
+      const fallbackYear = this.getCurrentSchoolYear()
       subQueryParams = [fallbackYear, fallbackYear, fallbackYear, fallbackYear, ...params]
     }
 
@@ -544,7 +569,7 @@ export class StudentRepository {
     return { students: mappedStudents, total: countResult.total }
   }
 
-  static getById(id: string, targetSchoolYear?: string) {
+  static getById(id: string, targetSchoolYear?: string): Record<string, unknown> | null {
     let yearQuery = `REPLACE((SELECT value FROM settings WHERE key = 'school_year'), '"', '')`
     const params: unknown[] = [id]
 
@@ -560,15 +585,17 @@ export class StudentRepository {
         COALESCE(
                  (SELECT class_name FROM student_fees sf
                   WHERE sf.student_id = students.id AND REPLACE(sf.school_year, '"', '') = ${yearQuery} AND sf.class_name IS NOT NULL AND sf.class_name != ''),
-                 NULLIF(NULLIF(class, 'Classe non spécifiée'), 'Non inscrit'),
                  (SELECT class_name FROM student_fees sf
                   WHERE sf.student_id = students.id AND sf.class_name IS NOT NULL AND sf.class_name != ''
                   ORDER BY sf.school_year DESC LIMIT 1),
+                 NULLIF(NULLIF(class, 'Classe non spécifiée'), 'Non inscrit'),
+                 NULLIF(class, 'Classe non spécifiée'),
                  'Non spécifiée'
         ) as resolved_class,
         CASE
           WHEN departure_date IS NOT NULL THEN 'Quitté'
           WHEN EXISTS (SELECT 1 FROM student_fees sf WHERE sf.student_id = students.id AND REPLACE(sf.school_year, '"', '') = ${yearQuery}) THEN 'Inscrit'
+          WHEN (class IS NOT NULL AND class != '' AND class != 'Classe non spécifiée' AND class != 'Non inscrit') THEN 'Inscrit'
           WHEN EXISTS (SELECT 1 FROM student_fees sf WHERE sf.student_id = students.id AND REPLACE(sf.school_year, '"', '') > ${yearQuery}) THEN 'Pré-inscrit'
           WHEN EXISTS (SELECT 1 FROM student_fees sf WHERE sf.student_id = students.id AND REPLACE(sf.school_year, '"', '') < ${yearQuery}) THEN 'Ancien'
           ELSE 'Non inscrit'
@@ -658,7 +685,10 @@ export class StudentRepository {
     return { student, fees, feesHistory: allFees, payments }
   }
 
-  static update(id: string, updates: Record<string, unknown>) {
+  static update(
+    id: string,
+    updates: Record<string, unknown>
+  ): { success: boolean; student?: Record<string, unknown>; error?: string } {
     try {
       // Handle special fields
       if (updates.photo_path) {
@@ -745,12 +775,15 @@ export class StudentRepository {
             const currentClass =
               studentUpdates.class !== undefined
                 ? (studentUpdates.class as string)
-                : (db.prepare('SELECT class FROM students WHERE id = ?').get(id) as any)?.class ||
-                  ''
+                : (
+                    db.prepare('SELECT class FROM students WHERE id = ?').get(id) as
+                      | { class?: string }
+                      | undefined
+                  )?.class || ''
 
             const dbStudent = db
               .prepare('SELECT is_personnel_child FROM students WHERE id = ?')
-              .get(id) as any
+              .get(id) as { is_personnel_child?: unknown } | undefined
             const dbIsPersonnelChild = this.parseBoolean(dbStudent?.is_personnel_child)
 
             const currentIsPersonnelChild =
@@ -831,7 +864,7 @@ export class StudentRepository {
             if (isPersonnelChild === undefined) {
               const currentStudentPC = db
                 .prepare('SELECT is_personnel_child FROM students WHERE id = ?')
-                .get(id) as any
+                .get(id) as { is_personnel_child?: unknown } | undefined
               isPersonnelChild = this.parseBoolean(currentStudentPC?.is_personnel_child)
             }
             const tuitionFee = this.getTuitionPrice(className, isPersonnelChild)
@@ -882,7 +915,7 @@ export class StudentRepository {
     }
   }
 
-  static delete(id: string) {
+  static delete(id: string): { success: boolean; error?: string } {
     try {
       db.prepare(
         `
@@ -901,7 +934,7 @@ export class StudentRepository {
     }
   }
 
-  static async repairSync() {
+  static async repairSync(): Promise<{ success: boolean; error?: string }> {
     try {
       db.prepare(
         "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('last_sync_time', '\"2020-01-01T00:00:00.000Z\"', CURRENT_TIMESTAMP)"
@@ -919,8 +952,9 @@ export class StudentRepository {
     }
   }
 
-  // New method to clear database (for development/reset)
-  static async resetDatabase(includeRemote: boolean = false) {
+  static async resetDatabase(
+    includeRemote: boolean = false
+  ): Promise<{ success: boolean; error?: string }> {
     try {
       if (includeRemote) {
         await wipeRemoteData()
@@ -960,8 +994,10 @@ export class StudentRepository {
     initialPaymentDroit?: number,
     initialPaymentFram?: number,
     isNewStudentOverride?: boolean
-  ) {
-    const student = db.prepare('SELECT * FROM students WHERE id = ?').get(id) as any
+  ): { success: boolean; error?: string } {
+    const student = db.prepare('SELECT * FROM students WHERE id = ?').get(id) as
+      | Record<string, unknown>
+      | undefined
     if (!student) return { success: false, error: 'Student not found' }
 
     // Check if already enrolled
@@ -973,7 +1009,7 @@ export class StudentRepository {
     const level = this.determineTuitionLevel(newClass)
     const currentStudentPC = db
       .prepare('SELECT is_personnel_child FROM students WHERE id = ?')
-      .get(id) as any
+      .get(id) as { is_personnel_child?: unknown } | undefined
     const isPersonnelChild = this.parseBoolean(currentStudentPC?.is_personnel_child)
 
     const tuitionFee = this.getTuitionPrice(newClass, isPersonnelChild)
@@ -1135,7 +1171,11 @@ export class StudentRepository {
     }
   }
 
-  static getServiceStats() {
+  static getServiceStats(): {
+    canteenStats: Record<string, number>
+    busStats: Record<string, number>
+    totalStudents: number
+  } {
     const schoolYear = this.getSetting('school_year') || '2025-2026'
 
     const rows = db
@@ -1173,7 +1213,7 @@ export class StudentRepository {
               if (canteenStats[day] !== undefined) canteenStats[day]++
             })
           }
-        } catch (e) {
+        } catch {
           // Ignore parse errors
         }
       }
@@ -1190,7 +1230,11 @@ export class StudentRepository {
     return { canteenStats, busStats, totalStudents: rows.length }
   }
 
-  static repairEnrollments(targetYear: string = '2025-2026') {
+  static repairEnrollments(targetYear: string = '2025-2026'): {
+    success: boolean
+    repaired: number
+    error?: string
+  } {
     const students = db
       .prepare(
         "SELECT id, class, is_personnel_child FROM students WHERE class IS NOT NULL AND class != ''"
@@ -1236,11 +1280,11 @@ export class StudentRepository {
 
     try {
       transaction()
-      return { success: true, fixedCount }
+      return { success: true, repaired: fixedCount }
     } catch (error: unknown) {
       const message = this.translateError(error)
       console.error('Error updating student:', error)
-      return { success: false, error: message }
+      return { success: false, repaired: 0, error: message }
     }
   }
 }

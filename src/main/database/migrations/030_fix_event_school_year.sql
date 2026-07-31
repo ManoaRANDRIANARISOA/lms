@@ -1,6 +1,8 @@
 -- Migration 030: Fix school_year for parent_events
 -- Ensure all parent_events have a school_year based on their event_date
 
+ALTER TABLE parent_events ADD COLUMN school_year TEXT;
+
 UPDATE parent_events
 SET school_year = 
   CASE 

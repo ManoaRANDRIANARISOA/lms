@@ -126,15 +126,22 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
     }
   }, [currentStudent?.is_personnel_child, currentStudent?.parent_personnel_id])
 
-  // Set default selected year to the latest enrollment or current fees year
+  // Set default selected year to the latest enrollment or current dynamic year
   useEffect(() => {
+    const globalYear = useAppStore.getState().currentYear
     if (currentFeesHistory && currentFeesHistory.length > 0) {
-      // Assuming history is sorted DESC by year (from repository)
       setSelectedYear(currentFeesHistory[0].school_year)
     } else if (currentFees?.school_year) {
       setSelectedYear(currentFees.school_year)
+    } else if (globalYear) {
+      setSelectedYear(globalYear)
     } else {
-      setSelectedYear(useAppStore.getState().currentYear) // Fallback
+      const now = new Date()
+      const yearStr =
+        now.getMonth() + 1 >= 9
+          ? `${now.getFullYear()}-${now.getFullYear() + 1}`
+          : `${now.getFullYear() - 1}-${now.getFullYear()}`
+      setSelectedYear(yearStr)
     }
   }, [currentFees, currentFeesHistory])
 

@@ -18,6 +18,8 @@ extraResources:
     to: ".env"
 win:
   executableName: lms
+  icon: build/icon.ico
+  signAndEditExecutable: false
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}

@@ -19,7 +19,9 @@ export interface Payment {
 }
 
 export class PaymentRepository {
-  static create(payment: Omit<Payment, 'id' | 'created_at' | 'updated_at'>) {
+  static create(
+    payment: Omit<Payment, 'id' | 'created_at' | 'updated_at'>
+  ): { success: boolean; id?: string; receipt_number?: string; error?: string } {
     const id = uuidv4()
     const stmt = db.prepare(`
       INSERT INTO student_payments (
@@ -63,12 +65,14 @@ export class PaymentRepository {
           .get(payment.student_id) as { first_name: string; last_name: string } | undefined
         const cashDescription = studentName
           ? `Paiement ${cashCategory}${payment.month ? ` (${payment.month})` : ''}${
-              (payment.payment_type === 'uniform' || payment.payment_type === 'other') && payment.description
+              (payment.payment_type === 'uniform' || payment.payment_type === 'other') &&
+              payment.description
                 ? ` (${payment.description})`
                 : ''
             } — ${studentName.last_name} ${studentName.first_name}`
           : `Paiement ${cashCategory}${payment.month ? ` (${payment.month})` : ''}${
-              (payment.payment_type === 'uniform' || payment.payment_type === 'other') && payment.description
+              (payment.payment_type === 'uniform' || payment.payment_type === 'other') &&
+              payment.description
                 ? ` (${payment.description})`
                 : ''
             }`
@@ -165,7 +169,9 @@ export class PaymentRepository {
               if (feeRecord.uniform_items_purchased) {
                 purchased = JSON.parse(feeRecord.uniform_items_purchased)
               }
-            } catch (e) {}
+            } catch {
+              // Ignore parse error
+            }
 
             if (!purchased.includes(itemName)) {
               purchased.push(itemName)
@@ -194,7 +200,7 @@ export class PaymentRepository {
     }
   }
 
-  static getByStudent(studentId: string, schoolYear?: string) {
+  static getByStudent(studentId: string, schoolYear?: string): Payment[] {
     if (schoolYear) {
       return db
         .prepare(
@@ -204,7 +210,7 @@ export class PaymentRepository {
         ORDER BY payment_date DESC
       `
         )
-        .all(studentId, schoolYear)
+        .all(studentId, schoolYear) as Payment[]
     }
 
     return db
@@ -215,12 +221,12 @@ export class PaymentRepository {
       ORDER BY payment_date DESC
     `
       )
-      .all(studentId)
+      .all(studentId) as Payment[]
   }
 
   static getAll(
     filters: { startDate?: string; endDate?: string; type?: string; search?: string } = {}
-  ) {
+  ): (Payment & { first_name?: string; last_name?: string; class_name?: string })[] {
     let query = `
       SELECT sp.*, s.first_name, s.last_name, s.class as class_name 
       FROM student_payments sp 
@@ -255,10 +261,14 @@ export class PaymentRepository {
 
     query += ' ORDER BY sp.payment_date DESC, sp.created_at DESC'
 
-    return db.prepare(query).all(...params)
+    return db.prepare(query).all(...params) as (Payment & {
+      first_name?: string
+      last_name?: string
+      class_name?: string
+    })[]
   }
 
-  static getTuitionStatus(studentId: string, schoolYear: string) {
+  static getTuitionStatus(studentId: string, schoolYear: string): Record<string, unknown> {
     // 1. Get Fee Structure
     let feeRecord = db
       .prepare(
@@ -297,16 +307,23 @@ export class PaymentRepository {
       )
       .all(studentId) as { month: string; amount: number }[]
 
+    // Track whether student is personnel child
+    let isPersonnelChild = false
+    try {
+      const studentObj = db
+        .prepare('SELECT is_personnel_child FROM students WHERE id = ?')
+        .get(studentId) as { is_personnel_child?: unknown } | undefined
+      const rawPC = studentObj?.is_personnel_child
+      isPersonnelChild =
+        rawPC == 1 || rawPC === '1' || rawPC === '1.0' || rawPC === true || rawPC === 'true'
+    } catch {
+      // Ignore
+    }
+
     // Fetch global settings for dynamic pricing
     let globalMonthlyTuition: number | null = null
     try {
       if (feeRecord && feeRecord.tuition_level) {
-        const studentObj = db
-          .prepare('SELECT is_personnel_child FROM students WHERE id = ?')
-          .get(studentId) as { is_personnel_child: any } | undefined
-        const rawPC = studentObj?.is_personnel_child
-        const isPersonnelChild =
-          rawPC == 1 || rawPC === '1' || rawPC === '1.0' || rawPC === true || rawPC === 'true'
         if (isPersonnelChild) {
           globalMonthlyTuition = 0
         } else {
@@ -325,7 +342,7 @@ export class PaymentRepository {
     const [startYearStr, endYearStr] = schoolYear.replace(/"/g, '').split('-')
     const startYear = parseInt(startYearStr)
     const endYear = parseInt(endYearStr)
-    const className = (feeRecord.class_name as string) || ''
+    const className = (feeRecord?.class_name as string) || ''
     const isTerminale = className === 'TA' || className === 'TD' || className === 'Terminale'
 
     const months = [
@@ -346,7 +363,7 @@ export class PaymentRepository {
     const monthlyTuition =
       globalMonthlyTuition !== null
         ? globalMonthlyTuition
-        : (feeRecord.monthly_tuition as number) || 0
+        : (feeRecord?.monthly_tuition as number) || 0
 
     const status = months.map((m) => {
       const paidForMonth = payments
@@ -354,16 +371,22 @@ export class PaymentRepository {
         .reduce((sum, p) => sum + p.amount, 0)
 
       let status = 'unpaid'
-      if (paidForMonth >= monthlyTuition) status = 'paid'
-      else if (paidForMonth > 0) status = 'partial'
+      if (isPersonnelChild) {
+        status = 'exempt'
+      } else if (monthlyTuition > 0) {
+        if (paidForMonth >= monthlyTuition) status = 'paid'
+        else if (paidForMonth > 0) status = 'partial'
+      } else {
+        status = paidForMonth > 0 ? 'paid' : 'unassigned_class'
+      }
 
       return {
         month: m.name,
         key: m.key,
-        expected: monthlyTuition,
+        expected: isPersonnelChild ? 0 : monthlyTuition,
         paid: paidForMonth,
         status,
-        balance: monthlyTuition - paidForMonth
+        balance: isPersonnelChild ? 0 : Math.max(0, monthlyTuition - paidForMonth)
       }
     })
 
@@ -374,7 +397,9 @@ export class PaymentRepository {
     }
   }
 
-  static getUnpaidAlerts(schoolYear: string) {
+  static getUnpaidAlerts(
+    schoolYear: string
+  ): { success: boolean; alerts?: Record<string, unknown>[]; error?: string } {
     try {
       const targetYear = schoolYear.replace(/['"]/g, '').trim()
       const [startYearStr, endYearStr] = targetYear.split('-')
@@ -396,7 +421,7 @@ export class PaymentRepository {
       const terminaleMonths = [...months, `${endYear}-07`]
 
       // 1. Fetch Finance Config (prices)
-      let prices: any = {}
+      let prices: Record<string, any> = {}
       try {
         const settingsRecord = db
           .prepare("SELECT value FROM settings WHERE key = 'finance_prices'")
@@ -404,7 +429,9 @@ export class PaymentRepository {
         if (settingsRecord?.value) {
           prices = JSON.parse(settingsRecord.value)
         }
-      } catch (e) {}
+      } catch {
+        // Ignore parse errors
+      }
 
       // 2. Fetch Active Students & Fees
       const students = db
@@ -420,7 +447,7 @@ export class PaymentRepository {
           AND sf.deleted = 0
       `
         )
-        .all(targetYear) as Array<any>
+        .all(targetYear) as Array<Record<string, any>>
 
       if (students.length === 0) {
         return { success: true, alerts: [] }
@@ -466,7 +493,7 @@ export class PaymentRepository {
         amount_paid: number
       }>
 
-      const eventsMap = new Map<string, any[]>()
+      const eventsMap = new Map<string, Array<Record<string, any>>>()
       unpaidEvents.forEach((ev) => {
         if (!eventsMap.has(ev.student_id)) eventsMap.set(ev.student_id, [])
         eventsMap.get(ev.student_id)!.push(ev)
@@ -486,7 +513,11 @@ export class PaymentRepository {
         const unpaidItems: Array<{ type: string; description: string; amount: number }> = []
 
         // Helper to check monthly subscriptions
-        const checkMonthlyService = (type: string, monthlyCost: number, labelPrefix: string) => {
+        const checkMonthlyService = (
+          type: string,
+          monthlyCost: number,
+          labelPrefix: string
+        ): void => {
           if (monthlyCost <= 0) return
           studentMonths.forEach((m) => {
             if (m > currentMonth) return // Not yet due
@@ -528,13 +559,17 @@ export class PaymentRepository {
             try {
               const parsed = JSON.parse(student.canteen_days)
               if (Array.isArray(parsed) && parsed.length > 0) daysCount = parsed.length
-            } catch (e) {}
+            } catch {
+              // Ignore parse error
+            }
           }
           const effectiveDays = daysCount === 0 ? 5 : daysCount
-          if (effectiveDays >= 5) {
-            canteenCost = prices?.canteen?.monthly || 0
+          const monthlyPrice = Number(prices?.canteen?.monthly) || 0
+          const dailyPrice = Number(prices?.canteen?.daily) || 0
+          if (monthlyPrice > 0 && effectiveDays >= 5) {
+            canteenCost = monthlyPrice
           } else {
-            canteenCost = (prices?.canteen?.daily || 0) * effectiveDays * 4
+            canteenCost = dailyPrice * effectiveDays * 4
           }
           checkMonthlyService('canteen', canteenCost, 'Cantine')
         }
@@ -598,7 +633,10 @@ export class PaymentRepository {
     }
   }
 
-  static checkFramFratrie(studentId: string, schoolYear: string) {
+  static checkFramFratrie(
+    studentId: string,
+    schoolYear: string
+  ): { success: boolean; isPaid?: boolean; by?: string; error?: string } {
     try {
       const student = db.prepare('SELECT siblings FROM students WHERE id = ?').get(studentId) as
         | { siblings: string | null }
@@ -608,7 +646,9 @@ export class PaymentRepository {
       let siblings: string[] = []
       try {
         siblings = JSON.parse(student.siblings)
-      } catch (e) {}
+      } catch {
+        // Ignore parse error
+      }
 
       if (siblings.length === 0) return { success: true, isPaid: false }
 
@@ -644,7 +684,11 @@ export class PaymentRepository {
         AND p.school_year = ?
       `
         )
-        .all(...siblings, schoolYear) as any[]
+        .all(...siblings, schoolYear) as Array<{
+          student_id: string
+          first_name: string
+          last_name: string
+        }>
 
       if (payments.length > 0) {
         const siblingNames = payments.map((p) => `${p.first_name} ${p.last_name}`).join(', ')

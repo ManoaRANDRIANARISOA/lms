@@ -36,7 +36,11 @@ function getConfig(): EmailConfig | null {
       | { value: string }
       | undefined
     if (!row) return null
-    return JSON.parse(row.value) as EmailConfig
+    const parsed = JSON.parse(row.value) as EmailConfig
+    return {
+      ...parsed,
+      recipient_email: parsed.recipient_email || 'mmanjarysoa@gmail.com'
+    }
   } catch {
     return null
   }

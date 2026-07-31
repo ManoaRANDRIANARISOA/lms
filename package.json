@@ -1,6 +1,6 @@
 {
   "name": "lms",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "An Electron application with React and TypeScript",
   "main": "./out/main/index.js",
   "author": "Lycée Manjary Soa",
@@ -16,7 +16,7 @@
     "build": "npm run typecheck && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
-    "build:win": "npm run build && electron-builder --win",
+    "build:win": "set CSC_IDENTITY_AUTO_DISCOVERY=false && npm run build && electron-builder --win",
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux"
   },

@@ -19,7 +19,7 @@ const db: Database.Database = new Database(dbPath, { verbose: undefined })
 db.pragma('journal_mode = WAL')
 
 // Migration runner
-const runMigrations = () => {
+const runMigrations = (): void => {
   // Ensure migrations tracking table exists
   const migrationTableExists =
     (
@@ -67,8 +67,32 @@ const runMigrations = () => {
 
     try {
       const migrationSql = fs.readFileSync(migrationPath, 'utf-8')
-      db.exec(migrationSql)
-      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migFile)
+      const statements = migrationSql
+        .split(';')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0)
+
+      db.pragma('foreign_keys = OFF')
+      try {
+        db.transaction(() => {
+          for (const stmt of statements) {
+            try {
+              db.exec(stmt)
+            } catch (stmtErr: unknown) {
+              const msg = stmtErr instanceof Error ? stmtErr.message : String(stmtErr)
+              if (msg.includes('duplicate column name')) {
+                // Ignore duplicate column name error (e.g. from schema repair)
+              } else {
+                throw stmtErr
+              }
+            }
+          }
+          db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migFile)
+        })()
+      } finally {
+        db.pragma('foreign_keys = ON')
+      }
+
       if (isDev) console.log(`Migration ${migFile} applied successfully.`)
     } catch (err) {
       console.error(`Migration ${migFile} failed:`, err)
@@ -105,8 +129,8 @@ const runMigrations = () => {
     '026_add_uniform_items.sql',
     '026_add_parent_personnel_id.sql',
     '027_add_personnel_child.sql',
-    '028_add_is_reenrollment_to_fees.sql',
     '028_add_school_year_to_payments.sql',
+    '028_add_is_reenrollment_to_fees.sql',
     '029_add_payroll_ignores.sql',
     '030_fix_event_school_year.sql',
     '031_add_payroll_start_date.sql'

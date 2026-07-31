@@ -93,8 +93,11 @@ const getCanteenCost = (record: FeeRecord | undefined | null, prices: FinancePri
 
   const effectiveDays = daysCount === 0 ? 5 : daysCount
 
-  if (effectiveDays >= 5) return prices?.canteen?.monthly || 0
-  return (prices?.canteen?.daily || 0) * effectiveDays * 4
+  const monthlyPrice = Number(prices?.canteen?.monthly) || 0
+  const dailyPrice = Number(prices?.canteen?.daily) || 0
+
+  if (monthlyPrice > 0 && effectiveDays >= 5) return monthlyPrice
+  return dailyPrice * effectiveDays * 4
 }
 
 interface FinanceTabProps {
@@ -616,24 +619,26 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
               </div>
               <span
                 className={`text-xs font-bold ${
-                  month.expected === 0 && type === 'tuition'
+                  month.status === 'exempt'
                     ? 'text-purple-700'
-                    : month.status === 'paid'
-                      ? 'text-green-700'
-                      : month.status === 'partial'
-                        ? 'text-yellow-700'
-                        : 'text-red-700'
+                    : month.status === 'unassigned_class'
+                      ? 'text-amber-700'
+                      : month.status === 'paid'
+                        ? 'text-green-700'
+                        : month.status === 'partial'
+                          ? 'text-yellow-700'
+                          : 'text-red-700'
                 }`}
               >
-                {month.expected === 0 && type === 'tuition'
-                  ? studentInfo?.student_status === 'Non inscrit' || !status?.feeRecord
-                    ? 'NON INSCRIT'
-                    : 'EXONÉRÉ'
-                  : month.status === 'paid'
-                    ? 'PAYÉ'
-                    : month.status === 'partial'
-                      ? `Reste: ${month.balance?.toLocaleString()} Ar`
-                      : `${(month.cost || month.expected || 0).toLocaleString()} Ar`}
+                {month.status === 'exempt'
+                  ? 'EXONÉRÉ'
+                  : month.status === 'unassigned_class'
+                    ? 'NON SPÉCIFIÉE'
+                    : month.status === 'paid'
+                      ? 'PAYÉ'
+                      : month.status === 'partial'
+                        ? `Reste: ${month.balance?.toLocaleString()} Ar`
+                        : `${(month.cost || month.expected || 0).toLocaleString()} Ar`}
               </span>
             </div>
           ))}

@@ -29,7 +29,7 @@ export default function EmailSettings() {
     enabled: false,
     gmail_address: '',
     gmail_app_password: '',
-    recipient_email: '',
+    recipient_email: 'mmanjarysoa@gmail.com',
     auto_send_daily: false
   })
   const [logs, setLogs] = useState<EmailLogEntry[]>([])
@@ -47,7 +47,13 @@ export default function EmailSettings() {
   const loadConfig = async () => {
     try {
       const raw = await window.api.settings.get('email_config')
-      if (raw) setConfig(raw as EmailConfigState)
+      if (raw) {
+        const loaded = raw as EmailConfigState
+        setConfig({
+          ...loaded,
+          recipient_email: loaded.recipient_email || 'mmanjarysoa@gmail.com'
+        })
+      }
     } catch {
       // Default config
     }

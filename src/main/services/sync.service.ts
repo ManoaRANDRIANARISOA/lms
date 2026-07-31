@@ -9,9 +9,13 @@ const envPath = isDev ? path.join(process.cwd(), '.env') : path.join(process.res
 
 dotenv.config({ path: envPath })
 
-// Supabase credentials from .env file only (no hardcoded fallbacks for security)
-const supabaseUrl = process.env.SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_ANON_KEY
+const FALLBACK_URL = 'https://onxnctfgxxgxipehmfqb.supabase.co'
+const FALLBACK_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ueG5jdGZneHhneGlwZWhtZnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3ODg3NjUsImV4cCI6MjA4NjM2NDc2NX0.WuVMhj07pbkuuWFfG-AsOrVJM-LrWmvts0vhvfwVWdc'
+
+// Supabase credentials (prioritize .env, fallback to project credentials)
+const supabaseUrl = process.env.SUPABASE_URL || FALLBACK_URL
+const supabaseKey = process.env.SUPABASE_ANON_KEY || FALLBACK_KEY
 
 let supabaseClient: any = null
 
@@ -108,24 +112,18 @@ export function addToSyncQueue(
 }
 
 // Main sync function (called every 5 minutes if online)
-export async function syncWithCloud() {
+export async function syncWithCloud(forceFullSync: boolean = false) {
   if (!supabaseUrl || !supabaseKey) {
     console.warn('Supabase credentials missing, skipping sync.')
     return { success: false, reason: 'config_missing' }
   }
-  // Simplified check for internet (navigator is not available in main process usually, unless polyfilled or using net module)
-  // In Electron Main process, we can check online status via net.isOnline() (since Electron 24+) or just try request.
-  // For now, we'll assume we can try and catch errors.
 
   try {
     // PUSH: Send local changes to cloud
     await pushLocalChanges()
 
     // PULL: Get remote changes from cloud
-    await pullRemoteChanges()
-
-    // Check if there are still pending items that failed
-    // console.log('Sync completed.');
+    await pullRemoteChanges(forceFullSync)
 
     return { success: true }
   } catch (error: any) {
@@ -640,7 +638,7 @@ async function pushLocalChanges() {
   }
 }
 
-async function pullRemoteChanges() {
+async function pullRemoteChanges(forceFullSync: boolean = false) {
   let hasPullErrors = false
   const settingsRow = db
     .prepare(
@@ -652,7 +650,7 @@ async function pullRemoteChanges() {
 
   // JSON.parse because settings.value is stored as JSON string in the schema: value TEXT (JSON value)
   let lastSync = '2020-01-01T00:00:00Z'
-  if (settingsRow && settingsRow.value) {
+  if (!forceFullSync && settingsRow && settingsRow.value) {
     try {
       lastSync = JSON.parse(settingsRow.value)
     } catch (e) {

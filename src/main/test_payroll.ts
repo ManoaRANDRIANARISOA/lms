@@ -1,14 +1,13 @@
-import 'module'
-const Module = require('module')
+import Module from 'module'
 const originalRequire = Module.prototype.require
-Module.prototype.require = function (request) {
+Module.prototype.require = function (request: string) {
   if (request === 'electron') {
     return {
       app: { isPackaged: false, getPath: () => 'C:/rep/School/lms/out' },
       ipcMain: { handle: () => {} }
     }
   }
-  return originalRequire.apply(this, arguments)
+  return originalRequire.call(this, request)
 }
 
 import { PersonnelRepository } from './database/repositories/personnel.repository'

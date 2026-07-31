@@ -33,6 +33,7 @@ import { EmailService } from './services/email.service'
 function createWindow(): void {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
+    title: 'LMS - Lycée Manjary Soa',
     width: 1200,
     height: 800,
     show: false,
