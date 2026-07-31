@@ -80,9 +80,7 @@ const SYNCABLE_TABLES = new Set([
   'parent_events',
   'event_payments',
   'bus_attendance',
-  'canteen_attendance',
-  'assessments',
-  'payroll_ignores'
+  'canteen_attendance'
 ])
 
 /**
@@ -331,6 +329,10 @@ async function pushLocalChanges() {
       if ('search_text' in payload) {
         delete payload.search_text
       }
+      // FIX: Strip local-only columns that do not exist in Supabase yet
+      if ('is_reenrollment' in payload) delete payload.is_reenrollment;
+      if ('payroll_start_date' in payload) delete payload.payroll_start_date;
+      if (item.table_name === 'parent_events' && 'school_year' in payload) delete payload.school_year;
 
       // FIX: Sanitize empty date strings for PostgreSQL
       // PostgreSQL rejects "" as date, must be NULL
@@ -676,9 +678,7 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
     'parent_events',
     'event_payments',
     'bus_attendance',
-    'canteen_attendance',
-    'assessments',
-    'payroll_ignores'
+    'canteen_attendance'
     // Note: 'settings' and 'users' are handled separately or excluded from generic sync
   ]
 
