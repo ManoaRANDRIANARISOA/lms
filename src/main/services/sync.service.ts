@@ -63,6 +63,7 @@ export const supabase = supabaseClient || {
 }
 
 const SYNCABLE_TABLES = new Set([
+  'users',
   'students',
   'student_fees',
   'student_payments',
@@ -80,8 +81,8 @@ const SYNCABLE_TABLES = new Set([
   'event_payments',
   'bus_attendance',
   'canteen_attendance',
-  'users',
-  'settings'
+  'assessments',
+  'payroll_ignores'
 ])
 
 /**
@@ -676,8 +677,9 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
     'event_payments',
     'bus_attendance',
     'canteen_attendance',
-    'settings'
-    // Note: 'users' table is synced separately below (password_hash excluded)
+    'assessments',
+    'payroll_ignores'
+    // Note: 'settings' and 'users' are handled separately or excluded from generic sync
   ]
 
   for (const table of tables) {
