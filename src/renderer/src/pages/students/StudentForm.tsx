@@ -10,6 +10,7 @@ import type { FeeRecord } from '@shared/types'
 import { useState, useEffect } from 'react'
 import { getStudentPhotoUrl } from '@/lib/image-utils'
 import { Search, X, Plus, UserCircle } from 'lucide-react'
+import { toast } from 'sonner'
 import { useFinanceStore } from '@/store/useFinanceStore'
 import { usePersonnelStore } from '@/store/usePersonnelStore'
 import { useClasses } from '@/lib/useClasses'
@@ -315,13 +316,20 @@ export default function StudentForm({
       let success = false
       if (initialData) {
         success = await updateStudent(initialData.id, payload)
+        if (success) toast.success("Dossier élève mis à jour avec succès")
       } else {
         success = await createStudent(payload)
+        if (success) toast.success("Dossier élève créé avec succès")
       }
 
-      if (success && onSuccess) onSuccess()
+      if (success && onSuccess) {
+        onSuccess()
+      } else if (!success) {
+        toast.error("Erreur lors de l'enregistrement")
+      }
     } catch (err) {
       if (import.meta.env.DEV) console.error('Error submitting form:', err)
+      toast.error("Erreur inattendue")
     } finally {
       setIsSubmitting(false)
     }

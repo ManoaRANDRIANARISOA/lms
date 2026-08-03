@@ -15,6 +15,7 @@
 import React, { useEffect, useState } from 'react'
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/useAuthStore'
+import { Toaster } from 'sonner'
 
 import ErrorBoundary from '@/components/shared/ErrorBoundary'
 import LoginPage from '@/pages/auth/LoginPage'
@@ -75,6 +76,7 @@ export default function App(): React.JSX.Element {
       <ErrorBoundary>
         <AuthInitializer>
           <AppRoutes />
+          <Toaster position="top-right" richColors closeButton />
         </AuthInitializer>
       </ErrorBoundary>
     </Router>
