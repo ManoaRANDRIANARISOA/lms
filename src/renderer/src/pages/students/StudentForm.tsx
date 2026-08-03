@@ -20,7 +20,7 @@ const studentSchema = z.object({
   gender: z.enum(['M', 'F']).optional(),
   date_of_birth: z.string().optional(),
   place_of_birth: z.string().optional(),
-  class: z.string().min(1, 'La classe est requise'),
+  class: z.string().optional(),
   enrollment_date: z.string().min(1, "La date d'inscription est requise"),
 
   email: z
@@ -114,7 +114,11 @@ export default function StudentForm({
   }, [])
 
   const form = useForm<StudentFormValues>({
-    resolver: zodResolver(studentSchema),
+    resolver: zodResolver(
+      initialData 
+        ? studentSchema.extend({ class: z.string().min(1, 'La classe est requise') }) 
+        : studentSchema
+    ),
     defaultValues: {
       first_name: '',
       last_name: '',
@@ -329,27 +333,6 @@ export default function StudentForm({
         {initialData ? "Modifier l'Élève" : 'Nouvel Élève'}
       </h2>
 
-      {!initialData && (
-        <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-md px-4 py-3 text-sm mb-4 flex items-center gap-2">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4 shrink-0"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path
-              fillRule="evenodd"
-              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-              clipRule="evenodd"
-            />
-          </svg>
-          <span>
-            Créez d'abord le dossier de l'élève. Vous pourrez ensuite l'
-            <strong>inscrire dans une classe</strong> via le bouton "Inscrire" dans la fiche de
-            l'élève.
-          </span>
-        </div>
-      )}
 
       {error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4">{error}</div>}
 
@@ -509,46 +492,77 @@ export default function StudentForm({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              {initialData && (
-                <>
+            {initialData ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label htmlFor="class" className="text-sm font-medium">
+                    Classe Actuelle *
+                  </label>
+                  <select
+                    id="class"
+                    required
+                    {...form.register('class')}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="">Sélectionner une classe</option>
+                    {availableClasses.map((cls) => (
+                      <option key={cls} value={cls}>
+                        {cls}
+                      </option>
+                    ))}
+                    {initialData?.class && !availableClasses.includes(initialData.class) && (
+                      <option value={initialData.class}>{initialData.class}</option>
+                    )}
+                  </select>
+                  {form.formState.errors.class && (
+                    <p className="text-sm text-red-500">{form.formState.errors.class.message}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="enrollment_date" className="text-sm font-medium">
+                    Date d'inscription *
+                  </label>
+                  <Input id="enrollment_date" type="date" {...form.register('enrollment_date')} />
+                  {form.formState.errors.enrollment_date && (
+                    <p className="text-sm text-red-500">
+                      {form.formState.errors.enrollment_date.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-md p-4 flex gap-3 text-sm">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-semibold mb-1">Dossier Élève</p>
+                    <p>
+                      La création de ce dossier permet d'enregistrer les informations de base de l'élève.
+                      L'affectation à une classe et le calcul des frais se feront lors de l'étape 
+                      d'inscription.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label htmlFor="class" className="text-sm font-medium">
-                      Classe Actuelle
+                    <label htmlFor="enrollment_date" className="text-sm font-medium">
+                      Date de création du dossier *
                     </label>
-                    <select
-                      id="class"
-                      {...form.register('class')}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <option value="">Sélectionner une classe</option>
-                      {availableClasses.map((cls) => (
-                        <option key={cls} value={cls}>
-                          {cls}
-                        </option>
-                      ))}
-                      {initialData.class && !availableClasses.includes(initialData.class) && (
-                        <option value={initialData.class}>{initialData.class}</option>
-                      )}
-                    </select>
-                    {form.formState.errors.class && (
-                      <p className="text-sm text-red-500">{form.formState.errors.class.message}</p>
+                    <Input id="enrollment_date" type="date" {...form.register('enrollment_date')} />
+                    {form.formState.errors.enrollment_date && (
+                      <p className="text-sm text-red-500">
+                        {form.formState.errors.enrollment_date.message}
+                      </p>
                     )}
                   </div>
-                </>
-              )}
-              <div className="space-y-2">
-                <label htmlFor="enrollment_date" className="text-sm font-medium">
-                  Date d'inscription *
-                </label>
-                <Input id="enrollment_date" type="date" {...form.register('enrollment_date')} />
-                {form.formState.errors.enrollment_date && (
-                  <p className="text-sm text-red-500">
-                    {form.formState.errors.enrollment_date.message}
-                  </p>
-                )}
-              </div>
-            </div>
+                </div>
+              </>
+            )}
 
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium">
