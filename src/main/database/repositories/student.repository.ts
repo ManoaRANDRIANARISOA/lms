@@ -293,26 +293,26 @@ export class StudentRepository {
       const siblingsJson = JSON.stringify(siblingsArray)
       stmt.run(
         id,
-        studentDataClean.first_name,
-        studentDataClean.last_name,
-        studentDataClean.gender,
-        studentDataClean.date_of_birth,
-        studentDataClean.place_of_birth,
-        studentDataClean.class,
+        studentDataClean.first_name ?? null,
+        studentDataClean.last_name ?? null,
+        studentDataClean.gender ?? null,
+        studentDataClean.date_of_birth ?? null,
+        studentDataClean.place_of_birth ?? null,
+        studentDataClean.class ?? null,
         registration_number,
-        studentDataClean.enrollment_date,
-        studentDataClean.father_name,
-        studentDataClean.mother_name,
-        studentDataClean.guardian_name,
-        studentDataClean.father_contact,
-        studentDataClean.mother_contact,
-        studentDataClean.guardian_contact,
-        studentDataClean.father_profession,
-        studentDataClean.mother_profession,
-        studentDataClean.guardian_profession,
-        studentDataClean.address,
-        studentDataClean.previous_school,
-        studentDataClean.photo_path,
+        studentDataClean.enrollment_date ?? null,
+        studentDataClean.father_name ?? null,
+        studentDataClean.mother_name ?? null,
+        studentDataClean.guardian_name ?? null,
+        studentDataClean.father_contact ?? null,
+        studentDataClean.mother_contact ?? null,
+        studentDataClean.guardian_contact ?? null,
+        studentDataClean.father_profession ?? null,
+        studentDataClean.mother_profession ?? null,
+        studentDataClean.guardian_profession ?? null,
+        studentDataClean.address ?? null,
+        studentDataClean.previous_school ?? null,
+        studentDataClean.photo_path ?? null,
         siblingsJson,
         studentDataClean.is_personnel_child !== undefined
           ? studentDataClean.is_personnel_child
@@ -746,7 +746,7 @@ export class StudentRepository {
             .map((key) => `${key} = ?`)
             .join(', ')
           const values = Object.values(studentUpdates).map((val) =>
-            typeof val === 'boolean' ? (val ? 1 : 0) : val
+            typeof val === 'boolean' ? (val ? 1 : 0) : val ?? null
           )
 
           const stmt = db.prepare(`
@@ -826,7 +826,7 @@ export class StudentRepository {
               if (Array.isArray(val)) {
                 validFeeUpdates[k] = JSON.stringify(val)
               } else {
-                validFeeUpdates[k] = typeof val === 'boolean' ? (val ? 1 : 0) : val
+                validFeeUpdates[k] = typeof val === 'boolean' ? (val ? 1 : 0) : val ?? null
               }
             })
 
