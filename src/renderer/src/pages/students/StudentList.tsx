@@ -184,7 +184,8 @@ export default function StudentList() {
           onChange={(e) => setSelectedStatus(e.target.value)}
           className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          <option value="">Tous les statuts</option>
+          <option value="">Actifs & En attente</option>
+          <option value="Tous">Tous les statuts</option>
           <option value="Inscrit">Inscrit</option>
           <option value="Pré-inscrit">Pré-inscrit</option>
           <option value="Ancien">Ancien</option>

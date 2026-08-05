@@ -515,8 +515,13 @@ export class StudentRepository {
     }
 
     if (status) {
-      postConditions.push('student_status = ?')
-      postParams.push(status)
+      if (status !== 'Tous') {
+        postConditions.push('student_status = ?')
+        postParams.push(status)
+      }
+    } else {
+      // Default: Actifs & En attente (Inscrit, Pré-inscrit, Non inscrit)
+      postConditions.push("student_status IN ('Inscrit', 'Pré-inscrit', 'Non inscrit')")
     }
 
     const postFilter = postConditions.length > 0 ? `WHERE ${postConditions.join(' AND ')}` : ''
