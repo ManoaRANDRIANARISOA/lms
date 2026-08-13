@@ -94,6 +94,7 @@ export default function StudentForm({
 }: StudentFormProps) {
   const { createStudent, updateStudent, error } = useStudentStore()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [activeTab, setActiveTab] = useState('identity')
 
   // Sibling Search State
   const [siblingQuery, setSiblingQuery] = useState('')
@@ -325,7 +326,9 @@ export default function StudentForm({
       if (success && onSuccess) {
         onSuccess()
       } else if (!success) {
-        toast.error("Erreur lors de l'enregistrement")
+        toast.error("Erreur lors de l'enregistrement", { 
+          description: useStudentStore.getState().error || "Vérifiez les données saisies." 
+        })
       }
     } catch (err) {
       if (import.meta.env.DEV) console.error('Error submitting form:', err)
@@ -344,8 +347,50 @@ export default function StudentForm({
 
       {error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4">{error}</div>}
 
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <Tabs defaultValue="identity" className="w-full">
+      <form 
+        onSubmit={form.handleSubmit(onSubmit, (errors) => {
+          // Identify which tab has the first error
+          const identityFields = ['first_name', 'last_name', 'gender', 'date_of_birth', 'place_of_birth', 'class', 'enrollment_date', 'email', 'previous_school', 'photo_path']
+          const familyFields = ['father_name', 'father_contact', 'father_profession', 'mother_name', 'mother_contact', 'mother_profession', 'guardian_name', 'guardian_contact', 'guardian_profession', 'address', 'siblings']
+          
+          let targetTab: string | null = null
+          let firstErrorField: string | null = null
+
+          for (const field of Object.keys(errors)) {
+            if (!targetTab) {
+              if (identityFields.includes(field)) targetTab = 'identity'
+              else if (familyFields.includes(field)) targetTab = 'family'
+              else targetTab = 'services'
+              
+              firstErrorField = field
+            }
+          }
+
+          if (targetTab && targetTab !== activeTab) {
+             setActiveTab(targetTab)
+          }
+
+          // Wait for tab to render before focusing
+          setTimeout(() => {
+             if (firstErrorField) {
+                const el = document.getElementById(firstErrorField)
+                if (el) {
+                   el.focus()
+                   // This will show a native tooltip if the browser supports it
+                   if (typeof (el as HTMLInputElement).reportValidity === 'function') {
+                      (el as HTMLInputElement).reportValidity()
+                   }
+                }
+             }
+          }, 100)
+
+          toast.error("Formulaire incomplet", {
+            description: "Veuillez vérifier les champs indiqués en rouge."
+          })
+        })} 
+        className="space-y-4"
+      >
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className={`grid w-full ${initialData ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <TabsTrigger value="identity">Identité</TabsTrigger>
             <TabsTrigger value="family">Famille</TabsTrigger>

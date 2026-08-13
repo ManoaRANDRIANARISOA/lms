@@ -654,6 +654,11 @@ interface APIType {
   }
   auth: AuthAPI
   dialog: DialogAPI
+  logs: {
+    get: (limit?: number, offset?: number) => Promise<{ success: boolean; logs?: any[]; total?: number; error?: string }>
+    clear: () => Promise<{ success: boolean; error?: string }>
+    onError: (callback: (event: any, data: any) => void) => void
+  }
 }
 
 declare global {

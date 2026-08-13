@@ -10,7 +10,7 @@
  * @module Preload
  */
 
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
 // --------------------------------------------
@@ -333,6 +333,19 @@ const api = {
   dialog: {
     openFile: () => ipcRenderer.invoke('dialog:openFile'),
     confirmSync: (message: string) => ipcRenderer.sendSync('dialog:confirmSync', message)
+  },
+
+  // --------------------------------------------
+  // System Logs
+  // --------------------------------------------
+  logs: {
+    get: (limit?: number, offset?: number) => ipcRenderer.invoke('logs:get', limit, offset),
+    clear: () => ipcRenderer.invoke('logs:clear'),
+    onError: (callback: (event: IpcRendererEvent, data: any) => void) => {
+      // Remove all previous listeners to avoid duplicates if component remounts
+      ipcRenderer.removeAllListeners('app:log-error')
+      ipcRenderer.on('app:log-error', callback)
+    }
   }
 }
 

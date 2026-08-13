@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react'
 import { getStudentPhotoUrl } from '../lib/image-utils'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useClasses } from '@/lib/useClasses'
-import { Trash2, Plus } from 'lucide-react'
+import { Trash2, Plus, AlertTriangle, Trash } from 'lucide-react'
 import EmailSettings from '@/pages/settings/EmailSettings'
 import AssessmentSettings from '@/pages/settings/AssessmentSettings'
 
@@ -29,6 +29,38 @@ export default function Settings() {
   const [editValue, setEditValue] = useState('')
   const [draggedClass, setDraggedClass] = useState<string | null>(null)
   const [targetSectionKey, setTargetSectionKey] = useState<string | null>(null)
+
+  // System Logs State
+  const [logs, setLogs] = useState<any[]>([])
+  const [loadingLogs, setLoadingLogs] = useState(false)
+
+  const fetchLogs = async () => {
+    if (window.api && window.api.logs) {
+      setLoadingLogs(true)
+      try {
+        const res = await window.api.logs.get(50, 0)
+        if (res.success) {
+          setLogs(res.logs || [])
+        }
+      } catch (e) {
+        console.error(e)
+      } finally {
+        setLoadingLogs(false)
+      }
+    }
+  }
+
+  useEffect(() => {
+    fetchLogs()
+  }, [])
+
+  const handleClearLogs = async () => {
+    if (!confirm('Voulez-vous vraiment vider l\'historique des erreurs ?')) return
+    if (window.api && window.api.logs) {
+      await window.api.logs.clear()
+      fetchLogs()
+    }
+  }
 
   // If user cannot read settings at all, show access denied
   if (!canRead('settings')) {
@@ -485,6 +517,57 @@ export default function Settings() {
                 : 'Réinitialiser Localement'}
           </Button>
           {message && <p className="mt-4 font-medium p-3 bg-gray-50 rounded border">{message}</p>}
+        </div>
+
+        {/* System Logs */}
+        <div className="bg-white p-6 rounded shadow max-w-4xl border border-gray-100">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-orange-500" />
+              Historique des erreurs système
+            </h2>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={fetchLogs} disabled={loadingLogs}>
+                {loadingLogs ? 'Chargement...' : 'Rafraîchir'}
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleClearLogs} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                <Trash className="w-4 h-4 mr-2" />
+                Vider
+              </Button>
+            </div>
+          </div>
+          
+          <div className="bg-gray-900 rounded-lg p-4 font-mono text-sm overflow-y-auto max-h-[400px]">
+            {logs.length === 0 ? (
+              <div className="text-gray-400 italic text-center py-4">Aucune erreur enregistrée.</div>
+            ) : (
+              <div className="space-y-3">
+                {logs.map((log, idx) => (
+                  <div key={idx} className="border-b border-gray-800 pb-3 last:border-0">
+                    <div className="flex items-start gap-2">
+                      <span className="text-gray-500 min-w-[140px]">
+                        {new Date(log.created_at).toLocaleString()}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${
+                        log.level === 'error' ? 'bg-red-900 text-red-200' :
+                        log.level === 'warn' ? 'bg-orange-900 text-orange-200' :
+                        'bg-blue-900 text-blue-200'
+                      }`}>
+                        {log.level}
+                      </span>
+                      <span className="text-gray-400 font-semibold">[{log.context}]</span>
+                      <span className="text-gray-100">{log.message}</span>
+                    </div>
+                    {log.details && (
+                      <div className="mt-1 ml-[140px] text-gray-400 text-xs overflow-x-auto whitespace-pre-wrap">
+                        {log.details}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

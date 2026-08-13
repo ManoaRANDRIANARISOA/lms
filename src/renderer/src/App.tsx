@@ -47,38 +47,38 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-// --------------------------------------------
-// Route Switcher
-// --------------------------------------------
-function AppRoutes(): React.JSX.Element {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  // --------------------------------------------
+  // Route Switcher
+  // --------------------------------------------
+  function AppRoutes(): React.JSX.Element {
+    const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
 
-  return (
-    <Routes>
-      <Route
-        path="/login"
-        element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
-      />
-      <Route
-        path="/*"
-        element={isAuthenticated ? <MainLayout /> : <Navigate to="/login" replace />}
-      />
-    </Routes>
-  )
-}
+    return (
+      <Routes>
+        <Route
+          path="/login"
+          element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
+        />
+        <Route
+          path="/*"
+          element={isAuthenticated ? <MainLayout /> : <Navigate to="/login" replace />}
+        />
+      </Routes>
+    )
+  }
 
-// --------------------------------------------
-// Root
-// --------------------------------------------
-export default function App(): React.JSX.Element {
-  return (
-    <Router>
-      <ErrorBoundary>
-        <AuthInitializer>
-          <AppRoutes />
-          <Toaster position="top-right" richColors closeButton />
-        </AuthInitializer>
-      </ErrorBoundary>
-    </Router>
-  )
-}
+  // --------------------------------------------
+  // Root
+  // --------------------------------------------
+  export default function App(): React.JSX.Element {
+    return (
+      <Router>
+        <ErrorBoundary>
+          <AuthInitializer>
+            <AppRoutes />
+            <Toaster position="top-right" richColors closeButton />
+          </AuthInitializer>
+        </ErrorBoundary>
+      </Router>
+    )
+  }

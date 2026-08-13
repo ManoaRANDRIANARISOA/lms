@@ -4,6 +4,8 @@ import dotenv from 'dotenv'
 import path from 'path'
 import * as fs from 'fs'
 import { app } from 'electron' // Load env vars
+import { LoggerService } from './logger.service'
+
 const isDev = !app.isPackaged
 const envPath = isDev ? path.join(process.cwd(), '.env') : path.join(process.resourcesPath, '.env')
 
@@ -211,6 +213,7 @@ async function pushLocalChanges() {
     SELECT * FROM sync_queue
     WHERE status IN ('pending', 'error')
     ORDER BY
+      CASE WHEN status = 'error' THEN 1 ELSE 0 END ASC,
       CASE WHEN action = 'delete' THEN
         CASE table_name
           WHEN 'settings' THEN 1
@@ -314,7 +317,7 @@ async function pushLocalChanges() {
             .prepare(`SELECT * FROM ${item.table_name} WHERE id = ?`)
             .get(payload.id)
           if (localRow) {
-            payload = { ...localRow, ...payload }
+            payload = { ...payload, ...localRow }
           }
         }
       } catch (e) {
@@ -620,10 +623,15 @@ async function pushLocalChanges() {
       failedTables.add(item.table_name)
 
       const errorCode = error?.code || ''
-      const isUnrecoverable = errorCode === '23503' || errorCode === '23505'
+      const isUnrecoverable = errorCode === '23503' || errorCode === '23505' || errorCode === '23502' || errorCode === '22001'
 
       if (!isUnrecoverable) {
-        console.error(`Supabase Push Error [${item.table_name}]:`, error)
+        LoggerService.log(
+          'error',
+          'sync',
+          `Erreur de synchronisation (Push) sur ${item.table_name}`,
+          error
+        )
       }
 
       db.prepare(
@@ -686,7 +694,7 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
     const { data, error } = await supabase.from(table).select('*').gt('updated_at', lastSync)
 
     if (error) {
-      console.error(`Error pulling ${table}:`, error)
+      LoggerService.log('error', 'sync', `Erreur de synchronisation (Pull) sur ${table}`, error)
       hasPullErrors = true
       continue
     }

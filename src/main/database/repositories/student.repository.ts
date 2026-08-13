@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
+import { LoggerService } from '../../services/logger.service'
 
 export class StudentRepository {
   private static feeFields = [
@@ -393,7 +394,7 @@ export class StudentRepository {
       return createTransaction(studentData)
     } catch (error: unknown) {
       const message = this.translateError(error)
-      console.error('Error creating student:', error)
+      LoggerService.log('error', 'database', `Erreur de création de l'élève: ${message}`, error)
       return { success: false, error: message }
     }
   }
