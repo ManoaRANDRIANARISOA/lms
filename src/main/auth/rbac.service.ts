@@ -90,7 +90,7 @@ const PERMISSION_MATRIX: Record<Role, Record<Resource, AccessLevel>> = {
   },
   secretariat: {
     students: 'full',
-    payments: 'read',
+    payments: 'full',
     attendance: 'full',
     grades: 'full',
     cash_journal: 'none',
@@ -119,7 +119,7 @@ const PERMISSION_MATRIX: Record<Role, Record<Resource, AccessLevel>> = {
     payments: 'full',
     attendance: 'read',
     grades: 'read',
-    cash_journal: 'read',
+    cash_journal: 'full',
     personnel: 'read',
     reports: 'full',
     settings: 'read',

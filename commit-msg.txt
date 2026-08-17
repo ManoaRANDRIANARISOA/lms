@@ -1,0 +1,6 @@
+Release v1.0.11: Améliorations et corrections
+
+- package.json : Incrémentation de la version à 1.0.11.
+- src/main/services/logger.service.ts : Suppression de l'importation inutilisée de `BrowserWindow` pour corriger les avertissements (warnings).
+- src/main/auth/rbac.service.ts : Ajustement des permissions RBAC. Le secrétariat a maintenant un accès "full" (complet) aux paiements (payments), et la caisse a un accès "full" (complet) au journal de caisse (cash_journal).
+- src/renderer/src/pages/personnel/PersonnelList.tsx : Nettoyage du code en supprimant un `console.log` de débogage inutile.

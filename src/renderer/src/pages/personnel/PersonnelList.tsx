@@ -47,7 +47,6 @@ export default function PersonnelList(): React.JSX.Element {
     const checkPaie = async () => {
       try {
         const res = await window.api.personnel.getPayrollSummary(currentMonth)
-        console.log('--- checkPaie RES ---', currentMonth, res)
         if (res.success && res.summary) {
           setPayrollSummary(res.summary)
         }

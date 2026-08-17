@@ -1,5 +1,4 @@
 import db from '../database/db'
-import { BrowserWindow } from 'electron'
 
 export class LoggerService {
   /**
@@ -32,14 +31,14 @@ export class LoggerService {
     }
 
     // Broadcast severe errors to the renderer to show a Toast notification
-    if (level === 'error') {
-      const windows = BrowserWindow.getAllWindows()
-      windows.forEach((win) => {
-        if (!win.isDestroyed()) {
-          win.webContents.send('app:log-error', { context, message, details: detailsStr })
-        }
-      })
-    }
+    // if (level === 'error') {
+    //   const windows = BrowserWindow.getAllWindows()
+    //   windows.forEach((win) => {
+    //     if (!win.isDestroyed()) {
+    //       win.webContents.send('app:log-error', { context, message, details: detailsStr })
+    //     }
+    //   })
+    // }
   }
 
   static getLogs(limit = 100, offset = 0) {
