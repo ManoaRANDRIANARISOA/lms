@@ -1,6 +1,7 @@
 import db from '../db'
 import { v4 as uuidv4 } from 'uuid'
 import { addToSyncQueue } from '../../services/sync.service'
+import { StudentRepository } from './student.repository'
 
 export interface ParentEvent {
   id: string
@@ -241,17 +242,7 @@ export class EventRepository {
 
       // 3. Record in General Ledger (Student Payments)
       const ledgerId = uuidv4()
-      const setting = db.prepare("SELECT value FROM settings WHERE key = 'school_year'").get() as
-        | { value: string }
-        | undefined
-      let schoolYear = '2025-2026'
-      if (setting?.value) {
-        try {
-          schoolYear = JSON.parse(setting.value)
-        } catch (e) {
-          schoolYear = setting.value
-        }
-      }
+      const schoolYear = StudentRepository.getCurrentSchoolYear()
 
       db.prepare(
         `

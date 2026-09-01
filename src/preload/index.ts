@@ -289,7 +289,18 @@ const api = {
       data: Record<string, unknown>[],
       columns: Array<{ key: string; label: string }>,
       filename: string
-    ) => ipcRenderer.invoke('export:csv', data, columns, filename)
+    ) => ipcRenderer.invoke('export:csv', data, columns, filename),
+    file: (options: {
+      format: 'xlsx' | 'xls' | 'csv' | 'json' | 'pdf'
+      data: Record<string, unknown>[]
+      columns: Array<{ key: string; label: string; width?: number }>
+      defaultFilename?: string
+      title?: string
+      subtitle?: string
+      schoolName?: string
+      schoolYear?: string
+      csvDelimiter?: ';' | ','
+    }) => ipcRenderer.invoke('export:file', options)
   },
 
   // --------------------------------------------

@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Search, Plus, Trash2, Eye, Edit, Download, Receipt } from 'lucide-react'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 import { POSITION_LABELS, STATUS_LABELS } from '@/lib/personnel-constants'
+import DataExportModal from '@/components/shared/DataExportModal'
 
 export default function PersonnelList(): React.JSX.Element {
   const navigate = useNavigate()
@@ -26,6 +27,7 @@ export default function PersonnelList(): React.JSX.Element {
   const [positionFilter, setPositionFilter] = useState('')
   const [activeFilter, setActiveFilter] = useState('active') // 'active', 'inactive', 'all'
   const [currentMonth, setCurrentMonth] = useState(new Date().toISOString().substring(0, 7))
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false)
   const [payrollSummary, setPayrollSummary] = useState<
     Record<
       string,
@@ -86,25 +88,11 @@ export default function PersonnelList(): React.JSX.Element {
           <Button
             variant="outline"
             size="sm"
-            onClick={async () => {
-              const result = await window.api.personnel.list()
-              const personnel = result?.personnel || []
-              await window.api.export.csv(
-                personnel as unknown as Record<string, unknown>[],
-                [
-                  { key: 'last_name', label: 'Nom' },
-                  { key: 'first_name', label: 'Prénom' },
-                  { key: 'position', label: 'Poste' },
-                  { key: 'salary_type', label: 'Type salaire' },
-                  { key: 'monthly_salary', label: 'Salaire mensuel' },
-                  { key: 'phone', label: 'Téléphone' }
-                ],
-                'personnel_export.csv'
-              )
-            }}
+            onClick={() => setIsExportModalOpen(true)}
+            className="hover:bg-primary/10 hover:text-primary hover:border-primary/50"
           >
-            <Download className="w-4 h-4 mr-2" />
-            CSV
+            <Download className="w-4 h-4 mr-2 text-primary" />
+            Exporter
           </Button>
           {canWrite('personnel') && (
             <>
@@ -307,6 +295,86 @@ export default function PersonnelList(): React.JSX.Element {
           </table>
         </div>
       </div>
+
+      {/* Modular Export Modal */}
+      <DataExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        title="Exporter la liste du Personnel"
+        defaultFilename="Export_Personnel"
+        subtitle="Extraction des données du personnel et enseignants"
+        columns={[
+          { key: 'last_name', label: 'Nom' },
+          { key: 'first_name', label: 'Prénom' },
+          { key: 'gender', label: 'Genre' },
+          { key: 'position', label: 'Poste' },
+          { key: 'category', label: 'Catégorie' },
+          { key: 'salary_type', label: 'Type de salaire' },
+          { key: 'monthly_salary', label: 'Salaire de base / Taux' },
+          { key: 'phone', label: 'Téléphone' },
+          { key: 'email', label: 'Email' },
+          { key: 'address', label: 'Adresse' },
+          { key: 'hire_date', label: "Date d'embauche" },
+          { key: 'active', label: 'Statut actif' }
+        ]}
+        presets={{
+          standard: {
+            name: 'Standard',
+            icon: '👔',
+            keys: ['last_name', 'first_name', 'position', 'salary_type', 'monthly_salary', 'phone']
+          },
+          full: {
+            name: 'Complet (Toutes colonnes)',
+            icon: '📋',
+            keys: [
+              'last_name',
+              'first_name',
+              'gender',
+              'position',
+              'category',
+              'salary_type',
+              'monthly_salary',
+              'phone',
+              'email',
+              'address',
+              'hire_date',
+              'active'
+            ]
+          },
+          contact: {
+            name: 'Contacts',
+            icon: '📞',
+            keys: ['last_name', 'first_name', 'position', 'phone', 'email', 'address']
+          }
+        }}
+        scopes={[
+          {
+            id: 'active_filters',
+            label: 'Vue active / Filtres actuellement appliqués',
+            count: filtered.length,
+            description: search || positionFilter || activeFilter !== 'all'
+              ? `Filtres : ${[
+                  search ? `Recherche "${search}"` : '',
+                  positionFilter ? `Poste ${positionFilter}` : '',
+                  activeFilter !== 'all' ? `Statut ${activeFilter}` : ''
+                ].filter(Boolean).join(' • ')}`
+              : 'Tous les membres actuellement affichés'
+          },
+          {
+            id: 'all',
+            label: 'Tout le personnel (Global)',
+            count: personnel.length,
+            description: 'Ensemble des employés et enseignants enregistrés dans le système'
+          }
+        ]}
+        fetchData={async (scopeId) => {
+          if (scopeId === 'all') {
+            const res = await window.api.personnel.list()
+            return (res?.personnel || []) as unknown as Record<string, unknown>[]
+          }
+          return filtered as unknown as Record<string, unknown>[]
+        }}
+      />
     </div>
   )
 }

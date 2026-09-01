@@ -1,5 +1,6 @@
 import db from '../db'
 import { v4 as uuidv4 } from 'uuid'
+import { addToSyncQueue } from '../../services/sync.service'
 
 export interface Assessment {
   id: string
@@ -24,14 +25,18 @@ export const AssessmentRepository = {
         VALUES (@id, @school_year, @class_name, @name, @term_value, @weight)
       `)
 
-      stmt.run({
+      const payload = {
         id,
         school_year: data.school_year,
         class_name: data.class_name,
         name: data.name,
         term_value: data.term_value,
         weight: data.weight || 1.0
-      })
+      }
+
+      stmt.run(payload)
+
+      addToSyncQueue('assessments', id, 'create', payload)
 
       return { success: true, id }
     } catch (error) {
@@ -88,6 +93,7 @@ export const AssessmentRepository = {
       `)
 
       stmt.run({ ...updates, id })
+      addToSyncQueue('assessments', id, 'update', updates)
       return { success: true }
     } catch (error) {
       console.error('Error updating assessment:', error)
@@ -99,6 +105,7 @@ export const AssessmentRepository = {
     try {
       const stmt = db.prepare('DELETE FROM assessments WHERE id = ?')
       stmt.run(id)
+      addToSyncQueue('assessments', id, 'delete', { id })
       return { success: true }
     } catch (error) {
       console.error('Error deleting assessment:', error)

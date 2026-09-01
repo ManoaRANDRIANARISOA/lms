@@ -133,7 +133,8 @@ const runMigrations = (): void => {
     '028_add_is_reenrollment_to_fees.sql',
     '029_add_payroll_ignores.sql',
     '030_fix_event_school_year.sql',
-    '031_add_payroll_start_date.sql'
+    '031_add_payroll_start_date.sql',
+    '032_add_app_logs.sql'
   ]
   migrations.forEach(applyMigration)
 }

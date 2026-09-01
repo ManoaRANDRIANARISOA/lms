@@ -52,4 +52,11 @@ export function registerReportHandlers(): void {
     if (!canRead('students')) return { success: false, error: 'Accès refusé' }
     return ExportService.exportToCSV(data, columns, filename)
   })
+
+  ipcMain.handle('export:file', async (_, options) => {
+    if (!canRead('students') && !canRead('reports')) {
+      return { success: false, error: 'Accès refusé: droits insuffisants' }
+    }
+    return ExportService.exportData(options)
+  })
 }

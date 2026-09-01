@@ -111,8 +111,7 @@ export class PaymentRepository {
       // SYNC: When a bus or canteen payment is recorded, ensure the subscription flag
       // in student_fees is activated. This keeps the two sources of truth coherent.
       if (payment.payment_type === 'bus' || payment.payment_type === 'canteen') {
-        const schoolYear = StudentRepository.getSetting('school_year') || '2025-2026'
-        const targetYear = schoolYear.replace(/['"]/g, '').trim()
+        const targetYear = StudentRepository.getCurrentSchoolYear()
 
         // Find the fee record for current year
         const feeRecord = db
@@ -150,8 +149,7 @@ export class PaymentRepository {
 
       // SYNC: When a uniform payment is recorded, mark the item as purchased
       if (payment.payment_type === 'uniform' && payment.description) {
-        const schoolYear = StudentRepository.getSetting('school_year') || '2025-2026'
-        const targetYear = schoolYear.replace(/['"]/g, '').trim()
+        const targetYear = StudentRepository.getCurrentSchoolYear()
         const itemName = (payment.description as string).split(' - ')[0].trim()
 
         if (itemName) {

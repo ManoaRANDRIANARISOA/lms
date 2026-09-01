@@ -78,7 +78,9 @@ const SYNCABLE_TABLES = new Set([
   'parent_events',
   'event_payments',
   'bus_attendance',
-  'canteen_attendance'
+  'canteen_attendance',
+  'assessments',
+  'settings'
 ])
 
 /**
@@ -281,7 +283,12 @@ async function pushLocalChanges() {
 
       // Special case: Do not push `last_sync_time` or other machine-specific settings
       if (item.table_name === 'settings') {
-        const data = JSON.parse(item.data)
+        let data: any
+        try {
+          data = typeof item.data === 'string' ? JSON.parse(item.data) : item.data
+        } catch {
+          data = { key: item.record_id, value: item.data }
+        }
         if (data.key === 'last_sync_time' || item.record_id === 'last_sync_time') {
           db.prepare(`UPDATE sync_queue SET status = 'synced' WHERE id = ?`).run(item.id)
           continue
@@ -298,21 +305,25 @@ async function pushLocalChanges() {
         continue
       }
 
-      // If status is error, we should retry.
-      // But maybe check if we exceeded max retries? For now, infinite retry.
-
       const data = JSON.parse(item.data)
       let payload = { ...data }
 
-      // FIX: Ensure payload has id for upsert and localRow fetching
-      if (!payload.id && item.record_id) {
-        payload.id = item.record_id
+      // FIX: Ensure payload has id for upsert and localRow fetching (except settings where PK is key)
+      if (item.table_name === 'settings') {
+        if (!payload.key && item.record_id) payload.key = item.record_id
+      } else {
+        if (!payload.id && item.record_id) {
+          payload.id = item.record_id
+        }
       }
 
       // FIX: Merge with full local row to prevent Supabase UPSERT failures
       // due to missing NOT NULL columns if the remote record is missing.
       try {
-        if (payload.id && item.action !== 'delete') {
+        if (item.table_name === 'settings' && payload.key && item.action !== 'delete') {
+          const localRow = db.prepare(`SELECT * FROM settings WHERE key = ?`).get(payload.key) as any
+          if (localRow) payload = { ...payload, ...localRow }
+        } else if (payload.id && item.action !== 'delete') {
           const localRow = db
             .prepare(`SELECT * FROM ${item.table_name} WHERE id = ?`)
             .get(payload.id)
@@ -529,7 +540,16 @@ async function pushLocalChanges() {
 
         // Handle tables with composite unique constraints that differ from PK
         let upsertError: any
-        if (item.table_name === 'time_tracking') {
+        if (item.table_name === 'settings') {
+          delete supabasePayload.id
+          const settingPayload = {
+            key: payload.key || item.record_id,
+            value: typeof payload.value === 'string' ? payload.value : JSON.stringify(payload.value),
+            updated_at: new Date().toISOString()
+          }
+          const { error } = await supabase.from('settings').upsert(settingPayload, { onConflict: 'key' })
+          upsertError = error
+        } else if (item.table_name === 'time_tracking') {
           const { error } = await supabase
             .from(item.table_name)
             .upsert(supabasePayload, { onConflict: 'personnel_id,month' })
@@ -679,6 +699,7 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
     'subjects',
     'grades',
     'class_subjects',
+    'assessments',
     'parent_events',
     'event_payments',
     'bus_attendance',
@@ -686,175 +707,232 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
     // Note: 'settings' and 'users' are handled separately or excluded from generic sync
   ]
 
-  for (const table of tables) {
-    if (!SYNCABLE_TABLES.has(table)) {
-      console.error(`Skipping unauthorized table in pull: ${table}`)
-      continue
-    }
-    const { data, error } = await supabase.from(table).select('*').gt('updated_at', lastSync)
+  db.pragma('foreign_keys = OFF')
 
-    if (error) {
-      LoggerService.log('error', 'sync', `Erreur de synchronisation (Pull) sur ${table}`, error)
-      hasPullErrors = true
-      continue
-    }
-
-    // console.log(`Pulled ${data?.length} records from ${table}`);
-
-    for (const record of data || []) {
-      // Check if exists locally
-      const local = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(record.id) as any
-
-      const { search_text, ...recordToSave } = record
-
-      // Sanitize object values for SQLite
-      for (const key in recordToSave) {
-        const val = recordToSave[key]
-        if (typeof val === 'boolean') {
-          recordToSave[key] = val ? 1 : 0
-        } else if (typeof val === 'object' && val !== null) {
-          recordToSave[key] = JSON.stringify(val)
-        }
-      }
-
-      // Handle deleted records coming from cloud
-      if (recordToSave.deleted) {
-        if (local) {
-          // Update local record to deleted
-          db.prepare(`UPDATE ${table} SET deleted = 1, updated_at = ? WHERE id = ?`).run(
-            recordToSave.updated_at,
-            record.id
-          )
-        } else {
-          // We must insert it as deleted, so foreign keys don't break!
-          // Especially for students/personnel that other tables reference.
-          const fields = Object.keys(recordToSave).join(', ')
-          const placeholders = Object.keys(recordToSave)
-            .map(() => '?')
-            .join(', ')
-          db.prepare(`INSERT INTO ${table} (${fields}) VALUES (${placeholders})`).run(
-            ...Object.values(recordToSave)
-          )
-        }
+  try {
+    for (const table of tables) {
+      if (!SYNCABLE_TABLES.has(table)) {
+        console.error(`Skipping unauthorized table in pull: ${table}`)
         continue
       }
 
-      // Handle schema differences for cash_journal
-      if (table === 'cash_journal' && !recordToSave.department) {
-        recordToSave.department = 'ecole'
-      }
+      // POSTGREST PAGINATION: Fetch in 1000-record chunks to prevent truncation
+      let allRecords: any[] = []
+      let page = 0
+      const pageSize = 1000
+      let fetchMore = true
 
-      // CONFLICT RESOLUTION: Check for Unique Constraint on registration_number
-      // If we are about to insert/update a student, check if their registration_number is already taken by ANOTHER student locally.
-      if (table === 'students' && recordToSave.registration_number) {
-        const conflictingStudent = db
-          .prepare(
-            `
-              SELECT * FROM students 
-              WHERE registration_number = ? AND id != ?
-          `
-          )
-          .get(recordToSave.registration_number, record.id) as any
+      while (fetchMore) {
+        const from = page * pageSize
+        const to = from + pageSize - 1
+        const { data, error } = await supabase
+          .from(table)
+          .select('*')
+          .gt('updated_at', lastSync)
+          .order('updated_at', { ascending: true })
+          .range(from, to)
 
-        if (conflictingStudent) {
-          console.warn(
-            `Conflict detected: Matricule ${recordToSave.registration_number} taken by ${conflictingStudent.id}. Renaming local conflict.`
-          )
+        if (error) {
+          LoggerService.log('error', 'sync', `Erreur de synchronisation (Pull) sur ${table}`, error)
+          hasPullErrors = true
+          fetchMore = false
+          break
+        }
 
-          // We rename the LOCAL conflicting student's matricule to allow the REMOTE one (Server Authority) to land.
-          // The local student will get a temporary matricule. When it tries to push later, we will handle the collision in pushLocalChanges.
-          const tempMatricule = `${recordToSave.registration_number}_CONFLICT_${Date.now()}`
-
-          db.prepare(`UPDATE students SET registration_number = ? WHERE id = ?`).run(
-            tempMatricule,
-            conflictingStudent.id
-          )
+        if (data && data.length > 0) {
+          allRecords.push(...data)
+          if (data.length < pageSize) {
+            fetchMore = false
+          } else {
+            page++
+          }
+        } else {
+          fetchMore = false
         }
       }
 
-      // CONFLICT RESOLUTION: Generic Unique Constraints
-      // If Supabase sends a record that conflicts with a local unique index (but has a different UUID),
-      // we delete the local conflicting record to let the Server Authority win.
-      const uniqueConstraints = {
-        student_fees: ['student_id', 'school_year'],
-        bus_attendance: ['student_id', 'attendance_date'],
-        canteen_attendance: ['student_id', 'attendance_date'],
-        salary_calculations: ['personnel_id', 'month'],
-        grades: ['student_id', 'subject_id', 'school_year', 'term'],
-        custom_deductions: ['personnel_id', 'month'],
-        daily_attendance: ['personnel_id', 'attendance_date'],
-        class_subjects: ['class_name', 'subject_id'],
-        assessments: ['school_year', 'class_name', 'term_value'],
-        time_tracking: ['personnel_id', 'month']
-      }
+      for (const record of allRecords) {
+        // Check if exists locally
+        const local = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(record.id) as any
 
-      const constraintKeys = uniqueConstraints[table]
-      if (constraintKeys) {
-        // Check if all keys exist in recordToSave
-        const hasAllKeys = constraintKeys.every(
-          (k) => recordToSave[k] !== undefined && recordToSave[k] !== null
-        )
-        if (hasAllKeys) {
-          const whereClause = constraintKeys.map((k) => `${k} = ?`).join(' AND ')
-          const values = constraintKeys.map((k) => recordToSave[k])
+        const { search_text, ...recordToSave } = record
 
-          const conflict = db
-            .prepare(`SELECT id FROM ${table} WHERE ${whereClause} AND id != ?`)
-            .get(...values, record.id) as any
-          if (conflict) {
-            console.warn(
-              `Unique constraint conflict detected on ${table} for ${constraintKeys.join(',')}. Deleting local conflict ${conflict.id} to favor cloud record ${record.id}.`
-            )
-            db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(conflict.id)
+        // Sanitize object values for SQLite
+        for (const key in recordToSave) {
+          const val = recordToSave[key]
+          if (typeof val === 'boolean') {
+            recordToSave[key] = val ? 1 : 0
+          } else if (typeof val === 'object' && val !== null) {
+            recordToSave[key] = JSON.stringify(val)
           }
         }
-      }
 
-      try {
-        if (!local) {
-          // Insert new record
-          const fields = Object.keys(recordToSave).join(', ')
-          const placeholders = Object.keys(recordToSave)
-            .map(() => '?')
-            .join(', ')
-          db.prepare(`INSERT INTO ${table} (${fields}) VALUES (${placeholders})`).run(
-            ...Object.values(recordToSave)
-          )
-        } else {
-          // Conflict detection (Time-based)
-          if (new Date(local.updated_at) > new Date(record.updated_at)) {
-            // Local is newer
-            console.warn(
-              `Conflict detected for ${table} ${record.id} (Local is newer). Keeping local.`
-            )
-          } else {
-            // Cloud is newer - update local
-            const updates = Object.entries(recordToSave)
-              .map(([key]) => `${key} = ?`)
-              .join(', ')
-            db.prepare(`UPDATE ${table} SET ${updates} WHERE id = ?`).run(
-              ...Object.values(recordToSave),
+        // Handle deleted records coming from cloud
+        if (recordToSave.deleted) {
+          if (local) {
+            // Update local record to deleted
+            db.prepare(`UPDATE ${table} SET deleted = 1, updated_at = ? WHERE id = ?`).run(
+              recordToSave.updated_at,
               record.id
             )
+          } else {
+            // We must insert it as deleted, so foreign keys don't break!
+            // Especially for students/personnel that other tables reference.
+            const fields = Object.keys(recordToSave).join(', ')
+            const placeholders = Object.keys(recordToSave)
+              .map(() => '?')
+              .join(', ')
+            db.prepare(`INSERT INTO ${table} (${fields}) VALUES (${placeholders})`).run(
+              ...Object.values(recordToSave)
+            )
+          }
+          continue
+        }
+
+        // Handle schema differences for cash_journal
+        if (table === 'cash_journal' && !recordToSave.department) {
+          recordToSave.department = 'eleve'
+        }
+
+        // CONFLICT RESOLUTION: Check for Unique Constraint on registration_number
+        // If we are about to insert/update a student, check if their registration_number is already taken by ANOTHER student locally.
+        if (table === 'students' && recordToSave.registration_number) {
+          const conflictingStudent = db
+            .prepare(
+              `
+                SELECT * FROM students 
+                WHERE registration_number = ? AND id != ?
+            `
+            )
+            .get(recordToSave.registration_number, record.id) as any
+
+          if (conflictingStudent) {
+            console.warn(
+              `Conflict detected: Matricule ${recordToSave.registration_number} taken by ${conflictingStudent.id}. Renaming local conflict.`
+            )
+
+            // We rename the LOCAL conflicting student's matricule to allow the REMOTE one (Server Authority) to land.
+            // The local student will get a temporary matricule. When it tries to push later, we will handle the collision in pushLocalChanges.
+            const tempMatricule = `${recordToSave.registration_number}_CONFLICT_${Date.now()}`
+
+            db.prepare(`UPDATE students SET registration_number = ? WHERE id = ?`).run(
+              tempMatricule,
+              conflictingStudent.id
+            )
           }
         }
-      } catch (err: any) {
-        console.error(`Sync error on pull for ${table} ID ${record.id}:`, err)
-        hasPullErrors = true
+
+        // CONFLICT RESOLUTION: Generic Unique Constraints
+        // If Supabase sends a record that conflicts with a local unique index (but has a different UUID),
+        // we delete the local conflicting record to let the Server Authority win.
+        const uniqueConstraints = {
+          student_fees: ['student_id', 'school_year'],
+          bus_attendance: ['student_id', 'attendance_date'],
+          canteen_attendance: ['student_id', 'attendance_date'],
+          salary_calculations: ['personnel_id', 'month'],
+          grades: ['student_id', 'subject_id', 'school_year', 'term'],
+          custom_deductions: ['personnel_id', 'month'],
+          daily_attendance: ['personnel_id', 'attendance_date'],
+          class_subjects: ['class_name', 'subject_id'],
+          assessments: ['school_year', 'class_name', 'term_value'],
+          time_tracking: ['personnel_id', 'month']
+        }
+
+        const constraintKeys = uniqueConstraints[table]
+        if (constraintKeys) {
+          // Check if all keys exist in recordToSave
+          const hasAllKeys = constraintKeys.every(
+            (k) => recordToSave[k] !== undefined && recordToSave[k] !== null
+          )
+          if (hasAllKeys) {
+            const whereClause = constraintKeys.map((k) => `${k} = ?`).join(' AND ')
+            const values = constraintKeys.map((k) => recordToSave[k])
+
+            const conflict = db
+              .prepare(`SELECT id FROM ${table} WHERE ${whereClause} AND id != ?`)
+              .get(...values, record.id) as any
+            if (conflict) {
+              console.warn(
+                `Unique constraint conflict detected on ${table} for ${constraintKeys.join(',')}. Deleting local conflict ${conflict.id} to favor cloud record ${record.id}.`
+              )
+              db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(conflict.id)
+            }
+          }
+        }
+
+        try {
+          if (!local) {
+            // Insert new record
+            const fields = Object.keys(recordToSave).join(', ')
+            const placeholders = Object.keys(recordToSave)
+              .map(() => '?')
+              .join(', ')
+            db.prepare(`INSERT INTO ${table} (${fields}) VALUES (${placeholders})`).run(
+              ...Object.values(recordToSave)
+            )
+          } else {
+            // Conflict detection (Time-based)
+            if (new Date(local.updated_at) > new Date(record.updated_at)) {
+              // Local is newer
+              console.warn(
+                `Conflict detected for ${table} ${record.id} (Local is newer). Keeping local.`
+              )
+            } else {
+              // Cloud is newer - update local
+              const updates = Object.entries(recordToSave)
+                .map(([key]) => `${key} = ?`)
+                .join(', ')
+              db.prepare(`UPDATE ${table} SET ${updates} WHERE id = ?`).run(
+                ...Object.values(recordToSave),
+                record.id
+              )
+            }
+          }
+        } catch (err: any) {
+          console.error(`Sync error on pull for ${table} ID ${record.id}:`, err)
+          hasPullErrors = true
+        }
       }
     }
-  }
 
-  // --------------------------------------------
-  // Pull users from cloud
-  // --------------------------------------------
-  try {
-    const { data: remoteUsers, error: usersError } = await supabase
-      .from('users')
-      .select('id, username, role, full_name, email, active, version, updated_at, password_hash')
-      .gt('updated_at', lastSync)
+    // --------------------------------------------
+    // Pull users from cloud (with pagination)
+    // --------------------------------------------
+    try {
+      let remoteUsers: any[] = []
+      let userPage = 0
+      const userPageSize = 1000
+      let fetchMoreUsers = true
 
-    if (!usersError && remoteUsers) {
+      while (fetchMoreUsers) {
+        const from = userPage * userPageSize
+        const to = from + userPageSize - 1
+        const { data, error: usersError } = await supabase
+          .from('users')
+          .select('id, username, role, full_name, email, active, version, updated_at, password_hash')
+          .gt('updated_at', lastSync)
+          .order('updated_at', { ascending: true })
+          .range(from, to)
+
+        if (usersError) {
+          console.error('Error pulling users:', usersError)
+          hasPullErrors = true
+          fetchMoreUsers = false
+          break
+        }
+
+        if (data && data.length > 0) {
+          remoteUsers.push(...data)
+          if (data.length < userPageSize) {
+            fetchMoreUsers = false
+          } else {
+            userPage++
+          }
+        } else {
+          fetchMoreUsers = false
+        }
+      }
+
       for (const remoteUser of remoteUsers) {
         const localUser = db.prepare('SELECT * FROM users WHERE id = ?').get(remoteUser.id) as any
 
@@ -892,14 +970,54 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
           }
         }
       }
-    }
-    if (usersError) {
-      console.error('Error pulling users:', usersError)
+    } catch (e) {
+      console.error('Error syncing users from cloud:', e)
       hasPullErrors = true
     }
-  } catch (e) {
-    console.error('Error syncing users from cloud:', e)
-    hasPullErrors = true
+
+    // --------------------------------------------
+    // Pull settings from cloud (school_year, school_name, finance_prices, etc.)
+    // --------------------------------------------
+    try {
+      const { data: remoteSettings, error: settingsError } = await supabase
+        .from('settings')
+        .select('*')
+        .neq('key', 'last_sync_time')
+
+      if (!settingsError && remoteSettings) {
+        for (const remoteSetting of remoteSettings) {
+          const localSetting = db
+            .prepare('SELECT value, updated_at FROM settings WHERE key = ?')
+            .get(remoteSetting.key) as { value: string; updated_at: string } | undefined
+
+          if (!localSetting) {
+            db.prepare(
+              'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)'
+            ).run(
+              remoteSetting.key,
+              remoteSetting.value,
+              remoteSetting.updated_at || new Date().toISOString()
+            )
+          } else {
+            const localDate = new Date(localSetting.updated_at || '2000-01-01')
+            const remoteDate = new Date(remoteSetting.updated_at || '2000-01-01')
+            if (remoteDate >= localDate) {
+              db.prepare(
+                'UPDATE settings SET value = ?, updated_at = ? WHERE key = ?'
+              ).run(
+                remoteSetting.value,
+                remoteSetting.updated_at || new Date().toISOString(),
+                remoteSetting.key
+              )
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error syncing settings from cloud:', e)
+    }
+  } finally {
+    db.pragma('foreign_keys = ON')
   }
 
   // Update last sync time ONLY if no errors occurred
@@ -915,11 +1033,11 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
 
 // Start periodic sync (every 5 minutes)
 export function startPeriodicSync() {
-  // Sync immediately on startup
+  // Sync immediately on startup (1s delay to let DB initialize)
   setTimeout(async () => {
     // console.log('Starting initial sync...');
     await syncWithCloud()
-  }, 5000) // Wait 5s for app to settle
+  }, 1000)
 
   setInterval(
     async () => {

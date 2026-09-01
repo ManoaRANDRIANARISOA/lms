@@ -124,7 +124,7 @@ export class StudentRepository {
     const now = new Date()
     const month = now.getMonth() + 1
     const year = now.getFullYear()
-    return month >= 9 ? `${year}-${year + 1}` : `${year - 1}-${year}`
+    return month >= 8 ? `${year}-${year + 1}` : `${year - 1}-${year}`
   }
 
   static getSetting(key: string): string {
@@ -330,7 +330,7 @@ export class StudentRepository {
 
       // Initialize Student Fees for current year (Only if class is provided)
       if (studentDataClean.class) {
-        let schoolYear = this.getSetting('school_year') || '2025-2026'
+        let schoolYear = this.getCurrentSchoolYear()
         schoolYear = schoolYear.replace(/['"]/g, '').trim()
 
         const config = this.resolveTuitionConfig(studentDataClean.class as string)
@@ -624,7 +624,7 @@ export class StudentRepository {
     const allFees = db
       .prepare('SELECT * FROM student_fees WHERE student_id = ? ORDER BY school_year DESC')
       .all(id) as Record<string, unknown>[]
-    const schoolYear = targetSchoolYear || this.getSetting('school_year') || '2025-2026'
+    const schoolYear = targetSchoolYear || this.getCurrentSchoolYear()
 
     // valid fees for current year
     const fees = allFees.find((f) => {
@@ -769,7 +769,7 @@ export class StudentRepository {
 
         // Update Fees Table
         if (Object.keys(feeUpdates).length > 0 || studentUpdates.class) {
-          let schoolYear = this.getSetting('school_year') || '2025-2026'
+          let schoolYear = this.getCurrentSchoolYear()
           schoolYear = schoolYear.replace(/['"]/g, '').trim()
 
           // If class or personnel status changed, update fee record too
@@ -1182,7 +1182,7 @@ export class StudentRepository {
     busStats: Record<string, number>
     totalStudents: number
   } {
-    const schoolYear = this.getSetting('school_year') || '2025-2026'
+    const schoolYear = this.getCurrentSchoolYear()
 
     const rows = db
       .prepare(
@@ -1236,11 +1236,12 @@ export class StudentRepository {
     return { canteenStats, busStats, totalStudents: rows.length }
   }
 
-  static repairEnrollments(targetYear: string = '2025-2026'): {
+  static repairEnrollments(targetYear?: string): {
     success: boolean
     repaired: number
     error?: string
   } {
+    const effectiveYear = targetYear || this.getCurrentSchoolYear()
     const students = db
       .prepare(
         "SELECT id, class, is_personnel_child FROM students WHERE class IS NOT NULL AND class != ''"
@@ -1252,7 +1253,7 @@ export class StudentRepository {
       for (const student of students) {
         const existingFee = db
           .prepare('SELECT id FROM student_fees WHERE student_id = ? AND school_year = ?')
-          .get(student.id, targetYear)
+          .get(student.id, effectiveYear)
 
         if (!existingFee) {
           const level = this.determineTuitionLevel(student.class)
@@ -1268,12 +1269,12 @@ export class StudentRepository {
                           id, student_id, school_year, tuition_level, monthly_tuition, class_name
                       ) VALUES (?, ?, ?, ?, ?, ?)
                   `
-          ).run(feeId, student.id, targetYear, level, tuitionFee, student.class)
+          ).run(feeId, student.id, effectiveYear, level, tuitionFee, student.class)
 
           addToSyncQueue('student_fees', feeId, 'create', {
             id: feeId,
             student_id: student.id,
-            school_year: targetYear,
+            school_year: effectiveYear,
             tuition_level: level,
             monthly_tuition: tuitionFee,
             class_name: student.class

@@ -352,7 +352,11 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                     {fee.school_year}
                   </option>
                 ))}
-                {!currentFeesHistory?.length && <option value="2025-2026">2025-2026</option>}
+                {!currentFeesHistory?.length && (
+                  <option value={useAppStore.getState().currentYear || '2026-2027'}>
+                    {useAppStore.getState().currentYear || '2026-2027'}
+                  </option>
+                )}
               </select>
             </div>
 
