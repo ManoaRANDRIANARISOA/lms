@@ -190,6 +190,11 @@ interface APIType {
     repair: (
       targetYear: string
     ) => Promise<{ success: boolean; fixedCount?: number; error?: string }>
+    rectifyEnrollmentType: (
+      studentId: string,
+      schoolYear: string,
+      newType: 'enrollment' | 'reenrollment'
+    ) => Promise<{ success: boolean; error?: string }>
 
     repairSync: () => Promise<{ success: boolean; error?: string }>
     resetDatabase: (includeRemote: boolean) => Promise<{ success: boolean; error?: string }>
@@ -665,6 +670,36 @@ interface APIType {
       }>
     }) => Promise<{ success: boolean; filePath?: string; error?: string }>
     openFile: (filePath: string) => Promise<{ success: boolean; error?: string }>
+  }
+  printer: {
+    printReceipt: (
+      data: {
+        student_name?: string
+        student_id?: string
+        student_number?: string
+        class_name?: string
+        amount?: number
+        payment_type?: string
+        payment_date?: string
+        month?: string
+        receipt_number?: string
+        payment_method?: string
+        department?: string
+        description?: string
+        cashier_name?: string
+        school_year?: string
+        items?: Array<{
+          label: string
+          amount: number
+          detail?: string
+          payment_type?: string
+          month?: string
+        }>
+      },
+      copies?: number
+    ) => Promise<{ success: boolean; error?: string }>
+    getPrinters: () => Promise<Array<{ name: string; isDefault: boolean; status: string }>>
+    testPrint: (printerName?: string) => Promise<{ success: boolean; error?: string }>
   }
   auth: AuthAPI
   dialog: DialogAPI

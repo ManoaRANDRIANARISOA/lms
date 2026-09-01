@@ -235,7 +235,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
             {canWrite('students') && (
               <Button variant="outline" size="sm" onClick={() => setIsReEnrollOpen(true)}>
                 <History className="w-4 h-4 mr-2" />
-                {!currentFees && currentStudent?.student_status !== 'Ancien'
+                {currentStudent?.student_status === 'Non inscrit'
                   ? 'Inscrire'
                   : 'Réinscrire'}
               </Button>
@@ -348,11 +348,15 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                 }}
               >
                 {currentFeesHistory?.map((fee) => (
-                  <option key={fee.id} value={fee.school_year}>
-                    {fee.school_year}
+                  <option key={fee.id} value={fee.school_year.replace(/['"]/g, '')}>
+                    {fee.school_year.replace(/['"]/g, '')}
                   </option>
                 ))}
-                {!currentFeesHistory?.length && (
+                {!currentFeesHistory?.some(
+                  (f) =>
+                    f.school_year.replace(/['"]/g, '') ===
+                    (useAppStore.getState().currentYear || '2026-2027')
+                ) && (
                   <option value={useAppStore.getState().currentYear || '2026-2027'}>
                     {useAppStore.getState().currentYear || '2026-2027'}
                   </option>
@@ -544,10 +548,19 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                       }}
                     >
                       {currentFeesHistory?.map((fee) => (
-                        <option key={fee.id} value={fee.school_year}>
-                          {fee.school_year}
+                        <option key={fee.id} value={fee.school_year.replace(/['"]/g, '')}>
+                          {fee.school_year.replace(/['"]/g, '')}
                         </option>
                       ))}
+                      {!currentFeesHistory?.some(
+                        (f) =>
+                          f.school_year.replace(/['"]/g, '') ===
+                          (useAppStore.getState().currentYear || '2026-2027')
+                      ) && (
+                        <option value={useAppStore.getState().currentYear || '2026-2027'}>
+                          {useAppStore.getState().currentYear || '2026-2027'}
+                        </option>
+                      )}
                     </select>
                   </div>
 

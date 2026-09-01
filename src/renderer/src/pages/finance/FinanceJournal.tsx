@@ -24,8 +24,10 @@ import {
   TrendingDown,
   Wallet,
   Percent,
-  Trash2
+  Trash2,
+  Printer
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useAppStore } from '@/store/useAppStore'
 import type { CashJournalEntry } from '@shared/types'
 
@@ -917,19 +919,77 @@ export default function FinanceJournal() {
                         {entry.amount?.toLocaleString()} Ar
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <div className="flex justify-center">
+                        <div className="flex justify-center items-center gap-1">
+                          {entry.type === 'income' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-accent/20"
+                              title="Imprimer le ticket de caisse (Thermique 80mm - Double exemplaire)"
+                              onClick={async () => {
+                                if (!window.api?.printer?.printReceipt) {
+                                  toast.error('Service impression non disponible')
+                                  return
+                                }
+                                let studentName = ''
+                                if (entry.first_name && entry.last_name) {
+                                  studentName = `${entry.last_name} ${entry.first_name}`
+                                }
+
+                                const monthMatch = entry.description?.match(/\(([^)]+)\)/)
+                                const extractedMonth = monthMatch ? monthMatch[1] : undefined
+
+                                const toastId = toast.loading('Impression du ticket thermique...')
+                                try {
+                                  const r = await window.api.printer.printReceipt(
+                                    {
+                                      student_name:
+                                        studentName ||
+                                        entry.description
+                                          ?.replace('Paiement ', '')
+                                          ?.replace(/ — .*/, '') ||
+                                        '—',
+                                      class_name: entry.student_class || '-',
+                                      amount: entry.amount,
+                                      payment_type: entry.category || 'other',
+                                      payment_date: entry.transaction_date,
+                                      month: extractedMonth,
+                                      payment_method: entry.payment_method || 'cash',
+                                      description: entry.description,
+                                      receipt_number: `REC-${(entry.id || Date.now().toString()).slice(-6).toUpperCase()}`
+                                    },
+                                    2
+                                  )
+                                  if (r.success) {
+                                    toast.success(
+                                      'Ticket imprimé en 2 exemplaires (Parent + Caisse)',
+                                      { id: toastId }
+                                    )
+                                  } else {
+                                    toast.error(r.error || "Échec d'impression", { id: toastId })
+                                  }
+                                } catch (e: unknown) {
+                                  toast.error(
+                                    'Erreur: ' + (e instanceof Error ? e.message : String(e)),
+                                    { id: toastId }
+                                  )
+                                }
+                              }}
+                            >
+                              <Printer className="w-4 h-4 text-primary" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 p-0"
-                            title="Télécharger le reçu"
+                            title="Télécharger le reçu PDF (A5)"
                             onClick={async () => {
                               let studentName = ''
                               if (entry.first_name && entry.last_name) {
                                 studentName = `${entry.last_name} ${entry.first_name}`
                               }
 
-                              // Extraction du mois depuis la description "Paiement écolage (Mars) — Doe John"
                               const monthMatch = entry.description?.match(/\(([^)]+)\)/)
                               const extractedMonth = monthMatch ? monthMatch[1] : undefined
 
@@ -957,7 +1017,7 @@ export default function FinanceJournal() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 ml-1"
+                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
                               onClick={() => handleDelete(entry)}
                               title="Annuler cette entrée"
                             >

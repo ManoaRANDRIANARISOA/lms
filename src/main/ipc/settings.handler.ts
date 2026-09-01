@@ -26,12 +26,20 @@ export function registerSettingsHandlers(): void {
   // GET SINGLE SETTING
   // --------------------------------------------
   ipcMain.handle('settings:get', (_, key: string) => {
-    // Les paramètres de base sont publics pour tous les utilisateurs connectés
+    // Les paramètres de configuration générale sont publics pour tous les utilisateurs connectés
     const PUBLIC_SETTINGS = [
       'school_year',
       'school_name',
       'school_logo',
-      'auth_require_password_change'
+      'auth_require_password_change',
+      'finance_prices',
+      'classes',
+      'tuition_preschool',
+      'tuition_primary',
+      'tuition_middle',
+      'tuition_high',
+      'printer_name',
+      'printer_copies'
     ]
 
     if (!PUBLIC_SETTINGS.includes(key) && !canRead('settings')) {
@@ -50,7 +58,15 @@ export function registerSettingsHandlers(): void {
         'school_year',
         'school_name',
         'school_logo',
-        'auth_require_password_change'
+        'auth_require_password_change',
+        'finance_prices',
+        'classes',
+        'tuition_preschool',
+        'tuition_primary',
+        'tuition_middle',
+        'tuition_high',
+        'printer_name',
+        'printer_copies'
       ]
       const filtered: Record<string, unknown> = {}
       for (const key of PUBLIC_SETTINGS) {

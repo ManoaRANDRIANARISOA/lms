@@ -986,6 +986,11 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
 
       if (!settingsError && remoteSettings) {
         for (const remoteSetting of remoteSettings) {
+          const serializedValue =
+            typeof remoteSetting.value === 'string'
+              ? remoteSetting.value
+              : JSON.stringify(remoteSetting.value)
+
           const localSetting = db
             .prepare('SELECT value, updated_at FROM settings WHERE key = ?')
             .get(remoteSetting.key) as { value: string; updated_at: string } | undefined
@@ -995,17 +1000,17 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
               'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)'
             ).run(
               remoteSetting.key,
-              remoteSetting.value,
+              serializedValue,
               remoteSetting.updated_at || new Date().toISOString()
             )
           } else {
             const localDate = new Date(localSetting.updated_at || '2000-01-01')
             const remoteDate = new Date(remoteSetting.updated_at || '2000-01-01')
-            if (remoteDate >= localDate) {
+            if (remoteDate >= localDate || forceFullSync) {
               db.prepare(
                 'UPDATE settings SET value = ?, updated_at = ? WHERE key = ?'
               ).run(
-                remoteSetting.value,
+                serializedValue,
                 remoteSetting.updated_at || new Date().toISOString(),
                 remoteSetting.key
               )

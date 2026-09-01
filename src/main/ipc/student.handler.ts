@@ -163,6 +163,30 @@ export function registerStudentHandlers(): void {
   )
 
   // --------------------------------------------
+  // RECTIFY ENROLLMENT TYPE (Inscription <-> Réinscription)
+  // --------------------------------------------
+  ipcMain.handle(
+    'student:rectifyEnrollmentType',
+    async (_, studentId: string, schoolYear: string, newType: 'enrollment' | 'reenrollment') => {
+      if (!canWrite('students')) {
+        return { success: false, error: 'Accès refusé: modification inscription élève' }
+      }
+      const result = StudentRepository.rectifyEnrollmentType(studentId, schoolYear, newType)
+      if (result.success) {
+        logAction(
+          getCurrentUser()?.id || null,
+          'update',
+          'students',
+          studentId,
+          null,
+          JSON.stringify({ rectified_type: newType, school_year: schoolYear })
+        )
+      }
+      return result
+    }
+  )
+
+  // --------------------------------------------
   // SERVICE STATS
   // --------------------------------------------
   ipcMain.handle('student:serviceStats', async () => {

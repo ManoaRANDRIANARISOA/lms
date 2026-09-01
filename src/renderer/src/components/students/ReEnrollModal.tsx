@@ -160,9 +160,9 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
     }
   }, [student.class, availableClasses, annualAverage])
   const enrollmentAmount = actualIsNewStudent
-    ? prices?.registration || 85000
-    : prices?.reenrollment || 75000
-  const actualFramAmount = framFratrieStatus.isPaid ? 0 : prices?.fram || 25000
+    ? prices?.registration || 145000
+    : prices?.reenrollment || 115000
+  const actualFramAmount = framFratrieStatus.isPaid ? 0 : prices?.fram || 15000
   const totalExpected = enrollmentAmount + actualFramAmount
 
   const isAlreadyEnrolled = enrolledYears.includes(targetYear)

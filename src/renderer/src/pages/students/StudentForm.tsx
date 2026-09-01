@@ -13,6 +13,7 @@ import { Search, X, Plus, UserCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { useFinanceStore } from '@/store/useFinanceStore'
 import { usePersonnelStore } from '@/store/usePersonnelStore'
+import { useAppStore } from '@/store/useAppStore'
 import { useClasses } from '@/lib/useClasses'
 
 const studentSchema = z.object({
@@ -103,6 +104,27 @@ export default function StudentForm({
   const [isSearchingSiblings, setIsSearchingSiblings] = useState(false)
   const { prices, fetchPrices } = useFinanceStore()
   const { classes: availableClasses } = useClasses()
+
+  const [enrollmentType, setEnrollmentType] = useState<'enrollment' | 'reenrollment'>(
+    initialFees?.is_reenrollment
+      ? 'reenrollment'
+      : initialData?.student_status === 'Ancien'
+        ? 'reenrollment'
+        : 'enrollment'
+  )
+
+  useEffect(() => {
+    if (initialData) {
+      setEnrollmentType(
+        initialFees?.is_reenrollment
+          ? 'reenrollment'
+          : initialData.student_status === 'Ancien'
+            ? 'reenrollment'
+            : 'enrollment'
+      )
+    }
+  }, [initialData, initialFees])
+
   const availableBusRoutes =
     prices.busRoutes && prices.busRoutes.length > 0
       ? prices.busRoutes
@@ -317,6 +339,19 @@ export default function StudentForm({
       let success = false
       if (initialData) {
         success = await updateStudent(initialData.id, payload)
+
+        // Rectify enrollment type if changed by user
+        const initialType = initialFees?.is_reenrollment
+          ? 'reenrollment'
+          : initialData.student_status === 'Ancien'
+            ? 'reenrollment'
+            : 'enrollment'
+
+        if (enrollmentType !== initialType && window.api?.student?.rectifyEnrollmentType) {
+          const targetYear = initialFees?.school_year || useAppStore.getState().currentYear
+          await window.api.student.rectifyEnrollmentType(initialData.id, targetYear, enrollmentType)
+        }
+
         if (success) toast.success("Dossier élève mis à jour avec succès")
       } else {
         success = await createStudent(payload)
@@ -886,8 +921,65 @@ export default function StudentForm({
           <TabsContent value="services" className="space-y-4 pt-4">
             {initialData && (
               <>
+                {/* Rectification Inscription / Réinscription */}
+                <div className="border border-amber-200 bg-amber-50/50 p-4 rounded-md">
+                  <h3 className="font-semibold text-amber-900 mb-1 flex items-center gap-2">
+                    <span>Statut Scolarité & Droits</span>
+                  </h3>
+                  <p className="text-xs text-amber-700 mb-3">
+                    Permet de corriger si l'élève a été enregistré par erreur en Inscription (Nouveau) ou Réinscription (Ancien).
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label
+                      className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-all ${
+                        enrollmentType === 'enrollment'
+                          ? 'border-blue-600 bg-blue-50/80 font-medium text-blue-900 shadow-sm'
+                          : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="enrollmentType"
+                        value="enrollment"
+                        checked={enrollmentType === 'enrollment'}
+                        onChange={() => setEnrollmentType('enrollment')}
+                        className="text-blue-600 focus:ring-blue-500"
+                      />
+                      <div>
+                        <div className="text-sm font-semibold">Nouvel Élève (Inscription)</div>
+                        <div className="text-xs text-gray-500">
+                          Droit d'inscription : {(prices?.registration || 145000).toLocaleString()} Ar
+                        </div>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-all ${
+                        enrollmentType === 'reenrollment'
+                          ? 'border-blue-600 bg-blue-50/80 font-medium text-blue-900 shadow-sm'
+                          : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="enrollmentType"
+                        value="reenrollment"
+                        checked={enrollmentType === 'reenrollment'}
+                        onChange={() => setEnrollmentType('reenrollment')}
+                        className="text-blue-600 focus:ring-blue-500"
+                      />
+                      <div>
+                        <div className="text-sm font-semibold">Ancien Élève (Réinscription)</div>
+                        <div className="text-xs text-gray-500">
+                          Droit de réinscription : {(prices?.reenrollment || 115000).toLocaleString()} Ar
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
                 {/* Bus */}
-                <div className="border p-4 rounded-md">
+                <div className="border p-4 rounded-md mt-4">
                   <h3 className="font-semibold mb-3">Transport Scolaire (Bus)</h3>
                   <div className="flex items-center space-x-2 mb-4">
                     <Checkbox

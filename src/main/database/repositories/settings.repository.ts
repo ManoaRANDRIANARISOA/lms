@@ -5,9 +5,17 @@ export class SettingsRepository {
   static get(key: string): unknown {
     try {
       const result = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as {
-        value: string
+        value: unknown
+      } | undefined
+      if (!result || result.value === null || result.value === undefined) return null
+      if (typeof result.value === 'string') {
+        try {
+          return JSON.parse(result.value)
+        } catch {
+          return result.value
+        }
       }
-      return result ? JSON.parse(result.value) : null
+      return result.value
     } catch (error) {
       console.error(`Error getting setting ${key}:`, error)
       return null
@@ -18,11 +26,19 @@ export class SettingsRepository {
     try {
       const results = db.prepare('SELECT key, value FROM settings').all() as {
         key: string
-        value: string
+        value: unknown
       }[]
       const settings: Record<string, unknown> = {}
       results.forEach((row) => {
-        settings[row.key] = JSON.parse(row.value)
+        if (typeof row.value === 'string') {
+          try {
+            settings[row.key] = JSON.parse(row.value)
+          } catch {
+            settings[row.key] = row.value
+          }
+        } else {
+          settings[row.key] = row.value
+        }
       })
       return settings
     } catch (error) {

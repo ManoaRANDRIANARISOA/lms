@@ -46,6 +46,11 @@ const api = {
       ),
     getServiceStats: () => ipcRenderer.invoke('student:serviceStats'),
     repair: (targetYear: string) => ipcRenderer.invoke('student:repair', targetYear),
+    rectifyEnrollmentType: (
+      studentId: string,
+      schoolYear: string,
+      newType: 'enrollment' | 'reenrollment'
+    ) => ipcRenderer.invoke('student:rectifyEnrollmentType', studentId, schoolYear, newType),
 
     repairSync: () => ipcRenderer.invoke('student:repairSync'),
     resetDatabase: (includeRemote: boolean) => ipcRenderer.invoke('db:reset', includeRemote)
@@ -336,6 +341,16 @@ const api = {
     generateDailyReport: (data: Record<string, unknown>) =>
       ipcRenderer.invoke('pdf:generateDailyReport', data),
     openFile: (filePath: string) => ipcRenderer.invoke('pdf:openFile', filePath)
+  },
+
+  // --------------------------------------------
+  // Thermal Printer (POS-80 ESC/POS)
+  // --------------------------------------------
+  printer: {
+    printReceipt: (data: Record<string, unknown>, copies?: number) =>
+      ipcRenderer.invoke('printer:printReceipt', data, copies),
+    getPrinters: () => ipcRenderer.invoke('printer:getPrinters'),
+    testPrint: (printerName?: string) => ipcRenderer.invoke('printer:testPrint', printerName)
   },
 
   // --------------------------------------------

@@ -18,11 +18,14 @@ import {
   MoreHorizontal,
   Lock,
   Calendar,
-  Users
+  Users,
+  Printer
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { toast } from 'sonner'
 import { useFinanceStore } from '@/store/useFinanceStore'
+import { useAppStore } from '@/store/useAppStore'
 import { usePermissions } from '@/lib/usePermissions'
 import type { Payment, FeeRecord, FinancePrices } from '@shared/types'
 
@@ -145,19 +148,23 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
   const loadData = async () => {
     setLoading(true)
     try {
+      const cleanYear = (schoolYear || useAppStore.getState().currentYear || '2026-2027')
+        .replace(/['"]/g, '')
+        .trim()
+
       // Fetch status
-      const statusRes = await window.api.payment.getTuitionStatus(studentId, schoolYear)
+      const statusRes = await window.api.payment.getTuitionStatus(studentId, cleanYear)
       // Fetch payments
-      const paymentsRes = await window.api.payment.getByStudent(studentId, schoolYear)
+      const paymentsRes = await window.api.payment.getByStudent(studentId, cleanYear)
       // Fetch configuration
       fetchPrices()
 
       // Fetch student info
-      const studentRes = await window.api.student.get(studentId)
+      const studentRes = await window.api.student.get(studentId, cleanYear)
       if (studentRes.success) setStudentInfo(studentRes.student)
 
       // Fetch Fram fratrie
-      const framRes = await window.api.payment.checkFramFratrie(studentId, schoolYear)
+      const framRes = await window.api.payment.checkFramFratrie(studentId, cleanYear)
       if (framRes.success) setFramFratrieStatus({ isPaid: framRes.isPaid, by: framRes.by })
 
       if (statusRes.success) {
@@ -330,6 +337,43 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
       }
 
       if (result.success) {
+        // Auto-print 80mm thermal receipt in 2 copies (Parent + Cashier)
+        if (window.api?.printer?.printReceipt) {
+          const studentFullName = studentInfo
+            ? `${studentInfo.last_name || ''} ${studentInfo.first_name || ''}`.trim()
+            : ''
+          const currentClass =
+            status?.feeRecord?.class_name || feeRecord?.class_name || studentInfo?.class || ''
+
+          window.api.printer
+            .printReceipt(
+              {
+                student_name: studentFullName,
+                student_number: studentInfo?.registration_number || '',
+                class_name: currentClass,
+                amount: amount,
+                payment_type: formData.payment_type,
+                payment_date: new Date().toISOString().split('T')[0],
+                month: formData.month || undefined,
+                payment_method: formData.payment_method,
+                description:
+                  formData.payment_type === 'uniform'
+                    ? `${formData.item}${formData.description ? ' - ' + formData.description : ''}`
+                    : formData.description,
+                receipt_number: `REC-${Date.now().toString().slice(-6)}`
+              },
+              2
+            )
+            .then((printRes) => {
+              if (printRes.success) {
+                toast.success('Reçu thermique imprimé (2 exemplaires)')
+              } else {
+                toast.warning("Paiement enregistré (l'imprimante n'a pas répondu: " + (printRes.error || '') + ')')
+              }
+            })
+            .catch((err) => console.warn('Thermal print error:', err))
+        }
+
         setIsAddPaymentOpen(false)
         setFormData({
           amount: '',
@@ -342,10 +386,143 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
         setExpectedAmountOverride('')
         loadData() // Reload data
       } else {
-        alert('Erreur lors du paiement: ' + result.error)
+        toast.error('Erreur lors du paiement: ' + result.error)
       }
     } catch (error: unknown) {
-      alert('Erreur: ' + (error instanceof Error ? error.message : String(error)))
+      toast.error('Erreur: ' + (error instanceof Error ? error.message : String(error)))
+    }
+  }
+
+  const handlePrintReceipt = async (payment: Payment) => {
+    if (!window.api?.printer?.printReceipt) {
+      toast.error('Service impression non disponible')
+      return
+    }
+    const studentFullName = studentInfo
+      ? `${studentInfo.last_name || ''} ${studentInfo.first_name || ''}`.trim()
+      : ''
+    const currentClass =
+      status?.feeRecord?.class_name || feeRecord?.class_name || studentInfo?.class || ''
+
+    const toastId = toast.loading("Impression du reçu sur l'imprimante thermique...")
+    try {
+      const res = await window.api.printer.printReceipt(
+        {
+          student_name: studentFullName,
+          student_number: studentInfo?.registration_number || '',
+          class_name: currentClass,
+          amount: Number(payment.amount) || 0,
+          payment_type: payment.payment_type,
+          payment_date: payment.payment_date,
+          month: payment.month || undefined,
+          payment_method: payment.payment_method,
+          description: payment.description || undefined,
+          receipt_number: `REC-${(payment.id || Date.now().toString()).slice(-6).toUpperCase()}`
+        },
+        2
+      )
+
+      if (res.success) {
+        toast.success('Reçu imprimé en 2 exemplaires (Parent + Caisse)', { id: toastId })
+      } else {
+        toast.error(res.error || "Échec d'impression du reçu", { id: toastId })
+      }
+    } catch (e: unknown) {
+      toast.error('Erreur: ' + (e instanceof Error ? e.message : String(e)), { id: toastId })
+    }
+  }
+
+  const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([])
+
+  const toggleSelectPayment = (id: string) => {
+    setSelectedPaymentIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    )
+  }
+
+  const toggleSelectAllPayments = () => {
+    if (selectedPaymentIds.length === payments.length) {
+      setSelectedPaymentIds([])
+    } else {
+      setSelectedPaymentIds(payments.map((p) => p.id))
+    }
+  }
+
+  const handlePrintGroupedReceipt = async () => {
+    const selectedPayments = payments.filter((p) => selectedPaymentIds.includes(p.id))
+    if (selectedPayments.length === 0) {
+      toast.error('Veuillez sélectionner au moins un paiement.')
+      return
+    }
+
+    if (!window.api?.printer?.printReceipt) {
+      toast.error('Service impression non disponible')
+      return
+    }
+
+    const studentFullName = studentInfo
+      ? `${studentInfo.last_name || ''} ${studentInfo.first_name || ''}`.trim()
+      : ''
+    const currentClass =
+      status?.feeRecord?.class_name || feeRecord?.class_name || studentInfo?.class || ''
+
+    const items = selectedPayments.map((p) => {
+      let label = ''
+      if (p.payment_type === 'tuition') {
+        label = `Écolage (${p.month || 'Mois'})`
+      } else if (p.payment_type === 'enrollment') {
+        label = "Droit d'inscription"
+      } else if (p.payment_type === 'reenrollment') {
+        label = 'Droit de réinscription'
+      } else if (p.payment_type === 'fram') {
+        label = 'Cotisation FRAM'
+      } else if (p.payment_type === 'bus') {
+        label = `Transport (${p.month || 'Bus'})`
+      } else if (p.payment_type === 'canteen') {
+        label = `Cantine (${p.month || 'Mois'})`
+      } else if (p.payment_type === 'uniform') {
+        label = `Uniforme / Fournitures`
+      } else {
+        label = p.description || p.payment_type
+      }
+
+      return {
+        label,
+        amount: Number(p.amount) || 0,
+        detail: p.description && p.description !== label ? p.description : undefined,
+        payment_type: p.payment_type,
+        month: p.month || undefined
+      }
+    })
+
+    const totalSelectedAmount = items.reduce((sum, item) => sum + item.amount, 0)
+    const primaryMethod = selectedPayments[0]?.payment_method || 'cash'
+    const latestDate = selectedPayments[0]?.payment_date || new Date().toISOString().split('T')[0]
+
+    const toastId = toast.loading(`Impression du reçu groupé (${selectedPayments.length} paiements)...`)
+
+    try {
+      const res = await window.api.printer.printReceipt(
+        {
+          student_name: studentFullName,
+          student_number: studentInfo?.registration_number || '',
+          class_name: currentClass,
+          amount: totalSelectedAmount,
+          payment_date: latestDate,
+          payment_method: primaryMethod,
+          receipt_number: `REC-GRP-${Date.now().toString().slice(-6)}`,
+          items
+        },
+        2
+      )
+
+      if (res.success) {
+        toast.success('Reçu groupé imprimé en 2 exemplaires (Parent + Caisse)', { id: toastId })
+      } else {
+        toast.error(res.error || "Échec d'impression du reçu groupé", { id: toastId })
+      }
+    } catch (e: unknown) {
+      toast.error('Erreur: ' + (e instanceof Error ? e.message : String(e)), { id: toastId })
     }
   }
 
@@ -1113,7 +1290,10 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
       </Dialog>
 
       {/* Monthly Tracking Grid (Tuition) */}
-      {!status?.feeRecord ? (
+      {!status?.feeRecord &&
+      (!studentInfo?.class ||
+        studentInfo.class === 'Non inscrit' ||
+        studentInfo.class === 'Classe non spécifiée') ? (
         <div className="bg-amber-50 p-6 rounded-lg shadow border border-amber-200 mt-6 text-center">
           <h3 className="text-lg font-semibold text-amber-800 mb-2">Élève non inscrit</h3>
           <p className="text-amber-700">
@@ -1144,68 +1324,144 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
 
       {/* Payment History List */}
       <div className="bg-white rounded-lg shadow border border-gray-100 overflow-hidden">
-        <div className="px-6 py-4 border-b">
-          <h3 className="text-lg font-semibold">Historique des Paiements</h3>
+        <div className="px-6 py-4 border-b flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <h3 className="text-lg font-semibold text-gray-900">Historique des Paiements</h3>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full font-medium">
+              {payments.length} paiement{payments.length > 1 ? 's' : ''}
+            </span>
+          </div>
+
+          {selectedPaymentIds.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-semibold text-foreground bg-accent/40 px-2.5 py-1 rounded border border-primary/20">
+                {selectedPaymentIds.length} sélectionné{selectedPaymentIds.length > 1 ? 's' : ''} • Total:{' '}
+                {payments
+                  .filter((p) => selectedPaymentIds.includes(p.id))
+                  .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+                  .toLocaleString()}{' '}
+                Ar
+              </span>
+              <Button
+                size="sm"
+                onClick={handlePrintGroupedReceipt}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-8 flex items-center gap-1.5 shadow-sm border border-primary/20"
+                title="Imprimer un seul reçu 80mm regroupant tous les paiements cochés"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Imprimer Reçu Groupé ({selectedPaymentIds.length})</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelectedPaymentIds([])}
+                className="text-xs h-8 text-muted-foreground hover:text-foreground hover:bg-accent/20"
+              >
+                Désélectionner
+              </Button>
+            </div>
+          )}
         </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
-            <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
+            <thead className="bg-gray-50/80 text-muted-foreground uppercase text-xs border-b border-border/60">
               <tr>
-                <th className="px-6 py-3">Date</th>
-                <th className="px-6 py-3">Type</th>
-                <th className="px-6 py-3">Mois / Détail</th>
-                <th className="px-6 py-3 text-right">Montant</th>
-                <th className="px-6 py-3">Mode</th>
+                <th className="px-4 py-3 w-10 text-center">
+                  <input
+                    type="checkbox"
+                    checked={payments.length > 0 && selectedPaymentIds.length === payments.length}
+                    onChange={toggleSelectAllPayments}
+                    className="rounded border-border text-primary focus:ring-primary cursor-pointer w-4 h-4 accent-[#AD8B73]"
+                    title="Tout sélectionner / Tout désélectionner"
+                  />
+                </th>
+                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">Type</th>
+                <th className="px-4 py-3">Mois / Détail</th>
+                <th className="px-4 py-3 text-right">Montant</th>
+                <th className="px-4 py-3">Mode</th>
+                <th className="px-4 py-3 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-border/40">
               {payments.length > 0 ? (
-                payments.map((payment) => (
-                  <tr key={payment.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium text-gray-900">
-                      {format(new Date(payment.payment_date), 'dd MMM yyyy', { locale: fr })}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded capitalize">
-                        {payment.payment_type === 'tuition'
-                          ? 'Écolage'
-                          : payment.payment_type === 'enrollment'
-                            ? 'Inscription'
-                            : payment.payment_type === 'reenrollment'
-                              ? 'Réinscription'
-                              : payment.payment_type === 'bus'
-                                ? 'Transport'
-                                : payment.payment_type === 'canteen'
-                                  ? 'Cantine'
-                                  : payment.payment_type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-gray-500">
-                      {payment.month ? (
-                        <span className="font-medium text-gray-900">{payment.month}</span>
-                      ) : (
-                        payment.description || '-'
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right font-bold text-gray-900">
-                      {payment.amount.toLocaleString()} Ar
-                    </td>
-                    <td className="px-6 py-4 text-gray-500 capitalize">
-                      {payment.payment_method === 'discount'
-                        ? 'Remise'
-                        : payment.payment_method === 'mobile_money'
-                          ? 'Mobile Money'
-                          : payment.payment_method === 'transfer'
-                            ? 'Virement'
-                            : payment.payment_method === 'check'
-                              ? 'Chèque'
-                              : 'Espèces'}
-                    </td>
-                  </tr>
-                ))
+                payments.map((payment) => {
+                  const isSelected = selectedPaymentIds.includes(payment.id)
+                  return (
+                    <tr
+                      key={payment.id}
+                      className={`transition-colors ${
+                        isSelected ? 'bg-primary/10 font-medium' : 'hover:bg-accent/15'
+                      }`}
+                    >
+                      <td className="px-4 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelectPayment(payment.id)}
+                          className="rounded border-border text-primary focus:ring-primary cursor-pointer w-4 h-4 accent-[#AD8B73]"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-foreground">
+                        {format(new Date(payment.payment_date), 'dd MMM yyyy', { locale: fr })}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="bg-accent/30 text-foreground text-xs font-medium px-2.5 py-0.5 rounded capitalize border border-border/50">
+                          {payment.payment_type === 'tuition'
+                            ? 'Écolage'
+                            : payment.payment_type === 'enrollment'
+                              ? 'Inscription'
+                              : payment.payment_type === 'reenrollment'
+                                ? 'Réinscription'
+                                : payment.payment_type === 'bus'
+                                  ? 'Transport'
+                                  : payment.payment_type === 'canteen'
+                                    ? 'Cantine'
+                                    : payment.payment_type === 'fram'
+                                      ? 'FRAM'
+                                      : payment.payment_type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {payment.month ? (
+                          <span className="font-semibold text-foreground">{payment.month}</span>
+                        ) : (
+                          payment.description || '-'
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-foreground">
+                        {payment.amount.toLocaleString()} Ar
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground capitalize">
+                        {payment.payment_method === 'discount'
+                          ? 'Remise'
+                          : payment.payment_method === 'mobile_money'
+                            ? 'Mobile Money'
+                            : payment.payment_method === 'transfer'
+                              ? 'Virement'
+                              : payment.payment_method === 'check'
+                                ? 'Chèque'
+                                : 'Espèces'}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handlePrintReceipt(payment)}
+                          className="h-7 px-2.5 text-xs flex items-center gap-1.5 ml-auto border-border hover:bg-accent/30 hover:text-primary hover:border-primary/40 text-foreground"
+                          title="Imprimer ce ticket individuel (Double exemplaire 80mm)"
+                        >
+                          <Printer className="w-3.5 h-3.5 text-primary" />
+                          <span>Ticket</span>
+                        </Button>
+                      </td>
+                    </tr>
+                  )
+                })
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     Aucun paiement enregistré pour le moment.
                   </td>
                 </tr>

@@ -23,6 +23,14 @@ export class PaymentRepository {
     payment: Omit<Payment, 'id' | 'created_at' | 'updated_at'>
   ): { success: boolean; id?: string; receipt_number?: string; error?: string } {
     const id = uuidv4()
+    const cleanSchoolYear = (
+      payment.school_year ||
+      StudentRepository.getCurrentSchoolYear() ||
+      '2026-2027'
+    )
+      .replace(/['"]/g, '')
+      .trim()
+
     const stmt = db.prepare(`
       INSERT INTO student_payments (
         id, student_id, payment_date, amount, payment_type, month, 
@@ -41,10 +49,14 @@ export class PaymentRepository {
         payment.description || null,
         payment.payment_method || 'cash',
         payment.receipt_number || null,
-        payment.school_year || null
+        cleanSchoolYear
       )
 
-      addToSyncQueue('student_payments', id, 'create', { ...payment, id })
+      addToSyncQueue('student_payments', id, 'create', {
+        ...payment,
+        id,
+        school_year: cleanSchoolYear
+      })
 
       // SYNC: Create a corresponding cash_journal entry so the school's cash register
       // reflects all student payments. Same pattern as personnel:createSalaryExpense.
@@ -200,15 +212,37 @@ export class PaymentRepository {
 
   static getByStudent(studentId: string, schoolYear?: string): Payment[] {
     if (schoolYear) {
+      const cleanYear = schoolYear.replace(/['"]/g, '').trim()
+      const parts = cleanYear.split('-')
+      const startYear = parts[0]
+      const endYear = parts[1] || parts[0]
+
       return db
         .prepare(
           `
         SELECT * FROM student_payments 
-        WHERE student_id = ? AND school_year = ?
-        ORDER BY payment_date DESC
+        WHERE student_id = ? 
+          AND (
+            REPLACE(REPLACE(school_year, '"', ''), '''', '') = ?
+            OR (
+              (school_year IS NULL OR REPLACE(REPLACE(school_year, '"', ''), '''', '') = '')
+              AND (
+                month LIKE ? OR month LIKE ?
+                OR payment_date BETWEEN ? AND ?
+              )
+            )
+          )
+        ORDER BY payment_date DESC, created_at DESC
       `
         )
-        .all(studentId, schoolYear) as Payment[]
+        .all(
+          studentId,
+          cleanYear,
+          `${startYear}-%`,
+          `${endYear}-%`,
+          `${startYear}-06-01`,
+          `${endYear}-08-31`
+        ) as Payment[]
     }
 
     return db
@@ -216,7 +250,7 @@ export class PaymentRepository {
         `
       SELECT * FROM student_payments 
       WHERE student_id = ? 
-      ORDER BY payment_date DESC
+      ORDER BY payment_date DESC, created_at DESC
     `
       )
       .all(studentId) as Payment[]
@@ -267,43 +301,85 @@ export class PaymentRepository {
   }
 
   static getTuitionStatus(studentId: string, schoolYear: string): Record<string, unknown> {
+    const cleanYear = schoolYear.replace(/['"]/g, '').trim()
+
     // 1. Get Fee Structure
     let feeRecord = db
       .prepare(
         `
       SELECT * FROM student_fees 
-      WHERE student_id = ? AND school_year = ?
+      WHERE student_id = ? AND REPLACE(REPLACE(school_year, '"', ''), '''', '') = ?
     `
       )
-      .get(studentId, schoolYear) as Record<string, unknown> | undefined
+      .get(studentId, cleanYear) as Record<string, unknown> | undefined
 
     if (!feeRecord) {
-      // Try with quotes if not found (legacy fallback)
-      const feeRecordQuoted = db
+      // Auto-provision if student has active class
+      const studentObj = db
         .prepare(
-          `
-            SELECT * FROM student_fees 
-            WHERE student_id = ? AND school_year = ?
-        `
+          'SELECT class, is_personnel_child, departure_date FROM students WHERE id = ? AND deleted = 0'
         )
-        .get(studentId, `"${schoolYear}"`) as Record<string, unknown> | undefined
+        .get(studentId) as
+        | { class?: string; is_personnel_child?: unknown; departure_date?: string | null }
+        | undefined
 
-      if (!feeRecordQuoted) {
+      if (
+        studentObj &&
+        studentObj.class &&
+        studentObj.class !== 'Non inscrit' &&
+        studentObj.class !== 'Classe non spécifiée' &&
+        !studentObj.departure_date
+      ) {
+        const rawPC = studentObj.is_personnel_child
+        const isPC =
+          rawPC == 1 || rawPC === '1' || rawPC === '1.0' || rawPC === true || rawPC === 'true'
+        const tuitionLevel = StudentRepository.determineTuitionLevel(studentObj.class)
+        const monthlyTuition = StudentRepository.getTuitionPrice(studentObj.class, isPC)
+        const newFeeId = uuidv4()
+
+        try {
+          db.prepare(
+            `
+            INSERT INTO student_fees (
+              id, student_id, school_year, tuition_level, monthly_tuition, class_name,
+              bus_subscribed, canteen_subscribed, fram_paid_by_parent, is_reenrollment,
+              deleted, sync_status
+            ) VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 'pending')
+          `
+          ).run(newFeeId, studentId, cleanYear, tuitionLevel, monthlyTuition, studentObj.class)
+
+          feeRecord = db
+            .prepare('SELECT * FROM student_fees WHERE id = ?')
+            .get(newFeeId) as Record<string, unknown> | undefined
+        } catch (e) {
+          console.error('Error auto-creating student fee record in getTuitionStatus:', e)
+        }
+      }
+
+      if (!feeRecord) {
         return { success: false, error: 'No fee record found for this year' }
       }
-      // Found with quotes, use it
-      feeRecord = feeRecordQuoted
     }
+
+    const [startYearStr, endYearStr] = cleanYear.split('-')
+    const startYear = parseInt(startYearStr) || 2026
+    const endYear = parseInt(endYearStr) || 2027
 
     // 2. Get Tuition Payments
     const payments = db
       .prepare(
         `
       SELECT * FROM student_payments 
-      WHERE student_id = ? AND payment_type = 'tuition'
+      WHERE student_id = ? 
+        AND payment_type = 'tuition'
+        AND (
+          REPLACE(REPLACE(school_year, '"', ''), '''', '') = ?
+          OR month LIKE ?
+          OR month LIKE ?
+        )
     `
       )
-      .all(studentId) as { month: string; amount: number }[]
+      .all(studentId, cleanYear, `${startYear}-%`, `${endYear}-%`) as { month: string; amount: number }[]
 
     // Track whether student is personnel child
     let isPersonnelChild = false
@@ -336,10 +412,6 @@ export class PaymentRepository {
     }
 
     // 3. Calculate Status for each month
-    // Terminale (TA/TD) goes until July, others stop in June
-    const [startYearStr, endYearStr] = schoolYear.replace(/"/g, '').split('-')
-    const startYear = parseInt(startYearStr)
-    const endYear = parseInt(endYearStr)
     const className = (feeRecord?.class_name as string) || ''
     const isTerminale = className === 'TA' || className === 'TD' || className === 'Terminale'
 
@@ -440,7 +512,7 @@ export class PaymentRepository {
                sf.canteen_subscribed, sf.canteen_days_per_week, sf.canteen_days
         FROM students s
         JOIN student_fees sf ON sf.student_id = s.id
-        WHERE sf.school_year = ? 
+        WHERE REPLACE(REPLACE(sf.school_year, '"', ''), '''', '') = ? 
           AND s.deleted = 0 
           AND sf.deleted = 0
       `
@@ -459,10 +531,26 @@ export class PaymentRepository {
         FROM student_payments
         WHERE deleted = 0 
           AND payment_type IN ('tuition', 'bus', 'canteen')
+          AND (
+            REPLACE(REPLACE(school_year, '"', ''), '''', '') = ?
+            OR (
+              school_year IS NULL 
+              AND (
+                month LIKE ? OR month LIKE ?
+                OR payment_date BETWEEN ? AND ?
+              )
+            )
+          )
         GROUP BY student_id, payment_type, month
       `
         )
-        .all() as Array<{
+        .all(
+          targetYear,
+          `${startYear}-%`,
+          `${endYear}-%`,
+          `${startYear}-06-01`,
+          `${endYear}-08-31`
+        ) as Array<{
         student_id: string
         payment_type: string
         month: string
@@ -619,13 +707,14 @@ export class PaymentRepository {
         SELECT COALESCE(SUM(sf.monthly_tuition), 0) as expected
         FROM student_fees sf
         JOIN students s ON s.id = sf.student_id
-        WHERE sf.school_year = ? AND s.deleted = 0 AND sf.deleted = 0
+        WHERE REPLACE(REPLACE(sf.school_year, '"', ''), '''', '') = ? AND s.deleted = 0 AND sf.deleted = 0
       `
         )
         .get(targetYear) as { expected: number } | undefined
 
       return { success: true, expected: result?.expected || 0 }
     } catch (error: unknown) {
+      console.error('Error fetching expected revenue:', error)
       const message = error instanceof Error ? error.message : 'Erreur de base de données'
       return { success: false, error: message }
     }
@@ -636,6 +725,7 @@ export class PaymentRepository {
     schoolYear: string
   ): { success: boolean; isPaid?: boolean; by?: string; error?: string } {
     try {
+      const cleanYear = schoolYear.replace(/['"]/g, '').trim()
       const student = db.prepare('SELECT siblings FROM students WHERE id = ?').get(studentId) as
         | { siblings: string | null }
         | undefined
@@ -653,18 +743,17 @@ export class PaymentRepository {
       // Check if any sibling has a payment for 'fram'
       const placeholders = siblings.map(() => '?').join(',')
 
-      // Note: fram payment might just be payment_type='fram' but wait, what about fram_paid_by_parent?
       // First check if any sibling has fram_paid_by_parent in student_fees
       const siblingsWithFramParent = db
         .prepare(
           `
         SELECT id FROM student_fees 
         WHERE student_id IN (${placeholders}) 
-        AND school_year = ? 
+        AND REPLACE(REPLACE(school_year, '"', ''), '''', '') = ? 
         AND fram_paid_by_parent = 1
       `
         )
-        .all(...siblings, schoolYear)
+        .all(...siblings, cleanYear)
 
       if (siblingsWithFramParent.length > 0) {
         return { success: true, isPaid: true, by: 'parent' }
@@ -679,10 +768,18 @@ export class PaymentRepository {
         JOIN students s ON p.student_id = s.id
         WHERE p.payment_type = 'fram' 
         AND p.student_id IN (${placeholders})
-        AND p.school_year = ?
+        AND (
+          REPLACE(REPLACE(p.school_year, '"', ''), '''', '') = ?
+          OR p.payment_date BETWEEN ? AND ?
+        )
       `
         )
-        .all(...siblings, schoolYear) as Array<{
+        .all(
+          ...siblings,
+          cleanYear,
+          `${cleanYear.split('-')[0]}-06-01`,
+          `${cleanYear.split('-')[1] || cleanYear.split('-')[0]}-08-31`
+        ) as Array<{
           student_id: string
           first_name: string
           last_name: string

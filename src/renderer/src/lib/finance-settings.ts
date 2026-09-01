@@ -50,8 +50,8 @@ export const defaultPrices: FinancePrices = {
     'Terminale'
   ],
   fram: 15000,
-  registration: 20000,
-  reenrollment: 10000,
+  registration: 145000,
+  reenrollment: 115000,
   canteen: {
     daily: 2000,
     monthly: 40000

@@ -576,12 +576,13 @@ export class StudentRepository {
   }
 
   static getById(id: string, targetSchoolYear?: string): Record<string, unknown> | null {
-    let yearQuery = `REPLACE((SELECT value FROM settings WHERE key = 'school_year'), '"', '')`
+    let yearQuery = `REPLACE(REPLACE((SELECT value FROM settings WHERE key = 'school_year'), '"', ''), '''', '')`
     const params: unknown[] = [id]
 
     if (targetSchoolYear) {
+      const cleanTarget = targetSchoolYear.replace(/['"]/g, '').trim()
       yearQuery = '?'
-      params.unshift(targetSchoolYear, targetSchoolYear, targetSchoolYear, targetSchoolYear)
+      params.unshift(cleanTarget, cleanTarget, cleanTarget, cleanTarget)
     }
 
     const student = db
@@ -627,11 +628,59 @@ export class StudentRepository {
     const schoolYear = targetSchoolYear || this.getCurrentSchoolYear()
 
     // valid fees for current year
-    const fees = allFees.find((f) => {
+    let fees = allFees.find((f) => {
       const dbYear = (f.school_year as string).replace(/['"]/g, '').trim()
       const targetYear = schoolYear.replace(/['"]/g, '').trim()
       return dbYear === targetYear
     }) as Record<string, unknown> | undefined
+
+    // Auto-provision fee record if student has a valid class but no fee record for this year
+    if (
+      !fees &&
+      student.class &&
+      student.class !== 'Non inscrit' &&
+      student.class !== 'Classe non spécifiée' &&
+      !student.departure_date
+    ) {
+      const cleanSchoolYear = schoolYear.replace(/['"]/g, '').trim()
+      const tuitionLevel = this.determineTuitionLevel(student.class as string)
+      const monthlyTuition = this.getTuitionPrice(
+        student.class as string,
+        this.parseBoolean(student.is_personnel_child)
+      )
+      const newFeeId = uuidv4()
+
+      try {
+        db.prepare(
+          `
+          INSERT INTO student_fees (
+            id, student_id, school_year, tuition_level, monthly_tuition, class_name,
+            bus_subscribed, canteen_subscribed, fram_paid_by_parent, is_reenrollment,
+            deleted, sync_status
+          ) VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 'pending')
+        `
+        ).run(newFeeId, id, cleanSchoolYear, tuitionLevel, monthlyTuition, student.class)
+
+        fees = {
+          id: newFeeId,
+          student_id: id,
+          school_year: cleanSchoolYear,
+          tuition_level: tuitionLevel,
+          monthly_tuition: monthlyTuition,
+          class_name: student.class,
+          bus_subscribed: 0,
+          canteen_subscribed: 0,
+          fram_paid_by_parent: 0,
+          is_reenrollment: 0,
+          canteen_days: [],
+          uniform_items_purchased: [],
+          tuition_paid_months: []
+        }
+        allFees.unshift(fees)
+      } catch (err) {
+        console.error('Error auto-provisioning fee record:', err)
+      }
+    }
 
     // Repair legacy fee records missing class_name
     if (fees && !fees.class_name && student.class) {
@@ -1039,7 +1088,7 @@ export class StudentRepository {
 
       // Create New Fee Record (Enrollment History)
       const feeId = uuidv4()
-      const isFramFullyPaid = initialPaymentFram && initialPaymentFram >= 25000 // Approximate check
+      const isFramFullyPaid = initialPaymentFram && initialPaymentFram >= 15000 // FRAM = 15 000 Ar
       db.prepare(
         `
             INSERT INTO student_fees (
@@ -1292,6 +1341,89 @@ export class StudentRepository {
       const message = this.translateError(error)
       console.error('Error updating student:', error)
       return { success: false, repaired: 0, error: message }
+    }
+  }
+
+  /**
+   * Rectifies enrollment type (Inscription vs Réinscription) for a student
+   * Cascades updates to students table, student_fees, student_payments, and cash_journal.
+   */
+  static rectifyEnrollmentType(
+    studentId: string,
+    schoolYear: string,
+    newType: 'enrollment' | 'reenrollment'
+  ): { success: boolean; error?: string } {
+    try {
+      const student = db.prepare('SELECT * FROM students WHERE id = ?').get(studentId) as any
+      if (!student) return { success: false, error: 'Élève non trouvé' }
+
+      const isReenrollment = newType === 'reenrollment' ? 1 : 0
+      const newStatus = newType === 'enrollment' ? 'Nouveau' : 'Ancien'
+      const paymentDesc = newType === 'enrollment' ? "Droits d'inscription" : 'Droits de réinscription'
+      const cashDescPrefix =
+        newType === 'enrollment'
+          ? "Paiement Droits d'inscription"
+          : 'Paiement Droits de réinscription'
+
+      const transaction = db.transaction(() => {
+        // 1. Update students table
+        db.prepare(
+          `UPDATE students SET student_status = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending' WHERE id = ?`
+        ).run(newStatus, studentId)
+        addToSyncQueue('students', studentId, 'update', { student_status: newStatus })
+
+        // 2. Update student_fees for this school year
+        const fee = db
+          .prepare(`SELECT id FROM student_fees WHERE student_id = ? AND school_year = ?`)
+          .get(studentId, schoolYear) as { id: string } | undefined
+
+        if (fee) {
+          db.prepare(
+            `UPDATE student_fees SET is_reenrollment = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending' WHERE id = ?`
+          ).run(isReenrollment, fee.id)
+          addToSyncQueue('student_fees', fee.id, 'update', { is_reenrollment: isReenrollment })
+        }
+
+        // 3. Update student_payments
+        const oldType = newType === 'enrollment' ? 'reenrollment' : 'enrollment'
+        const payments = db
+          .prepare(
+            `SELECT id, amount FROM student_payments WHERE student_id = ? AND school_year = ? AND payment_type = ?`
+          )
+          .all(studentId, schoolYear, oldType) as { id: string; amount: number }[]
+
+        for (const p of payments) {
+          db.prepare(
+            `UPDATE student_payments SET payment_type = ?, description = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending' WHERE id = ?`
+          ).run(newType, paymentDesc, p.id)
+          addToSyncQueue('student_payments', p.id, 'update', {
+            payment_type: newType,
+            description: paymentDesc
+          })
+        }
+
+        // 4. Update corresponding cash_journal
+        const cashEntries = db
+          .prepare(
+            `SELECT id FROM cash_journal WHERE related_student_id = ? AND (description LIKE ? OR description LIKE ?)`
+          )
+          .all(studentId, '%inscription%', '%réinscription%') as { id: string }[]
+
+        for (const c of cashEntries) {
+          const newCashDesc = `${cashDescPrefix} — ${student.last_name} ${student.first_name}`
+          db.prepare(
+            `UPDATE cash_journal SET description = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending' WHERE id = ?`
+          ).run(newCashDesc, c.id)
+          addToSyncQueue('cash_journal', c.id, 'update', { description: newCashDesc })
+        }
+      })
+
+      transaction()
+      return { success: true }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.error('Error rectifying enrollment type:', error)
+      return { success: false, error: message }
     }
   }
 }

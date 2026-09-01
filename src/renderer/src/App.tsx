@@ -21,6 +21,8 @@ import ErrorBoundary from '@/components/shared/ErrorBoundary'
 import LoginPage from '@/pages/auth/LoginPage'
 import MainLayout from '@/components/layout/MainLayout'
 
+import { useFinanceStore } from '@/store/useFinanceStore'
+
 // --------------------------------------------
 // Auth Initialization Wrapper
 // --------------------------------------------
@@ -30,7 +32,10 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
   const [initialized, setInitialized] = useState(false)
 
   useEffect(() => {
-    checkExistingSession().finally(() => setInitialized(true))
+    checkExistingSession().finally(() => {
+      setInitialized(true)
+      useFinanceStore.getState().fetchPrices()
+    })
   }, [checkExistingSession])
 
   if (!initialized || loading) {

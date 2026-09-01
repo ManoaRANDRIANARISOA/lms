@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react'
 import { getStudentPhotoUrl } from '../lib/image-utils'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useClasses } from '@/lib/useClasses'
-import { Trash2, Plus, AlertTriangle, Trash } from 'lucide-react'
+import { Trash2, Plus, AlertTriangle, Trash, Printer } from 'lucide-react'
 import EmailSettings from '@/pages/settings/EmailSettings'
 import AssessmentSettings from '@/pages/settings/AssessmentSettings'
 
@@ -22,6 +22,13 @@ export default function Settings() {
   const [schoolLogo, setSchoolLogo] = useState('')
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [isLoadingImage, setIsLoadingImage] = useState(false)
+
+  // Printer State
+  const [printerName, setPrinterName] = useState('POS-80')
+  const [printerCopies, setPrinterCopies] = useState('2')
+  const [availablePrinters, setAvailablePrinters] = useState<Array<{ name: string; isDefault: boolean }>>([])
+  const [testingPrinter, setTestingPrinter] = useState(false)
+  const [printerMessage, setPrinterMessage] = useState('')
 
   const { sections, addClass, removeClass, renameClass, moveClass } = useClasses()
   const [newClassName, setNewClassName] = useState('')
@@ -83,12 +90,21 @@ export default function Settings() {
           const name = await window.api.settings.get('school_name')
           const year = await window.api.settings.get('school_year')
           const logo = await window.api.settings.get('school_logo')
+          const pName = await window.api.settings.get('printer_name')
+          const pCopies = await window.api.settings.get('printer_copies')
 
           if (name) setSchoolName(name as string)
           if (year) setCurrentYear(year as string)
           if (logo) {
             setSchoolLogo(logo as string)
             setLogoPreview(logo as string | null)
+          }
+          if (pName) setPrinterName(pName as string)
+          if (pCopies) setPrinterCopies(String(pCopies))
+
+          if (window.api.printer?.getPrinters) {
+            const plist = await window.api.printer.getPrinters()
+            setAvailablePrinters(plist || [])
           }
         } catch (e) {
           if (import.meta.env.DEV) console.error('Failed to load settings', e)
@@ -106,6 +122,8 @@ export default function Settings() {
         await window.api.settings.set('school_name', schoolName)
         await window.api.settings.set('school_year', currentYear)
         await window.api.settings.set('school_logo', schoolLogo)
+        await window.api.settings.set('printer_name', printerName)
+        await window.api.settings.set('printer_copies', parseInt(printerCopies) || 2)
 
         // Mettre à jour le store global instantanément pour éviter de devoir redémarrer
         await useAppStore.getState().fetchSettings()
@@ -116,6 +134,24 @@ export default function Settings() {
       setMessage('Erreur sauvegarde: ' + e.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleTestPrint = async () => {
+    if (!window.api?.printer?.testPrint) return
+    setTestingPrinter(true)
+    setPrinterMessage('')
+    try {
+      const res = await window.api.printer.testPrint(printerName)
+      if (res.success) {
+        setPrinterMessage('Test envoyé avec succès ! Vérifiez la sortie papier.')
+      } else {
+        setPrinterMessage('Échec : ' + (res.error || 'Erreur inconnue'))
+      }
+    } catch (e: any) {
+      setPrinterMessage('Erreur : ' + e.message)
+    } finally {
+      setTestingPrinter(false)
     }
   }
 
@@ -292,6 +328,98 @@ export default function Settings() {
             {message && message.includes('Erreur sauvegarde') && (
               <p className="mt-2 text-sm font-medium text-red-600 p-2 bg-red-50 rounded border border-red-100">
                 {message}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Thermal Printer Settings (Xprinter 80mm) */}
+        <div className="bg-white p-6 rounded shadow max-w-xl border border-gray-100 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Printer className="w-5 h-5 text-blue-600" />
+            <h2 className="text-lg font-semibold text-gray-800">
+              Imprimante Thermique (Tickets 80mm)
+            </h2>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            Configuration de l'impression directe des reçus de caisse au format ticket 80 mm (avec logo et double exemplaire).
+          </p>
+
+          <div className="space-y-4">
+            <div className="grid w-full items-center gap-1.5">
+              <Label htmlFor="printerName">Imprimante Windows</Label>
+              {availablePrinters.length > 0 ? (
+                <select
+                  id="printerName"
+                  value={printerName}
+                  onChange={(e) => setPrinterName(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {availablePrinters.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.name} {p.name === 'POS-80' ? '(Recommandé pour Xprinter)' : ''}
+                    </option>
+                  ))}
+                  {!availablePrinters.some((p) => p.name === printerName) && (
+                    <option value={printerName}>{printerName}</option>
+                  )}
+                </select>
+              ) : (
+                <Input
+                  type="text"
+                  id="printerName"
+                  placeholder="Ex: POS-80"
+                  value={printerName}
+                  onChange={(e) => setPrinterName(e.target.value)}
+                />
+              )}
+              <p className="text-xs text-gray-500">
+                Nom de l'imprimante dans Windows (ex: <code>POS-80</code>).
+              </p>
+            </div>
+
+            <div className="grid w-full items-center gap-1.5">
+              <Label htmlFor="printerCopies">Nombre d'exemplaires par impression</Label>
+              <select
+                id="printerCopies"
+                value={printerCopies}
+                onChange={(e) => setPrinterCopies(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="2">2 exemplaires (Exemplaire Parent + Exemplaire Caisse) — Standard</option>
+                <option value="1">1 exemplaire (Parent uniquement)</option>
+              </select>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleTestPrint}
+                disabled={testingPrinter}
+                className="flex-1 border-primary/30 text-primary hover:bg-accent/20"
+              >
+                <Printer className="w-4 h-4 mr-2 text-primary" />
+                {testingPrinter ? 'Impression en cours...' : 'Tester l\'impression (Ticket Test)'}
+              </Button>
+              <Button
+                onClick={handleSaveConfig}
+                disabled={loading || !canWrite('settings')}
+                className="flex-1"
+              >
+                {loading ? 'Enregistrement...' : 'Enregistrer les Réglages'}
+              </Button>
+            </div>
+
+            {printerMessage && (
+              <p
+                className={`mt-2 text-sm font-medium p-2.5 rounded border ${
+                  printerMessage.includes('succès')
+                    ? 'text-green-700 bg-green-50 border-green-200'
+                    : 'text-red-700 bg-red-50 border-red-200'
+                }`}
+              >
+                {printerMessage}
               </p>
             )}
           </div>
