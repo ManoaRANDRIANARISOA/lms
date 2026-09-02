@@ -939,10 +939,11 @@ export default function FinanceJournal() {
                                 const monthMatch = entry.description?.match(/\(([^)]+)\)/)
                                 const extractedMonth = monthMatch ? monthMatch[1] : undefined
 
-                                const toastId = toast.loading('Impression du ticket thermique...')
+                                const toastId = toast.loading('Impression du ticket de caisse...')
                                 try {
                                   const r = await window.api.printer.printReceipt(
                                     {
+                                      payment_ids: entry.id ? [entry.id] : undefined,
                                       student_name:
                                         studentName ||
                                         entry.description

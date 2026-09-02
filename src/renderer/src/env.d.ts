@@ -671,6 +671,7 @@ interface APIType {
   printer: {
     printReceipt: (
       data: {
+        payment_ids?: string[]
         student_name?: string
         student_id?: string
         student_number?: string
@@ -685,6 +686,8 @@ interface APIType {
         description?: string
         cashier_name?: string
         school_year?: string
+        is_duplicate?: boolean
+        duplicate_count?: number
         items?: Array<{
           label: string
           amount: number

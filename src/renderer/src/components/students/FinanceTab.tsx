@@ -348,6 +348,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           window.api.printer
             .printReceipt(
               {
+                payment_ids: result.id ? [result.id] : undefined,
                 student_name: studentFullName,
                 student_number: studentInfo?.registration_number || '',
                 class_name: currentClass,
@@ -360,7 +361,8 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                   formData.payment_type === 'uniform'
                     ? `${formData.item}${formData.description ? ' - ' + formData.description : ''}`
                     : formData.description,
-                receipt_number: `REC-${Date.now().toString().slice(-6)}`
+                receipt_number: result.receipt_number || `REC-${Date.now().toString().slice(-6)}`,
+                is_duplicate: false
               },
               2
             )
@@ -404,10 +406,17 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     const currentClass =
       status?.feeRecord?.class_name || feeRecord?.class_name || studentInfo?.class || ''
 
-    const toastId = toast.loading("Impression du reçu sur l'imprimante thermique...")
+    const isDuplicate = (payment.print_count || 0) >= 1
+    const toastId = toast.loading(
+      isDuplicate
+        ? 'Impression du duplicata de reçu...'
+        : "Impression du reçu sur l'imprimante thermique..."
+    )
+
     try {
       const res = await window.api.printer.printReceipt(
         {
+          payment_ids: [payment.id],
           student_name: studentFullName,
           student_number: studentInfo?.registration_number || '',
           class_name: currentClass,
@@ -417,13 +426,23 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           month: payment.month || undefined,
           payment_method: payment.payment_method,
           description: payment.description || undefined,
-          receipt_number: `REC-${(payment.id || Date.now().toString()).slice(-6).toUpperCase()}`
+          receipt_number:
+            payment.receipt_number ||
+            `REC-${(payment.id || Date.now().toString()).slice(-6).toUpperCase()}`,
+          is_duplicate: isDuplicate,
+          duplicate_count: isDuplicate ? (payment.print_count || 0) + 1 : 1
         },
         2
       )
 
       if (res.success) {
-        toast.success('Reçu imprimé en 2 exemplaires (Parent + Caisse)', { id: toastId })
+        toast.success(
+          isDuplicate
+            ? `Duplicata N°${(payment.print_count || 0) + 1} imprimé (2 exemplaires)`
+            : 'Reçu imprimé en 2 exemplaires (Parent + Caisse)',
+          { id: toastId }
+        )
+        loadData() // Reload to refresh print_count in table
       } else {
         toast.error(res.error || "Échec d'impression du reçu", { id: toastId })
       }
@@ -499,25 +518,43 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     const primaryMethod = selectedPayments[0]?.payment_method || 'cash'
     const latestDate = selectedPayments[0]?.payment_date || new Date().toISOString().split('T')[0]
 
-    const toastId = toast.loading(`Impression du reçu groupé (${selectedPayments.length} paiements)...`)
+    const isAnyDuplicate = selectedPayments.some((p) => (p.print_count || 0) >= 1)
+    const maxCount = Math.max(0, ...selectedPayments.map((p) => p.print_count || 0))
+    const groupedReceiptNum =
+      selectedPayments.length === 1
+        ? selectedPayments[0].receipt_number || `REC-${Date.now().toString().slice(-6)}`
+        : `REC-GRP-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`
+
+    const toastId = toast.loading(
+      `Impression du reçu groupé (${selectedPayments.length} paiements)...`
+    )
 
     try {
       const res = await window.api.printer.printReceipt(
         {
+          payment_ids: selectedPayments.map((p) => p.id),
           student_name: studentFullName,
           student_number: studentInfo?.registration_number || '',
           class_name: currentClass,
           amount: totalSelectedAmount,
           payment_date: latestDate,
           payment_method: primaryMethod,
-          receipt_number: `REC-GRP-${Date.now().toString().slice(-6)}`,
+          receipt_number: groupedReceiptNum,
+          is_duplicate: isAnyDuplicate,
+          duplicate_count: isAnyDuplicate ? maxCount + 1 : 1,
           items
         },
         2
       )
 
       if (res.success) {
-        toast.success('Reçu groupé imprimé en 2 exemplaires (Parent + Caisse)', { id: toastId })
+        toast.success(
+          isAnyDuplicate
+            ? `Reçu groupé (Duplicata N°${maxCount + 1}) imprimé en 2 exemplaires`
+            : 'Reçu groupé imprimé en 2 exemplaires (Parent + Caisse)',
+          { id: toastId }
+        )
+        loadData() // Reload to refresh print_count in table
       } else {
         toast.error(res.error || "Échec d'impression du reçu groupé", { id: toastId })
       }
@@ -1376,7 +1413,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                     title="Tout sélectionner / Tout désélectionner"
                   />
                 </th>
-                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">N° Reçu / Date</th>
                 <th className="px-4 py-3">Type</th>
                 <th className="px-4 py-3">Mois / Détail</th>
                 <th className="px-4 py-3 text-right">Montant</th>
@@ -1404,7 +1441,12 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                         />
                       </td>
                       <td className="px-4 py-3 text-foreground">
-                        {format(new Date(payment.payment_date), 'dd MMM yyyy', { locale: fr })}
+                        <div className="font-mono text-xs font-semibold text-primary">
+                          {payment.receipt_number || '—'}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {format(new Date(payment.payment_date), 'dd MMM yyyy', { locale: fr })}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <span className="bg-accent/30 text-foreground text-xs font-medium px-2.5 py-0.5 rounded capitalize border border-border/50">
@@ -1445,16 +1487,26 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                                 : 'Espèces'}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handlePrintReceipt(payment)}
-                          className="h-7 px-2.5 text-xs flex items-center gap-1.5 ml-auto border-border hover:bg-accent/30 hover:text-primary hover:border-primary/40 text-foreground"
-                          title="Imprimer ce ticket individuel (Double exemplaire 80mm)"
-                        >
-                          <Printer className="w-3.5 h-3.5 text-primary" />
-                          <span>Ticket</span>
-                        </Button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {(payment.print_count || 0) > 0 && (
+                            <span
+                              className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-medium shrink-0"
+                              title={`Ce reçu a été imprimé ${payment.print_count} fois (Duplicata)`}
+                            >
+                              Duplicata ({payment.print_count})
+                            </span>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handlePrintReceipt(payment)}
+                            className="h-7 px-2.5 text-xs flex items-center gap-1.5 border-border hover:bg-accent/30 hover:text-primary hover:border-primary/40 text-foreground"
+                            title="Imprimer ce ticket individuel (Double exemplaire 80mm)"
+                          >
+                            <Printer className="w-3.5 h-3.5 text-primary" />
+                            <span>Ticket</span>
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   )

@@ -225,8 +225,8 @@ export default function CertificatePage() {
 
           <div className="text-center flex-1 px-8">
             <h1 className="text-3xl font-bold uppercase mb-2">{schoolName}</h1>
-            <p className="text-sm text-gray-600">Enseignement Général</p>
-            <p className="text-sm text-gray-600">Antananarivo, Madagascar</p>
+            <p className="text-sm text-gray-600 font-medium">Enseignement Général</p>
+            <p className="text-sm text-gray-600">Lot H 81 Miadana Alasora, Antananarivo</p>
           </div>
 
           <div className="w-32 flex flex-col items-center justify-center">
@@ -273,7 +273,7 @@ export default function CertificatePage() {
         {/* Footer / Signature */}
         <div className="mt-16 flex justify-end px-12 pb-12">
           <div className="text-center">
-            <p className="mb-4">Fait à Antananarivo, le {new Date().toLocaleDateString('fr-FR')}</p>
+            <p className="mb-4">Fait à Alasora, le {new Date().toLocaleDateString('fr-FR')}</p>
             <p className="font-bold mb-16">Le Directeur</p>
             <div className="border-t border-gray-400 w-48 mx-auto"></div>
           </div>

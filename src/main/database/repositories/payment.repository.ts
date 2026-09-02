@@ -8,17 +8,112 @@ export interface Payment {
   student_id: string
   payment_date: string
   amount: number
-  payment_type: 'tuition' | 'bus' | 'canteen' | 'enrollment' | 'uniform' | 'event' | 'other'
+  payment_type: 'tuition' | 'bus' | 'canteen' | 'enrollment' | 'uniform' | 'event' | 'other' | 'fram' | 'reenrollment'
   month?: string // "2025-09"
   description?: string
   payment_method?: 'cash' | 'check' | 'transfer' | 'mobile_money' | 'discount'
   receipt_number?: string
   school_year?: string
+  print_count?: number
+  last_printed_at?: string
+  last_printed_by?: string
   created_at?: string
   updated_at?: string
 }
 
 export class PaymentRepository {
+  static generateReceiptNumber(schoolYear?: string): string {
+    let yearPrefix = new Date().getFullYear().toString()
+    if (schoolYear) {
+      const match = schoolYear.replace(/['"]/g, '').match(/^(\d{4})/)
+      if (match) {
+        yearPrefix = match[1]
+      }
+    }
+
+    const pattern = `REC-${yearPrefix}-%`
+    const maxRecord = db
+      .prepare(
+        `
+      SELECT MAX(CAST(SUBSTR(receipt_number, 10) AS INTEGER)) as max_num 
+      FROM student_payments 
+      WHERE receipt_number LIKE ?
+    `
+      )
+      .get(pattern) as { max_num: number | null } | undefined
+
+    const nextNum = (maxRecord?.max_num || 0) + 1
+    return `REC-${yearPrefix}-${String(nextNum).padStart(5, '0')}`
+  }
+
+  static recordReceiptPrint(
+    paymentIds: string[],
+    userName: string = 'Administrateur'
+  ): { success: boolean; is_duplicate: boolean; print_count: number } {
+    if (!paymentIds || paymentIds.length === 0) {
+      return { success: false, is_duplicate: false, print_count: 0 }
+    }
+
+    const placeholders = paymentIds.map(() => '?').join(',')
+    const currentRecords = db
+      .prepare(
+        `SELECT id, receipt_number, print_count, amount, payment_type FROM student_payments WHERE id IN (${placeholders})`
+      )
+      .all(...paymentIds) as {
+      id: string
+      receipt_number: string
+      print_count: number
+      amount: number
+      payment_type: string
+    }[]
+
+    const maxPrintCount = Math.max(0, ...currentRecords.map((r) => r.print_count || 0))
+    const isDuplicate = maxPrintCount >= 1
+    const newPrintCount = maxPrintCount + 1
+
+    db.prepare(
+      `
+      UPDATE student_payments 
+      SET print_count = COALESCE(print_count, 0) + 1,
+          last_printed_at = CURRENT_TIMESTAMP,
+          last_printed_by = ?
+      WHERE id IN (${placeholders})
+    `
+    ).run(userName, ...paymentIds)
+
+    // Audit log
+    try {
+      const logId = uuidv4()
+      const receiptNumbers = currentRecords.map((r) => r.receipt_number).filter(Boolean).join(', ')
+      const totalAmount = currentRecords.reduce((sum, r) => sum + (r.amount || 0), 0)
+
+      db.prepare(
+        `
+        INSERT INTO app_logs (id, level, action, message, user_id, details)
+        VALUES (?, 'info', ?, ?, ?, ?)
+      `
+      ).run(
+        logId,
+        isDuplicate ? 'reprint_receipt' : 'print_receipt',
+        isDuplicate
+          ? `Duplicata N°${newPrintCount} émis pour reçu(s): ${receiptNumbers} (Total: ${totalAmount.toLocaleString()} Ar)`
+          : `Reçu original émis pour reçu(s): ${receiptNumbers} (Total: ${totalAmount.toLocaleString()} Ar)`,
+        userName,
+        JSON.stringify({
+          payment_ids: paymentIds,
+          receipt_numbers: receiptNumbers,
+          is_duplicate: isDuplicate,
+          print_count: newPrintCount,
+          total_amount: totalAmount
+        })
+      )
+    } catch (e) {
+      console.warn('Could not write receipt print audit log:', e)
+    }
+
+    return { success: true, is_duplicate: isDuplicate, print_count: newPrintCount }
+  }
+
   static create(
     payment: Omit<Payment, 'id' | 'created_at' | 'updated_at'>
   ): { success: boolean; id?: string; receipt_number?: string; error?: string } {
@@ -31,11 +126,13 @@ export class PaymentRepository {
       .replace(/['"]/g, '')
       .trim()
 
+    const receiptNumber = payment.receipt_number || this.generateReceiptNumber(cleanSchoolYear)
+
     const stmt = db.prepare(`
       INSERT INTO student_payments (
         id, student_id, payment_date, amount, payment_type, month, 
-        description, payment_method, receipt_number, school_year
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        description, payment_method, receipt_number, school_year, print_count
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
     `)
 
     const transaction = db.transaction(() => {
@@ -48,13 +145,14 @@ export class PaymentRepository {
         payment.month || null,
         payment.description || null,
         payment.payment_method || 'cash',
-        payment.receipt_number || null,
+        receiptNumber,
         cleanSchoolYear
       )
 
       addToSyncQueue('student_payments', id, 'create', {
         ...payment,
         id,
+        receipt_number: receiptNumber,
         school_year: cleanSchoolYear
       })
 

@@ -645,8 +645,9 @@ interface APIType {
       grades: Array<{ subject: string; grade: number; coefficient: number; average: number }>,
       generalAverage: number
     ) => Promise<{ success: boolean; filePath?: string; error?: string }>
-    generatePayslip: (
-      personnelData: { first_name: string; last_name: string; position: string; month: string },
+    generatePaySlip: (
+      personnel: Personnel,
+      month: string,
       salaryCalc: {
         gross_salary: number
         cnaps: number
@@ -674,6 +675,7 @@ interface APIType {
   printer: {
     printReceipt: (
       data: {
+        payment_ids?: string[]
         student_name?: string
         student_id?: string
         student_number?: string
@@ -688,6 +690,8 @@ interface APIType {
         description?: string
         cashier_name?: string
         school_year?: string
+        is_duplicate?: boolean
+        duplicate_count?: number
         items?: Array<{
           label: string
           amount: number

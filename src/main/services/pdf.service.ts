@@ -28,7 +28,7 @@ function addHeader(doc: jsPDF, title: string): number {
   doc.text('Lycée Manjary Soa', 105, 20, { align: 'center' })
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
-  doc.text('Antananarivo, Madagascar', 105, 27, { align: 'center' })
+  doc.text('Lot H 81 Miadana Alasora, Antananarivo', 105, 27, { align: 'center' })
   doc.setLineWidth(0.5)
   doc.line(20, 32, 190, 32)
   doc.setFontSize(14)
@@ -71,6 +71,8 @@ export class PdfService {
     receipt_number?: string
     payment_method?: string
     department?: string
+    is_duplicate?: boolean
+    duplicate_count?: number
   }): { success: boolean; filePath?: string; error?: string } {
     try {
       const doc = new jsPDF({ format: 'a5' })
@@ -95,7 +97,7 @@ export class PdfService {
       doc.text('Lycée Manjary Soa', 74, 18, { align: 'center' })
       doc.setFontSize(9)
       doc.setFont('helvetica', 'normal')
-      doc.text('Lot H 61 Miadana Alasora, Antananarivo', 74, 24, { align: 'center' })
+      doc.text('Lot H 81 Miadana Alasora, Antananarivo', 74, 24, { align: 'center' })
 
       // Separator
       doc.setDrawColor(200, 200, 200)
@@ -105,7 +107,10 @@ export class PdfService {
       // Title
       doc.setFontSize(14)
       doc.setFont('helvetica', 'bold')
-      doc.text('REÇU DE CAISSE', 74, 45, { align: 'center' })
+      const receiptTitle = paymentData.is_duplicate
+        ? `REÇU DE CAISSE (DUPLICATA N° ${paymentData.duplicate_count || 1})`
+        : 'REÇU DE CAISSE'
+      doc.text(receiptTitle, 74, 45, { align: 'center' })
 
       // Content Box
       doc.setDrawColor(0, 0, 0)
@@ -260,7 +265,7 @@ export class PdfService {
       doc.text('LYCEE MANJARY SOA', 50, 25)
       doc.setFontSize(10)
       doc.setFont('helvetica', 'normal')
-      doc.text('Lot H 61 Miadana Alasora', 50, 32)
+      doc.text('Lot H 81 Miadana Alasora', 50, 32)
 
       y = 60
       doc.setFontSize(16)
@@ -275,7 +280,7 @@ export class PdfService {
       doc.setFont('helvetica', 'normal')
 
       const text1 =
-        'Je soussignée, RAZAFINTSEHENO Anjarasoa Christine, Directrice du Lycée Privé MANJARY SOA sise à Miadana Alasora, certifie que :'
+        'Je soussignée, RAZAFINTSEHENO Anjarasoa Christine, Directrice du Lycée Privé MANJARY SOA sise à Lot H 81 Miadana Alasora, certifie que :'
       const splitText1 = doc.splitTextToSize(text1, 170)
       doc.text(splitText1, 20, y)
       y += splitText1.length * 7 + 10

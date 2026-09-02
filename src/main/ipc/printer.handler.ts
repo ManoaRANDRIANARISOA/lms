@@ -12,6 +12,7 @@ import { ThermalPrinterService, ReceiptData } from '../services/thermal-printer.
 import { canRead, getCurrentUser } from '../auth/rbac.service'
 import { logAction } from '../auth/audit.service'
 import { SettingsRepository } from '../database/repositories/settings.repository'
+import { PaymentRepository } from '../database/repositories/payment.repository'
 
 export function registerPrinterHandlers(): void {
   // --------------------------------------------
@@ -25,13 +26,31 @@ export function registerPrinterHandlers(): void {
     try {
       const user = getCurrentUser()
       const cashierName = paymentData.cashier_name || user?.full_name || user?.username || 'Caisse'
-      const dataWithCashier = { ...paymentData, cashier_name: cashierName }
+
+      let isDuplicate = Boolean(paymentData.is_duplicate)
+      let duplicateCount = paymentData.duplicate_count || 1
+
+      // If payment_ids are provided, check and record print count
+      if (paymentData.payment_ids && paymentData.payment_ids.length > 0) {
+        const printRecord = PaymentRepository.recordReceiptPrint(paymentData.payment_ids, cashierName)
+        if (printRecord.success) {
+          isDuplicate = printRecord.is_duplicate
+          duplicateCount = printRecord.print_count
+        }
+      }
+
+      const dataWithCashier: ReceiptData = {
+        ...paymentData,
+        cashier_name: cashierName,
+        is_duplicate: isDuplicate,
+        duplicate_count: duplicateCount
+      }
 
       const defaultCopies = copies !== undefined ? copies : (Number(SettingsRepository.get('printer_copies')) || 2)
       const result = await ThermalPrinterService.printReceipt(dataWithCashier, defaultCopies)
 
       if (result.success) {
-        logAction(user?.id || null, 'generate_pdf', 'payments', null, null, 'thermal_receipt_80mm')
+        logAction(user?.id || null, isDuplicate ? 'reprint_receipt' : 'print_receipt', 'payments', null, null, 'thermal_receipt_80mm')
       }
 
       return result

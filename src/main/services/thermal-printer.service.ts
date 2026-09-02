@@ -27,6 +27,7 @@ export interface ReceiptItem {
 }
 
 export interface ReceiptData {
+  payment_ids?: string[]
   student_name?: string
   student_id?: string
   student_number?: string
@@ -42,6 +43,9 @@ export interface ReceiptData {
   cashier_name?: string
   school_year?: string
   items?: ReceiptItem[]
+  is_duplicate?: boolean
+  duplicate_count?: number
+  original_date?: string
 }
 
 export class ThermalPrinterService {
@@ -211,7 +215,6 @@ export class ThermalPrinterService {
         if (code < 128) {
           bytes.push(code)
         } else {
-          // Normalize to closest ASCII character (e.g. œ -> oe)
           const normalized = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
           if (normalized.length > 0 && normalized.charCodeAt(0) < 128) {
             bytes.push(normalized.charCodeAt(0))
@@ -225,58 +228,59 @@ export class ThermalPrinterService {
   }
 
   /**
-   * Format human friendly payment type label
+   * Format payment type code to friendly French label
    */
-  static formatPaymentType(type: string): string {
-    const map: Record<string, string> = {
-      tuition: 'Écolage mensuel',
+  private static formatPaymentType(type: string): string {
+    const labels: Record<string, string> = {
+      tuition: 'Écolage',
       enrollment: "Droit d'inscription",
       reenrollment: 'Droit de réinscription',
       bus: 'Transport scolaire (Bus)',
-      canteen: 'Restauration (Cantine)',
-      uniform: 'Uniforme & Fournitures',
-      event: 'Événement / Sortie',
+      canteen: 'Cantine scolaire',
+      uniform: 'Uniforme & Tenue',
       fram: 'Cotisation FRAM',
-      other: 'Divers'
+      event: 'Événement / Sortie',
+      other: 'Autre paiement'
     }
-    return map[type] || type
+    return labels[type] || type
   }
 
   /**
-   * Format human friendly payment method
+   * Format payment method code to friendly French label
    */
-  static formatPaymentMethod(method?: string): string {
-    if (!method) return 'Espèces'
-    if (method === 'cash') return 'Espèces'
-    if (method === 'check') return 'Chèque'
-    if (method === 'transfer') return 'Virement bancaire'
-    if (method === 'mobile_money') return 'Mobile Money'
-    if (method === 'discount') return 'Remise exceptionnelle'
-    return method
+  private static formatPaymentMethod(method?: string): string {
+    const methods: Record<string, string> = {
+      cash: 'Espèces',
+      check: 'Chèque',
+      transfer: 'Virement bancaire',
+      mobile_money: 'Mobile Money (MVola/Airtel/Orange)',
+      discount: 'Remise gracieuse'
+    }
+    return (method && methods[method]) || 'Espèces'
   }
 
   /**
-   * Build ESC/POS bytes for a single receipt copy
+   * Build complete ESC/POS buffer for a receipt copy (80mm width / 48 columns)
    */
   static buildSingleReceiptBytes(data: ReceiptData, copyType: 'PARENT' | 'CAISSE'): Buffer {
     const buffers: Buffer[] = []
 
-    // 1. ESC @: Initialize printer
+    // 1. Initialize printer: ESC @ (Initialize)
     buffers.push(Buffer.from([0x1b, 0x40]))
 
-    // 2. FS . : Cancel Chinese / Kanji character mode (Crucial on Xprinter to avoid Chinese characters on accents!)
+    // 2. DISABLE Chinese/Kanji mode: FS . (0x1C, 0x2E) - CRITICAL for Xprinter POS-80
     buffers.push(Buffer.from([0x1c, 0x2e]))
 
-    // 3. ESC t 16 (0x10): Select Character Code Table WPC1252 (Windows-1252 / Western European)
+    // 3. Set character code table: ESC t 16 (Windows-1252 / WPC1252)
     buffers.push(Buffer.from([0x1b, 0x74, 0x10]))
 
-    // 4. Logo (Centered)
+    // 4. Print Logo if available (Centered)
     const logoBytes = this.generateLogoEscPos(192)
     if (logoBytes) {
       buffers.push(logoBytes)
     }
 
-    // 5. Header: School Name (Centered, Bold, Double Height)
+    // 5. Header: School Name (Centered, Double Height, Bold)
     const schoolName =
       (SettingsRepository.get('school_name') as string) || 'LYCÉE PRIVÉ MANJARY SOA'
     buffers.push(Buffer.from([0x1b, 0x61, 0x01])) // Center
@@ -287,24 +291,30 @@ export class ThermalPrinterService {
     // Subheader: Address & contact
     buffers.push(Buffer.from([0x1d, 0x21, 0x00])) // Normal size
     buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
-    buffers.push(this.encodeText('Lot H 61 Miadana Alasora\n'))
+    buffers.push(this.encodeText('Lot H 81 Miadana Alasora\n'))
     buffers.push(this.encodeText('Antananarivo, Madagascar\n'))
     buffers.push(this.encodeText(this.separatorLine('=')))
 
     // Copy Badge
     buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
-    if (copyType === 'PARENT') {
-      buffers.push(this.encodeText('*** REÇU — EXEMPLAIRE PARENT / ÉLÈVE ***\n'))
+    const dupNum = data.duplicate_count || 1
+    if (data.is_duplicate) {
+      if (copyType === 'PARENT') {
+        buffers.push(this.encodeText(`*** DUPLICATA N° ${dupNum} — EXEMPLAIRE PARENT ***\n`))
+      } else {
+        buffers.push(this.encodeText(`*** DUPLICATA N° ${dupNum} — EXEMPLAIRE CAISSE ***\n`))
+      }
     } else {
-      buffers.push(this.encodeText('*** REÇU — EXEMPLAIRE ÉTABLISSEMENT / CAISSE ***\n'))
+      if (copyType === 'PARENT') {
+        buffers.push(this.encodeText('*** REÇU — EXEMPLAIRE PARENT / ÉLÈVE ***\n'))
+      } else {
+        buffers.push(this.encodeText('*** REÇU — EXEMPLAIRE ÉTABLISSEMENT / CAISSE ***\n'))
+      }
     }
     buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
     buffers.push(this.encodeText(this.separatorLine('=')))
 
-    // Metadata: Receipt number, Date, Cashier (Left aligned)
-    buffers.push(Buffer.from([0x1b, 0x61, 0x00])) // Left align
-
-    const receiptNum = data.receipt_number || `REC-${Date.now().toString().slice(-6)}`
+    // Traceability Box for Duplicates
     const now = new Date()
     const paymentDateObj = data.payment_date ? new Date(data.payment_date) : now
     const dateFormatted = paymentDateObj.toLocaleDateString('fr-FR', {
@@ -313,6 +323,25 @@ export class ThermalPrinterService {
       year: 'numeric'
     })
     const timeFormatted = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+
+    if (data.is_duplicate) {
+      buffers.push(Buffer.from([0x1b, 0x61, 0x01])) // Center
+      buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
+      buffers.push(this.encodeText(`*** DUPLICATA OFFICIEL N° ${dupNum} ***\n`))
+      buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
+      buffers.push(this.encodeText('Ce document est une réimpression certifiée.\n'))
+      buffers.push(Buffer.from([0x1b, 0x61, 0x00])) // Left align
+      if (data.payment_date) {
+        buffers.push(this.encodeText(`Date originale : ${dateFormatted}\n`))
+      }
+      buffers.push(this.encodeText(`Réimprimé le   : ${now.toLocaleDateString('fr-FR')} à ${timeFormatted}\n`))
+      buffers.push(this.encodeText(this.separatorLine('-')))
+    }
+
+    // Metadata: Receipt number, Date, Cashier (Left aligned)
+    buffers.push(Buffer.from([0x1b, 0x61, 0x00])) // Left align
+
+    const receiptNum = data.receipt_number || `REC-${Date.now().toString().slice(-6)}`
 
     buffers.push(this.encodeText(this.formatLine(`N° Reçu  : ${receiptNum}`, '')))
     buffers.push(this.encodeText(this.formatLine(`Date     : ${dateFormatted} à ${timeFormatted}`, '')))

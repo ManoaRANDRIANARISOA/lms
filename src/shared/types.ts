@@ -172,6 +172,10 @@ export interface Payment {
   description?: string
   payment_method?: 'cash' | 'check' | 'transfer' | 'mobile_money' | 'discount'
   receipt_number?: string
+  school_year?: string
+  print_count?: number
+  last_printed_at?: string
+  last_printed_by?: string
   created_at?: string
   updated_at?: string
 }
