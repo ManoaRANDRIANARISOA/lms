@@ -25,11 +25,13 @@ import {
   Wallet,
   Percent,
   Trash2,
-  Printer
+  Printer,
+  Eye
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAppStore } from '@/store/useAppStore'
 import type { CashJournalEntry } from '@shared/types'
+import ReceiptDetailModal from '@/components/finance/ReceiptDetailModal'
 
 // --------------------------------------------
 // Detailed Continuous Timeline Chart
@@ -246,6 +248,13 @@ export default function FinanceJournal() {
 
   const today = new Date().toISOString().split('T')[0]
   const now = new Date()
+
+  const [selectedJournalPayment, setSelectedJournalPayment] = useState<{
+    payment: any
+    studentName: string
+    studentNumber?: string
+    className?: string
+  } | null>(null)
 
   const [form, setForm] = useState({
     transaction_date: today,
@@ -921,64 +930,100 @@ export default function FinanceJournal() {
                       <td className="px-6 py-4 text-center">
                         <div className="flex justify-center items-center gap-1">
                           {entry.type === 'income' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-accent/20"
-                              title="Imprimer le ticket de caisse (Thermique 80mm - Double exemplaire)"
-                              onClick={async () => {
-                                if (!window.api?.printer?.printReceipt) {
-                                  toast.error('Service impression non disponible')
-                                  return
-                                }
-                                let studentName = ''
-                                if (entry.first_name && entry.last_name) {
-                                  studentName = `${entry.last_name} ${entry.first_name}`
-                                }
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-primary hover:bg-accent/20"
+                                title="Voir les détails, traçabilité et duplicata du reçu"
+                                onClick={() => {
+                                  const monthMatch = entry.description?.match(/\(([^)]+)\)/)
+                                  const extractedMonth = monthMatch ? monthMatch[1] : undefined
+                                  const pData = {
+                                    id: entry.id,
+                                    student_id: entry.related_student_id || '',
+                                    payment_date: entry.transaction_date,
+                                    amount: entry.amount,
+                                    payment_type: (entry.category as any) || 'other',
+                                    month: extractedMonth,
+                                    description: entry.description,
+                                    payment_method: (entry.payment_method as any) || 'cash',
+                                    receipt_number: `REC-${(entry.id || Date.now().toString()).slice(-6).toUpperCase()}`,
+                                    school_year: currentYear || '2026-2027',
+                                    print_count: 0
+                                  }
+                                  setSelectedJournalPayment({
+                                    payment: pData,
+                                    studentName:
+                                      entry.first_name && entry.last_name
+                                        ? `${entry.last_name} ${entry.first_name}`
+                                        : entry.description || '—',
+                                    studentNumber: '',
+                                    className: entry.student_class || ''
+                                  })
+                                }}
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-accent/20"
+                                title="Imprimer le ticket de caisse (Thermique 80mm - Double exemplaire)"
+                                onClick={async () => {
+                                  if (!window.api?.printer?.printReceipt) {
+                                    toast.error('Service impression non disponible')
+                                    return
+                                  }
+                                  let studentName = ''
+                                  if (entry.first_name && entry.last_name) {
+                                    studentName = `${entry.last_name} ${entry.first_name}`
+                                  }
 
-                                const monthMatch = entry.description?.match(/\(([^)]+)\)/)
-                                const extractedMonth = monthMatch ? monthMatch[1] : undefined
+                                  const monthMatch = entry.description?.match(/\(([^)]+)\)/)
+                                  const extractedMonth = monthMatch ? monthMatch[1] : undefined
 
-                                const toastId = toast.loading('Impression du ticket de caisse...')
-                                try {
-                                  const r = await window.api.printer.printReceipt(
-                                    {
-                                      payment_ids: entry.id ? [entry.id] : undefined,
-                                      student_name:
-                                        studentName ||
-                                        entry.description
-                                          ?.replace('Paiement ', '')
-                                          ?.replace(/ — .*/, '') ||
-                                        '—',
-                                      class_name: entry.student_class || '-',
-                                      amount: entry.amount,
-                                      payment_type: entry.category || 'other',
-                                      payment_date: entry.transaction_date,
-                                      month: extractedMonth,
-                                      payment_method: entry.payment_method || 'cash',
-                                      description: entry.description,
-                                      receipt_number: `REC-${(entry.id || Date.now().toString()).slice(-6).toUpperCase()}`
-                                    },
-                                    2
-                                  )
-                                  if (r.success) {
-                                    toast.success(
-                                      'Ticket imprimé en 2 exemplaires (Parent + Caisse)',
+                                  const toastId = toast.loading('Impression du ticket de caisse...')
+                                  try {
+                                    const r = await window.api.printer.printReceipt(
+                                      {
+                                        payment_ids: entry.id ? [entry.id] : undefined,
+                                        student_name:
+                                          studentName ||
+                                          entry.description
+                                            ?.replace('Paiement ', '')
+                                            ?.replace(/ — .*/, '') ||
+                                          '—',
+                                        class_name: entry.student_class || '-',
+                                        amount: entry.amount,
+                                        payment_type: entry.category || 'other',
+                                        payment_date: entry.transaction_date,
+                                        month: extractedMonth,
+                                        payment_method: entry.payment_method || 'cash',
+                                        description: entry.description,
+                                        receipt_number: `REC-${(entry.id || Date.now().toString()).slice(-6).toUpperCase()}`
+                                      },
+                                      2
+                                    )
+                                    if (r.success) {
+                                      toast.success(
+                                        'Ticket imprimé en 2 exemplaires (Parent + Caisse)',
+                                        { id: toastId }
+                                      )
+                                    } else {
+                                      toast.error(r.error || "Échec d'impression", { id: toastId })
+                                    }
+                                  } catch (e: unknown) {
+                                    toast.error(
+                                      'Erreur: ' + (e instanceof Error ? e.message : String(e)),
                                       { id: toastId }
                                     )
-                                  } else {
-                                    toast.error(r.error || "Échec d'impression", { id: toastId })
                                   }
-                                } catch (e: unknown) {
-                                  toast.error(
-                                    'Erreur: ' + (e instanceof Error ? e.message : String(e)),
-                                    { id: toastId }
-                                  )
-                                }
-                              }}
-                            >
-                              <Printer className="w-4 h-4 text-primary" />
-                            </Button>
+                                }}
+                              >
+                                <Printer className="w-4 h-4 text-primary" />
+                              </Button>
+                            </>
                           )}
                           <Button
                             variant="ghost"
@@ -1087,6 +1132,19 @@ export default function FinanceJournal() {
           </table>
         </div>
       </div>
+
+      {/* Receipt Detail & Audit Modal */}
+      <ReceiptDetailModal
+        isOpen={Boolean(selectedJournalPayment)}
+        onClose={() => setSelectedJournalPayment(null)}
+        payment={selectedJournalPayment ? selectedJournalPayment.payment : null}
+        studentName={selectedJournalPayment ? selectedJournalPayment.studentName : '—'}
+        studentNumber={selectedJournalPayment ? selectedJournalPayment.studentNumber : ''}
+        className={selectedJournalPayment ? selectedJournalPayment.className : ''}
+        onPrintSuccess={() => {
+          fetchEntries()
+        }}
+      />
     </div>
   )
 }

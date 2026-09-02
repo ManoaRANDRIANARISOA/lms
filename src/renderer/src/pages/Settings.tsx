@@ -26,6 +26,7 @@ export default function Settings() {
   // Printer State
   const [printerName, setPrinterName] = useState('POS-80')
   const [printerCopies, setPrinterCopies] = useState('2')
+  const [stationCode, setStationCode] = useState('C1')
   const [availablePrinters, setAvailablePrinters] = useState<Array<{ name: string; isDefault: boolean }>>([])
   const [testingPrinter, setTestingPrinter] = useState(false)
   const [printerMessage, setPrinterMessage] = useState('')
@@ -92,6 +93,7 @@ export default function Settings() {
           const logo = await window.api.settings.get('school_logo')
           const pName = await window.api.settings.get('printer_name')
           const pCopies = await window.api.settings.get('printer_copies')
+          const pStation = await window.api.settings.get('pos_station_code')
 
           if (name) setSchoolName(name as string)
           if (year) setCurrentYear(year as string)
@@ -101,6 +103,7 @@ export default function Settings() {
           }
           if (pName) setPrinterName(pName as string)
           if (pCopies) setPrinterCopies(String(pCopies))
+          if (pStation) setStationCode(pStation as string)
 
           if (window.api.printer?.getPrinters) {
             const plist = await window.api.printer.getPrinters()
@@ -124,6 +127,7 @@ export default function Settings() {
         await window.api.settings.set('school_logo', schoolLogo)
         await window.api.settings.set('printer_name', printerName)
         await window.api.settings.set('printer_copies', parseInt(printerCopies) || 2)
+        await window.api.settings.set('pos_station_code', stationCode || 'C1')
 
         // Mettre à jour le store global instantanément pour éviter de devoir redémarrer
         await useAppStore.getState().fetchSettings()
@@ -389,6 +393,31 @@ export default function Settings() {
                 <option value="2">2 exemplaires (Exemplaire Parent + Exemplaire Caisse) — Standard</option>
                 <option value="1">1 exemplaire (Parent uniquement)</option>
               </select>
+            </div>
+
+            <div className="grid w-full items-center gap-1.5 pt-1 border-t border-gray-100 mt-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="stationCode" className="font-semibold text-gray-800">
+                  Identifiant du Poste de Caisse (Multi-Postes)
+                </Label>
+                <span className="text-[10px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded font-mono font-medium">
+                  Anti-conflit Hors-Ligne
+                </span>
+              </div>
+              <select
+                id="stationCode"
+                value={stationCode}
+                onChange={(e) => setStationCode(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="C1">Poste C1 (Caisse Principale / Secrétariat) — ex: REC-2026-C1-00062</option>
+                <option value="C2">Poste C2 (Caisse Secondaire / Direction) — ex: REC-2026-C2-00001</option>
+                <option value="C3">Poste C3 (Comptabilité / Bureau 3) — ex: REC-2026-C3-00001</option>
+                <option value="C4">Poste C4 (Caisse 4) — ex: REC-2026-C4-00001</option>
+              </select>
+              <p className="text-xs text-gray-500">
+                Chaque ordinateur doit avoir son propre identifiant pour garantir qu'aucun reçu ne porte le même numéro en mode hors-ligne.
+              </p>
             </div>
 
             <div className="flex gap-3 pt-2">

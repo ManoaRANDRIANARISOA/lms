@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LMS Manjary Soa — Manuel d'Utilisation & Guide de Déploiement Client</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #AD8B73;
+      --primary-dark: #8C6D58;
+      --primary-darker: #46372D;
+      --primary-light: #EFE9E3;
+      --bg: #FAF8F5;
+      --surface: #FFFFFF;
+      --surface-subtle: #F4EFEA;
+      --border: #E6DCD2;
+      --text: #2D241E;
+      --text-muted: #6E5D53;
+      --accent: #CEAB93;
+      --success: #15803D;
+      --success-bg: #DCFCE7;
+      --warning: #B45309;
+      --warning-bg: #FEF3C7;
+      --info: #0369A1;
+      --info-bg: #E0F2FE;
+      --danger: #B91C1C;
+      --danger-bg: #FEE2E2;
+      --shadow-sm: 0 1px 2px 0 rgba(70, 55, 45, 0.05);
+      --shadow: 0 4px 12px -2px rgba(70, 55, 45, 0.08), 0 2px 6px -1px rgba(70, 55, 45, 0.04);
+      --shadow-lg: 0 12px 24px -4px rgba(70, 55, 45, 0.12), 0 4px 8px -2px rgba(70, 55, 45, 0.06);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 15px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Container */
+    .app-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 20px 80px;
+    }
+
+    /* Header / Hero */
+    .hero {
+      background: linear-gradient(135deg, var(--primary-darker) 0%, #2A211B 100%);
+      color: #FFFFFF;
+      border-radius: 20px;
+      padding: 48px 40px;
+      margin-bottom: 32px;
+      box-shadow: var(--shadow-lg);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::after {
+      content: '';
+      position: absolute;
+      top: -50px;
+      right: -50px;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, rgba(206, 171, 147, 0.25) 0%, rgba(206, 171, 147, 0) 70%);
+      border-radius: 50%;
+    }
+
+    .hero-badges {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-gold {
+      background: rgba(206, 171, 147, 0.2);
+      color: #F7E7DC;
+      border: 1px solid rgba(206, 171, 147, 0.4);
+    }
+
+    .badge-success {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid #86EFAC;
+    }
+
+    .hero h1 {
+      font-size: 34px;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 12px;
+      letter-spacing: -0.5px;
+    }
+
+    .hero p {
+      font-size: 16px;
+      color: #E8DCD1;
+      max-width: 800px;
+      line-height: 1.6;
+    }
+
+    /* Quick Navigation Bar */
+    .nav-bar {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      margin-bottom: 32px;
+      position: sticky;
+      top: 16px;
+      z-index: 100;
+      background: rgba(250, 248, 245, 0.92);
+      backdrop-filter: blur(10px);
+      padding: 10px 4px;
+      border-radius: 12px;
+    }
+
+    .nav-btn {
+      white-space: nowrap;
+      padding: 8px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      text-decoration: none;
+      transition: all 0.2s ease;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .nav-btn:hover {
+      background: var(--primary);
+      color: #FFFFFF;
+      border-color: var(--primary);
+      transform: translateY(-1px);
+    }
+
+    /* Grid Layout */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+      margin-bottom: 32px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+    }
+
+    .card-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--primary-darker);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card-title svg {
+      color: var(--primary);
+    }
+
+    /* Strengths / Advantage Boxes */
+    .advantage-box {
+      background: var(--surface-subtle);
+      border-left: 4px solid var(--primary);
+      padding: 16px 20px;
+      border-radius: 0 12px 12px 0;
+      margin-bottom: 16px;
+    }
+
+    .advantage-box h4 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--primary-darker);
+      margin-bottom: 6px;
+    }
+
+    .advantage-box p {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    /* Code & Script Blocks */
+    .code-container {
+      position: relative;
+      background: #1E293B;
+      color: #F8FAFC;
+      border-radius: 12px;
+      padding: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      margin: 16px 0;
+      overflow-x: auto;
+      border: 1px solid #334155;
+    }
+
+    .code-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #334155;
+      font-size: 12px;
+      color: #94A3B8;
+    }
+
+    .copy-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #FFFFFF;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: 'Outfit', sans-serif;
+      transition: all 0.2s;
+    }
+
+    .copy-btn:hover {
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+
+    /* Steps */
+    .step-list {
+      list-style: none;
+      counter-reset: step-counter;
+      position: relative;
+    }
+
+    .step-item {
+      position: relative;
+      padding-left: 48px;
+      margin-bottom: 24px;
+    }
+
+    .step-item::before {
+      counter-increment: step-counter;
+      content: counter(step-counter);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 32px;
+      height: 32px;
+      background: var(--primary);
+      color: #FFFFFF;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      box-shadow: 0 2px 6px rgba(173, 139, 115, 0.4);
+    }
+
+    .step-item h4 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--primary-darker);
+      margin-bottom: 6px;
+    }
+
+    .step-item p {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    /* Receipt Mockup Preview */
+    .receipt-mockup {
+      background: #FFFFFF;
+      border: 1px dashed #CBD5E1;
+      border-radius: 8px;
+      padding: 24px 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #0F172A;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      line-height: 1.4;
+      max-width: 380px;
+      margin: 0 auto;
+    }
+
+    .receipt-center {
+      text-align: center;
+    }
+
+    .receipt-divider {
+      border-top: 1px dashed #94A3B8;
+      margin: 8px 0;
+    }
+
+    .receipt-double-divider {
+      border-top: 2px solid #0F172A;
+      margin: 8px 0;
+    }
+
+    .receipt-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 3px 0;
+    }
+
+    .receipt-total {
+      font-size: 16px;
+      font-weight: 800;
+      text-align: center;
+      margin: 8px 0;
+    }
+
+    /* Tables */
+    table.manual-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    table.manual-table th, table.manual-table td {
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      text-align: left;
+    }
+
+    table.manual-table th {
+      background: var(--surface-subtle);
+      font-weight: 700;
+      color: var(--primary-darker);
+    }
+
+    table.manual-table tr:nth-child(even) {
+      background: #FAFAF9;
+    }
+
+    /* Alerts */
+    .alert {
+      padding: 16px 20px;
+      border-radius: 12px;
+      margin: 16px 0;
+      display: flex;
+      gap: 12px;
+      font-size: 14px;
+      align-items: flex-start;
+    }
+
+    .alert-info {
+      background: var(--info-bg);
+      border: 1px solid #BAE6FD;
+      color: #0369A1;
+    }
+
+    .alert-warning {
+      background: var(--warning-bg);
+      border: 1px solid #FDE68A;
+      color: #92400E;
+    }
+
+    .alert-success {
+      background: var(--success-bg);
+      border: 1px solid #BBF7D0;
+      color: #166534;
+    }
+
+    /* Print styles */
+    @media print {
+      body {
+        background: #FFFFFF;
+        color: #000000;
+        font-size: 12pt;
+      }
+      .nav-bar, .copy-btn {
+        display: none !important;
+      }
+      .card, .hero {
+        box-shadow: none !important;
+        border: 1px solid #CCCCCC !important;
+        page-break-inside: avoid;
+      }
+      .hero {
+        background: #F4EFEA !important;
+        color: #000000 !important;
+      }
+      .hero p, .hero h1 {
+        color: #000000 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+
+  <!-- HERO SECTION -->
+  <header class="hero">
+    <div class="hero-badges">
+      <span class="badge badge-gold">✨ Version 1.1.0 Officielle</span>
+      <span class="badge badge-gold">⚡ Local-First & 100% Offline-Proof</span>
+      <span class="badge badge-gold">🖨️ Ticket Thermique 80mm ESC/POS</span>
+    </div>
+    <h1>LMS Manjary Soa — Manuel Complet & Guide de Déploiement</h1>
+    <p>
+      Guide de référence technique et utilisateur pour le déploiement sur les postes du client, l'installation de l'imprimante ticket 80mm, et la maîtrise intégrale des modules de gestion scolaire et financière.
+    </p>
+  </header>
+
+  <!-- NAVIGATION -->
+  <nav class="nav-bar">
+    <a href="#avantages" class="nav-btn">⭐ Avantages & Normes</a>
+    <a href="#installation" class="nav-btn">💻 Installation Client</a>
+    <a href="#imprimante" class="nav-btn">🖨️ Configuration Imprimante</a>
+    <a href="#recus" class="nav-btn">🧾 Reçus & Duplicatas</a>
+    <a href="#modules" class="nav-btn">📚 Modules du Logiciel</a>
+    <a href="#faq" class="nav-btn">❓ FAQ & Bonnes Pratiques</a>
+  </nav>
+
+  <!-- SECTION 1: AVANTAGES & NORMES D'INDUSTRIE -->
+  <section id="avantages" class="card">
+    <div class="card-header">
+      <h2 class="card-title">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+        1. Pourquoi Notre Solution est Supérieure : Normes & Avantages Clients
+      </h2>
+    </div>
+
+    <p style="margin-bottom: 20px;">
+      Le LMS Manjary Soa a été conçu selon les standards les plus stricts de l'industrie logicielle pour les établissements d'enseignement et les caisses décentralisées :
+    </p>
+
+    <div class="grid-2">
+      <div class="advantage-box">
+        <h4>⚡ Architecture Local-First (100% Fonctionnel Sans Internet)</h4>
+        <p>
+          Contrairement aux logiciels purement web qui deviennent inutilisables dès que la connexion 4G/Fibre coupe, le LMS s'exécute sur le moteur SQLite local à 0 ms de latence. Les caissiers encaissent sans aucun ralentissement.
+        </p>
+      </div>
+
+      <div class="advantage-box">
+        <h4>🛡️ Standard Caisse Multi-Postes Anti-Conflit</h4>
+        <p>
+          Chaque ordinateur possède son propre identifiant de poste (<code>C1</code>, <code>C2</code>...). Deux caissiers déconnectés d'Internet peuvent encaisser en même temps sans jamais créer de doublon de reçu.
+        </p>
+      </div>
+
+      <div class="advantage-box">
+        <h4>⚖️ Norme Comptable & Régulation Anti-Fraude (Duplicatas)</h4>
+        <p>
+          Impossible de sortir un faux reçu en cachette. Le premier tirage est certifié <strong>ORIGINAL</strong>, et toute réimpression ultérieure est automatiquement estampillée <strong>DUPLICATA N° X</strong> avec date, heure et nom de l'opérateur.
+        </p>
+      </div>
+
+      <div class="advantage-box">
+        <h4>🔄 Synchronisation Asynchrone Sécurisée (Cloud Supabase)</h4>
+        <p>
+          Dès que la connexion Internet est détectée, le logiciel synchronise silencieusement en arrière-plan toutes les données vers la base Cloud de l'administration sans perturber le travail de l'utilisateur.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 2: GUIDE D'INSTALLATION SUR LE PC DU CLIENT -->
+  <section id="installation" class="card">
+    <div class="card-header">
+      <h2 class="card-title">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+        2. Déploiement & Installation sur les Postes du Client
+      </h2>
+      <span class="badge badge-success">Prêt pour Production</span>
+    </div>
+
+    <div class="step-list">
+      <div class="step-item">
+        <h4>Téléchargement de l'Installateur Officiel (Setup v1.1.0)</h4>
+        <p>
+          Copiez le fichier d'installation <strong><code>lms-1.1.0-setup.exe</code></strong> (disponible sur la clé USB ou via la page GitHub Releases officielle : <a href="https://github.com/ManoaRANDRIANARISOA/lms/releases/tag/v1.1.0" target="_blank" style="color: var(--primary); font-weight: 600;">GitHub Release v1.1.0</a>) sur l'ordinateur du client.
+        </p>
+      </div>
+
+      <div class="step-item">
+        <h4>Exécution de l'Installation Windows</h4>
+        <p>
+          Double-cliquez sur <code>lms-1.1.0-setup.exe</code>. L'assistant d'installation NSIS configure automatiquement l'application, crée le raccourci sur le Bureau et initialise l'environnement sécurisé.
+        </p>
+      </div>
+
+      <div class="step-item">
+        <h4>Configuration du Code Caisse (Poste 1 vs Poste 2)</h4>
+        <p>
+          Ouvrez le logiciel LMS, rendez-vous dans la page <strong>Paramètres</strong> :
+          <br>• Si c'est le <strong>PC Principal (Secrétariat)</strong> : Laissez le poste sur <strong><code>C1</code></strong>.
+          <br>• Si c'est le <strong>Second PC (Direction / Caisse 2)</strong> : Sélectionnez <strong><code>C2</code></strong>.
+          <br>Cliquez sur <em>"Enregistrer les Réglages"</em>.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 3: CONFIGURATION DE L'IMPRIMANTE THERMIQUE -->
+  <section id="imprimante" class="card">
+    <div class="card-header">
+      <h2 class="card-title">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+        3. Initialisation & Pilote de l'Imprimante Thermique (Xprinter POS-80)
+      </h2>
+    </div>
+
+    <p style="margin-bottom: 16px;">
+      Pour que l'imprimante thermique 80 mm imprime à la vitesse maximale avec le massicot (coupe automatique) et sans caractères chinois sur les accents français, suivez cette procédure en 1 clic :
+    </p>
+
+    <div class="alert alert-info">
+      <strong>ℹ️ Fichier inclus dans le logiciel :</strong> Le dossier <code>tools/printer/</code> contient le script automatique <code>installer-xprinter.bat</code>.
+    </div>
+
+    <div class="step-list">
+      <div class="step-item">
+        <h4>Branchement physique</h4>
+        <p>Branchez le câble USB de l'imprimante sur le PC, insérez le rouleau de papier thermique 80 mm et allumez l'imprimante.</p>
+      </div>
+
+      <div class="step-item">
+        <h4>Exécution du script d'installation automatique</h4>
+        <p>
+          Faites un <strong>clic droit</strong> sur le fichier <code>installer-xprinter.bat</code> situé dans <code>tools/printer/</code> et choisissez <strong>"Exécuter en tant qu'administrateur"</strong>.
+        </p>
+      </div>
+
+      <div class="step-item">
+        <h4>Vérification dans les Paramètres du LMS</h4>
+        <p>
+          Ouvrez la page <strong>Paramètres</strong> du logiciel, section <em>"Imprimante Thermique"</em>, sélectionnez <code>POS-80</code> et cliquez sur <strong>"Tester l'impression (Ticket Test)"</strong>. Un ticket test avec logo et découpe sortira immédiatement.
+        </p>
+      </div>
+    </div>
+
+    <div class="code-container">
+      <div class="code-header">
+        <span>Script d'installation autonome (installer-xprinter.ps1)</span>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('psScript').innerText); alert('Script copié !');">Copier</button>
+      </div>
+      <pre id="psScript"># Configuration de l'imprimante POS-80 avec pilote Generique Texte
+Add-PrinterDriver -Name "Generic / Text Only" -ErrorAction SilentlyContinue
+$port = (Get-CimInstance Win32_PnPEntity | Where-Object { $_.Service -eq "usbprint" }).DeviceID ? "USB001" : "USB001"
+Add-Printer -Name "POS-80" -DriverName "Generic / Text Only" -PortName "USB001" -ErrorAction SilentlyContinue
+Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
+    </div>
+  </section>
+
+  <!-- SECTION 4: NORMES REÇUS & DUPLICATAS -->
+  <section id="recus" class="card">
+    <div class="card-header">
+      <h2 class="card-title">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+        4. Standard des Reçus, Double Exemplaire & Duplicatas
+      </h2>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <h3 style="color: var(--primary-darker); margin-bottom: 12px; font-size: 18px;">Règles de Gestion des Reçus :</h3>
+        <ul style="list-style-type: disc; margin-left: 20px; line-height: 1.8; color: var(--text);">
+          <li><strong>Double Exemplaire Automatique</strong> : Chaque encaissement sort 2 tickets découpés automatiquement :
+            <br>1️⃣ <em>Exemplaire Parent / Élève</em> (pour la famille).
+            <br>2️⃣ <em>Exemplaire Établissement / Caisse</em> (à placer dans le tiroir-caisse pour le contrôle du soir).
+          </li>
+          <li><strong>Reçu Groupé Multi-Désignations</strong> : Si un parent paie par exemple l'inscription (145 000 Ar) + la FRAM (15 000 Ar) + l'écolage (40 000 Ar), le logiciel regroupe tout sur <strong>un seul ticket clair de 200 000 Ar</strong>.</li>
+          <li><strong>Sécurité Anti-Fraude</strong> : Si le caissier réimprime un reçu déjà édité, le mot <strong>DUPLICATA N° X</strong> s'affiche en grand avec le nom de l'opérateur et l'heure exacte.</li>
+        </ul>
+      </div>
+
+      <!-- VISUAL RECEIPT PREVIEW -->
+      <div>
+        <div class="receipt-mockup">
+          <div class="receipt-center" style="font-weight: 800; font-size: 14px;">LYCÉE PRIVÉ MANJARY SOA</div>
+          <div class="receipt-center" style="font-size: 11px;">Lot H 81 Miadana Alasora</div>
+          <div class="receipt-center" style="font-size: 11px;">Antananarivo, Madagascar</div>
+          <div class="receipt-double-divider"></div>
+          <div class="receipt-center" style="font-weight: 700;">*** REÇU — EXEMPLAIRE PARENT ***</div>
+          <div class="receipt-double-divider"></div>
+          <div class="receipt-row"><span>N° Reçu  :</span><strong>REC-2026-C1-00062</strong></div>
+          <div class="receipt-row"><span>Date     :</span><span>02/09/2026 à 09:30</span></div>
+          <div class="receipt-row"><span>Caissier :</span><span>Administrateur</span></div>
+          <div class="receipt-divider"></div>
+          <div>Élève    : RAZAFY Hery</div>
+          <div class="receipt-row"><span>Matr. : 26-0012</span><span>Classe: Seconde A</span></div>
+          <div class="receipt-divider"></div>
+          <div class="receipt-row"><strong>DÉSIGNATION</strong><strong>MONTANT</strong></div>
+          <div class="receipt-divider"></div>
+          <div class="receipt-row"><span>Droit d'inscription</span><span>145 000 Ar</span></div>
+          <div class="receipt-row"><span>Cotisation FRAM</span><span>15 000 Ar</span></div>
+          <div class="receipt-row"><span>Écolage (2026-09)</span><span>40 000 Ar</span></div>
+          <div class="receipt-divider"></div>
+          <div class="receipt-row"><span>Règlement :</span><span>Espèces</span></div>
+          <div class="receipt-double-divider"></div>
+          <div class="receipt-total">TOTAL ENCAISSÉ : 200 000 Ar</div>
+          <div class="receipt-double-divider"></div>
+          <div class="receipt-center" style="font-size: 10px; margin-top: 10px;">Conservez ce reçu pour tout contrôle.</div>
+          <div style="text-align: right; margin-top: 12px; font-size: 11px;">Cachet & Signature Caisse :</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 5: MANUEL DES MODULES DU LOGICIEL -->
+  <section id="modules" class="card">
+    <div class="card-header">
+      <h2 class="card-title">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        5. Manuel d'Utilisation Complet (Module par Module)
+      </h2>
+    </div>
+
+    <table class="manual-table">
+      <thead>
+        <tr>
+          <th style="width: 22%;">Module</th>
+          <th style="width: 45%;">Fonctionnalités Principales</th>
+          <th style="width: 33%;">Bonnes Pratiques Caissier / Utilisateur</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>👨‍🎓 1. Élèves & Inscriptions</strong></td>
+          <td>
+            • Fiche complète de l'élève (photo, matricule automatique, parents).<br>
+            • Inscription directe (Nouveau) ou Réinscription (Ancien).<br>
+            • Auto-provisioning des tarifs annuels personnalisés.
+          </td>
+          <td>
+            Veillez à bien choisir le statut (Nouveau vs Ancien) lors de la création pour appliquer automatiquement les droits d'inscription corrects (145 000 Ar vs 115 000 Ar).
+          </td>
+        </tr>
+        <tr>
+          <td><strong>💰 2. Suivi Financier & Caisse 80mm</strong></td>
+          <td>
+            • Tableau des mensualités (Écolage mois par mois).<br>
+            • Encaissement express avec impression automatique en 2 exemplaires.<br>
+            • Sélection multiple pour impression de <strong>Reçu Groupé</strong>.<br>
+            • Bouton 👁️ pour voir l'audit complet et le statut du reçu.
+          </td>
+          <td>
+            Utilisez les cases à cocher pour sortir un seul ticket quand un parent paie plusieurs mois ou plusieurs rubriques en même temps.
+          </td>
+        </tr>
+        <tr>
+          <td><strong>📖 3. Journal de Caisse & Checking</strong></td>
+          <td>
+            • Vue unifiée de toutes les entrées et sorties d'argent.<br>
+            • Filtres par département (Élève, Bus, École, Salaires).<br>
+            • Rapprochement de fin de journée pour comparer le tiroir physique avec le total logiciel.
+          </td>
+          <td>
+            Le soir, faites le checking de caisse en comparant la somme des tickets dans votre tiroir avec le total affiché dans le Journal Financier.
+          </td>
+        </tr>
+        <tr>
+          <td><strong>🚌 4. Transport & Cantine</strong></td>
+          <td>
+            • Gestion des abonnements mensuels au bus et à la cantine.<br>
+            • Suivi automatique des règlements et calcul des restes à payer.
+          </td>
+          <td>
+            Lorsqu'un élève prend le bus ou la cantine en cours d'année, activez l'option dans son suivi financier pour générer son échéancier.
+          </td>
+        </tr>
+        <tr>
+          <td><strong>👥 5. Personnel & Salaires</strong></td>
+          <td>
+            • Pointage des présences et gestion des absences.<br>
+            • Calcul des cotisations légales : CNAPS (1%), OSTIE (1%), IRSA.<br>
+            • Édition des fiches de paie conformes en PDF.
+          </td>
+          <td>
+            Les salaires enregistrés sont automatiquement synchronisés comme dépenses dans le Journal de Caisse de l'établissement.
+          </td>
+        </tr>
+        <tr>
+          <td><strong>📊 6. Notes & Bulletins</strong></td>
+          <td>
+            • Saisie ergonomique des notes par matière et coefficient.<br>
+            • Calcul automatique des moyennes trimestrielles et rangs.<br>
+            • Génération en 1 clic des bulletins scolaires officiels du Lycée Manjary Soa.
+          </td>
+          <td>
+            Vérifiez que toutes les matières de la classe ont leurs coefficients configurés dans les Paramètres avant l'édition des bulletins.
+          </td>
+        </tr>
+        <tr>
+          <td><strong>📜 7. Certificats de Scolarité</strong></td>
+          <td>
+            • Édition instantanée des certificats officiels avec logo, photo et signature de la Direction.<br>
+            • Adresse officielle automatique : <em>Lot H 81 Miadana Alasora</em>.
+          </td>
+          <td>
+            Téléchargeable en PDF A4 ou imprimable directement depuis le navigateur.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- SECTION 6: FAQ & BONNES PRATIQUES -->
+  <section id="faq" class="card">
+    <div class="card-header">
+      <h2 class="card-title">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        6. Foire Aux Questions (FAQ) & Dépannage Rapide
+      </h2>
+    </div>
+
+    <div class="advantage-box">
+      <h4>❓ Que faire si l'imprimante ne répond pas ou n'imprime rien ?</h4>
+      <p>
+        1. Vérifiez que l'imprimante est allumée (voyant bleu allumé) et que le câble USB est branché.<br>
+        2. Allez dans <strong>Paramètres</strong> -> <em>"Imprimante Thermique"</em> et cliquez sur <em>"Tester l'impression"</em>.<br>
+        3. Si nécessaire, réexécutez <code>installer-xprinter.bat</code> en mode Administrateur.
+      </p>
+    </div>
+
+    <div class="advantage-box">
+      <h4>❓ Que faire si la connexion Internet coupe pendant plusieurs jours ?</h4>
+      <p>
+        <strong>Rien de particulier !</strong> Vous pouvez continuer d'inscrire des élèves, d'enregistrer des paiements et d'imprimer des reçus normalement. Dès que la connexion revient, le logiciel se synchronisera tout seul sans aucune action de votre part.
+      </p>
+    </div>
+
+    <div class="advantage-box">
+      <h4>❓ Comment un parent peut-il obtenir un duplicata si son reçu est perdu ?</h4>
+      <p>
+        Rendez-vous sur la fiche de l'élève (onglet Finance), repérez le paiement concerné et cliquez sur le bouton <strong>"Ticket"</strong>. Le logiciel sortira automatiquement un <strong>Duplicata Certifié</strong> sans modifier la comptabilité originale.
+      </p>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 40px; border-top: 1px solid var(--border); padding-top: 20px;">
+    <strong>LMS Manjary Soa v1.1.0</strong> — Solution Professionnelle Développée pour le Lycée Privé Manjary Soa, Lot H 81 Miadana Alasora, Antananarivo.
+  </footer>
+
+</div>
+
+</body>
+</html>

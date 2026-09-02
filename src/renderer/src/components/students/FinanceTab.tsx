@@ -19,7 +19,8 @@ import {
   Lock,
   Calendar,
   Users,
-  Printer
+  Printer,
+  Eye
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -28,6 +29,7 @@ import { useFinanceStore } from '@/store/useFinanceStore'
 import { useAppStore } from '@/store/useAppStore'
 import { usePermissions } from '@/lib/usePermissions'
 import type { Payment, FeeRecord, FinancePrices } from '@shared/types'
+import ReceiptDetailModal from '@/components/finance/ReceiptDetailModal'
 
 interface EventWithPayment {
   id: string
@@ -451,6 +453,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     }
   }
 
+  const [selectedReceiptPayment, setSelectedReceiptPayment] = useState<Payment | null>(null)
   const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([])
 
   const toggleSelectPayment = (id: string) => {
@@ -1498,6 +1501,15 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                           )}
                           <Button
                             size="sm"
+                            variant="ghost"
+                            onClick={() => setSelectedReceiptPayment(payment)}
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:bg-accent/20 border border-transparent hover:border-border/60"
+                            title="Voir les détails, l'audit et la traçabilité du reçu"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
                             variant="outline"
                             onClick={() => handlePrintReceipt(payment)}
                             className="h-7 px-2.5 text-xs flex items-center gap-1.5 border-border hover:bg-accent/30 hover:text-primary hover:border-primary/40 text-foreground"
@@ -1522,6 +1534,25 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           </table>
         </div>
       </div>
+
+      {/* Receipt Detail & Audit Modal */}
+      <ReceiptDetailModal
+        isOpen={Boolean(selectedReceiptPayment)}
+        onClose={() => setSelectedReceiptPayment(null)}
+        payment={selectedReceiptPayment}
+        studentName={
+          studentInfo
+            ? `${studentInfo.last_name || ''} ${studentInfo.first_name || ''}`.trim()
+            : '—'
+        }
+        studentNumber={studentInfo?.registration_number || ''}
+        className={
+          status?.feeRecord?.class_name || feeRecord?.class_name || studentInfo?.class || ''
+        }
+        onPrintSuccess={() => {
+          loadData()
+        }}
+      />
     </div>
   )
 }

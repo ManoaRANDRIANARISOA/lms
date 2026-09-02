@@ -616,6 +616,8 @@ interface APIType {
       receipt_number?: string
       payment_method?: string
       department?: string
+      is_duplicate?: boolean
+      duplicate_count?: number
     }) => Promise<{ success: boolean; filePath?: string; error?: string }>
     generateCertificate: (data: {
       first_name: string

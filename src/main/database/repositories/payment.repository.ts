@@ -2,6 +2,7 @@ import db from '../db'
 import { v4 as uuidv4 } from 'uuid'
 import { addToSyncQueue } from '../../services/sync.service'
 import { StudentRepository } from './student.repository'
+import { SettingsRepository } from './settings.repository'
 
 export interface Payment {
   id: string
@@ -22,7 +23,7 @@ export interface Payment {
 }
 
 export class PaymentRepository {
-  static generateReceiptNumber(schoolYear?: string): string {
+  static generateReceiptNumber(schoolYear?: string, customStationCode?: string): string {
     let yearPrefix = new Date().getFullYear().toString()
     if (schoolYear) {
       const match = schoolYear.replace(/['"]/g, '').match(/^(\d{4})/)
@@ -31,19 +32,51 @@ export class PaymentRepository {
       }
     }
 
-    const pattern = `REC-${yearPrefix}-%`
-    const maxRecord = db
+    const stationCode =
+      (customStationCode || (SettingsRepository.get('pos_station_code') as string) || 'C1')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '') || 'C1'
+
+    const patternWithStation = `REC-${yearPrefix}-${stationCode}-%`
+    const patternWithoutStation = `REC-${yearPrefix}-%`
+
+    // Find highest sequence number for this station
+    const maxStationRecord = db
       .prepare(
         `
-      SELECT MAX(CAST(SUBSTR(receipt_number, 10) AS INTEGER)) as max_num 
+      SELECT MAX(
+        CAST(
+          SUBSTR(
+            receipt_number, 
+            INSTR(receipt_number, '-' || ? || '-') + LENGTH(? || '-') + 1
+          ) AS INTEGER
+        )
+      ) as max_num 
       FROM student_payments 
       WHERE receipt_number LIKE ?
     `
       )
-      .get(pattern) as { max_num: number | null } | undefined
+      .get(stationCode, stationCode, patternWithStation) as { max_num: number | null } | undefined
 
-    const nextNum = (maxRecord?.max_num || 0) + 1
-    return `REC-${yearPrefix}-${String(nextNum).padStart(5, '0')}`
+    let nextNum = 1
+    if (maxStationRecord && maxStationRecord.max_num && maxStationRecord.max_num > 0) {
+      nextNum = maxStationRecord.max_num + 1
+    } else if (stationCode === 'C1') {
+      // Fallback for C1: check legacy receipts format 'REC-2026-00061'
+      const legacyMax = db
+        .prepare(
+          `
+        SELECT MAX(CAST(SUBSTR(receipt_number, 10) AS INTEGER)) as max_num 
+        FROM student_payments 
+        WHERE receipt_number LIKE ? AND receipt_number NOT LIKE 'REC-%-%-%'
+      `
+        )
+        .get(patternWithoutStation) as { max_num: number | null } | undefined
+
+      nextNum = (legacyMax?.max_num || 0) + 1
+    }
+
+    return `REC-${yearPrefix}-${stationCode}-${String(nextNum).padStart(5, '0')}`
   }
 
   static recordReceiptPrint(
