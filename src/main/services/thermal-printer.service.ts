@@ -24,6 +24,9 @@ export interface ReceiptItem {
   detail?: string
   payment_type?: string
   month?: string
+  is_duplicate?: boolean
+  duplicate_count?: number
+  receipt_number?: string
 }
 
 export interface ReceiptData {
@@ -41,6 +44,7 @@ export interface ReceiptData {
   department?: string
   description?: string
   cashier_name?: string
+  printed_by?: string
   school_year?: string
   items?: ReceiptItem[]
   is_duplicate?: boolean
@@ -84,17 +88,26 @@ export class ThermalPrinterService {
   static generateLogoEscPos(targetWidth = 192): Buffer | null {
     try {
       const isDev = !app.isPackaged
-      let logoPath = isDev
-        ? path.join(process.cwd(), 'resources', 'logo.png')
-        : path.join(process.resourcesPath, 'logo.png')
-
-      // Check if custom logo exists in settings
       const customLogo = SettingsRepository.get('school_logo') as string | null
-      if (customLogo && fs.existsSync(customLogo)) {
-        logoPath = customLogo
+      const candidates = [
+        customLogo,
+        isDev ? path.join(process.cwd(), 'resources', 'logo.png') : null,
+        path.join(app.getAppPath(), 'resources', 'logo.png'),
+        path.join(process.resourcesPath, 'resources', 'logo.png'),
+        path.join(process.resourcesPath, 'logo.png'),
+        path.join(process.cwd(), 'resources', 'logo.png'),
+        path.join(process.resourcesPath, 'app.asar.unpacked', 'resources', 'logo.png')
+      ].filter(Boolean) as string[]
+
+      let logoPath: string | null = null
+      for (const cand of candidates) {
+        if (cand && fs.existsSync(cand)) {
+          logoPath = cand
+          break
+        }
       }
 
-      if (!fs.existsSync(logoPath)) {
+      if (!logoPath) {
         return null
       }
 
@@ -237,10 +250,10 @@ export class ThermalPrinterService {
       reenrollment: 'Droit de réinscription',
       bus: 'Transport scolaire (Bus)',
       canteen: 'Cantine scolaire',
-      uniform: 'Uniforme & Tenue',
+      uniform: 'Uniforme & Fournitures',
       fram: 'Cotisation FRAM',
       event: 'Événement / Sortie',
-      other: 'Autre paiement'
+      other: 'Autre versement'
     }
     return labels[type] || type
   }
@@ -253,7 +266,7 @@ export class ThermalPrinterService {
       cash: 'Espèces',
       check: 'Chèque',
       transfer: 'Virement bancaire',
-      mobile_money: 'Mobile Money (MVola/Airtel/Orange)',
+      mobile_money: 'Mobile Money',
       discount: 'Remise gracieuse'
     }
     return (method && methods[method]) || 'Espèces'
@@ -298,17 +311,26 @@ export class ThermalPrinterService {
     // Copy Badge
     buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
     const dupNum = data.duplicate_count || 1
+    const hasMultipleItems = Array.isArray(data.items) && data.items.length > 0
+    const hasAnyDuplicateItem = hasMultipleItems && data.items!.some((it) => (it.duplicate_count || 0) >= 1 || it.is_duplicate)
+
     if (data.is_duplicate) {
       if (copyType === 'PARENT') {
         buffers.push(this.encodeText(`*** DUPLICATA N° ${dupNum} — EXEMPLAIRE PARENT ***\n`))
       } else {
         buffers.push(this.encodeText(`*** DUPLICATA N° ${dupNum} — EXEMPLAIRE CAISSE ***\n`))
       }
+    } else if (hasAnyDuplicateItem) {
+      if (copyType === 'PARENT') {
+        buffers.push(this.encodeText('*** REÇU GROUPÉ — EXEMPLAIRE PARENT ***\n'))
+      } else {
+        buffers.push(this.encodeText('*** REÇU GROUPÉ — EXEMPLAIRE CAISSE ***\n'))
+      }
     } else {
       if (copyType === 'PARENT') {
-        buffers.push(this.encodeText('*** REÇU — EXEMPLAIRE PARENT / ÉLÈVE ***\n'))
+        buffers.push(this.encodeText('*** REÇU ORIGINAL — EXEMPLAIRE PARENT ***\n'))
       } else {
-        buffers.push(this.encodeText('*** REÇU — EXEMPLAIRE ÉTABLISSEMENT / CAISSE ***\n'))
+        buffers.push(this.encodeText('*** REÇU ORIGINAL — EXEMPLAIRE CAISSE ***\n'))
       }
     }
     buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
@@ -335,6 +357,9 @@ export class ThermalPrinterService {
         buffers.push(this.encodeText(`Date originale : ${dateFormatted}\n`))
       }
       buffers.push(this.encodeText(`Réimprimé le   : ${now.toLocaleDateString('fr-FR')} à ${timeFormatted}\n`))
+      if (data.printed_by) {
+        buffers.push(this.encodeText(`Opérateur caisse: ${data.printed_by}\n`))
+      }
       buffers.push(this.encodeText(this.separatorLine('-')))
     }
 
@@ -345,53 +370,60 @@ export class ThermalPrinterService {
 
     buffers.push(this.encodeText(this.formatLine(`N° Reçu  : ${receiptNum}`, '')))
     buffers.push(this.encodeText(this.formatLine(`Date     : ${dateFormatted} à ${timeFormatted}`, '')))
-    if (data.cashier_name) {
-      buffers.push(this.encodeText(this.formatLine(`Caissier : ${data.cashier_name}`, '')))
-    }
+    buffers.push(this.encodeText(this.formatLine(`Caissier : ${data.cashier_name || 'Administrateur'}`, '')))
     buffers.push(this.encodeText(this.separatorLine('-')))
 
     // Student Information
-    if (data.student_name && data.student_name !== '—') {
-      buffers.push(this.encodeText(`Élève    : ${data.student_name}\n`))
-      const studentClass = data.class_name && data.class_name !== '-' ? `Classe: ${data.class_name}` : ''
-      const studentMatr = data.student_number ? `Matr. : ${data.student_number}` : ''
-      if (studentMatr || studentClass) {
-        buffers.push(this.encodeText(this.formatLine(studentMatr, studentClass)))
-      }
-    } else if (data.description) {
-      buffers.push(this.encodeText(`Libellé  : ${data.description}\n`))
+    const studentName = data.student_name && data.student_name !== '—' ? data.student_name : (data.description || '—')
+    buffers.push(this.encodeText(`Élève    : ${studentName}\n`))
+    const studentClass = data.class_name && data.class_name !== '-' ? `Classe: ${data.class_name}` : ''
+    const studentMatr = data.student_number && data.student_number !== '—' ? `Matr. : ${data.student_number}` : ''
+    if (studentMatr || studentClass) {
+      buffers.push(this.encodeText(this.formatLine(studentMatr, studentClass)))
     }
     buffers.push(this.encodeText(this.separatorLine('-')))
 
-    // Payment Items Breakdown
-    const hasMultipleItems = Array.isArray(data.items) && data.items.length > 0
+    // UNIFIED Payment Items Breakdown Table (Always 2 columns)
+    buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
+    buffers.push(this.encodeText(this.formatLine('DÉSIGNATION DES PAIEMENTS', 'MONTANT')))
+    buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
+    buffers.push(this.encodeText(this.separatorLine('-')))
 
-    if (hasMultipleItems) {
-      buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
-      buffers.push(this.encodeText(this.formatLine('DÉSIGNATION DES PAIEMENTS', 'MONTANT')))
-      buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
-      buffers.push(this.encodeText(this.separatorLine('-')))
+    // Prepare unified items list
+    const itemsToPrint: ReceiptItem[] = hasMultipleItems
+      ? data.items!
+      : [
+          {
+            label:
+              this.formatPaymentType(data.payment_type || 'other') +
+              (data.month ? ` (${data.month})` : ''),
+            amount: Number(data.amount) || 0,
+            detail:
+              data.description && data.description !== data.student_name && !data.description.includes(data.student_name || 'xyz')
+                ? data.description
+                : undefined,
+            payment_type: data.payment_type,
+            month: data.month,
+            is_duplicate: data.is_duplicate,
+            duplicate_count: data.duplicate_count
+          }
+        ]
 
-      data.items!.forEach((item, idx) => {
-        const itemLabel =
-          item.label ||
-          (item.payment_type ? this.formatPaymentType(item.payment_type) : `Article ${idx + 1}`)
-        const itemAmtStr = `${(item.amount || 0).toLocaleString('fr-FR').replace(/\s/g, ' ')} Ar`
-        buffers.push(this.encodeText(this.formatLine(itemLabel, itemAmtStr)))
-        if (item.detail && item.detail !== itemLabel) {
-          buffers.push(this.encodeText(`  (${item.detail})\n`))
-        }
-      })
-    } else {
-      const typeLabel = this.formatPaymentType(data.payment_type || 'other')
-      buffers.push(this.encodeText(`Motif    : ${typeLabel}\n`))
-      if (data.month) {
-        buffers.push(this.encodeText(`Mois     : ${data.month}\n`))
+    itemsToPrint.forEach((item, idx) => {
+      const baseLabel =
+        item.label ||
+        (item.payment_type ? this.formatPaymentType(item.payment_type) + (item.month ? ` (${item.month})` : '') : `Article ${idx + 1}`)
+      const itemAmtStr = `${(Number(item.amount) || 0).toLocaleString('fr-FR').replace(/\s/g, ' ')} Ar`
+      buffers.push(this.encodeText(this.formatLine(baseLabel, itemAmtStr)))
+
+      if (item.detail && item.detail !== baseLabel && !item.detail.startsWith('Paiement ')) {
+        buffers.push(this.encodeText(`  (${item.detail})\n`))
       }
-      if (data.description && data.student_name && data.description !== data.student_name) {
-        buffers.push(this.encodeText(`Détail   : ${data.description}\n`))
+
+      if (item.is_duplicate && !data.is_duplicate) {
+        buffers.push(this.encodeText(`  [Duplicata N°${item.duplicate_count || 1} — Déjà émis]\n`))
       }
-    }
+    })
 
     buffers.push(this.encodeText(this.separatorLine('-')))
     buffers.push(
@@ -403,11 +435,9 @@ export class ThermalPrinterService {
 
     // Grand Total (Centered, Large Bold)
     const grandTotal =
-      data.amount !== undefined
+      data.amount !== undefined && data.amount > 0
         ? data.amount
-        : hasMultipleItems
-          ? data.items!.reduce((sum, it) => sum + (Number(it.amount) || 0), 0)
-          : 0
+        : itemsToPrint.reduce((sum, it) => sum + (Number(it.amount) || 0), 0)
 
     const formattedTotal = grandTotal.toLocaleString('fr-FR').replace(/\s/g, ' ')
     buffers.push(Buffer.from([0x1b, 0x61, 0x01])) // Center

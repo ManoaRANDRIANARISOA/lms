@@ -76,7 +76,15 @@ export class CashJournalRepository {
     let query = ''
     if (filters.schoolYear) {
       query = `
-        SELECT cj.*, s.first_name, s.last_name, 
+        SELECT cj.*, 
+          s.first_name, 
+          s.last_name, 
+          s.registration_number,
+          COALESCE(cj.receipt_number, sp.receipt_number) as receipt_number,
+          COALESCE(sp.print_count, 0) as print_count,
+          sp.last_printed_at,
+          sp.last_printed_by,
+          COALESCE(cj.created_by, sp.created_by, 'Administrateur') as created_by,
           COALESCE(
             CASE WHEN s.departure_date IS NOT NULL THEN 'Quitté le ' || strftime('%d/%m/%Y', s.departure_date) ELSE NULL END,
             (SELECT class_name FROM student_fees sf
@@ -93,11 +101,23 @@ export class CashJournalRepository {
           ) as student_class
         FROM cash_journal cj
         LEFT JOIN students s ON cj.related_student_id = s.id
+        LEFT JOIN student_payments sp ON (
+          (cj.related_payment_id IS NOT NULL AND sp.id = cj.related_payment_id)
+          OR (cj.related_payment_id IS NULL AND cj.related_student_id IS NOT NULL AND sp.student_id = cj.related_student_id AND sp.payment_date = cj.transaction_date AND sp.amount = cj.amount AND sp.deleted = 0)
+        )
         WHERE cj.deleted = 0
       `
     } else {
       query = `
-        SELECT cj.*, s.first_name, s.last_name, 
+        SELECT cj.*, 
+          s.first_name, 
+          s.last_name, 
+          s.registration_number,
+          COALESCE(cj.receipt_number, sp.receipt_number) as receipt_number,
+          COALESCE(sp.print_count, 0) as print_count,
+          sp.last_printed_at,
+          sp.last_printed_by,
+          COALESCE(cj.created_by, sp.created_by, 'Administrateur') as created_by,
           COALESCE(
             CASE WHEN s.departure_date IS NOT NULL THEN 'Quitté le ' || strftime('%d/%m/%Y', s.departure_date) ELSE NULL END,
             NULLIF(s.class, 'Classe non spécifiée'),
@@ -108,6 +128,10 @@ export class CashJournalRepository {
           ) as student_class
         FROM cash_journal cj
         LEFT JOIN students s ON cj.related_student_id = s.id
+        LEFT JOIN student_payments sp ON (
+          (cj.related_payment_id IS NOT NULL AND sp.id = cj.related_payment_id)
+          OR (cj.related_payment_id IS NULL AND cj.related_student_id IS NOT NULL AND sp.student_id = cj.related_student_id AND sp.payment_date = cj.transaction_date AND sp.amount = cj.amount AND sp.deleted = 0)
+        )
         WHERE cj.deleted = 0
       `
     }

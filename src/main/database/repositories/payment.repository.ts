@@ -18,6 +18,7 @@ export interface Payment {
   print_count?: number
   last_printed_at?: string
   last_printed_by?: string
+  created_by?: string
   created_at?: string
   updated_at?: string
 }
@@ -160,12 +161,13 @@ export class PaymentRepository {
       .trim()
 
     const receiptNumber = payment.receipt_number || this.generateReceiptNumber(cleanSchoolYear)
+    const cashierUser = payment.created_by || 'Administrateur'
 
     const stmt = db.prepare(`
       INSERT INTO student_payments (
         id, student_id, payment_date, amount, payment_type, month, 
-        description, payment_method, receipt_number, school_year, print_count
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+        description, payment_method, receipt_number, school_year, print_count, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
     `)
 
     const transaction = db.transaction(() => {
@@ -179,14 +181,16 @@ export class PaymentRepository {
         payment.description || null,
         payment.payment_method || 'cash',
         receiptNumber,
-        cleanSchoolYear
+        cleanSchoolYear,
+        cashierUser
       )
 
       addToSyncQueue('student_payments', id, 'create', {
         ...payment,
         id,
         receipt_number: receiptNumber,
-        school_year: cleanSchoolYear
+        school_year: cleanSchoolYear,
+        created_by: cashierUser
       })
 
       // SYNC: Create a corresponding cash_journal entry so the school's cash register
@@ -225,8 +229,11 @@ export class PaymentRepository {
         const cashId = uuidv4()
         db.prepare(
           `
-          INSERT INTO cash_journal (id, transaction_date, type, department, category, amount, description, payment_method, related_student_id)
-          VALUES (?, ?, 'income', ?, ?, ?, ?, ?, ?)
+          INSERT INTO cash_journal (
+            id, transaction_date, type, department, category, 
+            amount, description, payment_method, related_student_id,
+            related_payment_id, receipt_number, created_by
+          ) VALUES (?, ?, 'income', ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `
         ).run(
           cashId,
@@ -236,7 +243,10 @@ export class PaymentRepository {
           payment.amount,
           cashDescription,
           payment.payment_method || 'cash',
-          payment.student_id
+          payment.student_id,
+          id,
+          receiptNumber,
+          cashierUser
         )
         addToSyncQueue('cash_journal', cashId, 'create', {
           id: cashId,
@@ -247,7 +257,10 @@ export class PaymentRepository {
           amount: payment.amount,
           description: cashDescription,
           payment_method: payment.payment_method || 'cash',
-          related_student_id: payment.student_id
+          related_student_id: payment.student_id,
+          related_payment_id: id,
+          receipt_number: receiptNumber,
+          created_by: cashierUser
         })
       }
 

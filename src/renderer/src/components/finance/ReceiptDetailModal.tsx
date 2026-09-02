@@ -285,6 +285,14 @@ export default function ReceiptDetailModal({
 
             <div className="space-y-2 text-xs">
               <div className="flex justify-between">
+                <span className="text-muted-foreground">Encaissé par (Compte Caisse) :</span>
+                <span className="font-semibold text-foreground flex items-center gap-1">
+                  <User className="w-3.5 h-3.5 text-primary" />
+                  {(payment as any).created_by || 'Administrateur'}
+                </span>
+              </div>
+
+              <div className="flex justify-between">
                 <span className="text-muted-foreground">Nombre total d'impressions :</span>
                 <span className="font-semibold text-foreground">
                   {printCount} tirage{printCount > 1 ? 's' : ''}
@@ -304,7 +312,7 @@ export default function ReceiptDetailModal({
 
               {payment.last_printed_by && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Opérateur caisse :</span>
+                  <span className="text-muted-foreground">Dernier tirage imprimé par :</span>
                   <span className="font-medium text-foreground flex items-center gap-1">
                     <User className="w-3 h-3 text-muted-foreground" />
                     {payment.last_printed_by}

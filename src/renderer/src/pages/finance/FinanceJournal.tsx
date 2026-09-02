@@ -939,8 +939,12 @@ export default function FinanceJournal() {
                                 onClick={() => {
                                   const monthMatch = entry.description?.match(/\(([^)]+)\)/)
                                   const extractedMonth = monthMatch ? monthMatch[1] : undefined
+                                  const rNum =
+                                    (entry as any).receipt_number ||
+                                    `REC-${(entry.id || Date.now().toString()).slice(-6).toUpperCase()}`
+                                  const pCount = (entry as any).print_count || 0
                                   const pData = {
-                                    id: entry.id,
+                                    id: (entry as any).related_payment_id || entry.id,
                                     student_id: entry.related_student_id || '',
                                     payment_date: entry.transaction_date,
                                     amount: entry.amount,
@@ -948,9 +952,12 @@ export default function FinanceJournal() {
                                     month: extractedMonth,
                                     description: entry.description,
                                     payment_method: (entry.payment_method as any) || 'cash',
-                                    receipt_number: `REC-${(entry.id || Date.now().toString()).slice(-6).toUpperCase()}`,
+                                    receipt_number: rNum,
                                     school_year: currentYear || '2026-2027',
-                                    print_count: 0
+                                    print_count: pCount,
+                                    created_by: (entry as any).created_by || 'Administrateur',
+                                    last_printed_at: (entry as any).last_printed_at,
+                                    last_printed_by: (entry as any).last_printed_by
                                   }
                                   setSelectedJournalPayment({
                                     payment: pData,
@@ -958,7 +965,7 @@ export default function FinanceJournal() {
                                       entry.first_name && entry.last_name
                                         ? `${entry.last_name} ${entry.first_name}`
                                         : entry.description || '—',
-                                    studentNumber: '',
+                                    studentNumber: (entry as any).registration_number || '',
                                     className: entry.student_class || ''
                                   })
                                 }}
@@ -982,18 +989,25 @@ export default function FinanceJournal() {
 
                                   const monthMatch = entry.description?.match(/\(([^)]+)\)/)
                                   const extractedMonth = monthMatch ? monthMatch[1] : undefined
+                                  const rNum =
+                                    (entry as any).receipt_number ||
+                                    `REC-${(entry.id || Date.now().toString()).slice(-6).toUpperCase()}`
+                                  const pCount = (entry as any).print_count || 0
+                                  const isDup = pCount >= 1
+                                  const paymentId = (entry as any).related_payment_id || entry.id
 
                                   const toastId = toast.loading('Impression du ticket de caisse...')
                                   try {
                                     const r = await window.api.printer.printReceipt(
                                       {
-                                        payment_ids: entry.id ? [entry.id] : undefined,
+                                        payment_ids: paymentId ? [paymentId] : undefined,
                                         student_name:
                                           studentName ||
                                           entry.description
                                             ?.replace('Paiement ', '')
                                             ?.replace(/ — .*/, '') ||
                                           '—',
+                                        student_number: (entry as any).registration_number || '',
                                         class_name: entry.student_class || '-',
                                         amount: entry.amount,
                                         payment_type: entry.category || 'other',
@@ -1001,15 +1015,21 @@ export default function FinanceJournal() {
                                         month: extractedMonth,
                                         payment_method: entry.payment_method || 'cash',
                                         description: entry.description,
-                                        receipt_number: `REC-${(entry.id || Date.now().toString()).slice(-6).toUpperCase()}`
+                                        receipt_number: rNum,
+                                        cashier_name: (entry as any).created_by || 'Administrateur',
+                                        is_duplicate: isDup,
+                                        duplicate_count: isDup ? pCount + 1 : 1
                                       },
                                       2
                                     )
                                     if (r.success) {
                                       toast.success(
-                                        'Ticket imprimé en 2 exemplaires (Parent + Caisse)',
+                                        isDup
+                                          ? `Duplicata N°${pCount + 1} imprimé en 2 exemplaires (Parent + Caisse)`
+                                          : 'Ticket imprimé en 2 exemplaires (Parent + Caisse)',
                                         { id: toastId }
                                       )
+                                      fetchEntries()
                                     } else {
                                       toast.error(r.error || "Échec d'impression", { id: toastId })
                                     }

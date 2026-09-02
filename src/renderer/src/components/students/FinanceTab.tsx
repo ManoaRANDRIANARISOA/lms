@@ -508,12 +508,16 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
         label = p.description || p.payment_type
       }
 
+      const isItemDup = (p.print_count || 0) >= 1
       return {
         label,
         amount: Number(p.amount) || 0,
         detail: p.description && p.description !== label ? p.description : undefined,
         payment_type: p.payment_type,
-        month: p.month || undefined
+        month: p.month || undefined,
+        receipt_number: p.receipt_number,
+        is_duplicate: isItemDup,
+        duplicate_count: isItemDup ? (p.print_count || 0) + 1 : 1
       }
     })
 
@@ -521,12 +525,34 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     const primaryMethod = selectedPayments[0]?.payment_method || 'cash'
     const latestDate = selectedPayments[0]?.payment_date || new Date().toISOString().split('T')[0]
 
-    const isAnyDuplicate = selectedPayments.some((p) => (p.print_count || 0) >= 1)
+    const allDuplicate = selectedPayments.every((p) => (p.print_count || 0) >= 1)
+    const anyDuplicate = selectedPayments.some((p) => (p.print_count || 0) >= 1)
     const maxCount = Math.max(0, ...selectedPayments.map((p) => p.print_count || 0))
-    const groupedReceiptNum =
-      selectedPayments.length === 1
-        ? selectedPayments[0].receipt_number || `REC-${Date.now().toString().slice(-6)}`
-        : `REC-GRP-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`
+
+    // Clean grouped receipt number format: if all have same receipt_number use that, otherwise use range
+    const validReceiptNums = selectedPayments
+      .map((p) => p.receipt_number)
+      .filter((r): r is string => Boolean(r && r.trim()))
+
+    let groupedReceiptNum = `REC-${Date.now().toString().slice(-6)}`
+    if (validReceiptNums.length === 1) {
+      groupedReceiptNum = validReceiptNums[0]
+    } else if (validReceiptNums.length > 1) {
+      const firstNum = validReceiptNums[0]
+      const lastNum = validReceiptNums[validReceiptNums.length - 1]
+      if (firstNum === lastNum) {
+        groupedReceiptNum = firstNum
+      } else {
+        // Extract sequence part if same prefix
+        const lastSeq = lastNum.slice(-5)
+        const prefix = firstNum.slice(0, -5)
+        if (lastNum.startsWith(prefix)) {
+          groupedReceiptNum = `${firstNum} — ${lastSeq}`
+        } else {
+          groupedReceiptNum = `${firstNum} — ${lastNum}`
+        }
+      }
+    }
 
     const toastId = toast.loading(
       `Impression du reçu groupé (${selectedPayments.length} paiements)...`
@@ -543,8 +569,8 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           payment_date: latestDate,
           payment_method: primaryMethod,
           receipt_number: groupedReceiptNum,
-          is_duplicate: isAnyDuplicate,
-          duplicate_count: isAnyDuplicate ? maxCount + 1 : 1,
+          is_duplicate: allDuplicate,
+          duplicate_count: allDuplicate ? maxCount + 1 : 1,
           items
         },
         2
@@ -552,9 +578,11 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
 
       if (res.success) {
         toast.success(
-          isAnyDuplicate
+          allDuplicate
             ? `Reçu groupé (Duplicata N°${maxCount + 1}) imprimé en 2 exemplaires`
-            : 'Reçu groupé imprimé en 2 exemplaires (Parent + Caisse)',
+            : anyDuplicate
+              ? 'Reçu groupé imprimé (avec mentions duplicatas sur articles réimprimés)'
+              : 'Reçu groupé imprimé en 2 exemplaires (Parent + Caisse)',
           { id: toastId }
         )
         loadData() // Reload to refresh print_count in table

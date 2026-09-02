@@ -176,6 +176,7 @@ export interface Payment {
   print_count?: number
   last_printed_at?: string
   last_printed_by?: string
+  created_by?: string
   created_at?: string
   updated_at?: string
 }
@@ -191,7 +192,14 @@ export interface CashJournalEntry {
   description?: string
   payment_method?: string
   related_student_id?: string
+  related_payment_id?: string
   related_personnel_id?: string
+  receipt_number?: string
+  print_count?: number
+  last_printed_at?: string
+  last_printed_by?: string
+  created_by?: string
+  registration_number?: string
   created_at?: string
   updated_at?: string
 }

@@ -687,6 +687,7 @@ interface APIType {
         department?: string
         description?: string
         cashier_name?: string
+        printed_by?: string
         school_year?: string
         is_duplicate?: boolean
         duplicate_count?: number
@@ -696,6 +697,9 @@ interface APIType {
           detail?: string
           payment_type?: string
           month?: string
+          is_duplicate?: boolean
+          duplicate_count?: number
+          receipt_number?: string
         }>
       },
       copies?: number

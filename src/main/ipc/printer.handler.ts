@@ -25,14 +25,15 @@ export function registerPrinterHandlers(): void {
 
     try {
       const user = getCurrentUser()
-      const cashierName = paymentData.cashier_name || user?.full_name || user?.username || 'Caisse'
+      const operatorName = user?.full_name || user?.username || 'Administrateur'
+      const originalCashier = paymentData.cashier_name || operatorName
 
       let isDuplicate = Boolean(paymentData.is_duplicate)
       let duplicateCount = paymentData.duplicate_count || 1
 
       // If payment_ids are provided, check and record print count
       if (paymentData.payment_ids && paymentData.payment_ids.length > 0) {
-        const printRecord = PaymentRepository.recordReceiptPrint(paymentData.payment_ids, cashierName)
+        const printRecord = PaymentRepository.recordReceiptPrint(paymentData.payment_ids, operatorName)
         if (printRecord.success) {
           isDuplicate = printRecord.is_duplicate
           duplicateCount = printRecord.print_count
@@ -41,7 +42,8 @@ export function registerPrinterHandlers(): void {
 
       const dataWithCashier: ReceiptData = {
         ...paymentData,
-        cashier_name: cashierName,
+        cashier_name: originalCashier,
+        printed_by: operatorName,
         is_duplicate: isDuplicate,
         duplicate_count: duplicateCount
       }
