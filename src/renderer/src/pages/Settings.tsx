@@ -6,13 +6,15 @@ import { useState, useEffect } from 'react'
 import { getStudentPhotoUrl } from '../lib/image-utils'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useClasses } from '@/lib/useClasses'
-import { Trash2, Plus, AlertTriangle, Trash, Printer } from 'lucide-react'
+import { Trash2, Plus, AlertTriangle, Trash, Printer, CheckCircle2, RefreshCw, Wrench, Loader2 } from 'lucide-react'
 import EmailSettings from '@/pages/settings/EmailSettings'
 import AssessmentSettings from '@/pages/settings/AssessmentSettings'
 
 export default function Settings() {
   const canRead = useAuthStore((s) => s.canRead)
   const canWrite = useAuthStore((s) => s.canWrite)
+  const user = useAuthStore((s) => s.user)
+  const isAdmin = user?.role === 'admin'
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [wipeCloud, setWipeCloud] = useState(false)
@@ -30,6 +32,20 @@ export default function Settings() {
   const [availablePrinters, setAvailablePrinters] = useState<Array<{ name: string; isDefault: boolean }>>([])
   const [testingPrinter, setTestingPrinter] = useState(false)
   const [printerMessage, setPrinterMessage] = useState('')
+
+  // Printer Driver Setup State (Admin Only)
+  const [printerSetupStatus, setPrinterSetupStatus] = useState<{
+    isInstalled: boolean
+    name?: string
+    portName?: string
+    driverName?: string
+    status?: string
+    error?: string
+  } | null>(null)
+  const [checkingPrinterStatus, setCheckingPrinterStatus] = useState(false)
+  const [installingPrinter, setInstallingPrinter] = useState(false)
+  const [installError, setInstallError] = useState<string | null>(null)
+  const [installSuccess, setInstallSuccess] = useState<string | null>(null)
 
   const { sections, addClass, removeClass, renameClass, moveClass } = useClasses()
   const [newClassName, setNewClassName] = useState('')
@@ -109,6 +125,15 @@ export default function Settings() {
             const plist = await window.api.printer.getPrinters()
             setAvailablePrinters(plist || [])
           }
+
+          if (window.api.printer?.checkStatus) {
+            setCheckingPrinterStatus(true)
+            window.api.printer
+              .checkStatus()
+              .then((st) => setPrinterSetupStatus(st))
+              .catch((err) => console.error('Erreur statut imprimante:', err))
+              .finally(() => setCheckingPrinterStatus(false))
+          }
         } catch (e) {
           if (import.meta.env.DEV) console.error('Failed to load settings', e)
         }
@@ -116,6 +141,54 @@ export default function Settings() {
     }
     loadSettings()
   }, [])
+
+  const checkPrinterInstallation = async () => {
+    if (window.api?.printer?.checkStatus) {
+      setCheckingPrinterStatus(true)
+      try {
+        const res = await window.api.printer.checkStatus()
+        setPrinterSetupStatus(res)
+      } catch (err) {
+        console.error('Erreur vérification imprimante', err)
+      } finally {
+        setCheckingPrinterStatus(false)
+      }
+    }
+  }
+
+  const handleInstallDriver = async () => {
+    if (!isAdmin) return
+    setInstallError(null)
+    setInstallSuccess(null)
+
+    if (printerSetupStatus?.isInstalled) {
+      const confirmRepair = window.confirm(
+        "L'imprimante POS-80 est déjà enregistrée dans Windows.\n\nSouhaitez-vous relancer la détection automatique et la réaffectation du port USB (utile si le câble de l'imprimante a été changé de prise USB) ?"
+      )
+      if (!confirmRepair) return
+    }
+
+    setInstallingPrinter(true)
+    try {
+      const res = await window.api.printer.installDriver()
+      if (res.success) {
+        setInstallSuccess(res.message || 'Imprimante POS-80 configurée avec succès !')
+        await checkPrinterInstallation()
+        if (window.api.printer?.getPrinters) {
+          const plist = await window.api.printer.getPrinters()
+          setAvailablePrinters(plist || [])
+          setPrinterName('POS-80')
+        }
+      } else {
+        setInstallError(res.error || "Échec lors de l'initialisation de l'imprimante.")
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erreur inattendue'
+      setInstallError(msg)
+    } finally {
+      setInstallingPrinter(false)
+    }
+  }
 
   const handleSaveConfig = async () => {
     setLoading(true)
@@ -419,6 +492,107 @@ export default function Settings() {
                 Chaque ordinateur doit avoir son propre identifiant pour garantir qu'aucun reçu ne porte le même numéro en mode hors-ligne.
               </p>
             </div>
+
+            {/* Assistant Matériel : Pilote POS-80 (Visible uniquement pour le rôle Admin) */}
+            {isAdmin && (
+              <div className="mt-2 p-3.5 rounded-lg border border-blue-200/80 bg-blue-50/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Wrench className="w-4 h-4 text-blue-600" />
+                    <span className="text-xs font-semibold text-gray-800">
+                      Configuration Matérielle : Pilote Windows POS-80
+                    </span>
+                  </div>
+                  <span className="text-[10px] uppercase tracking-wider font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                    Admin
+                  </span>
+                </div>
+
+                {checkingPrinterStatus ? (
+                  <div className="flex items-center gap-2 text-xs text-gray-500 py-1">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                    <span>Vérification de l'état Windows de l'imprimante...</span>
+                  </div>
+                ) : printerSetupStatus?.isInstalled ? (
+                  <div className="bg-white p-2.5 rounded border border-emerald-200 shadow-2xs space-y-1">
+                    <div className="flex items-center gap-1.5 text-emerald-700 font-medium text-xs">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Imprimante POS-80 déjà installée et prête</span>
+                    </div>
+                    <div className="text-[11px] text-gray-600 font-mono pl-5 space-y-0.5">
+                      <div>Port : <span className="font-semibold text-gray-800">{printerSetupStatus.portName || 'USB001'}</span></div>
+                      <div>Pilote : <span className="font-semibold text-gray-800">{printerSetupStatus.driverName || 'Generic / Text Only'}</span> (Statut : {printerSetupStatus.status || 'Normal'})</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-amber-50 p-2.5 rounded border border-amber-200 text-xs text-amber-800 space-y-1">
+                    <div className="flex items-center gap-1.5 font-semibold">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Imprimante POS-80 non configurée sur ce PC</span>
+                    </div>
+                    <p className="text-[11px] text-amber-700">
+                      Ce poste n'a pas encore l'imprimante ticket enregistrée. Branchez la Xprinter en USB et allumez-la avant de lancer l'initialisation.
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-0.5">
+                  <Button
+                    type="button"
+                    variant={printerSetupStatus?.isInstalled ? "outline" : "default"}
+                    size="sm"
+                    onClick={handleInstallDriver}
+                    disabled={installingPrinter || checkingPrinterStatus}
+                    className={
+                      printerSetupStatus?.isInstalled
+                        ? "text-xs border-blue-300 text-blue-700 hover:bg-blue-100/60"
+                        : "text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                    }
+                  >
+                    {installingPrinter ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                        Configuration en cours...
+                      </>
+                    ) : printerSetupStatus?.isInstalled ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                        Réinitialiser / Réparer l'imprimante POS-80
+                      </>
+                    ) : (
+                      <>
+                        <Wrench className="w-3.5 h-3.5 mr-1.5" />
+                        Initialiser l'imprimante POS-80 (Automatique)
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={checkPrinterInstallation}
+                    disabled={checkingPrinterStatus || installingPrinter}
+                    title="Actualiser la vérification"
+                    className="text-xs text-gray-500 hover:text-gray-700 h-8 px-2"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${checkingPrinterStatus ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
+
+                {installSuccess && (
+                  <p className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 p-2 rounded">
+                    {installSuccess}
+                  </p>
+                )}
+
+                {installError && (
+                  <p className="text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 p-2 rounded">
+                    {installError}
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="flex gap-3 pt-2">
               <Button

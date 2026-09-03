@@ -682,4 +682,132 @@ if ($res) {
     }
     return await this.printReceipt(dummyData, 1, printer)
   }
+
+  /**
+   * Check if POS-80 printer is currently installed and ready in Windows
+   */
+  static async checkPrinterStatus(): Promise<{
+    isInstalled: boolean
+    name?: string
+    portName?: string
+    driverName?: string
+    status?: string
+    error?: string
+  }> {
+    return new Promise((resolve) => {
+      const psScript = `Get-Printer -Name 'POS-80' -ErrorAction SilentlyContinue | Select-Object Name, PortName, DriverName, PrinterStatus | ConvertTo-Json -Compress`
+      const ps = spawn('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        psScript
+      ])
+
+      let stdout = ''
+      ps.stdout.on('data', (d) => {
+        stdout += d.toString()
+      })
+
+      ps.on('close', () => {
+        try {
+          if (!stdout.trim()) {
+            resolve({ isInstalled: false })
+            return
+          }
+          const parsed = JSON.parse(stdout)
+          if (parsed && parsed.Name) {
+            resolve({
+              isInstalled: true,
+              name: parsed.Name,
+              portName: parsed.PortName,
+              driverName: parsed.DriverName,
+              status: parsed.PrinterStatus === 0 ? 'Normal' : String(parsed.PrinterStatus)
+            })
+            return
+          }
+          resolve({ isInstalled: false })
+        } catch {
+          resolve({ isInstalled: false })
+        }
+      })
+
+      ps.on('error', (err) => {
+        resolve({ isInstalled: false, error: err.message })
+      })
+    })
+  }
+
+  /**
+   * Run elevated installation / verification of the POS-80 printer driver
+   */
+  static async installPrinterDriver(): Promise<{
+    success: boolean
+    isInstalled: boolean
+    message?: string
+    error?: string
+  }> {
+    const isDev = !app.isPackaged
+    const scriptDir = isDev
+      ? path.join(app.getAppPath(), 'tools', 'printer')
+      : path.join(process.resourcesPath, 'tools', 'printer')
+
+    const batPath = path.join(scriptDir, 'installer-xprinter.bat')
+    if (!fs.existsSync(batPath)) {
+      return {
+        success: false,
+        isInstalled: false,
+        error: `Fichier d'installation introuvable : ${batPath}`
+      }
+    }
+
+    return new Promise((resolve) => {
+      // Execute the batch with admin elevation using PowerShell Start-Process -Verb RunAs -Wait
+      const elevateCmd = `Start-Process -FilePath "${batPath}" -ArgumentList "--no-pause" -Verb RunAs -Wait`
+      const ps = spawn('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        elevateCmd
+      ])
+
+      ps.on('close', async (code) => {
+        // Wait 1 second for Windows spooler to settle
+        await new Promise((r) => setTimeout(r, 1000))
+        const status = await ThermalPrinterService.checkPrinterStatus()
+        if (status.isInstalled) {
+          resolve({
+            success: true,
+            isInstalled: true,
+            message: `Imprimante POS-80 configurée avec succès sur le port ${status.portName || 'USB'} !`
+          })
+        } else {
+          if (code !== 0) {
+            resolve({
+              success: false,
+              isInstalled: false,
+              error: "L'installation a été annulée ou l'autorisation administrateur Windows n'a pas été accordée."
+            })
+          } else {
+            resolve({
+              success: false,
+              isInstalled: false,
+              error: "Le script s'est exécuté mais l'imprimante POS-80 n'a pas été détectée. Vérifiez que la Xprinter est allumée et branchée en USB."
+            })
+          }
+        }
+      })
+
+      ps.on('error', (err) => {
+        resolve({
+          success: false,
+          isInstalled: false,
+          error: `Erreur d'exécution de l'assistant : ${err.message}`
+        })
+      })
+    })
+  }
 }

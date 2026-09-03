@@ -16,6 +16,8 @@ extraResources:
     to: "migrations"
   - from: "resources"
     to: "resources"
+  - from: "tools/printer"
+    to: "tools/printer"
   - from: ".env"
     to: ".env"
 win:

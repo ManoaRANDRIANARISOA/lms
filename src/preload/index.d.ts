@@ -704,6 +704,20 @@ interface APIType {
     ) => Promise<{ success: boolean; error?: string }>
     getPrinters: () => Promise<Array<{ name: string; isDefault: boolean; status: string }>>
     testPrint: (printerName?: string) => Promise<{ success: boolean; error?: string }>
+    checkStatus: () => Promise<{
+      isInstalled: boolean
+      name?: string
+      portName?: string
+      driverName?: string
+      status?: string
+      error?: string
+    }>
+    installDriver: () => Promise<{
+      success: boolean
+      isInstalled: boolean
+      message?: string
+      error?: string
+    }>
   }
   auth: AuthAPI
   dialog: DialogAPI

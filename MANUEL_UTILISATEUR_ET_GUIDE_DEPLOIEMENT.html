@@ -443,7 +443,7 @@
   <!-- HERO SECTION -->
   <header class="hero">
     <div class="hero-badges">
-      <span class="badge badge-gold">✨ Version 1.1.0 Officielle</span>
+      <span class="badge badge-gold">✨ Version 1.1.1 Officielle</span>
       <span class="badge badge-gold">⚡ Local-First & 100% Offline-Proof</span>
       <span class="badge badge-gold">🖨️ Ticket Thermique 80mm ESC/POS</span>
     </div>
@@ -554,30 +554,40 @@
     </div>
 
     <p style="margin-bottom: 16px;">
-      Pour que l'imprimante thermique 80 mm imprime à la vitesse maximale avec le massicot (coupe automatique) et sans caractères chinois sur les accents français, suivez cette procédure en 1 clic :
+      Pour que l'imprimante thermique 80 mm imprime à la vitesse maximale avec le massicot (coupe automatique) et sans caractères chinois sur les accents français, deux méthodes simples sont à votre disposition :
     </p>
 
     <div class="alert alert-info">
-      <strong>ℹ️ Fichier inclus dans le logiciel :</strong> Le dossier <code>tools/printer/</code> contient le script automatique <code>installer-xprinter.bat</code>.
+      <strong>✨ Nouveauté v1.1.1 (Option intégrée) :</strong> L'administrateur peut désormais initialiser ou réparer la connexion de l'imprimante thermique directement en 1 clic depuis l'application, avec détection automatique de l'état actuel.
     </div>
 
     <div class="step-list">
       <div class="step-item">
-        <h4>Branchement physique</h4>
-        <p>Branchez le câble USB de l'imprimante sur le PC, insérez le rouleau de papier thermique 80 mm et allumez l'imprimante.</p>
+        <h4>Étape 1 : Branchement physique</h4>
+        <p>Branchez le câble USB de l'imprimante sur le PC, insérez le rouleau de papier thermique 80 mm (face thermique vers la tête) et allumez l'imprimante.</p>
       </div>
 
       <div class="step-item">
-        <h4>Exécution du script d'installation automatique</h4>
+        <h4>Étape 2 (Méthode Recommandée) : Initialisation en 1 clic depuis le LMS</h4>
         <p>
-          Faites un <strong>clic droit</strong> sur le fichier <code>installer-xprinter.bat</code> situé dans <code>tools/printer/</code> et choisissez <strong>"Exécuter en tant qu'administrateur"</strong>.
+          Connectez-vous en tant qu'<strong>Administrateur</strong>, ouvrez la page <strong>Paramètres</strong> $\rightarrow$ section <em>"Imprimante Thermique"</em> :
+          <br>• Si l'imprimante n'est pas configurée : Cliquez sur <strong>"Initialiser l'imprimante POS-80 (Automatique)"</strong>.
+          <br>• Si elle est déjà installée : Un badge vert indique qu'elle est prête. En cas de changement de prise USB, un bouton <strong>"Réinitialiser / Réparer"</strong> réaffecte automatiquement le bon port USB.
+          <br>• Confirmez l'autorisation administrateur Windows (UAC) lorsqu'elle s'affiche.
         </p>
       </div>
 
       <div class="step-item">
-        <h4>Vérification dans les Paramètres du LMS</h4>
+        <h4>Étape 2 bis (Méthode Manuelle Alternative) : Via le script autonome</h4>
         <p>
-          Ouvrez la page <strong>Paramètres</strong> du logiciel, section <em>"Imprimante Thermique"</em>, sélectionnez <code>POS-80</code> et cliquez sur <strong>"Tester l'impression (Ticket Test)"</strong>. Un ticket test avec logo et découpe sortira immédiatement.
+          Faites un <strong>clic droit</strong> sur le fichier <code>installer-xprinter.bat</code> situé dans <code>tools/printer/</code> et choisissez <strong>"Exécuter en tant qu'administrateur"</strong>. Le script vérifie l'état actuel et configure le pilote générique.
+        </p>
+      </div>
+
+      <div class="step-item">
+        <h4>Étape 3 : Test d'impression</h4>
+        <p>
+          Dans la section <em>"Imprimante Thermique"</em> des Paramètres, cliquez sur <strong>"Tester l'impression (Ticket Test)"</strong>. Un ticket test avec le logo du Lycée, les accents français nets et la découpe massicot sort immédiatement.
         </p>
       </div>
     </div>
@@ -783,7 +793,7 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
 
   <!-- FOOTER -->
   <footer style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 40px; border-top: 1px solid var(--border); padding-top: 20px;">
-    <strong>LMS Manjary Soa v1.1.0</strong> — Solution Professionnelle Développée pour le Lycée Privé Manjary Soa, Lot H 81 Miadana Alasora, Antananarivo.
+    <strong>LMS Manjary Soa v1.1.1</strong> — Solution Professionnelle Développée pour le Lycée Privé Manjary Soa, Lot H 81 Miadana Alasora, Antananarivo.
   </footer>
 
 </div>

@@ -84,4 +84,41 @@ export function registerPrinterHandlers(): void {
       return { success: false, error: message }
     }
   })
+
+  // --------------------------------------------
+  // CHECK POS-80 STATUS
+  // --------------------------------------------
+  ipcMain.handle('printer:checkStatus', async () => {
+    try {
+      return await ThermalPrinterService.checkPrinterStatus()
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erreur vérification imprimante'
+      return { isInstalled: false, error: message }
+    }
+  })
+
+  // --------------------------------------------
+  // INSTALL / CONFIGURE POS-80 DRIVER (ADMIN ONLY)
+  // --------------------------------------------
+  ipcMain.handle('printer:installDriver', async () => {
+    const user = getCurrentUser()
+    if (!user || user.role !== 'admin') {
+      return {
+        success: false,
+        isInstalled: false,
+        error: 'Opération refusée : Seul un compte Administrateur peut configurer le matériel système.'
+      }
+    }
+
+    try {
+      const result = await ThermalPrinterService.installPrinterDriver()
+      if (result.success) {
+        logAction(user.id, 'configure_hardware', 'settings', null, null, 'printer_pos80_driver')
+      }
+      return result
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erreur lors de l'installation du pilote"
+      return { success: false, isInstalled: false, error: message }
+    }
+  })
 }

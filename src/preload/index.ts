@@ -350,7 +350,9 @@ const api = {
     printReceipt: (data: Record<string, unknown>, copies?: number) =>
       ipcRenderer.invoke('printer:printReceipt', data, copies),
     getPrinters: () => ipcRenderer.invoke('printer:getPrinters'),
-    testPrint: (printerName?: string) => ipcRenderer.invoke('printer:testPrint', printerName)
+    testPrint: (printerName?: string) => ipcRenderer.invoke('printer:testPrint', printerName),
+    checkStatus: () => ipcRenderer.invoke('printer:checkStatus'),
+    installDriver: () => ipcRenderer.invoke('printer:installDriver')
   },
 
   // --------------------------------------------
