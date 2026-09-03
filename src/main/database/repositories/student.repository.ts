@@ -682,10 +682,27 @@ export class StudentRepository {
       }
     }
 
-    // Repair legacy fee records missing class_name
-    if (fees && !fees.class_name && student.class) {
-      db.prepare('UPDATE student_fees SET class_name = ? WHERE id = ?').run(student.class, fees.id)
-      fees.class_name = student.class
+    // Repair legacy fee records missing class_name or zero monthly_tuition
+    if (fees && student.class && student.class !== 'Non inscrit' && student.class !== 'Classe non spécifiée') {
+      let needsUpdate = false
+      if (!fees.class_name) {
+        fees.class_name = student.class
+        needsUpdate = true
+      }
+      const isPC = this.parseBoolean(student.is_personnel_child)
+      if (!isPC && (!fees.monthly_tuition || Number(fees.monthly_tuition) <= 0)) {
+        const tuitionFee = this.getTuitionPrice(student.class as string, false)
+        if (tuitionFee > 0) {
+          fees.monthly_tuition = tuitionFee
+          fees.tuition_level = this.determineTuitionLevel(student.class as string)
+          needsUpdate = true
+        }
+      }
+      if (needsUpdate) {
+        db.prepare(
+          'UPDATE student_fees SET class_name = ?, monthly_tuition = ?, tuition_level = COALESCE(tuition_level, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+        ).run(fees.class_name, fees.monthly_tuition, fees.tuition_level, fees.id)
+      }
     }
 
     // Parse JSON fields in student if any
@@ -1290,28 +1307,28 @@ export class StudentRepository {
     repaired: number
     error?: string
   } {
-    const effectiveYear = targetYear || this.getCurrentSchoolYear()
+    const effectiveYear = (targetYear || this.getCurrentSchoolYear()).replace(/['"]/g, '').trim()
     const students = db
       .prepare(
-        "SELECT id, class, is_personnel_child FROM students WHERE class IS NOT NULL AND class != ''"
+        "SELECT id, class, is_personnel_child FROM students WHERE class IS NOT NULL AND class != '' AND deleted = 0"
       )
-      .all() as { id: string; class: string; is_personnel_child: number | null }[]
+      .all() as { id: string; class: string; is_personnel_child: unknown }[]
     let fixedCount = 0
 
     const transaction = db.transaction(() => {
       for (const student of students) {
         const existingFee = db
-          .prepare('SELECT id FROM student_fees WHERE student_id = ? AND school_year = ?')
-          .get(student.id, effectiveYear)
+          .prepare(
+            'SELECT id, monthly_tuition FROM student_fees WHERE student_id = ? AND REPLACE(REPLACE(school_year, \'"\', \'\'), \'\'\'\', \'\') = ?'
+          )
+          .get(student.id, effectiveYear) as { id: string; monthly_tuition: number } | undefined
+
+        const isPC = this.parseBoolean(student.is_personnel_child)
+        const level = this.determineTuitionLevel(student.class)
+        const tuitionFee = this.getTuitionPrice(student.class, isPC)
 
         if (!existingFee) {
-          const level = this.determineTuitionLevel(student.class)
-          const tuitionFee = this.getTuitionPrice(
-            student.class,
-            Boolean(student.is_personnel_child)
-          )
           const feeId = uuidv4()
-
           db.prepare(
             `
                       INSERT INTO student_fees (
@@ -1329,6 +1346,11 @@ export class StudentRepository {
             class_name: student.class
           })
 
+          fixedCount++
+        } else if (!isPC && (!existingFee.monthly_tuition || Number(existingFee.monthly_tuition) <= 0) && tuitionFee > 0) {
+          db.prepare(
+            'UPDATE student_fees SET monthly_tuition = ?, tuition_level = ?, class_name = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1 WHERE id = ?'
+          ).run(tuitionFee, level, student.class, existingFee.id)
           fixedCount++
         }
       }

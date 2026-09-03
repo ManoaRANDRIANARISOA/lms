@@ -770,7 +770,12 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     }
 
     if (monthData.status === 'paid') {
-      const payment = payments.find((p) => p.payment_type === type && p.month === monthData.key)
+      const payment = payments.find(
+        (p) =>
+          p.payment_type === type &&
+          (p.month === monthData.key ||
+            (p.month && monthData.key && p.month.slice(5) === monthData.key.slice(5)))
+      )
       if (payment) {
         setSelectedPayment(payment)
         setIsViewPaymentOpen(true)
@@ -797,7 +802,12 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
 
     return status.status.map((month: MonthStatus) => {
       // Find payments for this service and month
-      const monthPayments = payments.filter((p) => p.payment_type === type && p.month === month.key)
+      const monthPayments = payments.filter(
+        (p) =>
+          p.payment_type === type &&
+          (p.month === month.key ||
+            (p.month && month.key && p.month.slice(5) === month.key.slice(5)))
+      )
 
       const paidAmount = monthPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
       const balance = monthlyCost - paidAmount

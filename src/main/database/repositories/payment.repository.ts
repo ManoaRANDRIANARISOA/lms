@@ -267,12 +267,12 @@ export class PaymentRepository {
       // SYNC: When a bus or canteen payment is recorded, ensure the subscription flag
       // in student_fees is activated. This keeps the two sources of truth coherent.
       if (payment.payment_type === 'bus' || payment.payment_type === 'canteen') {
-        const targetYear = StudentRepository.getCurrentSchoolYear()
+        const targetYear = cleanSchoolYear
 
         // Find the fee record for current year
         const feeRecord = db
           .prepare(
-            'SELECT id, bus_subscribed, canteen_subscribed FROM student_fees WHERE student_id = ? AND school_year = ?'
+            'SELECT id, bus_subscribed, canteen_subscribed FROM student_fees WHERE student_id = ? AND REPLACE(REPLACE(school_year, \'"\', \'\'), \'\'\'\', \'\') = ?'
           )
           .get(payment.student_id, targetYear) as
           | { id: string; bus_subscribed: number; canteen_subscribed: number }
@@ -369,7 +369,7 @@ export class PaymentRepository {
           AND (
             REPLACE(REPLACE(school_year, '"', ''), '''', '') = ?
             OR (
-              (school_year IS NULL OR REPLACE(REPLACE(school_year, '"', ''), '''', '') = '')
+              (school_year IS NULL OR REPLACE(REPLACE(school_year, '"', ''), '''', '') = '' OR payment_date >= ? || '-06-01')
               AND (
                 month LIKE ? OR month LIKE ?
                 OR payment_date BETWEEN ? AND ?
@@ -382,6 +382,7 @@ export class PaymentRepository {
         .all(
           studentId,
           cleanYear,
+          startYear,
           `${startYear}-%`,
           `${endYear}-%`,
           `${startYear}-06-01`,
@@ -581,7 +582,7 @@ export class PaymentRepository {
 
     const status = months.map((m) => {
       const paidForMonth = payments
-        .filter((p) => p.month === m.key)
+        .filter((p) => p.month === m.key || (p.month && p.month.slice(5) === m.key.slice(5)))
         .reduce((sum, p) => sum + p.amount, 0)
 
       let status = 'unpaid'
