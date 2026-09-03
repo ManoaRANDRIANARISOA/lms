@@ -117,23 +117,21 @@ export class PaymentRepository {
 
     // Audit log
     try {
-      const logId = uuidv4()
       const receiptNumbers = currentRecords.map((r) => r.receipt_number).filter(Boolean).join(', ')
       const totalAmount = currentRecords.reduce((sum, r) => sum + (r.amount || 0), 0)
 
       db.prepare(
         `
-        INSERT INTO app_logs (id, level, action, message, user_id, details)
-        VALUES (?, 'info', ?, ?, ?, ?)
+        INSERT INTO app_logs (level, context, message, details)
+        VALUES ('info', 'printer', ?, ?)
       `
       ).run(
-        logId,
-        isDuplicate ? 'reprint_receipt' : 'print_receipt',
         isDuplicate
-          ? `Duplicata N°${newPrintCount} émis pour reçu(s): ${receiptNumbers} (Total: ${totalAmount.toLocaleString()} Ar)`
-          : `Reçu original émis pour reçu(s): ${receiptNumbers} (Total: ${totalAmount.toLocaleString()} Ar)`,
-        userName,
+          ? `Duplicata N°${newPrintCount} émis par ${userName} pour reçu(s): ${receiptNumbers} (Total: ${totalAmount.toLocaleString()} Ar)`
+          : `Reçu original émis par ${userName} pour reçu(s): ${receiptNumbers} (Total: ${totalAmount.toLocaleString()} Ar)`,
         JSON.stringify({
+          action: isDuplicate ? 'reprint_receipt' : 'print_receipt',
+          user_id: userName,
           payment_ids: paymentIds,
           receipt_numbers: receiptNumbers,
           is_duplicate: isDuplicate,

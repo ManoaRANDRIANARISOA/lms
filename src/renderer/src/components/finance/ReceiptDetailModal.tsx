@@ -42,7 +42,9 @@ export default function ReceiptDetailModal({
 
   const printCount = payment.print_count || 0
   const isDuplicate = printCount >= 1
-  const receiptNum = payment.receipt_number || `REC-${(payment.id || '').slice(-6).toUpperCase()}`
+  const receiptNum = payment.receipt_number
+    ? payment.receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, 'REC-$1-C1-$2')
+    : `REC-${new Date().getFullYear()}-C1-${(payment.id || Date.now().toString()).slice(-5).toUpperCase()}`
 
   const copyReceiptNumber = () => {
     navigator.clipboard.writeText(receiptNum)

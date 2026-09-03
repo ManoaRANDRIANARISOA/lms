@@ -256,6 +256,8 @@ export default function FinanceJournal() {
     className?: string
   } | null>(null)
 
+  const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([])
+
   const [form, setForm] = useState({
     transaction_date: today,
     type: 'expense' as 'income' | 'expense',
@@ -407,6 +409,131 @@ export default function FinanceJournal() {
   const summary = {
     totalIncome: enriched.filter((e) => e.type === 'income').reduce((s, e) => s + e.amount, 0),
     totalExpense: enriched.filter((e) => e.type === 'expense').reduce((s, e) => s + e.amount, 0)
+  }
+
+  const incomeEntries = enriched.filter((e) => e.type === 'income')
+
+  const toggleSelectEntry = (id: string) => {
+    setSelectedEntryIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    )
+  }
+
+  const toggleSelectAllEntries = () => {
+    if (selectedEntryIds.length === incomeEntries.length) {
+      setSelectedEntryIds([])
+    } else {
+      setSelectedEntryIds(incomeEntries.map((e) => e.id))
+    }
+  }
+
+  const handlePrintGroupedFromJournal = async () => {
+    const selected = enriched.filter((e) => selectedEntryIds.includes(e.id))
+    if (selected.length === 0) return
+
+    if (!window.api?.printer?.printReceipt) {
+      toast.error('Service impression non disponible')
+      return
+    }
+
+    const items = selected.map((e) => {
+      const monthMatch = e.description?.match(/\(([^)]+)\)/)
+      const extractedMonth = monthMatch ? monthMatch[1] : undefined
+      const isItemDup = ((e as any).print_count || 0) >= 1
+      return {
+        label: e.description || e.category,
+        amount: Number(e.amount) || 0,
+        detail: e.description,
+        payment_type: e.category,
+        month: extractedMonth,
+        receipt_number: (e as any).receipt_number
+          ? (e as any).receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, 'REC-$1-C1-$2')
+          : undefined,
+        is_duplicate: isItemDup,
+        duplicate_count: isItemDup ? ((e as any).print_count || 0) + 1 : 1
+      }
+    })
+
+    const totalAmt = items.reduce((sum, it) => sum + it.amount, 0)
+    const primaryMethod = selected[0]?.payment_method || 'cash'
+    const latestDate = selected[0]?.transaction_date || new Date().toISOString().split('T')[0]
+    const firstStudent = selected.find((e) => e.first_name || e.last_name)
+    const studentName = firstStudent
+      ? `${firstStudent.last_name || ''} ${firstStudent.first_name || ''}`.trim()
+      : selected[0]?.description?.replace('Paiement ', '') || '—'
+    const studentClass = selected[0]?.student_class || '-'
+    const studentNumber = (selected[0] as any)?.registration_number || ''
+
+    const validNums = selected
+      .map((e) =>
+        (e as any).receipt_number
+          ? (e as any).receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, 'REC-$1-C1-$2')
+          : ''
+      )
+      .filter(Boolean)
+
+    let groupedNum = `REC-${new Date().getFullYear()}-C1-${Date.now().toString().slice(-5)}`
+    if (validNums.length === 1) {
+      groupedNum = validNums[0]
+    } else if (validNums.length > 1) {
+      const first = validNums[0]
+      const last = validNums[validNums.length - 1]
+      if (first === last) {
+        groupedNum = first
+      } else {
+        const lastSeq = last.slice(-5)
+        const prefix = first.slice(0, -5)
+        if (last.startsWith(prefix)) {
+          groupedNum = `${first} — ${lastSeq}`
+        } else {
+          groupedNum = `${first} — ${last}`
+        }
+      }
+    }
+
+    const paymentIds = selected
+      .map((e) => (e as any).related_payment_id || e.id)
+      .filter(Boolean)
+    const allDup = selected.every((e) => ((e as any).print_count || 0) >= 1)
+    const anyDup = selected.some((e) => ((e as any).print_count || 0) >= 1)
+    const maxCount = Math.max(0, ...selected.map((e) => (e as any).print_count || 0))
+
+    const toastId = toast.loading(`Impression du reçu groupé (${selected.length} paiements)...`)
+    try {
+      const res = await window.api.printer.printReceipt(
+        {
+          payment_ids: paymentIds,
+          student_name: studentName,
+          student_number: studentNumber,
+          class_name: studentClass,
+          amount: totalAmt,
+          payment_date: latestDate,
+          payment_method: primaryMethod,
+          receipt_number: groupedNum,
+          is_duplicate: allDup,
+          duplicate_count: allDup ? maxCount + 1 : 1,
+          items
+        },
+        2
+      )
+
+      if (res.success) {
+        toast.success(
+          allDup
+            ? `Reçu groupé (Duplicata N°${maxCount + 1}) imprimé en 2 exemplaires`
+            : anyDup
+              ? 'Reçu groupé imprimé (avec mentions duplicatas sur articles réimprimés)'
+              : 'Reçu groupé imprimé en 2 exemplaires (Parent + Caisse)',
+          { id: toastId }
+        )
+        setSelectedEntryIds([])
+        fetchEntries({ ...filters, schoolYear: currentYear })
+      } else {
+        toast.error(res.error || "Échec d'impression du reçu groupé", { id: toastId })
+      }
+    } catch (err: unknown) {
+      toast.error('Erreur: ' + (err instanceof Error ? err.message : String(err)), { id: toastId })
+    }
   }
 
   // ── Render ──
@@ -820,12 +947,58 @@ export default function FinanceJournal() {
         </div>
       </div>
 
+      {/* ── Multi-selection toolbar ── */}
+      {selectedEntryIds.length > 0 && (
+        <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 flex items-center justify-between flex-wrap gap-2 animate-in fade-in mb-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-foreground bg-white px-2.5 py-1 rounded border border-primary/20 shadow-sm">
+              {selectedEntryIds.length} paiement{selectedEntryIds.length > 1 ? 's' : ''} sélectionné{selectedEntryIds.length > 1 ? 's' : ''} • Total:{' '}
+              {enriched
+                .filter((e) => selectedEntryIds.includes(e.id))
+                .reduce((sum, e) => sum + (Number(e.amount) || 0), 0)
+                .toLocaleString()}{' '}
+              Ar
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={handlePrintGroupedFromJournal}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-8 flex items-center gap-1.5 shadow-sm"
+              title="Imprimer un seul reçu thermique 80mm regroupant les encaissements cochés"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Imprimer Reçu Groupé ({selectedEntryIds.length})</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setSelectedEntryIds([])}
+              className="text-xs h-8 text-muted-foreground hover:text-foreground"
+            >
+              Désélectionner
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* ── Table ── */}
       <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-gray-50 text-gray-700 uppercase font-medium border-b">
               <tr>
+                <th className="px-4 py-3 w-10 text-center">
+                  <input
+                    type="checkbox"
+                    checked={
+                      incomeEntries.length > 0 && selectedEntryIds.length === incomeEntries.length
+                    }
+                    onChange={toggleSelectAllEntries}
+                    className="rounded border-gray-300 text-primary focus:ring-primary cursor-pointer w-4 h-4 accent-[#AD8B73]"
+                    title="Tout sélectionner (recettes)"
+                  />
+                </th>
                 <th className="px-6 py-3">Date</th>
                 <th className="px-6 py-3">Département</th>
                 <th className="px-6 py-3">Nom</th>
@@ -839,13 +1012,13 @@ export default function FinanceJournal() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                     Chargement...
                   </td>
                 </tr>
               ) : enriched.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                     Aucune entrée trouvée.
                   </td>
                 </tr>
@@ -854,8 +1027,27 @@ export default function FinanceJournal() {
                   const studentName = entry.first_name
                     ? `${entry.last_name} ${entry.first_name}`
                     : ''
+                  const pCount = (entry as any).print_count || 0
                   return (
-                    <tr key={entry.id} className="hover:bg-gray-50/50">
+                    <tr
+                      key={entry.id}
+                      className={cn(
+                        'hover:bg-gray-50/50 transition-colors',
+                        selectedEntryIds.includes(entry.id) && 'bg-primary/5'
+                      )}
+                    >
+                      <td className="px-4 py-4 text-center">
+                        {entry.type === 'income' ? (
+                          <input
+                            type="checkbox"
+                            checked={selectedEntryIds.includes(entry.id)}
+                            onChange={() => toggleSelectEntry(entry.id)}
+                            className="rounded border-gray-300 text-primary focus:ring-primary cursor-pointer w-4 h-4 accent-[#AD8B73]"
+                          />
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {new Date(entry.transaction_date).toLocaleDateString()}
                       </td>
@@ -928,9 +1120,31 @@ export default function FinanceJournal() {
                         {entry.amount?.toLocaleString()} Ar
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <div className="flex justify-center items-center gap-1">
+                        <div className="flex justify-center items-center gap-1.5">
                           {entry.type === 'income' && (
                             <>
+                              {pCount === 0 ? (
+                                <span
+                                  className="text-[10px] bg-gray-100 text-gray-600 border border-gray-200 px-1.5 py-0.5 rounded font-medium shrink-0"
+                                  title="Ce reçu n'a pas encore été imprimé"
+                                >
+                                  Non imprimé
+                                </span>
+                              ) : pCount === 1 ? (
+                                <span
+                                  className="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 rounded font-medium shrink-0"
+                                  title="Reçu original déjà délivré (1er tirage)"
+                                >
+                                  Original émis
+                                </span>
+                              ) : (
+                                <span
+                                  className="text-[10px] bg-amber-50 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded font-medium shrink-0"
+                                  title={`Ce reçu a été réimprimé ${pCount} fois (Duplicata)`}
+                                >
+                                  Duplicata ({pCount})
+                                </span>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -939,9 +1153,12 @@ export default function FinanceJournal() {
                                 onClick={() => {
                                   const monthMatch = entry.description?.match(/\(([^)]+)\)/)
                                   const extractedMonth = monthMatch ? monthMatch[1] : undefined
-                                  const rNum =
-                                    (entry as any).receipt_number ||
-                                    `REC-${(entry.id || Date.now().toString()).slice(-6).toUpperCase()}`
+                                  const rNum = (entry as any).receipt_number
+                                    ? (entry as any).receipt_number.replace(
+                                        /^REC-(\d{4})-(\d{5})$/,
+                                        'REC-$1-C1-$2'
+                                      )
+                                    : `REC-${currentYear ? currentYear.slice(0, 4) : new Date().getFullYear()}-C1-${(entry.id || Date.now().toString()).slice(-5).toUpperCase()}`
                                   const pCount = (entry as any).print_count || 0
                                   const pData = {
                                     id: (entry as any).related_payment_id || entry.id,
@@ -989,9 +1206,12 @@ export default function FinanceJournal() {
 
                                   const monthMatch = entry.description?.match(/\(([^)]+)\)/)
                                   const extractedMonth = monthMatch ? monthMatch[1] : undefined
-                                  const rNum =
-                                    (entry as any).receipt_number ||
-                                    `REC-${(entry.id || Date.now().toString()).slice(-6).toUpperCase()}`
+                                  const rNum = (entry as any).receipt_number
+                                    ? (entry as any).receipt_number.replace(
+                                        /^REC-(\d{4})-(\d{5})$/,
+                                        'REC-$1-C1-$2'
+                                      )
+                                    : `REC-${currentYear ? currentYear.slice(0, 4) : new Date().getFullYear()}-C1-${(entry.id || Date.now().toString()).slice(-5).toUpperCase()}`
                                   const pCount = (entry as any).print_count || 0
                                   const isDup = pCount >= 1
                                   const paymentId = (entry as any).related_payment_id || entry.id

@@ -312,31 +312,64 @@ export class ThermalPrinterService {
     buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
     const dupNum = data.duplicate_count || 1
     const hasMultipleItems = Array.isArray(data.items) && data.items.length > 0
-    const hasAnyDuplicateItem = hasMultipleItems && data.items!.some((it) => (it.duplicate_count || 0) >= 1 || it.is_duplicate)
+    const hasAnyDuplicateItem =
+      hasMultipleItems &&
+      data.items!.some((it) => (it.duplicate_count || 0) >= 1 || it.is_duplicate)
+    const allDuplicateItems =
+      hasMultipleItems &&
+      data.items!.every((it) => (it.duplicate_count || 0) >= 1 || it.is_duplicate)
 
-    if (data.is_duplicate) {
-      if (copyType === 'PARENT') {
-        buffers.push(this.encodeText(`*** DUPLICATA N° ${dupNum} — EXEMPLAIRE PARENT ***\n`))
+    if (hasMultipleItems) {
+      if (data.is_duplicate || allDuplicateItems) {
+        if (copyType === 'PARENT') {
+          buffers.push(
+            this.encodeText(`*** REÇU GROUPÉ (DUPLICATA N° ${dupNum}) — EXEMPLAIRE PARENT ***\n`)
+          )
+        } else {
+          buffers.push(
+            this.encodeText(`*** REÇU GROUPÉ (DUPLICATA N° ${dupNum}) — EXEMPLAIRE CAISSE ***\n`)
+          )
+        }
+      } else if (hasAnyDuplicateItem) {
+        if (copyType === 'PARENT') {
+          buffers.push(
+            this.encodeText(
+              `*** REÇU GROUPÉ (DUPLICATA PARTIEL N° ${dupNum}) — EXEMPLAIRE PARENT ***\n`
+            )
+          )
+        } else {
+          buffers.push(
+            this.encodeText(
+              `*** REÇU GROUPÉ (DUPLICATA PARTIEL N° ${dupNum}) — EXEMPLAIRE CAISSE ***\n`
+            )
+          )
+        }
       } else {
-        buffers.push(this.encodeText(`*** DUPLICATA N° ${dupNum} — EXEMPLAIRE CAISSE ***\n`))
-      }
-    } else if (hasAnyDuplicateItem) {
-      if (copyType === 'PARENT') {
-        buffers.push(this.encodeText('*** REÇU GROUPÉ — EXEMPLAIRE PARENT ***\n'))
-      } else {
-        buffers.push(this.encodeText('*** REÇU GROUPÉ — EXEMPLAIRE CAISSE ***\n'))
+        if (copyType === 'PARENT') {
+          buffers.push(this.encodeText('*** REÇU GROUPÉ ORIGINAL — EXEMPLAIRE PARENT ***\n'))
+        } else {
+          buffers.push(this.encodeText('*** REÇU GROUPÉ ORIGINAL — EXEMPLAIRE CAISSE ***\n'))
+        }
       }
     } else {
-      if (copyType === 'PARENT') {
-        buffers.push(this.encodeText('*** REÇU ORIGINAL — EXEMPLAIRE PARENT ***\n'))
+      if (data.is_duplicate) {
+        if (copyType === 'PARENT') {
+          buffers.push(this.encodeText(`*** DUPLICATA N° ${dupNum} — EXEMPLAIRE PARENT ***\n`))
+        } else {
+          buffers.push(this.encodeText(`*** DUPLICATA N° ${dupNum} — EXEMPLAIRE CAISSE ***\n`))
+        }
       } else {
-        buffers.push(this.encodeText('*** REÇU ORIGINAL — EXEMPLAIRE CAISSE ***\n'))
+        if (copyType === 'PARENT') {
+          buffers.push(this.encodeText('*** REÇU ORIGINAL — EXEMPLAIRE PARENT ***\n'))
+        } else {
+          buffers.push(this.encodeText('*** REÇU ORIGINAL — EXEMPLAIRE CAISSE ***\n'))
+        }
       }
     }
     buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
     buffers.push(this.encodeText(this.separatorLine('=')))
 
-    // Traceability Box for Duplicates
+    // Metadata: Receipt number, Date, Cashier (Left aligned)
     const now = new Date()
     const paymentDateObj = data.payment_date ? new Date(data.payment_date) : now
     const dateFormatted = paymentDateObj.toLocaleDateString('fr-FR', {
@@ -345,32 +378,29 @@ export class ThermalPrinterService {
       year: 'numeric'
     })
     const timeFormatted = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    const isAnyDup = data.is_duplicate || hasAnyDuplicateItem
 
-    if (data.is_duplicate) {
-      buffers.push(Buffer.from([0x1b, 0x61, 0x01])) // Center
-      buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
-      buffers.push(this.encodeText(`*** DUPLICATA OFFICIEL N° ${dupNum} ***\n`))
-      buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
-      buffers.push(this.encodeText('Ce document est une réimpression certifiée.\n'))
-      buffers.push(Buffer.from([0x1b, 0x61, 0x00])) // Left align
-      if (data.payment_date) {
-        buffers.push(this.encodeText(`Date originale : ${dateFormatted}\n`))
-      }
-      buffers.push(this.encodeText(`Réimprimé le   : ${now.toLocaleDateString('fr-FR')} à ${timeFormatted}\n`))
-      if (data.printed_by) {
-        buffers.push(this.encodeText(`Opérateur caisse: ${data.printed_by}\n`))
-      }
-      buffers.push(this.encodeText(this.separatorLine('-')))
-    }
-
-    // Metadata: Receipt number, Date, Cashier (Left aligned)
     buffers.push(Buffer.from([0x1b, 0x61, 0x00])) // Left align
 
-    const receiptNum = data.receipt_number || `REC-${Date.now().toString().slice(-6)}`
+    const currentYear = new Date().getFullYear().toString()
+    const stationCode =
+      (SettingsRepository.get('pos_station_code') as string) || 'C1'
+    const fallbackReceiptNum = `REC-${currentYear}-${stationCode}-${Date.now().toString().slice(-5)}`
+    let receiptNum = (data.receipt_number || fallbackReceiptNum).trim()
+    // Normalize legacy format: REC-2026-00019 -> REC-2026-C1-00019
+    receiptNum = receiptNum.replace(/^REC-(\d{4})-(\d{5})$/, `REC-$1-${stationCode}-$2`)
+    // Also normalize legacy range: REC-2026-00019 — 00021 -> REC-2026-C1-00019 — 00021
+    receiptNum = receiptNum.replace(
+      /^REC-(\d{4})-(\d{5}) — (\d{5})$/,
+      `REC-$1-${stationCode}-$2 — $3`
+    )
 
     buffers.push(this.encodeText(this.formatLine(`N° Reçu  : ${receiptNum}`, '')))
     buffers.push(this.encodeText(this.formatLine(`Date     : ${dateFormatted} à ${timeFormatted}`, '')))
-    buffers.push(this.encodeText(this.formatLine(`Caissier : ${data.cashier_name || 'Administrateur'}`, '')))
+    buffers.push(this.encodeText(this.formatLine(`Caissier : ${data.cashier_name || data.printed_by || 'Administrateur'}`, '')))
+    if (isAnyDup) {
+      buffers.push(this.encodeText(this.formatLine(`Mention  : Duplicata certifié N°${dupNum}`, '')))
+    }
     buffers.push(this.encodeText(this.separatorLine('-')))
 
     // Student Information
@@ -453,11 +483,12 @@ export class ThermalPrinterService {
     buffers.push(Buffer.from([0x1b, 0x61, 0x00])) // Left align
     buffers.push(this.encodeText('Conservez ce reçu pour tout contrôle.\n\n'))
     buffers.push(Buffer.from([0x1b, 0x61, 0x02])) // Right align
-    buffers.push(this.encodeText('Signature & Cachet Caisse :\n\n\n'))
-    buffers.push(this.encodeText('............................\n\n\n'))
+    buffers.push(this.encodeText('Signature & Cachet Caisse :\n\n'))
+    buffers.push(this.encodeText('............................\n'))
 
-    // Auto-cutter: GS V A 3 (Feed 3 lines and cut paper)
-    buffers.push(Buffer.from([0x1d, 0x56, 0x41, 0x03]))
+    // Auto-cutter: Feed 4 lines past printhead + Safe Partial Cut (GS V 1)
+    buffers.push(Buffer.from([0x1b, 0x64, 0x04])) // ESC d 4 (Feed 4 lines)
+    buffers.push(Buffer.from([0x1d, 0x56, 0x01])) // GS V 1 (Partial cut)
 
     return Buffer.concat(buffers)
   }
@@ -471,49 +502,83 @@ export class ThermalPrinterService {
     docName = 'Ticket de Caisse'
   ): Promise<{ success: boolean; error?: string }> {
     return new Promise((resolve) => {
-      // Temporary base64 storage for script execution
-      const b64 = bytes.toString('base64')
-      const psScript = `
+      const isDev = !app.isPackaged
+      const tempFile = path.join(
+        app.getPath('temp'),
+        `pos_print_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.bin`
+      )
+
+      try {
+        fs.writeFileSync(tempFile, bytes)
+      } catch (err: unknown) {
+        resolve({ success: false, error: 'Erreur écriture fichier temporaire: ' + String(err) })
+        return
+      }
+
+      const scriptCandidates = [
+        isDev ? path.join(process.cwd(), 'tools/printer/send-raw.ps1') : null,
+        path.join(process.resourcesPath, 'tools/printer/send-raw.ps1'),
+        path.join(app.getAppPath(), 'tools/printer/send-raw.ps1'),
+        path.join(process.cwd(), 'tools/printer/send-raw.ps1')
+      ].filter(Boolean) as string[]
+
+      const scriptPath = scriptCandidates.find((p) => fs.existsSync(p))
+
+      const cleanup = () => {
+        try {
+          if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile)
+        } catch {}
+      }
+
+      let psArgs: string[]
+      if (scriptPath) {
+        psArgs = [
+          '-NoProfile',
+          '-NonInteractive',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-File',
+          scriptPath,
+          '-PrinterName',
+          printerName,
+          '-InputFile',
+          tempFile,
+          '-DocName',
+          docName
+        ]
+      } else {
+        const b64 = bytes.toString('base64')
+        const psScript = `
 $code = @'
 using System;
 using System.Runtime.InteropServices;
-
-public class RawSpooler {
+public class RawSpoolerDirectFallback {
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
     public class DOCINFOA {
         [MarshalAs(UnmanagedType.LPStr)] public string pDocName;
         [MarshalAs(UnmanagedType.LPStr)] public string pOutputFile;
         [MarshalAs(UnmanagedType.LPStr)] public string pDataType;
     }
-
     [DllImport("winspool.Drv", EntryPoint = "OpenPrinterA", SetLastError = true, CharSet = CharSet.Ansi, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
     public static extern bool OpenPrinter([MarshalAs(UnmanagedType.LPStr)] string szPrinter, out IntPtr hPrinter, IntPtr pd);
-
     [DllImport("winspool.Drv", EntryPoint = "ClosePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
     public static extern bool ClosePrinter(IntPtr hPrinter);
-
     [DllImport("winspool.Drv", EntryPoint = "StartDocPrinterA", SetLastError = true, CharSet = CharSet.Ansi, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
     public static extern bool StartDocPrinter(IntPtr hPrinter, int level, [In, MarshalAs(UnmanagedType.LPStruct)] DOCINFOA di);
-
     [DllImport("winspool.Drv", EntryPoint = "EndDocPrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
     public static extern bool EndDocPrinter(IntPtr hPrinter);
-
     [DllImport("winspool.Drv", EntryPoint = "StartPagePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
     public static extern bool StartPagePrinter(IntPtr hPrinter);
-
     [DllImport("winspool.Drv", EntryPoint = "EndPagePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
     public static extern bool EndPagePrinter(IntPtr hPrinter);
-
     [DllImport("winspool.Drv", EntryPoint = "WritePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
     public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, int dwCount, out int dwWritten);
-
-    public static bool SendBytes(string szPrinterName, byte[] pBytes, string docName) {
+    public static bool Send(string szPrinterName, byte[] pBytes, string docName) {
         IntPtr hPrinter = IntPtr.Zero;
         DOCINFOA di = new DOCINFOA();
         di.pDocName = docName;
         di.pDataType = "RAW";
-
-        if (OpenPrinter(szPrinterName.Normalize(), out hPrinter, IntPtr.Zero)) {
+        if (OpenPrinter(szPrinterName, out hPrinter, IntPtr.Zero)) {
             if (StartDocPrinter(hPrinter, 1, di)) {
                 if (StartPagePrinter(hPrinter)) {
                     IntPtr pUnmanagedBytes = Marshal.AllocCoTaskMem(pBytes.Length);
@@ -534,30 +599,15 @@ public class RawSpooler {
     }
 }
 '@
-
-try {
-    Add-Type -TypeDefinition $code -ErrorAction Stop
-} catch {
-    # Already loaded in session
-}
-
+try { Add-Type -TypeDefinition $code -ErrorAction Stop } catch {}
 $bytes = [Convert]::FromBase64String("${b64}")
-$res = [RawSpooler]::SendBytes("${printerName.replace(/"/g, '')}", $bytes, "${docName.replace(/"/g, '')}")
-if ($res) {
-    Write-Output "SUCCESS"
-} else {
-    Write-Output "FAILED"
-}
+$res = [RawSpoolerDirectFallback]::Send("${printerName.replace(/"/g, '')}", $bytes, "${docName.replace(/"/g, '')}")
+if ($res) { Write-Output "SUCCESS" } else { Write-Output "FAILED" }
 `
+        psArgs = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', psScript]
+      }
 
-      const ps = spawn('powershell.exe', [
-        '-NoProfile',
-        '-NonInteractive',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-Command',
-        psScript
-      ])
+      const ps = spawn('powershell.exe', psArgs)
 
       let stdout = ''
       let stderr = ''
@@ -570,17 +620,21 @@ if ($res) {
       })
 
       ps.on('close', (code) => {
+        cleanup()
         if (code === 0 && stdout.includes('SUCCESS')) {
           resolve({ success: true })
         } else {
           resolve({
             success: false,
-            error: stderr || `Échec d'impression sur '${printerName}'. Vérifiez que l'imprimante est allumée et branchée.`
+            error:
+              stderr ||
+              `Échec d'impression sur '${printerName}'. Vérifiez que l'imprimante est allumée et branchée.`
           })
         }
       })
 
       ps.on('error', (err) => {
+        cleanup()
         resolve({ success: false, error: err.message })
       })
     })
@@ -588,6 +642,7 @@ if ($res) {
 
   /**
    * Print a complete payment receipt with 2 copies (Parent + Cashier)
+   * Dispatches copies separately with 750ms cutter cooldown to prevent jams and resets
    */
   static async printReceipt(
     data: ReceiptData,
@@ -597,18 +652,29 @@ if ($res) {
     try {
       const printerName = customPrinterName || this.getPrinterName()
 
-      const buffers: Buffer[] = []
-
       // Copy 1: Parent Copy
-      buffers.push(this.buildSingleReceiptBytes(data, 'PARENT'))
+      const copy1Bytes = this.buildSingleReceiptBytes(data, 'PARENT')
+      const res1 = await this.sendBytesToPrinter(
+        printerName,
+        copy1Bytes,
+        `Reçu ${data.receipt_number || ''} - Exemplaire Parent`
+      )
+      if (!res1.success) return res1
 
       // Copy 2: School / Cashier Copy (if requested)
       if (copies >= 2) {
-        buffers.push(this.buildSingleReceiptBytes(data, 'CAISSE'))
+        // Cooldown pause so the cutter blade returns home safely before sending copy 2
+        await new Promise((resolve) => setTimeout(resolve, 750))
+        const copy2Bytes = this.buildSingleReceiptBytes(data, 'CAISSE')
+        const res2 = await this.sendBytesToPrinter(
+          printerName,
+          copy2Bytes,
+          `Reçu ${data.receipt_number || ''} - Exemplaire Caisse`
+        )
+        return res2
       }
 
-      const allBytes = Buffer.concat(buffers)
-      return await this.sendBytesToPrinter(printerName, allBytes, `Reçu ${data.receipt_number || ''}`)
+      return res1
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Erreur impression thermique'
       return { success: false, error: message }

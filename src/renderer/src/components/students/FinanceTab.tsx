@@ -363,7 +363,9 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                   formData.payment_type === 'uniform'
                     ? `${formData.item}${formData.description ? ' - ' + formData.description : ''}`
                     : formData.description,
-                receipt_number: result.receipt_number || `REC-${Date.now().toString().slice(-6)}`,
+                receipt_number:
+                  result.receipt_number ||
+                  `REC-${new Date().getFullYear()}-C1-${Date.now().toString().slice(-5)}`,
                 is_duplicate: false
               },
               2
@@ -428,9 +430,9 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           month: payment.month || undefined,
           payment_method: payment.payment_method,
           description: payment.description || undefined,
-          receipt_number:
-            payment.receipt_number ||
-            `REC-${(payment.id || Date.now().toString()).slice(-6).toUpperCase()}`,
+          receipt_number: payment.receipt_number
+            ? payment.receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, 'REC-$1-C1-$2')
+            : `REC-${new Date().getFullYear()}-C1-${(payment.id || Date.now().toString()).slice(-5).toUpperCase()}`,
           is_duplicate: isDuplicate,
           duplicate_count: isDuplicate ? (payment.print_count || 0) + 1 : 1
         },
@@ -529,12 +531,19 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     const anyDuplicate = selectedPayments.some((p) => (p.print_count || 0) >= 1)
     const maxCount = Math.max(0, ...selectedPayments.map((p) => p.print_count || 0))
 
+    // Helper to normalize receipt numbers with station code
+    const normalizeReceiptNumber = (num?: string): string => {
+      if (!num) return ''
+      return num.replace(/^REC-(\d{4})-(\d{5})$/, 'REC-$1-C1-$2')
+    }
+
     // Clean grouped receipt number format: if all have same receipt_number use that, otherwise use range
     const validReceiptNums = selectedPayments
-      .map((p) => p.receipt_number)
+      .map((p) => normalizeReceiptNumber(p.receipt_number))
       .filter((r): r is string => Boolean(r && r.trim()))
 
-    let groupedReceiptNum = `REC-${Date.now().toString().slice(-6)}`
+    const currentYear = new Date().getFullYear().toString()
+    let groupedReceiptNum = `REC-${currentYear}-C1-${Date.now().toString().slice(-5)}`
     if (validReceiptNums.length === 1) {
       groupedReceiptNum = validReceiptNums[0]
     } else if (validReceiptNums.length > 1) {
@@ -585,6 +594,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
               : 'Reçu groupé imprimé en 2 exemplaires (Parent + Caisse)',
           { id: toastId }
         )
+        setSelectedPaymentIds([])
         loadData() // Reload to refresh print_count in table
       } else {
         toast.error(res.error || "Échec d'impression du reçu groupé", { id: toastId })
@@ -1483,7 +1493,9 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                       </td>
                       <td className="px-4 py-3 text-foreground">
                         <div className="font-mono text-xs font-semibold text-primary">
-                          {payment.receipt_number || '—'}
+                          {payment.receipt_number
+                            ? payment.receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, 'REC-$1-C1-$2')
+                            : '—'}
                         </div>
                         <div className="text-[11px] text-muted-foreground">
                           {format(new Date(payment.payment_date), 'dd MMM yyyy', { locale: fr })}
@@ -1529,10 +1541,24 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {(payment.print_count || 0) > 0 && (
+                          {(payment.print_count || 0) === 0 ? (
                             <span
-                              className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-medium shrink-0"
-                              title={`Ce reçu a été imprimé ${payment.print_count} fois (Duplicata)`}
+                              className="text-[10px] bg-gray-100 text-gray-600 border border-gray-200 px-1.5 py-0.5 rounded font-medium shrink-0"
+                              title="Ce reçu n'a pas encore été imprimé"
+                            >
+                              Non imprimé
+                            </span>
+                          ) : (payment.print_count || 0) === 1 ? (
+                            <span
+                              className="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 rounded font-medium shrink-0"
+                              title="Reçu original déjà délivré (1er tirage)"
+                            >
+                              Original émis
+                            </span>
+                          ) : (
+                            <span
+                              className="text-[10px] bg-amber-50 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded font-medium shrink-0"
+                              title={`Ce reçu a été réimprimé ${payment.print_count} fois (Duplicata)`}
                             >
                               Duplicata ({payment.print_count})
                             </span>
