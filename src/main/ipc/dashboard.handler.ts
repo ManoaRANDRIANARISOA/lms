@@ -45,10 +45,16 @@ export function registerDashboardHandlers(): void {
         db
           .prepare(
             `
-        SELECT COUNT(DISTINCT sf.student_id) as count 
-        FROM student_fees sf
-        JOIN students s ON s.id = sf.student_id
-        WHERE s.deleted = 0 AND sf.school_year = ? AND sf.class_name IS NOT NULL AND sf.class_name != 'Non inscrit' AND sf.class_name != 'Classe non spécifiée'
+        SELECT COUNT(DISTINCT s.id) as count 
+        FROM students s
+        LEFT JOIN student_fees sf ON sf.student_id = s.id 
+          AND REPLACE(REPLACE(sf.school_year, '"', ''), '''', '') = ? 
+          AND sf.deleted = 0
+        WHERE s.deleted = 0 
+          AND (
+            (sf.class_name IS NOT NULL AND sf.class_name != '' AND sf.class_name != 'Non inscrit' AND sf.class_name != 'Classe non spécifiée')
+            OR (s.class IS NOT NULL AND s.class != '' AND s.class != 'Non inscrit' AND s.class != 'Classe non spécifiée')
+          )
       `
           )
           .get(targetYear) as { count: number }
@@ -58,10 +64,21 @@ export function registerDashboardHandlers(): void {
         db
           .prepare(
             `
-        SELECT COUNT(DISTINCT sf.student_id) as count 
-        FROM student_fees sf
-        JOIN students s ON s.id = sf.student_id
-        WHERE sf.created_at >= date('now', 'start of month') AND s.deleted = 0 AND sf.school_year = ?
+        SELECT COUNT(DISTINCT s.id) as count 
+        FROM students s
+        LEFT JOIN student_fees sf ON sf.student_id = s.id 
+          AND REPLACE(REPLACE(sf.school_year, '"', ''), '''', '') = ? 
+          AND sf.deleted = 0
+        WHERE s.deleted = 0 
+          AND (
+            sf.created_at >= date('now', 'start of month')
+            OR s.created_at >= date('now', 'start of month')
+            OR s.enrollment_date >= date('now', 'start of month')
+          )
+          AND (
+            (sf.class_name IS NOT NULL AND sf.class_name != '' AND sf.class_name != 'Non inscrit' AND sf.class_name != 'Classe non spécifiée')
+            OR (s.class IS NOT NULL AND s.class != '' AND s.class != 'Non inscrit' AND s.class != 'Classe non spécifiée')
+          )
       `
           )
           .get(targetYear) as { count: number }
@@ -70,11 +87,19 @@ export function registerDashboardHandlers(): void {
       const studentsByClass = db
         .prepare(
           `
-        SELECT sf.class_name as class, COUNT(DISTINCT sf.student_id) as count 
-        FROM student_fees sf
-        JOIN students s ON s.id = sf.student_id
-        WHERE s.deleted = 0 AND sf.school_year = ? AND sf.class_name IS NOT NULL AND sf.class_name != 'Non inscrit' AND sf.class_name != 'Classe non spécifiée'
-        GROUP BY sf.class_name ORDER BY count DESC
+        SELECT 
+          COALESCE(NULLIF(sf.class_name, ''), s.class) as class, 
+          COUNT(DISTINCT s.id) as count 
+        FROM students s
+        LEFT JOIN student_fees sf ON sf.student_id = s.id 
+          AND REPLACE(REPLACE(sf.school_year, '"', ''), '''', '') = ? 
+          AND sf.deleted = 0
+        WHERE s.deleted = 0 
+          AND (
+            (sf.class_name IS NOT NULL AND sf.class_name != '' AND sf.class_name != 'Non inscrit' AND sf.class_name != 'Classe non spécifiée')
+            OR (s.class IS NOT NULL AND s.class != '' AND s.class != 'Non inscrit' AND s.class != 'Classe non spécifiée')
+          )
+        GROUP BY class ORDER BY count DESC
       `
         )
         .all(targetYear) as { class: string; count: number }[]
