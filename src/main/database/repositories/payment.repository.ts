@@ -633,14 +633,26 @@ export class PaymentRepository {
       ]
       const terminaleMonths = [...months, `${endYear}-07`]
 
-      // 1. Fetch Finance Config (prices)
-      let prices: Record<string, any> = {}
+      // 1. Fetch Finance Config (prices) with robust fallbacks
+      let prices: Record<string, any> = {
+        bus: { 'Zone 1': 30000, 'Zone 2': 40000, 'Zone 3': 50000 },
+        canteen: { daily: 2000, monthly: 40000 },
+        fram: 15000,
+        registration: 145000,
+        reenrollment: 115000
+      }
       try {
         const settingsRecord = db
           .prepare("SELECT value FROM settings WHERE key = 'finance_prices'")
           .get() as { value: string } | undefined
         if (settingsRecord?.value) {
-          prices = JSON.parse(settingsRecord.value)
+          const parsed = JSON.parse(settingsRecord.value)
+          prices = {
+            ...prices,
+            ...parsed,
+            bus: { ...prices.bus, ...(parsed.bus || {}) },
+            canteen: { ...prices.canteen, ...(parsed.canteen || {}) }
+          }
         }
       } catch {
         // Ignore parse errors

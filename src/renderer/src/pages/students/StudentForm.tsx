@@ -948,7 +948,7 @@ export default function StudentForm({
                       <div>
                         <div className="text-sm font-semibold">Nouvel Élève (Inscription)</div>
                         <div className="text-xs text-gray-500">
-                          Droit d'inscription : {(prices?.registration || 145000).toLocaleString()} Ar
+                          Droit d'inscription : {(prices?.registration && prices.registration > 0 && prices.registration !== 20000 ? prices.registration : 145000).toLocaleString()} Ar
                         </div>
                       </div>
                     </label>
@@ -971,7 +971,7 @@ export default function StudentForm({
                       <div>
                         <div className="text-sm font-semibold">Ancien Élève (Réinscription)</div>
                         <div className="text-xs text-gray-500">
-                          Droit de réinscription : {(prices?.reenrollment || 115000).toLocaleString()} Ar
+                          Droit de réinscription : {(prices?.reenrollment && prices.reenrollment > 0 && prices.reenrollment !== 10000 ? prices.reenrollment : 115000).toLocaleString()} Ar
                         </div>
                       </div>
                     </label>

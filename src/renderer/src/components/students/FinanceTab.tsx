@@ -210,11 +210,19 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
       const cost = getBusCost(currentRecord, configPrices)
       if (cost > 0) suggestedAmount = cost.toString()
     } else if (formData.payment_type === 'enrollment') {
-      if (configPrices.registration) suggestedAmount = configPrices.registration.toString()
+      const reg =
+        configPrices.registration && configPrices.registration > 0 && configPrices.registration !== 20000
+          ? configPrices.registration
+          : 145000
+      suggestedAmount = reg.toString()
     } else if (formData.payment_type === 'reenrollment') {
-      if (configPrices.reenrollment) suggestedAmount = configPrices.reenrollment.toString()
+      const reen =
+        configPrices.reenrollment && configPrices.reenrollment > 0 && configPrices.reenrollment !== 10000
+          ? configPrices.reenrollment
+          : 115000
+      suggestedAmount = reen.toString()
     } else if (formData.payment_type === 'fram') {
-      if (configPrices.fram) suggestedAmount = configPrices.fram.toString()
+      suggestedAmount = (configPrices.fram || 15000).toString()
     } else if (formData.payment_type === 'uniform') {
       // Handle uniform item selection
       const items = Object.keys(configPrices.uniforms || {})
@@ -631,7 +639,16 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
   const enrollmentType = isReturning ? 'reenrollment' : 'enrollment'
   const enrollmentLabel = isReturning ? 'Réinscription' : "Frais d'inscription"
 
-  const enrollmentExpected = isReturning ? configPrices?.reenrollment : configPrices?.registration
+  const safeRegPrice =
+    configPrices?.registration && configPrices.registration > 0 && configPrices.registration !== 20000
+      ? configPrices.registration
+      : 145000
+  const safeReenPrice =
+    configPrices?.reenrollment && configPrices.reenrollment > 0 && configPrices.reenrollment !== 10000
+      ? configPrices.reenrollment
+      : 115000
+
+  const enrollmentExpected = isReturning ? safeReenPrice : safeRegPrice
   const enrollmentPaidAmt = payments
     .filter((p) => p.payment_type === 'enrollment' || p.payment_type === 'reenrollment')
     .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
@@ -643,7 +660,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     return 'pending'
   }
 
-  const framExpected = configPrices?.fram || 0
+  const framExpected = configPrices?.fram || 15000
   const framPaidAmt = payments
     .filter((p) => p.payment_type === 'fram')
     .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)

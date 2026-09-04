@@ -14,6 +14,7 @@
 import { create } from 'zustand'
 import type { User, Resource, AccessLevel } from '@shared/types'
 import { handleStoreError } from '@/lib/store-utils'
+import { useFinanceStore } from './useFinanceStore'
 
 // --------------------------------------------
 // Types
@@ -82,6 +83,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
         // Fetch permissions after login
         await get().fetchPermissions()
+        // Immediately fetch dynamic finance prices for this authenticated session
+        await useFinanceStore.getState().fetchPrices()
         return true
       } else {
         set({
@@ -112,6 +115,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       isAuthenticated: false,
       error: null
     })
+    useFinanceStore.getState().fetchPrices()
   },
 
   checkExistingSession: async () => {
@@ -133,6 +137,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           loading: false
         })
         await get().fetchPermissions()
+        await useFinanceStore.getState().fetchPrices()
       } else {
         // Session invalid, try getCurrentUser as fallback
         const currentUser = await window.api.auth.getCurrentUser()
@@ -143,6 +148,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
             loading: false
           })
           await get().fetchPermissions()
+          await useFinanceStore.getState().fetchPrices()
         } else {
           localStorage.removeItem('session_token')
           set({

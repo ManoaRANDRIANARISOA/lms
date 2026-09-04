@@ -148,6 +148,34 @@ export class StudentRepository {
     return config.price
   }
 
+  private static readonly DEFAULT_TUITION_MAP: Record<string, number> = {
+    PS: 60000,
+    MS: 60000,
+    GS: 60000,
+    CP1: 70000,
+    CP2: 70000,
+    CP: 70000,
+    CE1: 70000,
+    CE2: 70000,
+    CM1: 80000,
+    CM2: 80000,
+    '6ème': 90000,
+    '6eme': 90000,
+    '5ème': 90000,
+    '5eme': 90000,
+    '4ème': 100000,
+    '4eme': 100000,
+    '3ème': 100000,
+    '3eme': 100000,
+    '2nde': 110000,
+    Seconde: 110000,
+    '1ère': 110000,
+    Première: 110000,
+    TA: 120000,
+    TD: 120000,
+    Terminale: 120000
+  }
+
   static resolveTuitionConfig(className: string): { price: number; key: string } {
     if (!className) return { price: 0, key: '' }
 
@@ -163,18 +191,34 @@ export class StudentRepository {
       console.error('Error resolving tuition config:', e)
     }
 
-    const tuitionPrices = prices && prices.tuition ? prices.tuition : {}
+    const tuitionPrices =
+      prices && prices.tuition && Object.keys(prices.tuition).length > 0
+        ? (prices.tuition as Record<string, number>)
+        : this.DEFAULT_TUITION_MAP
 
-    // Try to find matching key in tuition prices
     const keys = Object.keys(tuitionPrices)
-    // Sort by length descending to match longest specific key first
     keys.sort((a, b) => b.length - a.length)
 
-    const normalizedClass = className.trim()
+    const normalizedClass = className.trim().toLowerCase()
 
+    // 1. Exact match first
     for (const key of keys) {
-      if (normalizedClass.includes(key)) {
+      if (normalizedClass === key.trim().toLowerCase()) {
         return { price: Number(tuitionPrices[key]) || 0, key: key }
+      }
+    }
+
+    // 2. Contains match
+    for (const key of keys) {
+      if (normalizedClass.includes(key.trim().toLowerCase())) {
+        return { price: Number(tuitionPrices[key]) || 0, key: key }
+      }
+    }
+
+    // 3. Fallback to default map if custom prices did not match
+    for (const [key, price] of Object.entries(this.DEFAULT_TUITION_MAP)) {
+      if (normalizedClass.includes(key.toLowerCase())) {
+        return { price, key }
       }
     }
 
@@ -1105,7 +1149,17 @@ export class StudentRepository {
 
       // Create New Fee Record (Enrollment History)
       const feeId = uuidv4()
-      const isFramFullyPaid = initialPaymentFram && initialPaymentFram >= 15000 // FRAM = 15 000 Ar
+      let expectedFram = 15000
+      try {
+        const fpRow = db
+          .prepare("SELECT value FROM settings WHERE key = 'finance_prices'")
+          .get() as { value: string } | undefined
+        if (fpRow?.value) {
+          const parsed = JSON.parse(fpRow.value)
+          if (Number(parsed?.fram) > 0) expectedFram = Number(parsed.fram)
+        }
+      } catch {}
+      const isFramFullyPaid = initialPaymentFram && initialPaymentFram >= expectedFram
       db.prepare(
         `
             INSERT INTO student_fees (

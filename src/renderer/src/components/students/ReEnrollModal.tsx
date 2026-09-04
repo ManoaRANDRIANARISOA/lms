@@ -124,8 +124,10 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
   }, [student.id, targetYear])
 
   useEffect(() => {
-    fetchPrices()
-  }, [fetchPrices])
+    if (isOpen) {
+      fetchPrices()
+    }
+  }, [isOpen, fetchPrices])
 
   useEffect(() => {
     if (student.id && targetYear && window.api) {
@@ -159,9 +161,17 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
       }
     }
   }, [student.class, availableClasses, annualAverage])
-  const enrollmentAmount = actualIsNewStudent
-    ? prices?.registration || 145000
-    : prices?.reenrollment || 115000
+
+  const safeRegPrice =
+    prices?.registration && prices.registration > 0 && prices.registration !== 20000
+      ? prices.registration
+      : 145000
+  const safeReenPrice =
+    prices?.reenrollment && prices.reenrollment > 0 && prices.reenrollment !== 10000
+      ? prices.reenrollment
+      : 115000
+
+  const enrollmentAmount = actualIsNewStudent ? safeRegPrice : safeReenPrice
   const actualFramAmount = framFratrieStatus.isPaid ? 0 : prices?.fram || 15000
   const totalExpected = enrollmentAmount + actualFramAmount
 

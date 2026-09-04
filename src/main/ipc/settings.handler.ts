@@ -34,12 +34,14 @@ export function registerSettingsHandlers(): void {
       'auth_require_password_change',
       'finance_prices',
       'classes',
+      'class_sections',
       'tuition_preschool',
       'tuition_primary',
       'tuition_middle',
       'tuition_high',
       'printer_name',
-      'printer_copies'
+      'printer_copies',
+      'pos_station_code'
     ]
 
     if (!PUBLIC_SETTINGS.includes(key) && !canRead('settings')) {
@@ -61,12 +63,14 @@ export function registerSettingsHandlers(): void {
         'auth_require_password_change',
         'finance_prices',
         'classes',
+        'class_sections',
         'tuition_preschool',
         'tuition_primary',
         'tuition_middle',
         'tuition_high',
         'printer_name',
-        'printer_copies'
+        'printer_copies',
+        'pos_station_code'
       ]
       const filtered: Record<string, unknown> = {}
       for (const key of PUBLIC_SETTINGS) {
@@ -78,10 +82,15 @@ export function registerSettingsHandlers(): void {
   })
 
   // --------------------------------------------
-  // SET SETTING (admin only)
+  // SET SETTING (admin or accounting for finance prices)
   // --------------------------------------------
   ipcMain.handle('settings:set', async (_, key: string, value: unknown) => {
-    if (!canWrite('settings')) {
+    const isFinanceSetting =
+      key === 'finance_prices' ||
+      key.startsWith('tuition_') ||
+      key === 'canteen_daily_rate'
+
+    if (!canWrite('settings') && !(isFinanceSetting && canWrite('payments'))) {
       return { success: false, error: 'Accès refusé: modification paramètres' }
     }
 

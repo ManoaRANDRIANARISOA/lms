@@ -160,11 +160,13 @@ export default function FinanceConfig() {
     })
   }
 
+  const canEditFinance = canWrite('settings') || canWrite('payments')
+
   if (loading) return <div className="p-4">Chargement...</div>
 
   return (
     <div className="space-y-6">
-      <ReadOnlyBanner resource="settings" />
+      {!canEditFinance && <ReadOnlyBanner resource="payments" />}
 
       {message && (
         <div
@@ -178,7 +180,7 @@ export default function FinanceConfig() {
       )}
 
       <div className="flex justify-end">
-        {canWrite('settings') && (
+        {canEditFinance && (
           <Button onClick={saveSettings} disabled={saving}>
             {saving ? 'Enregistrement...' : 'Enregistrer les modifications'}
           </Button>
