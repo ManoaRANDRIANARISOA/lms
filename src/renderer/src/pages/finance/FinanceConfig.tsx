@@ -160,13 +160,13 @@ export default function FinanceConfig() {
     })
   }
 
-  const canEditFinance = canWrite('settings') || canWrite('payments')
+  const canEditFinance = canWrite('settings')
 
   if (loading) return <div className="p-4">Chargement...</div>
 
   return (
     <div className="space-y-6">
-      {!canEditFinance && <ReadOnlyBanner resource="payments" />}
+      {!canEditFinance && <ReadOnlyBanner resource="settings" />}
 
       {message && (
         <div

@@ -82,15 +82,10 @@ export function registerSettingsHandlers(): void {
   })
 
   // --------------------------------------------
-  // SET SETTING (admin or accounting for finance prices)
+  // SET SETTING (admin only)
   // --------------------------------------------
   ipcMain.handle('settings:set', async (_, key: string, value: unknown) => {
-    const isFinanceSetting =
-      key === 'finance_prices' ||
-      key.startsWith('tuition_') ||
-      key === 'canteen_daily_rate'
-
-    if (!canWrite('settings') && !(isFinanceSetting && canWrite('payments'))) {
+    if (!canWrite('settings')) {
       return { success: false, error: 'Accès refusé: modification paramètres' }
     }
 

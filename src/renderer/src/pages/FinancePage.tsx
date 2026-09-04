@@ -3,10 +3,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 import FinanceJournal from '@/pages/finance/FinanceJournal'
 import FinanceConfig from '@/pages/finance/FinanceConfig'
+import { usePermissions } from '@/lib/usePermissions'
 
 export default function FinancePage() {
   const [activeTab, setActiveTab] = useState('journal')
   const [refreshKey, setRefreshKey] = useState(0)
+  const { canRead } = usePermissions()
+  const canAccessSettings = canRead('settings')
 
   const handleTabChange = (value: string) => {
     if (value === 'journal') setRefreshKey((k) => k + 1)
@@ -23,16 +26,18 @@ export default function FinancePage() {
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList>
           <TabsTrigger value="journal">Journal de Caisse</TabsTrigger>
-          <TabsTrigger value="settings">Configuration</TabsTrigger>
+          {canAccessSettings && <TabsTrigger value="settings">Configuration</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="journal">
           <FinanceJournal key={`journal-${refreshKey}`} />
         </TabsContent>
 
-        <TabsContent value="settings">
-          <FinanceConfig />
-        </TabsContent>
+        {canAccessSettings && (
+          <TabsContent value="settings">
+            <FinanceConfig />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   )

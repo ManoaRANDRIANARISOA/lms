@@ -211,7 +211,7 @@ export default function Sidebar(): React.JSX.Element {
           items={[
             { to: '/finance', label: 'Journal', resource: 'payments', exact: true },
             { to: '/finance/alertes', label: 'Alertes impayés', resource: 'payments' },
-            { to: '/finance/config', label: 'Configuration', resource: 'payments' }
+            { to: '/finance/config', label: 'Configuration', resource: 'settings' }
           ]}
         />
 
