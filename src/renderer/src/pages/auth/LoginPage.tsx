@@ -8,8 +8,9 @@
  * @module LoginPage
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/useAuthStore'
+import { useSyncStore } from '@/store/useSyncStore'
 import logo from '@/assets/logo.png'
 
 export default function LoginPage(): React.JSX.Element {
@@ -21,6 +22,15 @@ export default function LoginPage(): React.JSX.Element {
   const loading = useAuthStore((s) => s.loading)
   const error = useAuthStore((s) => s.error)
   const clearError = useAuthStore((s) => s.clearError)
+  const appVersion = useSyncStore((s) => s.appVersion)
+
+  useEffect(() => {
+    if (window.api?.app?.getVersion) {
+      window.api.app.getVersion().then((v) => {
+        if (v) useSyncStore.setState({ appVersion: v })
+      })
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -125,7 +135,7 @@ export default function LoginPage(): React.JSX.Element {
 
         {/* Footer */}
         <p className="text-center text-xs text-muted-foreground mt-6">
-          Lycée Manjary Soa — Gestion Scolaire v1.0
+          Lycée Manjary Soa — Gestion Scolaire v{appVersion}
         </p>
       </div>
     </div>

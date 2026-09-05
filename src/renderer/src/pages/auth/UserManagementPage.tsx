@@ -16,6 +16,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/useAuthStore'
+import { RefreshCw } from 'lucide-react'
 import type { UserRow, UserRole } from '@shared/types'
 
 // --------------------------------------------
@@ -72,6 +73,9 @@ export default function UserManagementPage(): React.JSX.Element {
 
   useEffect(() => {
     fetchUsers()
+    const handleSync = () => fetchUsers()
+    window.addEventListener('app:sync-completed', handleSync)
+    return () => window.removeEventListener('app:sync-completed', handleSync)
   }, [])
 
   // --------------------------------------------
@@ -114,14 +118,25 @@ export default function UserManagementPage(): React.JSX.Element {
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Gestion des Utilisateurs</h1>
-        {canWrite('users') && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={handleCreate}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+            onClick={fetchUsers}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm border rounded-md hover:bg-muted transition-colors disabled:opacity-50"
+            title="Actualiser la liste des utilisateurs"
           >
-            + Nouvel utilisateur
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>Rafraîchir</span>
           </button>
-        )}
+          {canWrite('users') && (
+            <button
+              onClick={handleCreate}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-sm font-medium"
+            >
+              + Nouvel utilisateur
+            </button>
+          )}
+        </div>
       </div>
 
       {error && (

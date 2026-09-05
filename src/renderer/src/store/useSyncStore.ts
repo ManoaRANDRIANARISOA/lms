@@ -122,6 +122,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       await get().fetchStatus()
       await get().fetchErrors()
       if (result && result.success) {
+        window.dispatchEvent(new CustomEvent('app:sync-completed'))
         toast.success(
           forceFull
             ? 'Récupération complète effectuée avec succès !'
@@ -187,6 +188,9 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     let removeProgressListener = () => {}
     if (window.api?.sync?.onProgress) {
       removeProgressListener = window.api.sync.onProgress((data) => {
+        if (data.phase === 'success') {
+          window.dispatchEvent(new CustomEvent('app:sync-completed'))
+        }
         set((state) => ({
           isSyncing: data.phase === 'checking' || data.phase === 'pushing' || data.phase === 'pulling',
           progress: {
