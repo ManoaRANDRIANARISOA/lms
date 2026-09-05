@@ -4,6 +4,7 @@ import { useStudentStore } from '@/store/useStudentStore'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ReEnrollModal } from '@/components/students/ReEnrollModal'
+import { StudentDepartureModal } from '@/components/students/StudentDepartureModal'
 import { FinanceTab } from '@/components/students/FinanceTab'
 import {
   ArrowLeft,
@@ -72,6 +73,7 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
   } = useStudentStore()
   const [imageError, setImageError] = useState(false)
   const [isReEnrollOpen, setIsReEnrollOpen] = useState(false)
+  const [isDepartureModalOpen, setIsDepartureModalOpen] = useState(false)
   const [selectedYear, setSelectedYear] = useState<string>('')
   const [events, setEvents] = useState<any[]>([])
   const [personnelParent, setPersonnelParent] = useState<any>(null)
@@ -491,9 +493,9 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                           variant="outline"
                           size="sm"
                           className="text-xs h-7"
-                          onClick={() => {
+                          onClick={async () => {
                             if (confirm('Réintégrer cet élève ? Sa date de départ sera effacée.')) {
-                              updateStudent(studentId, { departure_date: undefined })
+                              await updateStudent(studentId, { departure_date: null as any })
                             }
                           }}
                         >
@@ -502,27 +504,12 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                       )}
                     </div>
                   ) : (
-                    canWrite('students') &&
-                    currentFeesHistory &&
-                    currentFeesHistory.length > 0 && (
+                    canWrite('students') && (
                       <Button
                         variant="outline"
                         size="sm"
                         className="text-xs h-7 text-red-600 border-red-200 hover:bg-red-50"
-                        onClick={() => {
-                          const date = prompt(
-                            'Date de départ (AAAA-MM-JJ) :',
-                            new Date().toISOString().split('T')[0]
-                          )
-                          if (
-                            date &&
-                            confirm(
-                              `Confirmer le départ de cet élève au ${new Date(date).toLocaleDateString('fr-FR')} ?\n\nLes impayés après cette date ne seront plus comptabilisés.`
-                            )
-                          ) {
-                            updateStudent(studentId, { departure_date: date })
-                          }
-                        }}
+                        onClick={() => setIsDepartureModalOpen(true)}
                       >
                         Marquer comme ayant quitté
                       </Button>
@@ -839,6 +826,18 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
           enrolledYears={currentFeesHistory?.map((f) => f.school_year) || []}
           onSuccess={handleReEnrollSuccess}
         />
+
+        {currentStudent && (
+          <StudentDepartureModal
+            isOpen={isDepartureModalOpen}
+            onClose={() => setIsDepartureModalOpen(false)}
+            studentName={`${currentStudent.first_name} ${currentStudent.last_name}`}
+            onConfirm={async (date) => {
+              const res = await updateStudent(studentId, { departure_date: date })
+              return res
+            }}
+          />
+        )}
       </div>
     </div>
   )

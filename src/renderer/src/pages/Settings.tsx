@@ -10,6 +10,17 @@ import { Trash2, Plus, AlertTriangle, Trash, Printer, CheckCircle2, RefreshCw, W
 import EmailSettings from '@/pages/settings/EmailSettings'
 import AssessmentSettings from '@/pages/settings/AssessmentSettings'
 
+function normalizeStationCode(raw?: string | null): string {
+  if (!raw) return 'C1'
+  const trimmed = String(raw).trim().toUpperCase()
+  const numMatch = trimmed.match(/^(?:CAISSE\s*|POSTE\s*|C)?\s*(\d+)$/i)
+  if (numMatch) {
+    return `C${numMatch[1]}`
+  }
+  const clean = trimmed.replace(/[^A-Z0-9]/g, '')
+  return clean || 'C1'
+}
+
 export default function Settings() {
   const canRead = useAuthStore((s) => s.canRead)
   const canWrite = useAuthStore((s) => s.canWrite)
@@ -119,7 +130,7 @@ export default function Settings() {
           }
           if (pName) setPrinterName(pName as string)
           if (pCopies) setPrinterCopies(String(pCopies))
-          if (pStation) setStationCode(pStation as string)
+          if (pStation) setStationCode(normalizeStationCode(pStation as string))
 
           if (window.api.printer?.getPrinters) {
             const plist = await window.api.printer.getPrinters()
@@ -190,6 +201,28 @@ export default function Settings() {
     }
   }
 
+  const [detectingPort, setDetectingPort] = useState(false)
+  const handleAutoDetectPort = async () => {
+    setDetectingPort(true)
+    setInstallError(null)
+    setInstallSuccess(null)
+    try {
+      if (window.api.printer?.autoDetectPort) {
+        const res = await window.api.printer.autoDetectPort()
+        if (res.success) {
+          setInstallSuccess(res.message || 'Port USB détecté et réassigné avec succès !')
+          await checkPrinterInstallation()
+        } else {
+          setInstallError(res.error || 'Impossible de réassigner le port USB.')
+        }
+      }
+    } catch (e: any) {
+      setInstallError(e?.message || 'Erreur auto-détection')
+    } finally {
+      setDetectingPort(false)
+    }
+  }
+
   const handleSaveConfig = async () => {
     setLoading(true)
     setMessage('')
@@ -200,7 +233,7 @@ export default function Settings() {
         await window.api.settings.set('school_logo', schoolLogo)
         await window.api.settings.set('printer_name', printerName)
         await window.api.settings.set('printer_copies', parseInt(printerCopies) || 2)
-        await window.api.settings.set('pos_station_code', stationCode || 'C1')
+        await window.api.settings.set('pos_station_code', normalizeStationCode(stationCode))
 
         // Mettre à jour le store global instantanément pour éviter de devoir redémarrer
         await useAppStore.getState().fetchSettings()
@@ -483,13 +516,14 @@ export default function Settings() {
                 onChange={(e) => setStationCode(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <option value="C1">Poste C1 (Caisse Principale / Secrétariat) — ex: REC-2026-C1-00062</option>
-                <option value="C2">Poste C2 (Caisse Secondaire / Direction) — ex: REC-2026-C2-00001</option>
-                <option value="C3">Poste C3 (Comptabilité / Bureau 3) — ex: REC-2026-C3-00001</option>
-                <option value="C4">Poste C4 (Caisse 4) — ex: REC-2026-C4-00001</option>
+                <option value="C1">Caisse C1 (Caisse Principale / Secrétariat) — ex: REC-2026-C1-00062</option>
+                <option value="C2">Caisse C2 (Caisse Secondaire / Direction) — ex: REC-2026-C2-00001</option>
+                <option value="C3">Caisse C3 (Comptabilité / Bureau 3) — ex: REC-2026-C3-00001</option>
+                <option value="C4">Caisse C4 (Guichet 4) — ex: REC-2026-C4-00001</option>
+                <option value="C5">Caisse C5 (Guichet 5) — ex: REC-2026-C5-00001</option>
               </select>
               <p className="text-xs text-gray-500">
-                Chaque ordinateur doit avoir son propre identifiant pour garantir qu'aucun reçu ne porte le même numéro en mode hors-ligne.
+                Chaque poste de travail doit être configuré avec son propre numéro de caisse (C1, C2, etc.) afin que la numérotation des reçus (<code>REC-AAAA-Cx-XXXXX</code>) soit strictement séquentielle et sans aucun risque de doublon entre les stations en mode hors-ligne.
               </p>
             </div>
 
@@ -563,6 +597,28 @@ export default function Settings() {
                       <>
                         <Wrench className="w-3.5 h-3.5 mr-1.5" />
                         Initialiser l'imprimante POS-80 (Automatique)
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAutoDetectPort}
+                    disabled={detectingPort || installingPrinter}
+                    className="text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                    title="Détecte automatiquement le port USB (USB001, USB002...) de la Xprinter et résout les conflits avec d'autres imprimantes (Nicon/Canon)"
+                  >
+                    {detectingPort ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                        Détection du port...
+                      </>
+                    ) : (
+                      <>
+                        <Wrench className="w-3.5 h-3.5 mr-1.5" />
+                        Auto-détecter port USB (Conflit Nicon)
                       </>
                     )}
                   </Button>

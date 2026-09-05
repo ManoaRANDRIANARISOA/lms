@@ -15,6 +15,8 @@
  */
 
 import { ipcMain } from 'electron'
+import db from '../database/db'
+import { addToSyncQueue } from '../services/sync.service'
 import { SettingsRepository } from '../database/repositories/settings.repository'
 import { canRead, canWrite } from '../auth/rbac.service'
 import { logAction } from '../auth/audit.service'
@@ -108,5 +110,55 @@ export function registerSettingsHandlers(): void {
       )
     }
     return { success: result }
+  })
+
+  // --------------------------------------------
+  // RENAME BUS ROUTE (and cascade to student_fees)
+  // --------------------------------------------
+  ipcMain.handle('settings:renameBusRoute', async (_, oldRoute: string, newRoute: string) => {
+    if (!canWrite('settings')) {
+      return { success: false, error: 'Accès refusé: modification paramètres' }
+    }
+    if (!oldRoute || !newRoute || oldRoute.trim() === newRoute.trim()) {
+      return { success: false, error: 'Noms de zone invalides' }
+    }
+
+    try {
+      const trimmedOld = oldRoute.trim()
+      const trimmedNew = newRoute.trim()
+
+      // Find affected student fees
+      const affectedRows = db
+        .prepare('SELECT id, student_id FROM student_fees WHERE bus_route = ?')
+        .all(trimmedOld) as { id: string; student_id: string }[]
+
+      if (affectedRows.length > 0) {
+        db.prepare(
+          'UPDATE student_fees SET bus_route = ?, updated_at = CURRENT_TIMESTAMP WHERE bus_route = ?'
+        ).run(trimmedNew, trimmedOld)
+
+        for (const row of affectedRows) {
+          addToSyncQueue('student_fees', row.id, 'update', {
+            id: row.id,
+            bus_route: trimmedNew,
+            updated_at: new Date().toISOString()
+          })
+        }
+      }
+
+      logAction(
+        getCurrentUser()?.id || null,
+        'update',
+        'settings',
+        'bus_route_renamed',
+        JSON.stringify({ old: trimmedOld, count: affectedRows.length }),
+        JSON.stringify({ new: trimmedNew })
+      )
+
+      return { success: true, affectedStudentsCount: affectedRows.length }
+    } catch (err: any) {
+      console.error('Error cascading bus route rename:', err)
+      return { success: false, error: err.message }
+    }
   })
 }

@@ -65,10 +65,22 @@ export function registerEmailHandlers(): void {
     return { success: true, logs: EmailService.getLogs() }
   })
 
-  ipcMain.handle('email:sendDailyReport', async () => {
-    if (!canWrite('reports')) {
+  ipcMain.handle('email:sendDailyReport', async (_, targetDate?: string) => {
+    if (!canWrite('reports') && !canWrite('settings')) {
       return { success: false, error: 'Accès refusé' }
     }
-    return EmailService.sendDailyReport()
+    const result = await EmailService.sendDailyReport(targetDate)
+    if (result.success) {
+      const user = getCurrentUser()
+      logAction(
+        user?.id || null,
+        'create',
+        'reports',
+        null,
+        null,
+        `Bilan journalier envoyé par email (${targetDate || 'aujourd\'hui'})`
+      )
+    }
+    return result
   })
 }

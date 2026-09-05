@@ -24,10 +24,12 @@ import {
   ClipboardCheck,
   CalendarDays,
   FileText,
-  LogOut,
   type LucideIcon
 } from 'lucide-react'
 import type { Resource } from '@shared/types'
+import { SyncStatusWidget } from '@/components/sync/SyncStatusWidget'
+import { SyncProgressModal } from '@/components/sync/SyncProgressModal'
+import { useSyncStore } from '@/store/useSyncStore'
 
 // --------------------------------------------
 // Types
@@ -147,8 +149,6 @@ import logo from '@/assets/logo.png'
 // Sidebar Component
 // --------------------------------------------
 export default function Sidebar(): React.JSX.Element {
-  const user = useAuthStore((s) => s.user)
-  const logout = useAuthStore((s) => s.logout)
   const location = useLocation()
 
   // CRITICAL: We must subscribe to permissions to trigger a re-render
@@ -171,12 +171,7 @@ export default function Sidebar(): React.JSX.Element {
     setOpenModule((prev) => (prev === moduleName ? null : moduleName))
   }
 
-  const roleLabels: Record<string, string> = {
-    admin: 'Administrateur',
-    secretariat: 'Secrétariat',
-    accounting: 'Comptabilité',
-    direction: 'Direction'
-  }
+  const appVersion = useSyncStore((s) => s.appVersion)
 
   return (
     <aside className="w-64 bg-primary text-primary-foreground p-4 flex flex-col shadow-xl z-10">
@@ -268,27 +263,16 @@ export default function Sidebar(): React.JSX.Element {
         />
       </nav>
 
-      {/* Infos utilisateur + Déconnexion */}
-      <div className="border-t border-primary-foreground/20 pt-4 mt-4">
-        <div className="px-2 mb-3">
-          <div className="text-sm font-medium truncate">
-            {user?.full_name || user?.username || 'Utilisateur'}
-          </div>
-          <div className="text-xs text-primary-foreground/60">
-            {user ? roleLabels[user.role] || user.role : ''}
-          </div>
-        </div>
-        <button
-          onClick={logout}
-          className="w-full flex items-center gap-3 py-2 px-4 rounded-md transition-colors text-sm hover:bg-primary-foreground/10 text-primary-foreground/90 hover:text-primary-foreground"
-        >
-          <LogOut className="w-4 h-4 flex-shrink-0" />
-          <span className="flex-1 text-left">Déconnexion</span>
-        </button>
+      {/* Widget unifié : Profil Utilisateur, Statut Cloud & Actions Rapides */}
+      <SyncStatusWidget />
+
+      {/* Version dynamique */}
+      <div className="text-[11px] text-primary-foreground/40 text-center mt-1.5 font-mono">
+        v{appVersion}
       </div>
 
-      {/* Version */}
-      <div className="text-xs text-primary-foreground/40 text-center mt-2">v1.0.0</div>
+      {/* Modal de progression et détails de synchronisation */}
+      <SyncProgressModal />
     </aside>
   )
 }

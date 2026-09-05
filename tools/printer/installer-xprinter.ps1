@@ -50,22 +50,38 @@ if ($existingDriver) {
     }
 }
 
-# 4. Détection du port USB
-Write-Host "[3/3] Detection du port USB pour l'imprimante thermique..." -ForegroundColor Yellow
+# 4. Détection intelligente du port USB (évite les conflits avec d'autres imprimantes comme Canon/Nicon)
+Write-Host "[3/3] Detection intelligente du port USB pour l'imprimante thermique..." -ForegroundColor Yellow
+
+$occupiedPorts = @()
+try {
+    $otherPrinters = Get-Printer -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne "POS-80" -and $_.PortName -like "USB*" }
+    if ($otherPrinters) {
+        $occupiedPorts = $otherPrinters | ForEach-Object { $_.PortName }
+        Write-Host "  -> Ports USB deja occupes par d'autres peripheriques/imprimantes : $($occupiedPorts -join ', ')" -ForegroundColor Cyan
+    }
+} catch {}
+
+$availableUsbPorts = @("USB001", "USB002", "USB003", "USB004", "USB005")
 $printerPort = "USB001"
+foreach ($p in $availableUsbPorts) {
+    if ($occupiedPorts -notcontains $p) {
+        $printerPort = $p
+        break
+    }
+}
+
 try {
     $usbPrint = Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue | Where-Object { 
-        $_.Service -eq "usbprint" -or $_.Name -like "*POS*" -or $_.Name -like "*Printer*" 
+        $_.Service -eq "usbprint" -or $_.Name -like "*POS*" -or $_.Name -like "*Xprinter*" 
     }
     if ($usbPrint) {
         $pName = if ($usbPrint -is [array]) { $usbPrint[0].Name } else { $usbPrint.Name }
-        Write-Host "  -> Peripherique USB detecte : $pName" -ForegroundColor Green
-    } else {
-        Write-Host "  -> Aucun periph USB specifique detecte. Utilisation du port par defaut : $printerPort" -ForegroundColor Yellow
+        Write-Host "  -> Peripherique USB thermique detecte : $pName" -ForegroundColor Green
     }
-} catch {
-    Write-Host "  -> Utilisation du port par defaut : $printerPort" -ForegroundColor Yellow
-}
+} catch {}
+
+Write-Host "  -> Port selectionne pour POS-80 : $printerPort" -ForegroundColor Green
 
 # 5. Création ou Mise à jour de l'imprimante POS-80
 if ($existingPrinter) {

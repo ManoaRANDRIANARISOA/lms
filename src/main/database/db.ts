@@ -252,4 +252,21 @@ try {
   console.error('Cleanup error:', e)
 }
 
+// AUDIT & RECOVERY: Ensure settings_history table exists for rollbacks and tracking
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS settings_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key TEXT NOT NULL,
+      old_value TEXT,
+      new_value TEXT,
+      changed_by TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_settings_history_key ON settings_history(key);
+  `)
+} catch (e) {
+  console.error('Failed to create settings_history table:', e)
+}
+
 export default db

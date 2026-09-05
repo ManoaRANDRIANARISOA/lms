@@ -168,6 +168,7 @@ export class UserRepository {
       addToSyncQueue('users', id, 'create', {
         id,
         username: input.username,
+        password_hash: passwordHash,
         role: input.role,
         full_name: input.full_name || null,
         email: input.email || null,
@@ -377,6 +378,8 @@ export class UserRepository {
       `
       ).run(newHash, userId)
 
+      addToSyncQueue('users', userId, 'update', { password_hash: newHash })
+
       return { success: true }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
@@ -412,6 +415,8 @@ export class UserRepository {
         WHERE id = ?
       `
       ).run(newHash, userId)
+
+      addToSyncQueue('users', userId, 'update', { password_hash: newHash })
 
       return { success: true }
     } catch (error: unknown) {

@@ -17,6 +17,7 @@ import path from 'path'
 import fs from 'fs'
 import { spawn } from 'child_process'
 import { SettingsRepository } from '../database/repositories/settings.repository'
+import { normalizeStationCode } from '../database/repositories/payment.repository'
 
 export interface ReceiptItem {
   label: string
@@ -383,8 +384,9 @@ export class ThermalPrinterService {
     buffers.push(Buffer.from([0x1b, 0x61, 0x00])) // Left align
 
     const currentYear = new Date().getFullYear().toString()
-    const stationCode =
-      (SettingsRepository.get('pos_station_code') as string) || 'C1'
+    const stationCode = normalizeStationCode(
+      SettingsRepository.get('pos_station_code') as string
+    )
     const fallbackReceiptNum = `REC-${currentYear}-${stationCode}-${Date.now().toString().slice(-5)}`
     let receiptNum = (data.receipt_number || fallbackReceiptNum).trim()
     // Normalize legacy format: REC-2026-00019 -> REC-2026-C1-00019
@@ -873,6 +875,111 @@ if ($res) { Write-Output "SUCCESS" } else { Write-Output "FAILED" }
           isInstalled: false,
           error: `Erreur d'exécution de l'assistant : ${err.message}`
         })
+      })
+    })
+  }
+
+  /**
+   * Intelligently auto-detect which USB port is occupied by POS-80 (avoiding conflicts with other printers like Canon/Nicon)
+   * and automatically re-binds POS-80 to that port in Windows.
+   */
+  static async autoDetectAndBindPort(): Promise<{
+    success: boolean
+    message?: string
+    error?: string
+    detectedPort?: string
+  }> {
+    return new Promise((resolve) => {
+      const psScript = `
+        $occupied = @()
+        $otherPrinters = Get-Printer -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne 'POS-80' -and $_.PortName -like 'USB*' }
+        if ($otherPrinters) {
+          $occupied = $otherPrinters | ForEach-Object { $_.PortName }
+        }
+        $candidatePorts = @('USB001', 'USB002', 'USB003', 'USB004', 'USB005')
+        $chosenPort = 'USB001'
+        foreach ($p in $candidatePorts) {
+          if ($occupied -notcontains $p) {
+            $chosenPort = $p
+            break
+          }
+        }
+        $pos = Get-Printer -Name 'POS-80' -ErrorAction SilentlyContinue
+        if ($pos) {
+          Set-Printer -Name 'POS-80' -PortName $chosenPort -ErrorAction SilentlyContinue
+          Write-Output "BOUND:$chosenPort"
+        } else {
+          Write-Output "NOT_INSTALLED:$chosenPort"
+        }
+      `
+      const ps = spawn('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        psScript
+      ])
+
+      let stdout = ''
+      let stderr = ''
+      ps.stdout.on('data', (d) => {
+        stdout += d.toString()
+      })
+      ps.stderr.on('data', (d) => {
+        stderr += d.toString()
+      })
+
+      ps.on('close', () => {
+        if (stdout.includes('BOUND:')) {
+          const port = stdout.split('BOUND:')[1]?.trim()
+          resolve({
+            success: true,
+            detectedPort: port,
+            message: `Imprimante POS-80 reliée avec succès au port ${port} (aucun conflit détecté).`
+          })
+        } else if (stdout.includes('NOT_INSTALLED:')) {
+          const port = stdout.split('NOT_INSTALLED:')[1]?.trim()
+          resolve({
+            success: false,
+            detectedPort: port,
+            error: `L'imprimante POS-80 n'est pas encore créée sous Windows. Lancez d'abord l'installation du pilote.`
+          })
+        } else {
+          resolve({
+            success: false,
+            error: stderr || "Impossible de reconfigurer le port USB de l'imprimante."
+          })
+        }
+      })
+
+      ps.on('error', (err) => {
+        resolve({ success: false, error: err.message })
+      })
+    })
+  }
+
+  /**
+   * Purge stuck print queue jobs in Windows Spooler
+   */
+  static async clearSpoolerQueue(printerName = 'POS-80'): Promise<{ success: boolean; error?: string }> {
+    return new Promise((resolve) => {
+      const psScript = `Get-PrintJob -PrinterName '${printerName}' -ErrorAction SilentlyContinue | Remove-PrintJob -ErrorAction SilentlyContinue; Write-Output 'CLEARED'`
+      const ps = spawn('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        psScript
+      ])
+
+      ps.on('close', () => {
+        resolve({ success: true })
+      })
+
+      ps.on('error', (err) => {
+        resolve({ success: false, error: err.message })
       })
     })
   }

@@ -347,46 +347,11 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
       }
 
       if (result.success) {
-        // Auto-print 80mm thermal receipt in 2 copies (Parent + Cashier)
-        if (window.api?.printer?.printReceipt) {
-          const studentFullName = studentInfo
-            ? `${studentInfo.last_name || ''} ${studentInfo.first_name || ''}`.trim()
-            : ''
-          const currentClass =
-            status?.feeRecord?.class_name || feeRecord?.class_name || studentInfo?.class || ''
-
-          window.api.printer
-            .printReceipt(
-              {
-                payment_ids: result.id ? [result.id] : undefined,
-                student_name: studentFullName,
-                student_number: studentInfo?.registration_number || '',
-                class_name: currentClass,
-                amount: amount,
-                payment_type: formData.payment_type,
-                payment_date: new Date().toISOString().split('T')[0],
-                month: formData.month || undefined,
-                payment_method: formData.payment_method,
-                description:
-                  formData.payment_type === 'uniform'
-                    ? `${formData.item}${formData.description ? ' - ' + formData.description : ''}`
-                    : formData.description,
-                receipt_number:
-                  result.receipt_number ||
-                  `REC-${new Date().getFullYear()}-C1-${Date.now().toString().slice(-5)}`,
-                is_duplicate: false
-              },
-              2
-            )
-            .then((printRes) => {
-              if (printRes.success) {
-                toast.success('Reçu thermique imprimé (2 exemplaires)')
-              } else {
-                toast.warning("Paiement enregistré (l'imprimante n'a pas répondu: " + (printRes.error || '') + ')')
-              }
-            })
-            .catch((err) => console.warn('Thermal print error:', err))
-        }
+        toast.success(
+          result.receipt_number
+            ? `Paiement enregistré avec succès (Reçu N° ${result.receipt_number})`
+            : 'Paiement enregistré avec succès'
+        )
 
         setIsAddPaymentOpen(false)
         setFormData({

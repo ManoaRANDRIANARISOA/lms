@@ -789,6 +789,85 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
         Rendez-vous sur la fiche de l'élève (onglet Finance), repérez le paiement concerné et cliquez sur le bouton <strong>"Ticket"</strong>. Le logiciel sortira automatiquement un <strong>Duplicata Certifié</strong> sans modifier la comptabilité originale.
       </p>
     </div>
+  <!-- SECTION 7: DÉPANNAGE MATÉRIEL & SÉCURITÉ SYSTÈME -->
+  <section id="depannage-materiel" class="card">
+    <div class="card-header">
+      <h2 class="card-title">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+        7. Dépannage Matériel Avancé & Sécurité Système
+      </h2>
+    </div>
+
+    <!-- FICHE 7.1 : CONFLIT IMPRIMANTES USB MULTIPLES -->
+    <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+        <span style="background: var(--info-bg); color: var(--info); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche 7.1</span>
+        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Résolution des Conflits de Ports Imprimante (ex: Nicon/Canon + Xprinter POS-80)</h3>
+      </div>
+      
+      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
+        <strong>Symptôme :</strong> Le câble USB de la Xprinter POS-80 est branché, Windows émet le signal sonore de connexion, le statut indique « Connecté », mais <strong>aucun ticket ne sort</strong> lors du test ou de l'impression.
+      </p>
+
+      <div style="background: var(--surface-subtle); border-left: 4px solid var(--info); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px;">
+        <strong>Explication Technique :</strong> Lorsqu'un PC possède déjà une autre imprimante USB (ex: Canon ou Nicon), celle-ci s'approprie le port virtuel <code>USB001</code>. En branchant la POS-80, Windows lui assigne automatiquement <code>USB002</code> ou <code>USB003</code>. Si le logiciel ou Windows envoie les tickets sur <code>USB001</code>, le flux thermique est envoyé à la mauvaise imprimante ou bloqué dans la file d'attente Windows.
+      </div>
+
+      <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Méthode 1 : Réparation Automatique en 1 Clic (Recommandée)</h4>
+      <ol style="margin-left: 20px; font-size: 13px; color: var(--text); margin-bottom: 16px; line-height: 1.8;">
+        <li>Ouvrez le logiciel LMS et rendez-vous dans <strong>Paramètres</strong> $\rightarrow$ section <strong>Imprimante Thermique POS-80</strong>.</li>
+        <li>Cliquez sur le bouton <strong>« Auto-détecter port USB (Conflit Nicon) »</strong>.</li>
+        <li>Le logiciel scanne tous les ports USB d'impression disponibles, identifie le canal actif de la Xprinter et reconfigure automatiquement Windows sans aucune saisie technique.</li>
+      </ol>
+
+      <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Méthode 2 : Vérification Manuelle sous Windows</h4>
+      <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
+        <li>Ouvrez le <strong>Panneau de configuration</strong> Windows $\rightarrow$ <strong>Périphériques et imprimantes</strong>.</li>
+        <li>Faites un clic droit sur l'imprimante <strong>POS-80</strong> et sélectionnez <strong>Propriétés de l'imprimante</strong>.</li>
+        <li>Rendez-vous dans l'onglet <strong>Ports</strong>.</li>
+        <li>Repérez quel port USB est coché. Si <code>USB001</code> est coché mais ne répond pas, cochez <strong><code>USB002</code></strong> (ou <strong><code>USB003</code></strong>) puis cliquez sur <strong>Appliquer</strong>.</li>
+        <li>Cliquez sur <strong>Imprimer une page de test</strong> : le ticket sortira instantanément.</li>
+      </ol>
+    </div>
+
+    <!-- FICHE 7.2 : PROTOCOLE DÉSINFECTION VIRUS RACCOURCIS USB -->
+    <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: var(--shadow-sm);">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+        <span style="background: var(--danger-bg); color: var(--danger); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche 7.2</span>
+        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Protocole de Désinfection : Virus des Raccourcis USB (PC lent & Clés infectées)</h3>
+      </div>
+      
+      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
+        <strong>Symptômes :</strong> Les dossiers d'une clé USB insérée se transforment en raccourcis (<code>.lnk</code>), le PC 1 ralentit fortement et la mémoire vive (RAM) est saturée par des processus fantômes.
+      </p>
+
+      <div style="background: var(--danger-bg); border-left: 4px solid var(--danger); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #7f1d1d;">
+        <strong>Origine :</strong> Il s'agit du ver Windows <em>Shortcut Worm</em> (exécuté par <code>wscript.exe</code>). Il masque vos vrais documents et lance un script malveillant en boucle, ce qui épuise les ressources du processeur et perturbe les impressions.
+      </div>
+
+      <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Procédure de Nettoyage et Restauration Immédiate :</h4>
+      <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
+        <li>
+          <strong>Arrêter le script parasite en mémoire :</strong><br>
+          Appuyez sur <kbd>Ctrl</kbd> + <kbd>Maj</kbd> + <kbd>Échap</kbd> pour ouvrir le Gestionnaire des tâches. Cherchez <code>wscript.exe</code> ou <em>Windows Based Script Host</em>, faites clic droit puis <strong>Fin de tâche</strong>.<br>
+          <em>Ou en invite de commandes (CMD) :</em> <code>taskkill /f /im wscript.exe</code>
+        </li>
+        <li>
+          <strong>Révéler les vrais fichiers cachés sur la clé USB :</strong><br>
+          Si votre clé USB porte la lettre <code>E:</code>, ouvrez l'Invite de commandes (CMD) et tapez :<br>
+          <code style="background: #1e293b; color: #38bdf8; padding: 4px 8px; border-radius: 4px; font-family: monospace;">attrib -h -r -s /s /d E:\*.*</code><br>
+          Vos vrais dossiers réapparaîtront immédiatement sur la clé USB sans aucune perte.
+        </li>
+        <li>
+          <strong>Supprimer les faux raccourcis :</strong><br>
+          Sur la clé USB, supprimez manuellement tous les fichiers de type « Raccourci » (taille ~1 Ko) portant le nom de vos anciens dossiers.
+        </li>
+        <li>
+          <strong>Désactiver le démarrage automatique du virus :</strong><br>
+          Dans le Gestionnaire des tâches $\rightarrow$ onglet <strong>Démarrage</strong>, désactivez tout élément suspect pointant vers <code>wscript.exe</code> ou un fichier <code>.vbs</code> situé dans <code>AppData\Roaming</code> ou <code>Temp</code>.
+        </li>
+      </ol>
+    </div>
   </section>
 
   <!-- FOOTER -->

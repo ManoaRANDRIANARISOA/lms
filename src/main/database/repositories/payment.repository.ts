@@ -23,6 +23,17 @@ export interface Payment {
   updated_at?: string
 }
 
+export function normalizeStationCode(raw?: string | null): string {
+  if (!raw) return 'C1'
+  const trimmed = String(raw).trim().toUpperCase()
+  const numMatch = trimmed.match(/^(?:CAISSE\s*|POSTE\s*|C)?\s*(\d+)$/i)
+  if (numMatch) {
+    return `C${numMatch[1]}`
+  }
+  const clean = trimmed.replace(/[^A-Z0-9]/g, '')
+  return clean || 'C1'
+}
+
 export class PaymentRepository {
   static generateReceiptNumber(schoolYear?: string, customStationCode?: string): string {
     let yearPrefix = new Date().getFullYear().toString()
@@ -33,10 +44,8 @@ export class PaymentRepository {
       }
     }
 
-    const stationCode =
-      (customStationCode || (SettingsRepository.get('pos_station_code') as string) || 'C1')
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, '') || 'C1'
+    const rawStation = customStationCode || (SettingsRepository.get('pos_station_code') as string)
+    const stationCode = normalizeStationCode(rawStation)
 
     const patternWithStation = `REC-${yearPrefix}-${stationCode}-%`
     const patternWithoutStation = `REC-${yearPrefix}-%`
@@ -344,7 +353,7 @@ export class PaymentRepository {
 
     try {
       transaction()
-      return { success: true, id }
+      return { success: true, id, receipt_number: receiptNumber }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
       console.error('Create payment error:', error)

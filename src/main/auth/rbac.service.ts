@@ -122,8 +122,8 @@ const PERMISSION_MATRIX: Record<Role, Record<Resource, AccessLevel>> = {
     cash_journal: 'full',
     personnel: 'read',
     reports: 'full',
-    settings: 'read',
-    users: 'none',
+    settings: 'full',
+    users: 'full',
     audit: 'read',
     events: 'full'
   }

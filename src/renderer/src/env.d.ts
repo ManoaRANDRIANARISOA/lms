@@ -299,6 +299,10 @@ interface APIType {
     get: (key: string) => Promise<unknown>
     set: (key: string, value: unknown) => Promise<{ success: boolean; error?: string }>
     getAll: () => Promise<Record<string, unknown>>
+    renameBusRoute: (
+      oldRoute: string,
+      newRoute: string
+    ) => Promise<{ success: boolean; affectedStudentsCount?: number; error?: string }>
   }
   personnel: {
     create: (
@@ -603,7 +607,7 @@ interface APIType {
       }>
       error?: string
     }>
-    sendDailyReport: () => Promise<{ success: boolean; error?: string }>
+    sendDailyReport: (targetDate?: string) => Promise<{ success: boolean; error?: string }>
   }
   pdf: {
     generateReceipt: (data: {
@@ -720,13 +724,89 @@ interface APIType {
       message?: string
       error?: string
     }>
+    autoDetectPort: () => Promise<{
+      success: boolean
+      message?: string
+      error?: string
+      detectedPort?: string
+    }>
+    clearQueue: (printerName?: string) => Promise<{ success: boolean; error?: string }>
   }
   auth: AuthAPI
   dialog: DialogAPI
+  app: {
+    getVersion: () => Promise<string>
+  }
+  sync: {
+    getStatus: () => Promise<{
+      success: boolean
+      isSyncing: boolean
+      isOnline: boolean
+      latencyMs?: number
+      pendingCount: number
+      errorCount: number
+      lastSyncTime: string | null
+      error?: string
+    }>
+    start: (forceFullSync?: boolean) => Promise<{ success: boolean; error?: string; reason?: string }>
+    getErrors: () => Promise<{
+      success: boolean
+      errors: Array<{
+        id: number
+        table_name: string
+        record_id: string
+        action: string
+        status: string
+        error_message?: string
+        created_at: string
+        updated_at: string
+      }>
+      error?: string
+    }>
+    retryErrors: () => Promise<{ success: boolean; count?: number; error?: string }>
+    onProgress: (
+      callback: (data: {
+        phase: 'idle' | 'checking' | 'pushing' | 'pulling' | 'success' | 'error'
+        current: number
+        total: number
+        percent: number
+        message: string
+        tableName?: string
+        lastSync?: string
+        pendingCount?: number
+        errorCount?: number
+      }) => void
+    ) => () => void
+  }
   logs: {
     get: (limit?: number, offset?: number) => Promise<{ success: boolean; logs?: any[]; total?: number; error?: string }>
     clear: () => Promise<{ success: boolean; error?: string }>
     onError: (callback: (event: any, data: any) => void) => void
+  }
+  duplicates: {
+    scan: () => Promise<{
+      success: boolean
+      count?: number
+      error?: string
+      groups: Array<{
+        name: string
+        records: Array<{
+          id: string
+          registration_number: string | null
+          first_name: string | null
+          last_name: string | null
+          class_name: string | null
+          created_at: string
+          payments_count: number
+          fees_count: number
+          grades_count: number
+        }>
+      }>
+    }>
+    merge: (
+      keepId: string,
+      removeId: string
+    ) => Promise<{ success: boolean; message?: string; error?: string }>
   }
 }
 

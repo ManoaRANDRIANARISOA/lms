@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { CheckCircle, XCircle } from 'lucide-react'
+import { CheckCircle, XCircle, Send, Loader2 } from 'lucide-react'
 import { usePermissions } from '@/lib/usePermissions'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 
@@ -29,13 +29,14 @@ export default function EmailSettings() {
     enabled: false,
     gmail_address: '',
     gmail_app_password: '',
-    recipient_email: 'mmanjarysoa@gmail.com',
+    recipient_email: 'christineanjarasoa36@gmail.com',
     auto_send_daily: false
   })
   const [logs, setLogs] = useState<EmailLogEntry[]>([])
   const [status, setStatus] = useState({ configured: false, enabled: false, auto_send: false })
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [sendingReport, setSendingReport] = useState(false)
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
 
   useEffect(() => {
@@ -49,9 +50,13 @@ export default function EmailSettings() {
       const raw = await window.api.settings.get('email_config')
       if (raw) {
         const loaded = raw as EmailConfigState
+        const recipient =
+          loaded.recipient_email && loaded.recipient_email !== 'mmanjarysoa@gmail.com'
+            ? loaded.recipient_email
+            : 'christineanjarasoa36@gmail.com'
         setConfig({
           ...loaded,
-          recipient_email: loaded.recipient_email || 'mmanjarysoa@gmail.com'
+          recipient_email: recipient
         })
       }
     } catch {
@@ -118,6 +123,32 @@ export default function EmailSettings() {
       setTesting(false)
     }
     setTimeout(() => setMessage(null), 5000)
+  }
+
+  const sendDailyReportNow = async () => {
+    setSendingReport(true)
+    setMessage(null)
+    try {
+      const result = await window.api.email.sendDailyReport()
+      if (result.success) {
+        setMessage({
+          text: `Rapport journalier complet avec PDF envoyé avec succès à ${config.recipient_email}`,
+          type: 'success'
+        })
+        loadLogs()
+      } else {
+        setMessage({
+          text: result.error || "Échec de l'envoi du rapport",
+          type: 'error'
+        })
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erreur inattendue'
+      setMessage({ text: msg, type: 'error' })
+    } finally {
+      setSendingReport(false)
+    }
+    setTimeout(() => setMessage(null), 6000)
   }
 
   return (
@@ -223,9 +254,11 @@ export default function EmailSettings() {
               onChange={(e) => setConfig((p) => ({ ...p, auto_send_daily: e.target.checked }))}
               className="h-4 w-4"
             />
-            <Label htmlFor="auto-send">Envoi automatique du bilan journalier à 18h</Label>
+            <Label htmlFor="auto-send">
+              Envoi automatique du bilan journalier à 18h (Jours ouvrables : Lundi au Samedi)
+            </Label>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 pt-2">
             {canWrite('settings') && (
               <>
                 <Button onClick={saveConfig} disabled={saving}>
@@ -237,6 +270,25 @@ export default function EmailSettings() {
                   disabled={testing || !config.gmail_address}
                 >
                   {testing ? 'Test en cours...' : 'Tester la connexion'}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={sendDailyReportNow}
+                  disabled={sendingReport || !config.enabled}
+                  className="flex items-center gap-1.5"
+                  title="Génère et transmet immédiatement le bilan du jour avec PDF"
+                >
+                  {sendingReport ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Envoi du bilan en cours...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      Envoyer le rapport du jour maintenant
+                    </>
+                  )}
                 </Button>
               </>
             )}

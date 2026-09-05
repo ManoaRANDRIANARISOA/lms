@@ -16,12 +16,12 @@ export const Dialog: React.FC<DialogProps> = ({ isOpen, onClose, title, children
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-auto flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200">
         <div className="flex items-center justify-between p-4 border-b shrink-0">
-          <h2 className="text-lg font-semibold">{title}</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
           <button
             onClick={onClose}
             className="p-1 hover:bg-gray-100 rounded-full transition-colors"
           >
-            <X className="w-5 h-5 text-gray-500" />
+            <X className="w-5 h-5 text-gray-500 hover:text-gray-700" />
           </button>
         </div>
 

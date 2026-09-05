@@ -51,6 +51,20 @@ export class SettingsRepository {
     try {
       const jsonValue = JSON.stringify(value)
 
+      // Archive previous value in settings_history for rollbacks and safety
+      try {
+        const existing = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
+          | { value: string }
+          | undefined
+        if (existing && existing.value !== jsonValue) {
+          db.prepare(
+            'INSERT INTO settings_history (key, old_value, new_value) VALUES (?, ?, ?)'
+          ).run(key, existing.value, jsonValue)
+        }
+      } catch (histErr) {
+        console.warn('Failed to archive settings history:', histErr)
+      }
+
       const stmt = db.prepare(`
         INSERT INTO settings (key, value, updated_at) 
         VALUES (?, ?, CURRENT_TIMESTAMP)

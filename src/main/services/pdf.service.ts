@@ -334,65 +334,212 @@ export class PdfService {
   /**
    * Generate a daily cash report
    */
+  /**
+   * Generate a daily cash report (Official standard PDF)
+   */
   static generateDailyReport(reportData: {
     date: string
     total_income: number
     total_expense: number
     balance: number
+    opening_balance?: number
+    closing_balance?: number
     entries: Array<{
       type: string
       department: string
       category: string
       amount: number
       description?: string
+      receipt_number?: string
+      beneficiary?: string
+      payment_method?: string
+      created_by?: string
+      time?: string
     }>
   }): { success: boolean; filePath?: string; error?: string } {
     try {
       const doc = new jsPDF()
+      const formattedDate = new Date(reportData.date).toLocaleDateString('fr-FR', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
       let y = addHeader(
         doc,
-        `BILAN JOURNALIER — ${new Date(reportData.date).toLocaleDateString('fr-FR')}`
+        `RAPPORT DE CAISSE JOURNALIER\n${formattedDate.toUpperCase()}`
       )
 
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'bold')
-      doc.text('Résumé :', 20, y)
-      y += 8
-      doc.setFont('helvetica', 'normal')
-      doc.text(`Recettes : ${reportData.total_income.toLocaleString()} Ar`, 20, y)
-      y += 7
-      doc.text(`Dépenses : ${reportData.total_expense.toLocaleString()} Ar`, 20, y)
-      y += 7
-      doc.setFont('helvetica', 'bold')
-      doc.text(`Solde : ${reportData.balance.toLocaleString()} Ar`, 20, y)
-      y += 12
+      // Summary Box
+      doc.setFillColor(245, 247, 250)
+      doc.rect(20, y, 170, 26, 'F')
+      doc.setDrawColor(200, 210, 220)
+      doc.rect(20, y, 170, 26, 'S')
 
-      doc.setFont('helvetica', 'bold')
-      doc.text('Détail des entrées :', 20, y)
-      y += 8
+      doc.setFontSize(9)
       doc.setFont('helvetica', 'normal')
+      doc.setTextColor(80, 90, 100)
+
+      const hasBalances = reportData.opening_balance !== undefined
+      if (hasBalances) {
+        doc.text('Solde Initial', 25, y + 8)
+        doc.text('Recettes (+)', 60, y + 8)
+        doc.text('Dépenses (-)', 95, y + 8)
+        doc.text('Solde Net', 130, y + 8)
+        doc.text('Solde Final', 162, y + 8)
+
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(30, 41, 59)
+        doc.text(`${(reportData.opening_balance || 0).toLocaleString('fr-FR')} Ar`, 25, y + 18)
+
+        doc.setTextColor(22, 101, 52) // Green
+        doc.text(`+${reportData.total_income.toLocaleString('fr-FR')} Ar`, 60, y + 18)
+
+        doc.setTextColor(185, 28, 28) // Red
+        doc.text(`-${reportData.total_expense.toLocaleString('fr-FR')} Ar`, 95, y + 18)
+
+        doc.setTextColor(30, 64, 175) // Blue
+        doc.text(
+          `${reportData.balance >= 0 ? '+' : ''}${reportData.balance.toLocaleString('fr-FR')} Ar`,
+          130,
+          y + 18
+        )
+
+        doc.setTextColor(15, 23, 42) // Dark
+        doc.text(`${(reportData.closing_balance || 0).toLocaleString('fr-FR')} Ar`, 162, y + 18)
+      } else {
+        doc.text('Total Recettes', 30, y + 8)
+        doc.text('Total Dépenses', 85, y + 8)
+        doc.text('Solde Net Journalier', 140, y + 8)
+
+        doc.setFontSize(11)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(22, 101, 52)
+        doc.text(`+${reportData.total_income.toLocaleString('fr-FR')} Ar`, 30, y + 18)
+
+        doc.setTextColor(185, 28, 28)
+        doc.text(`-${reportData.total_expense.toLocaleString('fr-FR')} Ar`, 85, y + 18)
+
+        doc.setTextColor(30, 64, 175)
+        doc.text(
+          `${reportData.balance >= 0 ? '+' : ''}${reportData.balance.toLocaleString('fr-FR')} Ar`,
+          140,
+          y + 18
+        )
+      }
+
+      y += 34
+
+      // Detail Table Header
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(15, 23, 42)
+      doc.text(`Détail des Mouvements (${reportData.entries.length} opération${reportData.entries.length > 1 ? 's' : ''}) :`, 20, y)
+      y += 6
+
+      // Column headers
+      doc.setFillColor(230, 235, 245)
+      doc.rect(20, y, 170, 7, 'F')
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(51, 65, 85)
+      doc.text('N° Reçu / Réf', 22, y + 5)
+      doc.text('Bénéficiaire / Libellé', 65, y + 5)
+      doc.text('Catégorie', 125, y + 5)
+      doc.text('Mode', 150, y + 5)
+      doc.text('Montant', 188, y + 5, { align: 'right' })
+      y += 9
 
       let pageNum = 1
+      doc.setFont('helvetica', 'normal')
+
       if (reportData.entries.length === 0) {
-        doc.text('Aucune entrée pour cette journée.', 20, y)
+        doc.setTextColor(120, 120, 120)
+        doc.text('Aucun mouvement de caisse enregistré pour cette journée.', 20, y + 4)
+        y += 12
       } else {
-        reportData.entries.forEach((entry) => {
-          if (y > 270) {
+        reportData.entries.forEach((entry, idx) => {
+          if (y > 260) {
             addFooter(doc, pageNum)
             doc.addPage()
             pageNum++
             y = 20
+            // Re-print column headers on new page
+            doc.setFillColor(230, 235, 245)
+            doc.rect(20, y, 170, 7, 'F')
+            doc.setFontSize(8)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(51, 65, 85)
+            doc.text('N° Reçu / Réf', 22, y + 5)
+            doc.text('Bénéficiaire / Libellé', 65, y + 5)
+            doc.text('Catégorie', 125, y + 5)
+            doc.text('Mode', 150, y + 5)
+            doc.text('Montant', 188, y + 5, { align: 'right' })
+            y += 9
+            doc.setFont('helvetica', 'normal')
           }
-          const prefix = entry.type === 'income' ? '+' : '-'
-          const dept = entry.department === 'bus' ? 'Bus' : 'École'
-          doc.text(
-            `${prefix} ${entry.amount.toLocaleString()} Ar — [${dept}] ${entry.category}${entry.description ? ' — ' + entry.description : ''}`,
-            20,
-            y
-          )
-          y += 7
+
+          // Alternating row background
+          if (idx % 2 === 1) {
+            doc.setFillColor(248, 250, 252)
+            doc.rect(20, y - 2.5, 170, 6.5, 'F')
+          }
+
+          const isIncome = entry.type === 'income'
+          const ref = entry.receipt_number || (entry.time ? `${entry.time}` : `OP-${idx + 1}`)
+          const label = entry.beneficiary
+            ? `${entry.beneficiary}${entry.description ? ` (${entry.description})` : ''}`
+            : (entry.description || entry.category)
+          const truncatedLabel = label.length > 35 ? label.substring(0, 32) + '...' : label
+          const cat = entry.category ? entry.category.substring(0, 16) : 'Divers'
+          const method = entry.payment_method === 'cash' ? 'Espèces' : (entry.payment_method || 'Espèces')
+
+          doc.setFontSize(8)
+          doc.setTextColor(71, 85, 105)
+          doc.text(ref.substring(0, 20), 22, y + 2)
+          doc.setTextColor(15, 23, 42)
+          doc.text(truncatedLabel, 65, y + 2)
+          doc.setTextColor(71, 85, 105)
+          doc.text(cat, 125, y + 2)
+          doc.text(method.substring(0, 10), 150, y + 2)
+
+          // Amount
+          doc.setFont('helvetica', 'bold')
+          if (isIncome) {
+            doc.setTextColor(22, 101, 52)
+            doc.text(`+${entry.amount.toLocaleString('fr-FR')} Ar`, 188, y + 2, { align: 'right' })
+          } else {
+            doc.setTextColor(185, 28, 28)
+            doc.text(`-${entry.amount.toLocaleString('fr-FR')} Ar`, 188, y + 2, { align: 'right' })
+          }
+          doc.setFont('helvetica', 'normal')
+
+          y += 6.5
         })
       }
+
+      // Signatures section
+      if (y > 240) {
+        addFooter(doc, pageNum)
+        doc.addPage()
+        pageNum++
+        y = 30
+      } else {
+        y += 15
+      }
+
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(51, 65, 85)
+      doc.text('Le Responsable de Caisse / Comptable', 35, y)
+      doc.text('La Direction Générale', 135, y)
+
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      doc.setTextColor(120, 120, 120)
+      doc.text('(Signature et Cachet)', 45, y + 5)
+      doc.text('(Visa et Cachet)', 145, y + 5)
 
       addFooter(doc, pageNum)
 

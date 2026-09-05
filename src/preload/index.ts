@@ -114,7 +114,9 @@ const api = {
   settings: {
     get: (key: string) => ipcRenderer.invoke('settings:get', key),
     set: (key: string, value: unknown) => ipcRenderer.invoke('settings:set', key, value),
-    getAll: () => ipcRenderer.invoke('settings:getAll')
+    getAll: () => ipcRenderer.invoke('settings:getAll'),
+    renameBusRoute: (oldRoute: string, newRoute: string) =>
+      ipcRenderer.invoke('settings:renameBusRoute', oldRoute, newRoute)
   },
 
   // --------------------------------------------
@@ -318,7 +320,8 @@ const api = {
       ipcRenderer.invoke('email:sendNow', to, subject, body),
     getStatus: () => ipcRenderer.invoke('email:getStatus'),
     getLogs: () => ipcRenderer.invoke('email:getLogs'),
-    sendDailyReport: () => ipcRenderer.invoke('email:sendDailyReport')
+    sendDailyReport: (targetDate?: string) =>
+      ipcRenderer.invoke('email:sendDailyReport', targetDate)
   },
 
   // --------------------------------------------
@@ -352,7 +355,9 @@ const api = {
     getPrinters: () => ipcRenderer.invoke('printer:getPrinters'),
     testPrint: (printerName?: string) => ipcRenderer.invoke('printer:testPrint', printerName),
     checkStatus: () => ipcRenderer.invoke('printer:checkStatus'),
-    installDriver: () => ipcRenderer.invoke('printer:installDriver')
+    installDriver: () => ipcRenderer.invoke('printer:installDriver'),
+    autoDetectPort: () => ipcRenderer.invoke('printer:autoDetectPort'),
+    clearQueue: (printerName?: string) => ipcRenderer.invoke('printer:clearQueue', printerName)
   },
 
   // --------------------------------------------
@@ -361,6 +366,30 @@ const api = {
   dialog: {
     openFile: () => ipcRenderer.invoke('dialog:openFile'),
     confirmSync: (message: string) => ipcRenderer.sendSync('dialog:confirmSync', message)
+  },
+
+  // --------------------------------------------
+  // App
+  // --------------------------------------------
+  app: {
+    getVersion: () => ipcRenderer.invoke('app:getVersion')
+  },
+
+  // --------------------------------------------
+  // Cloud Synchronization
+  // --------------------------------------------
+  sync: {
+    getStatus: () => ipcRenderer.invoke('sync:getStatus'),
+    start: (forceFullSync?: boolean) => ipcRenderer.invoke('sync:start', forceFullSync),
+    getErrors: () => ipcRenderer.invoke('sync:getErrors'),
+    retryErrors: () => ipcRenderer.invoke('sync:retryErrors'),
+    onProgress: (callback: (data: any) => void) => {
+      const listener = (_event: IpcRendererEvent, data: any) => callback(data)
+      ipcRenderer.on('sync:progress', listener)
+      return () => {
+        ipcRenderer.removeListener('sync:progress', listener)
+      }
+    }
   },
 
   // --------------------------------------------
@@ -374,6 +403,15 @@ const api = {
       ipcRenderer.removeAllListeners('app:log-error')
       ipcRenderer.on('app:log-error', callback)
     }
+  },
+
+  // --------------------------------------------
+  // Duplicate Students
+  // --------------------------------------------
+  duplicates: {
+    scan: () => ipcRenderer.invoke('duplicates:scan'),
+    merge: (keepId: string, removeId: string) =>
+      ipcRenderer.invoke('duplicates:merge', { keepId, removeId })
   }
 }
 

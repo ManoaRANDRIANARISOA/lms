@@ -121,4 +121,28 @@ export function registerPrinterHandlers(): void {
       return { success: false, isInstalled: false, error: message }
     }
   })
+
+  // --------------------------------------------
+  // AUTO-DETECT & BIND USB PORT (Fixes Nicon / Multi-printer conflicts)
+  // --------------------------------------------
+  ipcMain.handle('printer:autoDetectPort', async () => {
+    try {
+      return await ThermalPrinterService.autoDetectAndBindPort()
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erreur de détection automatique de port'
+      return { success: false, error: message }
+    }
+  })
+
+  // --------------------------------------------
+  // CLEAR SPOOLER PRINT QUEUE
+  // --------------------------------------------
+  ipcMain.handle('printer:clearQueue', async (_, printerName?: string) => {
+    try {
+      return await ThermalPrinterService.clearSpoolerQueue(printerName)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erreur de purge de la file d’attente'
+      return { success: false, error: message }
+    }
+  })
 }

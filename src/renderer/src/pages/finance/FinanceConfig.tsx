@@ -3,8 +3,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { ArrowUp, ArrowDown, Trash2, Plus, GripVertical } from 'lucide-react'
-import { defaultPrices, FinancePrices } from '@/lib/finance-settings'
+import { ArrowUp, ArrowDown, Trash2, Plus, GripVertical, Pencil, Check, X } from 'lucide-react'
+import { defaultPrices, FinancePrices, resolveClassPrice } from '@/lib/finance-settings'
 import { useFinanceStore } from '@/store/useFinanceStore'
 import { useClasses } from '@/lib/useClasses'
 import { usePermissions } from '@/lib/usePermissions'
@@ -20,6 +20,8 @@ export default function FinanceConfig() {
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
   const [newBusRoute, setNewBusRoute] = useState('')
   const [newUniformItem, setNewUniformItem] = useState('')
+  const [editingBusRoute, setEditingBusRoute] = useState<{ oldName: string; newName: string } | null>(null)
+  const [editingUniformItem, setEditingUniformItem] = useState<{ oldName: string; newName: string } | null>(null)
 
   useEffect(() => {
     const init = async () => {
@@ -31,13 +33,24 @@ export default function FinanceConfig() {
 
   useEffect(() => {
     if (!storeLoading) {
+      // Auto-populate any missing class alias prices with their canonical equivalent
+      const updatedTuition = { ...(storedPrices.tuition || {}) }
+      if (settingsClasses && settingsClasses.length > 0) {
+        settingsClasses.forEach((cls) => {
+          if (!updatedTuition[cls] || updatedTuition[cls] <= 0) {
+            updatedTuition[cls] = resolveClassPrice(storedPrices.tuition, cls)
+          }
+        })
+      }
+
       setPrices({
         ...storedPrices,
+        tuition: updatedTuition,
         busRoutes: storedPrices.busRoutes || Object.keys(storedPrices.bus || {}),
         uniformItems: storedPrices.uniformItems || Object.keys(storedPrices.uniforms || {})
       })
     }
-  }, [storedPrices, storeLoading])
+  }, [storedPrices, storeLoading, settingsClasses])
 
   const saveSettings = async () => {
     setSaving(true)
@@ -88,25 +101,73 @@ export default function FinanceConfig() {
 
   const handleAddBusRoute = () => {
     if (!newBusRoute.trim()) return
-    if (prices.busRoutes && prices.busRoutes.includes(newBusRoute.trim())) {
+    const trimmed = newBusRoute.trim()
+    if (prices.busRoutes && prices.busRoutes.includes(trimmed)) {
       alert('Cette zone existe déjà.')
       return
     }
     setPrices((prev) => ({
       ...prev,
-      busRoutes: [...(prev.busRoutes || []), newBusRoute.trim()],
-      bus: { ...prev.bus, [newBusRoute.trim()]: 0 }
+      busRoutes: [...(prev.busRoutes || []), trimmed],
+      bus: { ...prev.bus, [trimmed]: 0 },
+      deletedBusRoutes: (prev.deletedBusRoutes || []).filter((r) => r !== trimmed)
     }))
     setNewBusRoute('')
   }
 
+  const handleSaveRenameBusRoute = async (oldRoute: string, newRouteName: string) => {
+    const trimmed = newRouteName.trim()
+    if (!trimmed) return
+    if (trimmed === oldRoute) {
+      setEditingBusRoute(null)
+      return
+    }
+    if (prices.busRoutes?.includes(trimmed)) {
+      alert(`La zone "${trimmed}" existe déjà.`)
+      return
+    }
+
+    // Cascade rename to student_fees if possible
+    try {
+      if (window.api?.settings?.renameBusRoute) {
+        const res = await window.api.settings.renameBusRoute(oldRoute, trimmed)
+        if (res?.affectedStudentsCount && res.affectedStudentsCount > 0) {
+          setMessage({
+            text: `Zone renommée : ${res.affectedStudentsCount} élève(s) ont été mis à jour automatiquement sur "${trimmed}".`,
+            type: 'success'
+          })
+        }
+      }
+    } catch (e) {
+      console.warn('Could not cascade bus route rename to students:', e)
+    }
+
+    setPrices((prev) => {
+      const newRoutes = (prev.busRoutes || []).map((r) => (r === oldRoute ? trimmed : r))
+      const newBus = { ...prev.bus }
+      newBus[trimmed] = newBus[oldRoute] || 0
+      delete newBus[oldRoute]
+      const newDeleted = Array.from(new Set([...(prev.deletedBusRoutes || []), oldRoute])).filter(
+        (r) => r !== trimmed
+      )
+      return { ...prev, busRoutes: newRoutes, bus: newBus, deletedBusRoutes: newDeleted }
+    })
+    setEditingBusRoute(null)
+  }
+
   const handleRemoveBusRoute = (route: string) => {
-    if (!confirm(`Supprimer la zone ${route} ?`)) return
+    if (
+      !confirm(
+        `Supprimer définitivement la zone "${route}" ?\nAttention : cette suppression sera synchronisée sur tous les postes.`
+      )
+    )
+      return
     setPrices((prev) => {
       const newRoutes = (prev.busRoutes || []).filter((r) => r !== route)
       const newBus = { ...prev.bus }
       delete newBus[route]
-      return { ...prev, busRoutes: newRoutes, bus: newBus }
+      const newDeleted = Array.from(new Set([...(prev.deletedBusRoutes || []), route]))
+      return { ...prev, busRoutes: newRoutes, bus: newBus, deletedBusRoutes: newDeleted }
     })
   }
 
@@ -125,25 +186,57 @@ export default function FinanceConfig() {
 
   const handleAddUniformItem = () => {
     if (!newUniformItem.trim()) return
-    if (prices.uniformItems && prices.uniformItems.includes(newUniformItem.trim())) {
+    const trimmed = newUniformItem.trim()
+    if (prices.uniformItems && prices.uniformItems.includes(trimmed)) {
       alert('Cet article existe déjà.')
       return
     }
     setPrices((prev) => ({
       ...prev,
-      uniformItems: [...(prev.uniformItems || []), newUniformItem.trim()],
-      uniforms: { ...prev.uniforms, [newUniformItem.trim()]: 0 }
+      uniformItems: [...(prev.uniformItems || []), trimmed],
+      uniforms: { ...prev.uniforms, [trimmed]: 0 },
+      deletedUniformItems: (prev.deletedUniformItems || []).filter((i) => i !== trimmed)
     }))
     setNewUniformItem('')
   }
 
+  const handleSaveRenameUniformItem = (oldItem: string, newItemName: string) => {
+    const trimmed = newItemName.trim()
+    if (!trimmed) return
+    if (trimmed === oldItem) {
+      setEditingUniformItem(null)
+      return
+    }
+    if (prices.uniformItems?.includes(trimmed)) {
+      alert(`L'article "${trimmed}" existe déjà.`)
+      return
+    }
+    setPrices((prev) => {
+      const newItems = (prev.uniformItems || []).map((i) => (i === oldItem ? trimmed : i))
+      const newUniforms = { ...prev.uniforms }
+      newUniforms[trimmed] = newUniforms[oldItem] || 0
+      delete newUniforms[oldItem]
+      const newDeleted = Array.from(new Set([...(prev.deletedUniformItems || []), oldItem])).filter(
+        (i) => i !== trimmed
+      )
+      return { ...prev, uniformItems: newItems, uniforms: newUniforms, deletedUniformItems: newDeleted }
+    })
+    setEditingUniformItem(null)
+  }
+
   const handleRemoveUniformItem = (item: string) => {
-    if (!confirm(`Supprimer l'article ${item} ?`)) return
+    if (
+      !confirm(
+        `Supprimer définitivement l'article "${item}" ?\nAttention : cette suppression sera synchronisée sur tous les postes.`
+      )
+    )
+      return
     setPrices((prev) => {
       const newItems = (prev.uniformItems || []).filter((i) => i !== item)
       const newUniforms = { ...prev.uniforms }
       delete newUniforms[item]
-      return { ...prev, uniformItems: newItems, uniforms: newUniforms }
+      const newDeleted = Array.from(new Set([...(prev.deletedUniformItems || []), item]))
+      return { ...prev, uniformItems: newItems, uniforms: newUniforms, deletedUniformItems: newDeleted }
     })
   }
 
@@ -292,7 +385,11 @@ export default function FinanceConfig() {
                   <Input
                     id={`tuition-${className}`}
                     type="number"
-                    value={prices.tuition[className] || 0}
+                    value={
+                      prices.tuition[className] !== undefined && Number(prices.tuition[className]) > 0
+                        ? prices.tuition[className]
+                        : resolveClassPrice(prices.tuition, className)
+                    }
                     onChange={(e) => handleTuitionChange(className, e.target.value)}
                     className="pl-8"
                   />
@@ -377,7 +474,55 @@ export default function FinanceConfig() {
                 </div>
                 <div className="w-1/3">
                   <div className="text-sm text-gray-500">Zone / Ligne</div>
-                  <div className="font-medium text-lg">{route}</div>
+                  {editingBusRoute?.oldName === route ? (
+                    <div className="flex items-center gap-1 mt-1">
+                      <Input
+                        value={editingBusRoute.newName}
+                        onChange={(e) =>
+                          setEditingBusRoute({ ...editingBusRoute, newName: e.target.value })
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveRenameBusRoute(route, editingBusRoute.newName)
+                          if (e.key === 'Escape') setEditingBusRoute(null)
+                        }}
+                        autoFocus
+                        className="h-8 text-sm"
+                      />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-green-600 hover:bg-green-50"
+                        onClick={() => handleSaveRenameBusRoute(route, editingBusRoute.newName)}
+                        title="Valider le renommage"
+                      >
+                        <Check className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-gray-500 hover:bg-gray-100"
+                        onClick={() => setEditingBusRoute(null)}
+                        title="Annuler"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium text-lg">{route}</div>
+                      {canEditFinance && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-gray-400 hover:text-blue-600"
+                          onClick={() => setEditingBusRoute({ oldName: route, newName: route })}
+                          title="Renommer cette zone"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex-1">
                   <Label htmlFor={`bus-${route}`} className="text-xs">
@@ -457,7 +602,58 @@ export default function FinanceConfig() {
                 </div>
                 <div className="w-1/3">
                   <div className="text-sm text-gray-500">Article</div>
-                  <div className="font-medium text-lg">{item}</div>
+                  {editingUniformItem?.oldName === item ? (
+                    <div className="flex items-center gap-1 mt-1">
+                      <Input
+                        value={editingUniformItem.newName}
+                        onChange={(e) =>
+                          setEditingUniformItem({ ...editingUniformItem, newName: e.target.value })
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter')
+                            handleSaveRenameUniformItem(item, editingUniformItem.newName)
+                          if (e.key === 'Escape') setEditingUniformItem(null)
+                        }}
+                        autoFocus
+                        className="h-8 text-sm"
+                      />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-green-600 hover:bg-green-50"
+                        onClick={() =>
+                          handleSaveRenameUniformItem(item, editingUniformItem.newName)
+                        }
+                        title="Valider le renommage"
+                      >
+                        <Check className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-gray-500 hover:bg-gray-100"
+                        onClick={() => setEditingUniformItem(null)}
+                        title="Annuler"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium text-lg">{item}</div>
+                      {canEditFinance && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-gray-400 hover:text-blue-600"
+                          onClick={() => setEditingUniformItem({ oldName: item, newName: item })}
+                          title="Renommer cet article"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex-1">
                   <Label htmlFor={`uniform-${item}`} className="text-xs">
