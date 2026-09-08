@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 export type ClassSections = Record<string, string[]>
 
 const DEFAULT_SECTIONS: ClassSections = {
-  Préscolaire: ['PS', 'MS', 'GS'],
+  Préscolaire: ['TPS', 'PS', 'MS', 'GS'],
   Primaire: ['CP1', 'CP2', 'CE1', 'CE2', 'CM1', 'CM2'],
   Collège: ['6ème', '5ème', '4ème', '3ème'],
   Lycée: ['2nde', '1ère', 'TA', 'TD'],

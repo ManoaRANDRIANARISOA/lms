@@ -17,7 +17,7 @@
 import { ipcMain } from 'electron'
 import db from '../database/db'
 import { addToSyncQueue } from '../services/sync.service'
-import { SettingsRepository } from '../database/repositories/settings.repository'
+import { SettingsRepository, LOCAL_ONLY_SETTINGS } from '../database/repositories/settings.repository'
 import { canRead, canWrite } from '../auth/rbac.service'
 import { logAction } from '../auth/audit.service'
 import { getCurrentUser } from '../auth/rbac.service'
@@ -87,7 +87,9 @@ export function registerSettingsHandlers(): void {
   // SET SETTING (admin only)
   // --------------------------------------------
   ipcMain.handle('settings:set', async (_, key: string, value: unknown) => {
-    if (!canWrite('settings')) {
+    // Local workstation hardware settings (pos_station_code, printer_name, printer_copies)
+    // are specific to this physical PC and must be configurable without global admin permissions
+    if (!LOCAL_ONLY_SETTINGS.has(key) && !canWrite('settings')) {
       return { success: false, error: 'Accès refusé: modification paramètres' }
     }
 

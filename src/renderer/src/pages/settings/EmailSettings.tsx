@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { CheckCircle, XCircle, Send, Loader2 } from 'lucide-react'
+import { CheckCircle, XCircle, Send, Loader2, Eye, EyeOff, ExternalLink } from 'lucide-react'
 import { usePermissions } from '@/lib/usePermissions'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 
@@ -26,12 +26,13 @@ interface EmailLogEntry {
 export default function EmailSettings() {
   const { canWrite } = usePermissions()
   const [config, setConfig] = useState<EmailConfigState>({
-    enabled: false,
-    gmail_address: '',
+    enabled: true,
+    gmail_address: 'mmanjarysoa@gmail.com',
     gmail_app_password: '',
     recipient_email: 'christineanjarasoa36@gmail.com',
-    auto_send_daily: false
+    auto_send_daily: true
   })
+  const [showPassword, setShowPassword] = useState(false)
   const [logs, setLogs] = useState<EmailLogEntry[]>([])
   const [status, setStatus] = useState({ configured: false, enabled: false, auto_send: false })
   const [saving, setSaving] = useState(false)
@@ -55,8 +56,11 @@ export default function EmailSettings() {
             ? loaded.recipient_email
             : 'christineanjarasoa36@gmail.com'
         setConfig({
-          ...loaded,
-          recipient_email: recipient
+          enabled: loaded.enabled !== undefined ? loaded.enabled : true,
+          gmail_address: loaded.gmail_address || 'mmanjarysoa@gmail.com',
+          gmail_app_password: loaded.gmail_app_password || '',
+          recipient_email: recipient,
+          auto_send_daily: loaded.auto_send_daily !== undefined ? loaded.auto_send_daily : true
         })
       }
     } catch {
@@ -223,16 +227,43 @@ export default function EmailSettings() {
               />
             </div>
             <div>
-              <Label>Mot de passe d'application</Label>
-              <Input
-                type="password"
-                value={config.gmail_app_password}
-                onChange={(e) => setConfig((p) => ({ ...p, gmail_app_password: e.target.value }))}
-                placeholder="xxxx xxxx xxxx xxxx"
-                className="mt-1"
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                Généré dans Google → Sécurité → Validation en 2 étapes → Mots de passe d'application
+              <div className="flex items-center justify-between">
+                <Label>Mot de passe d'application Google (16 lettres)</Label>
+                <a
+                  href="https://myaccount.google.com/apppasswords"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 font-medium underline"
+                  title="Ouvrir la page de création Google"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Générer sur Google
+                </a>
+              </div>
+              <div className="relative mt-1">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  value={config.gmail_app_password}
+                  onChange={(e) =>
+                    setConfig((p) => ({
+                      ...p,
+                      gmail_app_password: e.target.value.replace(/\s+/g, '')
+                    }))
+                  }
+                  placeholder="ex: abcd efgh ijkl mnop"
+                  className="pr-10 font-mono tracking-wider"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Généré dans Compte Google → Sécurité → Validation en 2 étapes → Mots de passe d'application. Les espaces sont retirés automatiquement.
               </p>
             </div>
           </div>

@@ -142,7 +142,8 @@ const runMigrations = (): void => {
     '037_repair_payments_and_fees_alignment.sql',
     '038_auto_provision_all_enrolled_fees.sql',
     '039_normalize_receipt_station_codes.sql',
-    '040_heal_finance_prices_settings.sql'
+    '040_heal_finance_prices_settings.sql',
+    '041_add_print_tracking_to_cash_journal.sql'
   ]
   migrations.forEach(applyMigration)
 }
@@ -208,6 +209,14 @@ ensureTableColumns('student_fees', [
 ])
 
 ensureTableColumns('parent_events', ['school_year'])
+ensureTableColumns('cash_journal', [
+  'print_count',
+  'last_printed_at',
+  'last_printed_by',
+  'related_payment_id',
+  'receipt_number',
+  'created_by'
+])
 
 // SCHEMA HEALING: Ensure personnel sub-tables have soft-delete columns
 // (Migration 007 was previously malformed as a single-line comment on some DBs.)

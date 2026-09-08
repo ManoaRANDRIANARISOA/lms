@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import type { Payment } from '@shared/types'
+import { useAppStore } from '@/store/useAppStore'
 import {
   Printer,
   FileText,
@@ -37,14 +38,15 @@ export default function ReceiptDetailModal({
 }: ReceiptDetailModalProps) {
   const [printing, setPrinting] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
+  const stationCode = useAppStore((s) => s.stationCode) || 'C1'
 
   if (!isOpen || !payment) return null
 
   const printCount = payment.print_count || 0
   const isDuplicate = printCount >= 1
   const receiptNum = payment.receipt_number
-    ? payment.receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, 'REC-$1-C1-$2')
-    : `REC-${new Date().getFullYear()}-C1-${(payment.id || Date.now().toString()).slice(-5).toUpperCase()}`
+    ? payment.receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, `REC-$1-${stationCode}-$2`)
+    : `REC-${new Date().getFullYear()}-${stationCode}-${(payment.id || Date.now().toString()).slice(-5).toUpperCase()}`
 
   const copyReceiptNumber = () => {
     navigator.clipboard.writeText(receiptNum)
@@ -77,7 +79,7 @@ export default function ReceiptDetailModal({
           description: payment.description || undefined,
           receipt_number: receiptNum,
           is_duplicate: isDuplicate,
-          duplicate_count: isDuplicate ? printCount + 1 : 1
+          duplicate_count: isDuplicate ? printCount : 1
         },
         2
       )
@@ -85,7 +87,7 @@ export default function ReceiptDetailModal({
       if (res.success) {
         toast.success(
           isDuplicate
-            ? `Duplicata N°${printCount + 1} imprimé en 2 exemplaires (Parent + Caisse)`
+            ? `Duplicata N°${printCount} imprimé en 2 exemplaires (Parent + Caisse)`
             : 'Reçu original imprimé en 2 exemplaires (Parent + Caisse)',
           { id: toastId }
         )
@@ -120,7 +122,7 @@ export default function ReceiptDetailModal({
         receipt_number: receiptNum,
         payment_method: payment.payment_method,
         is_duplicate: isDuplicate,
-        duplicate_count: isDuplicate ? printCount + 1 : 1
+        duplicate_count: isDuplicate ? printCount : 1
       })
 
       if (res.success && res.filePath) {
@@ -324,7 +326,7 @@ export default function ReceiptDetailModal({
 
               {isDuplicate && (
                 <div className="mt-2 p-2.5 bg-amber-50/80 border border-amber-200 rounded-lg text-amber-900 text-[11px] leading-relaxed">
-                  <strong>Notice Légale :</strong> Ce reçu a déjà été émis. Toute nouvelle impression portera la mention officielle <strong>*** DUPLICATA N° {printCount + 1} ***</strong> avec cartouche d'audit certifié pour empêcher toute falsification.
+                  <strong>Notice Légale :</strong> Ce reçu a déjà été émis. Toute nouvelle impression portera la mention officielle <strong>*** DUPLICATA N° {printCount} ***</strong> avec cartouche d'audit certifié pour empêcher toute falsification.
                 </div>
               )}
             </div>
@@ -362,7 +364,7 @@ export default function ReceiptDetailModal({
                 {printing
                   ? 'Impression...'
                   : isDuplicate
-                    ? `Imprimer Duplicata N°${printCount + 1}`
+                    ? `Imprimer Duplicata N°${printCount}`
                     : 'Imprimer Ticket Original'}
               </span>
             </Button>

@@ -9,15 +9,17 @@ import {
   getSyncQueueStatus,
   getSyncQueueErrors,
   retrySyncErrors,
+  quarantineAndUnblockQueue,
   getIsSyncing
 } from '../services/sync.service'
+import { TelemetryService } from '../services/telemetry.service'
 
 export function registerSyncHandlers(): void {
   // --------------------------------------------
   // App version (Dynamic)
   // --------------------------------------------
   ipcMain.handle('app:getVersion', () => {
-    return app.getVersion() || '1.1.7'
+    return app.getVersion() || '1.1.9'
   })
 
   // --------------------------------------------
@@ -89,5 +91,26 @@ export function registerSyncHandlers(): void {
       const message = error instanceof Error ? error.message : String(error)
       return { success: false, error: message }
     }
+  })
+
+  // --------------------------------------------
+  // QUARANTINE BLOCKING ITEMS & UNBLOCK QUEUE
+  // --------------------------------------------
+  ipcMain.handle('sync:quarantineAndUnblock', async () => {
+    return quarantineAndUnblockQueue()
+  })
+
+  // --------------------------------------------
+  // FETCH REMOTE TELEMETRY LOGS (SUPERADMIN MONITOR)
+  // --------------------------------------------
+  ipcMain.handle('telemetry:fetchStationErrors', async (_, limit = 50) => {
+    return TelemetryService.fetchWorkstationTelemetry(limit)
+  })
+
+  // --------------------------------------------
+  // REPORT MANUAL ERROR / TEST PROBE
+  // --------------------------------------------
+  ipcMain.handle('telemetry:reportError', async (_, context: string, message: string, details?: any) => {
+    return TelemetryService.reportError(context, message, details)
   })
 }

@@ -443,7 +443,7 @@
   <!-- HERO SECTION -->
   <header class="hero">
     <div class="hero-badges">
-      <span class="badge badge-gold">✨ Version 1.1.1 Officielle</span>
+      <span class="badge badge-gold">✨ Version 1.1.9 Officielle</span>
       <span class="badge badge-gold">⚡ Local-First & 100% Offline-Proof</span>
       <span class="badge badge-gold">🖨️ Ticket Thermique 80mm ESC/POS</span>
     </div>
@@ -460,7 +460,10 @@
     <a href="#imprimante" class="nav-btn">🖨️ Configuration Imprimante</a>
     <a href="#recus" class="nav-btn">🧾 Reçus & Duplicatas</a>
     <a href="#modules" class="nav-btn">📚 Modules du Logiciel</a>
+    <a href="#email-bilan" class="nav-btn">📧 Service Email & Bilan Quotidien</a>
+    <a href="#exercice-personnel" class="nav-btn">👥 Début d'Exercice & Paie</a>
     <a href="#faq" class="nav-btn">❓ FAQ & Bonnes Pratiques</a>
+    <a href="#depannage-materiel" class="nav-btn">🛠️ Dépannage & Fiches 7.1 à 7.8</a>
   </nav>
 
   <!-- SECTION 1: AVANTAGES & NORMES D'INDUSTRIE -->
@@ -519,25 +522,27 @@
 
     <div class="step-list">
       <div class="step-item">
-        <h4>Téléchargement de l'Installateur Officiel (Setup v1.1.0)</h4>
+        <h4>Téléchargement de l'Installateur Officiel (Setup v1.1.9)</h4>
         <p>
-          Copiez le fichier d'installation <strong><code>lms-1.1.0-setup.exe</code></strong> (disponible sur la clé USB ou via la page GitHub Releases officielle : <a href="https://github.com/ManoaRANDRIANARISOA/lms/releases/tag/v1.1.0" target="_blank" style="color: var(--primary); font-weight: 600;">GitHub Release v1.1.0</a>) sur l'ordinateur du client.
+          Copiez le fichier d'installation <strong><code>lms-1.1.9-setup.exe</code></strong> (disponible sur la clé USB ou dans le dossier <code>dist/</code>) sur l'ordinateur du client.
         </p>
       </div>
 
       <div class="step-item">
         <h4>Exécution de l'Installation Windows</h4>
         <p>
-          Double-cliquez sur <code>lms-1.1.0-setup.exe</code>. L'assistant d'installation NSIS configure automatiquement l'application, crée le raccourci sur le Bureau et initialise l'environnement sécurisé.
+          Double-cliquez sur <code>lms-1.1.9-setup.exe</code>. L'assistant d'installation NSIS configure automatiquement l'application, crée le raccourci sur le Bureau et initialise l'environnement sécurisé sans nécessiter d'accès internet pour l'installation locale.
         </p>
       </div>
 
       <div class="step-item">
-        <h4>Configuration du Code Caisse (Poste 1 vs Poste 2)</h4>
+        <h4>Configuration du Code Caisse (Multi-Postes Indépendants)</h4>
         <p>
-          Ouvrez le logiciel LMS, rendez-vous dans la page <strong>Paramètres</strong> :
-          <br>• Si c'est le <strong>PC Principal (Secrétariat)</strong> : Laissez le poste sur <strong><code>C1</code></strong>.
-          <br>• Si c'est le <strong>Second PC (Direction / Caisse 2)</strong> : Sélectionnez <strong><code>C2</code></strong>.
+          Ouvrez le logiciel LMS, rendez-vous dans la page <strong>Paramètres</strong> $\rightarrow$ section <em>"Imprimante Thermique & Poste de Caisse"</em> :
+          <br>• <strong>Ordinateur Direction</strong> : Sélectionnez <strong><code>Caisse C1</code></strong> (reçus <code>REC-2026-C1-XXXXX</code>).
+          <br>• <strong>Ordinateur Secrétaire / Comptable 1</strong> : Sélectionnez <strong><code>Caisse C2</code></strong> (reçus <code>REC-2026-C2-XXXXX</code>).
+          <br>• <strong>Ordinateur Secrétaire / Comptable 2</strong> : Sélectionnez <strong><code>Caisse C3</code></strong> (reçus <code>REC-2026-C3-XXXXX</code>).
+          <br>• <em>Note PC Développeur / Test :</em> Vous pouvez tester sur n'importe quel code (C1, C2 ou DEV). Ce paramètre est <strong>strictement local à chaque machine</strong> et n'écrase jamais les postes du client lors des synchronisations cloud !
           <br>Cliquez sur <em>"Enregistrer les Réglages"</em>.
         </p>
       </div>
@@ -727,10 +732,11 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
           <td>
             • Pointage des présences et gestion des absences.<br>
             • Calcul des cotisations légales : CNAPS (1%), OSTIE (1%), IRSA.<br>
-            • Édition des fiches de paie conformes en PDF.
+            • Édition des fiches de paie conformes en PDF.<br>
+            • <strong>Début de paie (Exercice) :</strong> Verrou temporel mensuel par employé évitant la génération d'impayés fictifs antérieurs.
           </td>
           <td>
-            Les salaires enregistrés sont automatiquement synchronisés comme dépenses dans le Journal de Caisse de l'établissement.
+            Les salaires enregistrés sont automatiquement synchronisés comme dépenses dans le Journal de Caisse. Définissez le début d'exercice pour chaque employé ou globalement pour cadrer la rentrée scolaire.
           </td>
         </tr>
         <tr>
@@ -752,6 +758,18 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
           </td>
           <td>
             Téléchargeable en PDF A4 ou imprimable directement depuis le navigateur.
+          </td>
+        </tr>
+        <tr>
+          <td><strong>📧 8. Service Email & Bilan Quotidien</strong></td>
+          <td>
+            • Transmission automatique du bilan de caisse journalier par email à la Directrice (<strong>christineanjarasoa36@gmail.com</strong>).<br>
+            • Déclenchement automatique chaque soir à <strong>18h00</strong> (du lundi au samedi inclus).<br>
+            • Pièce jointe officielle générée automatiquement : <code>bilan_AAAA-MM-JJ.pdf</code> avec signatures et visas comptables.<br>
+            • Bouton d'envoi immédiat pour expédier le bilan du jour en direct à tout moment.
+          </td>
+          <td>
+            Générez votre mot de passe d'application Google (16 lettres) dans Google Sécurité. Le logiciel retire automatiquement les espaces et pré-remplit les adresses.
           </td>
         </tr>
       </tbody>
@@ -868,11 +886,333 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
         </li>
       </ol>
     </div>
+
+    <!-- FICHE 7.3 : ARRÊT D'URGENCE ET VIDAGE DE FILE D'IMPRESSION -->
+    <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-top: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+        <span style="background: var(--danger-bg); color: var(--danger); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche 7.3</span>
+        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Arrêt d'Urgence de l'Impression & Vidage de la File Spooler (Nettoyage Express)</h3>
+      </div>
+      
+      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
+        <strong>Symptôme :</strong> L'imprimante s'emballe, fait défiler du papier thermique en continu, ou un ticket corrompu reste coincé dans Windows après un mauvais paramétrage de port ou une coupure électrique. Même en éteignant l'imprimante, le ticket recommence à sortir au rallumage.
+      </p>
+
+      <div style="background: var(--danger-bg); border-left: 4px solid var(--danger); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #7f1d1d;">
+        <strong>Fonction du Bouton d'Urgence :</strong> Le bouton rouge <strong>« Arrêter & Vider la file (Urgence) »</strong> (dans Paramètres $\rightarrow$ Imprimante Thermique) ordonne au Spooler Windows de détruire immédiatement tous les travaux en attente (WMI <code>CancelAllJobs()</code>) et réinitialise l'état de l'imprimante.
+      </div>
+
+      <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Procédure Immédiate :</h4>
+      <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
+        <li>Ouvrez <strong>Paramètres</strong> $\rightarrow$ section <strong>Imprimante Thermique & Poste de Caisse</strong>.</li>
+        <li>Cliquez sur le bouton rouge <strong>« 🛑 Arrêter & Vider la file (Urgence) »</strong>.</li>
+        <li>Confirmez le dialogue de validation. Le logiciel annule instantanément tous les travaux bloqués dans Windows, purge le flux de données brutes ESC/POS et sort l'imprimante du mode hors-ligne.</li>
+        <li><strong>Règle de sécurité :</strong> Tous les tickets non imprimés qui se trouvaient dans la file sont considérés comme annulés et non effectués. Aucun ticket fantôme ne sortira ultérieurement. Vous pouvez relancer vos impressions propres sans aucun risque.</li>
+      </ol>
+    </div>
+
+    <!-- FICHE 7.4 : SIGNAUX DE SYNCHRONISATION & POINT ROUGE -->
+    <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+        <span style="background: var(--warning-bg); color: var(--warning); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche 7.4</span>
+        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Surveillance de Synchronisation : Comprendre le Point Rouge & Statut Cloud</h3>
+      </div>
+      
+      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
+        <strong>Indicateur Visuel :</strong> Un point rouge clignotant ou un badge orange/rouge dans la barre d'en-tête signale que des écritures locales (nouveaux paiements, inscriptions) sont enregistrées en local mais n'ont pas encore pu être acheminées vers le Cloud Supabase.
+      </p>
+
+      <div style="background: var(--warning-bg); border-left: 4px solid var(--warning); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #92400e;">
+        <strong>Sérénité Totale (Zéro Perte de Données) :</strong> Grâce à l'architecture Local-First du LMS, 100% de vos données sont stockées de façon inaltérable dans la base locale SQLite. Les secrétaires peuvent continuer à encaisser et imprimer des reçus sans interruption, même en coupure totale d'Internet.
+      </div>
+
+      <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Que faire si le voyant rouge persiste avec une connexion Internet active ?</h4>
+      <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
+        <li>Cliquez sur le badge de statut de synchronisation en haut de l'écran ou allez dans <strong>Paramètres</strong>.</li>
+        <li>Cliquez sur <strong>« Réparer / Forcer la Synchronisation »</strong>.</li>
+        <li>Le moteur v1.1.9 réinitialise automatiquement le curseur de synchronisation, nettoie les données selon le schéma Cloud Supabase et renvoie toutes les écritures en attente.</li>
+        <li>Dès que l'envoi est confirmé par le Cloud, le voyant passe instantanément au <strong>vert fixe (« Synchronisé »)</strong>.</li>
+      </ol>
+    </div>
+
+    <!-- FICHE 7.5 : GESTIONNAIRE DE DOUBLONS INTER-CAISSES -->
+    <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+        <span style="background: var(--info-bg); color: var(--info); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche 7.5</span>
+        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Centre de Contrôle des Doublons : Conflits de Paiement C1 vs C2 & Fiches Élèves</h3>
+      </div>
+      
+      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
+        <strong>Scénario :</strong> La secrétaire sur le Poste 1 a encaissé des écolages. Ne les voyant pas encore sur le Poste 2 en raison d'un délai réseau, l'opératrice du Poste 2 a ré-encaissé les mêmes sommes pour les mêmes élèves, créant des paiements concurrents.
+      </p>
+
+      <div style="background: var(--info-bg); border-left: 4px solid var(--info); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #075985;">
+        <strong>Protection Intégrée (Module Doublons) :</strong> Le logiciel intègre un module intelligent d'arbitrage accessible dans le menu latéral $\rightarrow$ <strong>« Doublons »</strong> (ou dans Paramètres). Il analyse les concordances et propose une résolution guidée sans risque comptable.
+      </div>
+
+      <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Comment arbitrer un doublon en toute sécurité :</h4>
+      <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
+        <li>Ouvrez le <strong>Gestionnaire de Doublons</strong> dans le menu de gauche.</li>
+        <li>L'écran affiche les conflits détectés : même élève, même mois d'écolage, montants identiques ou rapprochés émis sur C1 et C2.</li>
+        <li>Comparez les deux tickets côte à côte (dates, heures, opérateurs, montants).</li>
+        <li>Cliquez sur <strong>« Conserver Reçu C1 »</strong> ou <strong>« Conserver Reçu C2 »</strong> : le reçu doublon est annulé proprement avec trace comptable complète dans <code>settings_history</code>.</li>
+        <li>Si le parent a volontairement payé deux tranches réelles, cliquez sur <strong>« Conserver les deux (Valide) »</strong> pour lever l'alerte.</li>
+      </ol>
+    </div>
+
+    <!-- FICHE 7.6 : AFFECTATION DES POSTES & PLUG & PLAY -->
+    <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: var(--shadow-sm);">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+        <span style="background: var(--success-bg); color: var(--success); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche 7.6</span>
+        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Affectation Multi-Postes & Déploiement Réel Plug & Play</h3>
+      </div>
+      
+      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
+        <strong>Organisation Recommandée des Postes de Travail :</strong>
+      </p>
+
+      <table class="manual-table" style="margin-bottom: 16px;">
+        <thead>
+          <tr>
+            <th>Poste Physique</th>
+            <th>Rôle Utilisateur</th>
+            <th>Code Caisse à Régler</th>
+            <th>Format Numérotation Reçus</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Ordinateur 1</strong></td>
+            <td>Bureau de la Direction</td>
+            <td><code>Caisse C1</code></td>
+            <td><code>REC-2026-C1-XXXXX</code></td>
+          </tr>
+          <tr>
+            <td><strong>Ordinateur 2</strong></td>
+            <td>Secrétaire / Comptable 1</td>
+            <td><code>Caisse C2</code></td>
+            <td><code>REC-2026-C2-XXXXX</code></td>
+          </tr>
+          <tr>
+            <td><strong>Ordinateur 3</strong></td>
+            <td>Secrétaire / Comptable 2</td>
+            <td><code>Caisse C3</code></td>
+            <td><code>REC-2026-C3-XXXXX</code></td>
+          </tr>
+          <tr>
+            <td><strong>PC Développeur / Test</strong></td>
+            <td>Maintenance & Validation</td>
+            <td><code>C1, C2 ou DEV</code></td>
+            <td>Totalement isolé (paramètre local non synchronisé)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Garantie d'Isolation du PC Développeur :</h4>
+      <p style="font-size: 13px; color: var(--text); margin-bottom: 14px; line-height: 1.8;">
+        Le réglage du code de poste (<code>pos_station_code</code>) est classé dans la zone <strong>LOCAL_ONLY_SETTINGS</strong> de chaque machine. Cela garantit que lorsque le développeur teste l'application en mode C1 ou C2, la synchronisation Supabase <strong>n'écrase jamais</strong> les configurations des postes de la Direction ou des Secrétaires chez le client. Chaque PC garde son identité de façon inébranlable.
+      </p>
+
+      <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Plug & Play Réel des Outils Xprinter :</h4>
+      <p style="font-size: 13px; color: var(--text); line-height: 1.8;">
+        Tous les scripts nécessaires (<code>detect-xprinter.ps1</code>, <code>installer-xprinter.ps1</code>, <code>send-raw.ps1</code>) sont empaquetés directement dans l'installateur Windows <strong><code>lms-1.1.9-setup.exe</code></strong>. Vous n'avez plus besoin d'importer ou de copier des fichiers annexes : dès l'installation, le bouton d'auto-détection et le pilote thermique fonctionnent immédiatement sur n'importe quel port USB.
+      </p>
+    </div>
+
+    <!-- FICHE 7.7 : CONFIGURATION SERVICE EMAIL & MOT DE PASSE D'APPLICATION GOOGLE -->
+    <div id="email-bilan" style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+        <span style="background: var(--success-bg); color: var(--success); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche 7.7</span>
+        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Configuration & Activation du Bilan Quotidien par Email (Google App Password)</h3>
+      </div>
+      
+      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
+        Le LMS dispose d'un service d'automatisation des bilans financiers par email. Chaque soir ouvrable à <strong>18h00</strong> (du lundi au samedi), le système compile les encaissements, décaissements, solde initial et solde final, puis transmet le bilan exécutif avec le document PDF officiel joint (<code>bilan_AAAA-MM-JJ.pdf</code>) au courriel officiel de la Directrice générale (<code>christineanjarasoa36@gmail.com</code>).
+      </p>
+
+      <div style="background: var(--surface-subtle); border-left: 4px solid var(--info); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px;">
+        <strong>Pourquoi un « Mot de passe d'application » Google ?</strong><br>
+        Pour des raisons de sécurité renforcée (validation en deux étapes / 2FA), Google n'autorise plus la saisie du mot de passe habituel de votre compte Google dans les applications tierces. Google génère à la place un <strong>mot de passe d'application dédié de 16 lettres</strong> (ex: <code>abcd efgh ijkl mnop</code>). Ce code est ultra-sécurisé, révocable à tout moment et ne divulgue jamais votre mot de passe principal.
+      </div>
+
+      <h4 style="font-size: 15px; font-weight: 700; color: var(--primary-darker); margin-bottom: 12px;">Procédure Pas à Pas d'Activation (1 Minute Chrono) :</h4>
+
+      <ol class="step-list" style="margin-bottom: 20px;">
+        <li class="step-item">
+          <h4>Accéder à la Gestion des Mots de Passe d'Application Google</h4>
+          <p>
+            Connectez-vous sur votre navigateur avec le compte Google expéditeur de l'école (<code>mmanjarysoa@gmail.com</code>).<br>
+            • <strong>Option directe :</strong> Dans LMS, allez dans <strong>Paramètres</strong> ➔ <strong>📧 Service Email</strong> et cliquez sur le lien <strong>« Générer sur Google ↗ »</strong>.<br>
+            • <strong>Option URL :</strong> Rendez-vous sur <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color: var(--info); font-weight: 600;">myaccount.google.com/apppasswords</a>.<br>
+            <em>(Prérequis : La Validation en deux étapes doit être active sur votre compte Google).</em>
+          </p>
+        </li>
+        <li class="step-item">
+          <h4>Créer le Code d'Autorisation de 16 Lettres</h4>
+          <p>
+            Dans le champ <em>« Nom de l'application »</em>, saisissez par exemple <code>LMS Manjary Soa</code> puis cliquez sur le bouton <strong>« Créer »</strong>.<br>
+            Google affiche un encadré contenant votre mot de passe de 16 lettres (ex: <code>abcd efgh ijkl mnop</code>). <strong>Copiez ces 16 lettres</strong>.
+          </p>
+        </li>
+        <li class="step-item">
+          <h4>Coller et Enregistrer dans LMS Manjary Soa</h4>
+          <p>
+            Dans LMS, section <strong>Paramètres</strong> ➔ <strong>📧 Service Email</strong> :<br>
+            • L'adresse Gmail expéditrice est déjà pré-remplie : <code>mmanjarysoa@gmail.com</code>.<br>
+            • L'adresse destinataire de la Directrice est fixée : <code>christineanjarasoa36@gmail.com</code>.<br>
+            • Collez votre code de 16 lettres dans le champ <strong>« Mot de passe d'application Google »</strong> <em>(Le logiciel retire automatiquement tous les espaces)</em>. Vous pouvez cliquer sur l'icône œil 👁️ pour vérifier.<br>
+            • Assurez-vous que <strong>« Activer le service email »</strong> et <strong>« Envoi automatique du bilan journalier à 18h »</strong> sont bien cochés.<br>
+            • Cliquez sur le bouton <strong>« Enregistrer »</strong>.
+          </p>
+        </li>
+        <li class="step-item">
+          <h4>Valider et Tester l'Envoi Immédiat</h4>
+          <p>
+            • Cliquez sur <strong>« Tester la connexion »</strong> : un message vert confirme que la liaison SMTP avec les serveurs Google est 100% fonctionnelle.<br>
+            • Cliquez sur <strong>« Envoyer le rapport du jour maintenant »</strong> : le logiciel génère immédiatement le bilan du jour avec le fichier PDF officiel joint et l'envoie sur la boîte mail de la directrice pour validation !
+          </p>
+        </li>
+      </ol>
+
+      <table class="manual-table">
+        <thead>
+          <tr>
+            <th>Paramètre</th>
+            <th>Valeur par Défaut dans le Logiciel</th>
+            <th>Rôle & Comportement</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Compte Expéditeur</strong></td>
+            <td><code>mmanjarysoa@gmail.com</code></td>
+            <td>Adresse Gmail officielle d'envoi de l'établissement</td>
+          </tr>
+          <tr>
+            <td><strong>Courriel Destinataire</strong></td>
+            <td><code>christineanjarasoa36@gmail.com</code></td>
+            <td>Boîte personnelle de la Directrice générale</td>
+          </tr>
+          <tr>
+            <td><strong>Heure d'Envoi Quotidien</strong></td>
+            <td><strong>18h00</strong> (Lundi au Samedi)</td>
+            <td>Envoi automatique en fin de journée (Dimanche exclu)</td>
+          </tr>
+          <tr>
+            <td><strong>Sécurité Anti-Doublon</strong></td>
+            <td>Date du jour horodatée</td>
+            <td>Garantit qu'un même bilan journalier n'est jamais envoyé deux fois</td>
+          </tr>
+          <tr>
+            <td><strong>Pièce Jointe Officielle</strong></td>
+            <td><code>bilan_AAAA-MM-JJ.pdf</code></td>
+            <td>Bilan comptable certifié avec émargements et encadrés de visa Direction</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- FICHE 7.8 : DÉBUT D'EXERCICE PERSONNEL & GESTION DES SALAIRES IMPAYÉS -->
+    <div id="exercice-personnel" style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-top: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+        <span style="background: var(--info-bg); color: var(--info); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche 7.8</span>
+        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Début d'Exercice (Personnel & Salaires) : Fonctionnement Mensuel & Questions d'Analyse</h3>
+      </div>
+      
+      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
+        <strong>Contexte :</strong> Dans le module <em>Salaires & Impayés</em>, un bandeau d'alerte jaune signale les employés qui n'ont pas encore de « Début de paie (Exercice) » défini dans leur fiche. Cette fiche détaille l'emplacement du champ, la raison du format mensuel (<code>AAAA-MM</code>) et les questions clés à clarifier avec l'établissement.
+      </p>
+
+      <div style="background: var(--surface-subtle); border-left: 4px solid var(--primary); padding: 14px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px;">
+        <strong>📍 Où se trouve le réglage dans le logiciel ?</strong><br>
+        1. Rendez-vous dans <strong>Personnel</strong> ➔ <strong>Liste du personnel</strong>.<br>
+        2. Cliquez sur l'icône <strong>Modifier (crayon ✏️)</strong> sur la ligne de l'employé concerné.<br>
+        3. Faites défiler la page jusqu'à la section <strong>« Informations professionnelles »</strong> (située juste au-dessus de <em>Rémunération</em>).<br>
+        4. Le champ s'intitule <strong>« Début de paie (Exercice) »</strong> (sélecteur mois/année ex: <code>2025-09</code>) avec l'instruction <em>« Ignorer le passif avant ce mois »</em>.<br>
+        5. Cliquez sur <strong>Enregistrer</strong> en bas de page.
+      </div>
+
+      <h4 style="font-size: 14px; font-weight: 700; color: var(--primary-darker); margin-bottom: 8px;">1. Pourquoi le format mensuel (AAAA-MM) sans mentionner le jour précis ?</h4>
+      <div class="grid-2" style="margin-bottom: 16px;">
+        <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px; font-size: 13px;">
+          <h5 style="color: #0F172A; font-weight: 700; margin-bottom: 6px;">✅ Avantages du Format Mensuel (AAAA-MM)</h5>
+          <ul style="margin-left: 16px; color: #475569; line-height: 1.7;">
+            <li><strong>Unité de compte globale :</strong> En comptabilité scolaire malgache, les salaires et impayés sont calculés par mois civil entier (ex: Salaire de Septembre, Salaire d'Octobre).</li>
+            <li><strong>Verrou anti-faux impayés :</strong> Indiquer <code>2025-09</code> ordonne au logiciel de démarrer l'historique en Septembre 2025 et d'ignorer tout le passé des années antérieures.</li>
+            <li><strong>Aucune ambiguïté de prorata :</strong> Évite de générer par erreur des demi-salaires ou fractions de salaires non souhaitées.</li>
+            <li><strong>La date exacte au jour le jour existe déjà :</strong> C'est le champ <strong>« Date d'embauche »</strong> (<code>AAAA-MM-JJ</code>) réservé au contrat et à l'ancienneté.</li>
+          </ul>
+        </div>
+
+        <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 14px; font-size: 13px;">
+          <h5 style="color: #991B1B; font-weight: 700; margin-bottom: 6px;">⚠️ Risques d'un Format au Jour Précis (AAAA-MM-JJ)</h5>
+          <ul style="margin-left: 16px; color: #7F1D1D; line-height: 1.7;">
+            <li><strong>Problème du prorata automatique :</strong> Si on saisit le <code>15/09/2025</code>, le système doit-il payer un demi-salaire, compter les jours ouvrés ou 15/30e ?</li>
+            <li><strong>Incompatibilité avec les salaires fixes :</strong> Les contrats d'école prévoient un forfait mensuel ; les ajustements de premier mois se font généralement de gré à gré ou via les heures réelles pointées.</li>
+            <li><strong>Lourdeur de saisie :</strong> Oblige le gestionnaire à chercher un jour calendaire précis au lieu de simplement pointer le mois de rentrée.</li>
+          </ul>
+        </div>
+      </div>
+
+      <h4 style="font-size: 14px; font-weight: 700; color: var(--primary-darker); margin-bottom: 8px;">2. Questions Clés à Clarifier avec l'Établissement (Grille d'Entretien)</h4>
+      <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+        Pour valider l'adéquation exacte avec les pratiques internes de l'école, voici les questions à soumettre à la Direction ou au Comptable :
+      </p>
+
+      <table class="manual-table" style="margin-bottom: 16px;">
+        <thead>
+          <tr>
+            <th style="width: 35%;">Question à poser à l'école</th>
+            <th style="width: 35%;">Options envisagées</th>
+            <th style="width: 30%;">Impact sur le logiciel</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Q1. Démarrage de l'exercice de paie</strong><br><em>« Votre suivi de paie sur le logiciel démarre-t-il bien au mois civil complet (ex: à partir de Septembre 2025 pour la rentrée) ? »</em></td>
+            <td>
+              • <strong>Option A (Standard) :</strong> Oui, au mois civil complet.<br>
+              • <strong>Option B :</strong> À une date décalée (ex: du 21 au 20 du mois).
+            </td>
+            <td>
+              Si Option A (recommandé), le format mensuel <code>AAAA-MM</code> actuel est parfait et 100% suffisant.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Q2. Recrutement en cours de mois</strong><br><em>« Si un enseignant ou employé est embauché en milieu de mois (ex: le 12 ou le 18), comment réglez-vous son premier salaire ? »</em></td>
+            <td>
+              • <strong>Option A :</strong> Paiement au forfait convenu ou mois complet.<br>
+              • <strong>Option B :</strong> Saisie des heures réellement faites dans le pointage.<br>
+              • <strong>Option C :</strong> Calcul automatique au prorata temporis exact.
+            </td>
+            <td>
+              Si Option B, le module de pointage/absences gère déjà la déduction d'heures sans changer le début d'exercice.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>Q3. Confort d'utilisation & Action groupée</strong><br><em>« Préférez-vous un bouton direct "Définir l'exercice pour tous" plutôt que d'éditer chaque employé individuellement ? »</em></td>
+            <td>
+              • <strong>Bouton 1-clic :</strong> Définit le mois d'exercice pour tous les employés en un clic depuis l'écran Salaires & Impayés.
+            </td>
+            <td>
+              Gain de temps immédiat : évite de devoir ouvrir 30 à 50 fiches une par une.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="background: #F0FDF4; border-left: 4px solid var(--success); padding: 12px 16px; border-radius: 6px; font-size: 13px; color: #166534;">
+        <strong>💡 Synthèse & Recommandation Technique :</strong><br>
+        • Conserver le format <strong>mensuel (<code>AAAA-MM</code>)</strong> pour le <em>Début de paie (Exercice)</em> afin de respecter la logique des salaires scolaires et d'éviter les pièges de prorata arbitraires.<br>
+        • Laisser la <strong>Date d'embauche (<code>AAAA-MM-JJ</code>)</strong> précise pour les contrats et la gestion RH administrative.<br>
+        • Déployer le bouton d'action groupée dans <em>Salaires & Impayés</em> pour un paramétrage instantané de rentrée en 1 clic.
+      </div>
+    </div>
   </section>
 
   <!-- FOOTER -->
   <footer style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 40px; border-top: 1px solid var(--border); padding-top: 20px;">
-    <strong>LMS Manjary Soa v1.1.1</strong> — Solution Professionnelle Développée pour le Lycée Privé Manjary Soa, Lot H 81 Miadana Alasora, Antananarivo.
+    <strong>LMS Manjary Soa v1.1.9</strong> — Solution Professionnelle Développée pour le Lycée Privé Manjary Soa, Lot H 81 Miadana Alasora, Antananarivo.
   </footer>
 
 </div>

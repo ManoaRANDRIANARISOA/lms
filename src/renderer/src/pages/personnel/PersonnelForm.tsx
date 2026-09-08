@@ -29,7 +29,7 @@ export default function PersonnelForm(): React.JSX.Element {
     status: 'fulltime',
     position: 'teacher',
     hire_date: new Date().toISOString().split('T')[0],
-    payroll_start_date: new Date().toISOString().substring(0, 7),
+    payroll_start_date: '',
     departure_date: '',
     teacher_level: '',
     teacher_subjects: '[]',
@@ -62,7 +62,9 @@ export default function PersonnelForm(): React.JSX.Element {
     if (isEdit && currentPerson) {
       setFormData({
         ...currentPerson,
-        payroll_start_date: currentPerson.payroll_start_date || '',
+        payroll_start_date: currentPerson.payroll_start_date
+          ? currentPerson.payroll_start_date.substring(0, 7)
+          : '',
         teacher_subjects: JSON.stringify(currentPerson.teacher_subjects || []),
         monthly_salary: currentPerson.monthly_salary || '',
         hourly_rate: currentPerson.hourly_rate || '',

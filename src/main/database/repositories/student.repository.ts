@@ -41,7 +41,8 @@ export class StudentRepository {
     'email',
     'is_personnel_child',
     'parent_personnel_id',
-    'departure_date'
+    'departure_date',
+    'student_status'
   ]
 
   private static translateError(error: unknown): string {
@@ -149,31 +150,32 @@ export class StudentRepository {
   }
 
   private static readonly DEFAULT_TUITION_MAP: Record<string, number> = {
-    PS: 60000,
-    MS: 60000,
-    GS: 60000,
-    CP1: 70000,
-    CP2: 70000,
-    CP: 70000,
-    CE1: 70000,
-    CE2: 70000,
-    CM1: 80000,
-    CM2: 80000,
-    '6ème': 90000,
-    '6eme': 90000,
-    '5ème': 90000,
-    '5eme': 90000,
-    '4ème': 100000,
-    '4eme': 100000,
-    '3ème': 100000,
-    '3eme': 100000,
-    '2nde': 110000,
-    Seconde: 110000,
-    '1ère': 110000,
-    Première: 110000,
-    TA: 120000,
-    TD: 120000,
-    Terminale: 120000
+    TPS: 60000,
+    PS: 50000,
+    MS: 50000,
+    GS: 50000,
+    CP1: 45000,
+    CP2: 45000,
+    CP: 45000,
+    CE1: 45000,
+    CE2: 45000,
+    CM1: 45000,
+    CM2: 45000,
+    '6ème': 50000,
+    '6eme': 50000,
+    '5ème': 50000,
+    '5eme': 50000,
+    '4ème': 50000,
+    '4eme': 50000,
+    '3ème': 55000,
+    '3eme': 55000,
+    '2nde': 55000,
+    Seconde: 55000,
+    '1ère': 55000,
+    Première: 55000,
+    TA: 60000,
+    TD: 60000,
+    Terminale: 60000
   }
 
   static resolveTuitionConfig(className: string): { price: number; key: string } {
@@ -1433,9 +1435,13 @@ export class StudentRepository {
       const student = db.prepare('SELECT * FROM students WHERE id = ?').get(studentId) as any
       if (!student) return { success: false, error: 'Élève non trouvé' }
 
+      const cleanYear = (schoolYear || this.getCurrentSchoolYear() || '')
+        .replace(/['"]/g, '')
+        .trim()
       const isReenrollment = newType === 'reenrollment' ? 1 : 0
       const newStatus = newType === 'enrollment' ? 'Nouveau' : 'Ancien'
       const paymentDesc = newType === 'enrollment' ? "Droits d'inscription" : 'Droits de réinscription'
+      const cashCategory = newType === 'enrollment' ? 'inscription' : 'réinscription'
       const cashDescPrefix =
         newType === 'enrollment'
           ? "Paiement Droits d'inscription"
@@ -1446,51 +1452,75 @@ export class StudentRepository {
         db.prepare(
           `UPDATE students SET student_status = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending' WHERE id = ?`
         ).run(newStatus, studentId)
-        addToSyncQueue('students', studentId, 'update', { student_status: newStatus })
+        addToSyncQueue('students', studentId, 'update', { id: studentId, student_status: newStatus })
 
-        // 2. Update student_fees for this school year
-        const fee = db
-          .prepare(`SELECT id FROM student_fees WHERE student_id = ? AND school_year = ?`)
-          .get(studentId, schoolYear) as { id: string } | undefined
+        // 2. Update student_fees for this school year (with sanitized year comparison)
+        let fee = db
+          .prepare(
+            `SELECT id FROM student_fees WHERE student_id = ? AND REPLACE(REPLACE(school_year, '"', ''), '''', '') = ?`
+          )
+          .get(studentId, cleanYear) as { id: string } | undefined
+
+        if (!fee) {
+          // Fallback: take the most recent fee record
+          fee = db
+            .prepare(
+              `SELECT id FROM student_fees WHERE student_id = ? ORDER BY school_year DESC LIMIT 1`
+            )
+            .get(studentId) as { id: string } | undefined
+        }
 
         if (fee) {
           db.prepare(
             `UPDATE student_fees SET is_reenrollment = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending' WHERE id = ?`
           ).run(isReenrollment, fee.id)
-          addToSyncQueue('student_fees', fee.id, 'update', { is_reenrollment: isReenrollment })
+          addToSyncQueue('student_fees', fee.id, 'update', { id: fee.id, is_reenrollment: isReenrollment })
         }
 
-        // 3. Update student_payments
-        const oldType = newType === 'enrollment' ? 'reenrollment' : 'enrollment'
+        // 3. Update student_payments (enrollment vs reenrollment)
         const payments = db
           .prepare(
-            `SELECT id, amount FROM student_payments WHERE student_id = ? AND school_year = ? AND payment_type = ?`
+            `SELECT id, amount, receipt_number FROM student_payments 
+             WHERE student_id = ? 
+               AND payment_type IN ('enrollment', 'reenrollment')
+               AND (REPLACE(REPLACE(school_year, '"', ''), '''', '') = ? OR school_year IS NULL OR school_year = '')`
           )
-          .all(studentId, schoolYear, oldType) as { id: string; amount: number }[]
+          .all(studentId, cleanYear) as { id: string; amount: number; receipt_number?: string }[]
 
+        const updatedPaymentIds: string[] = []
         for (const p of payments) {
           db.prepare(
             `UPDATE student_payments SET payment_type = ?, description = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending' WHERE id = ?`
           ).run(newType, paymentDesc, p.id)
           addToSyncQueue('student_payments', p.id, 'update', {
+            id: p.id,
             payment_type: newType,
             description: paymentDesc
           })
+          updatedPaymentIds.push(p.id)
         }
 
-        // 4. Update corresponding cash_journal
+        // 4. Update corresponding cash_journal entries
+        const newCashDesc = `${cashDescPrefix} — ${student.last_name || ''} ${student.first_name || ''}`.trim()
+        
+        // Match either by related_payment_id or related_student_id with description pattern
         const cashEntries = db
           .prepare(
-            `SELECT id FROM cash_journal WHERE related_student_id = ? AND (description LIKE ? OR description LIKE ?)`
+            `SELECT id FROM cash_journal 
+             WHERE (related_payment_id IN (${updatedPaymentIds.map(() => '?').join(',') || "''"}))
+                OR (related_student_id = ? AND (category IN ('inscription', 'réinscription') OR description LIKE ? OR description LIKE ?))`
           )
-          .all(studentId, '%inscription%', '%réinscription%') as { id: string }[]
+          .all(...updatedPaymentIds, studentId, '%inscription%', '%réinscription%') as { id: string }[]
 
         for (const c of cashEntries) {
-          const newCashDesc = `${cashDescPrefix} — ${student.last_name} ${student.first_name}`
           db.prepare(
-            `UPDATE cash_journal SET description = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending' WHERE id = ?`
-          ).run(newCashDesc, c.id)
-          addToSyncQueue('cash_journal', c.id, 'update', { description: newCashDesc })
+            `UPDATE cash_journal SET category = ?, description = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending' WHERE id = ?`
+          ).run(cashCategory, newCashDesc, c.id)
+          addToSyncQueue('cash_journal', c.id, 'update', {
+            id: c.id,
+            category: cashCategory,
+            description: newCashDesc
+          })
         }
       })
 

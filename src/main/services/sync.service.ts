@@ -5,6 +5,7 @@ import path from 'path'
 import * as fs from 'fs'
 import { app, BrowserWindow } from 'electron'
 import { LoggerService } from './logger.service'
+import { TelemetryService } from './telemetry.service'
 
 const isDev = !app.isPackaged
 const envPath = isDev ? path.join(process.cwd(), '.env') : path.join(process.resourcesPath, '.env')
@@ -90,6 +91,15 @@ const SYNCABLE_TABLES = new Set([
   'settings'
 ])
 
+export const LOCAL_ONLY_SETTINGS = new Set([
+  'pos_station_code',
+  'printer_name',
+  'printer_copies',
+  'email_logs',
+  'email_last_sent_date'
+])
+
+
 export interface SyncProgress {
   phase: 'idle' | 'checking' | 'pushing' | 'pulling' | 'success' | 'error'
   current: number
@@ -159,17 +169,19 @@ export async function checkCloudHealth(): Promise<{ ok: boolean; latencyMs?: num
 export function getSyncQueueStatus(): {
   pendingCount: number
   errorCount: number
+  quarantinedCount: number
   lastSyncTime: string | null
 } {
   try {
     const counts = db
       .prepare(
         `SELECT 
-          SUM(CASE WHEN status IN ('pending', 'error') THEN 1 ELSE 0 END) as pending,
-          SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as errors
+          SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+          SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as errors,
+          SUM(CASE WHEN status = 'quarantined' THEN 1 ELSE 0 END) as quarantined
          FROM sync_queue`
       )
-      .get() as { pending: number | null; errors: number | null } | undefined
+      .get() as { pending: number | null; errors: number | null; quarantined: number | null } | undefined
 
     const settingRow = db
       .prepare("SELECT value FROM settings WHERE key = 'last_sync_time'")
@@ -187,23 +199,24 @@ export function getSyncQueueStatus(): {
     return {
       pendingCount: counts?.pending || 0,
       errorCount: counts?.errors || 0,
+      quarantinedCount: counts?.quarantined || 0,
       lastSyncTime
     }
   } catch {
-    return { pendingCount: 0, errorCount: 0, lastSyncTime: null }
+    return { pendingCount: 0, errorCount: 0, quarantinedCount: 0, lastSyncTime: null }
   }
 }
 
 /**
- * Retrieve failed queue items
+ * Retrieve failed or quarantined queue items
  */
-export function getSyncQueueErrors(limit = 50) {
+export function getSyncQueueErrors(limit = 100) {
   try {
     return db
       .prepare(
         `SELECT id, table_name, record_id, action, status, error_message, created_at, updated_at
          FROM sync_queue
-         WHERE status IN ('error', 'skipped')
+         WHERE status IN ('error', 'skipped', 'quarantined')
          ORDER BY updated_at DESC LIMIT ?`
       )
       .all(limit)
@@ -221,12 +234,76 @@ export function retrySyncErrors(): { changes: number } {
       .prepare(
         `UPDATE sync_queue
          SET status = 'pending', error_message = NULL
-         WHERE status IN ('error', 'skipped')`
+         WHERE status IN ('error', 'skipped', 'quarantined')`
       )
       .run()
     return { changes: res.changes }
   } catch {
     return { changes: 0 }
+  }
+}
+
+/**
+ * Quarantines all failed/skipped queue items, transmits error telemetry to Supabase,
+ * and immediately triggers push for the remaining healthy items.
+ */
+export async function quarantineAndUnblockQueue(): Promise<{
+  success: boolean
+  quarantinedCount: number
+  remainingPending: number
+  message: string
+}> {
+  try {
+    const failedItems = db
+      .prepare(
+        `SELECT id, table_name, record_id, error_message 
+         FROM sync_queue 
+         WHERE status IN ('error', 'skipped')`
+      )
+      .all() as { id: number; table_name: string; record_id: string; error_message: string | null }[]
+
+    const currentStatus = getSyncQueueStatus()
+
+    // 1. Report each failed item to Supabase audit_logs via TelemetryService
+    for (const item of failedItems) {
+      await TelemetryService.reportSyncBlockage(
+        item.table_name,
+        item.record_id,
+        item.error_message || 'Blocage persistant isolé par déblocage forcé',
+        currentStatus.pendingCount
+      )
+    }
+
+    // 2. Mark blocking rows as 'quarantined'
+    const res = db
+      .prepare(
+        `UPDATE sync_queue 
+         SET status = 'quarantined', updated_at = CURRENT_TIMESTAMP 
+         WHERE status IN ('error', 'skipped')`
+      )
+      .run()
+
+    const remaining = (
+      db.prepare(`SELECT COUNT(*) as c FROM sync_queue WHERE status = 'pending'`).get() as { c: number }
+    ).c
+
+    // 3. Immediately trigger background sync for the remaining healthy items
+    syncWithCloud().catch((e) => console.error('Auto sync after unblock error:', e))
+
+    return {
+      success: true,
+      quarantinedCount: res.changes,
+      remainingPending: remaining,
+      message: `${res.changes} élément(s) bloquant(s) mis en quarantaine et signalés au cloud. ${remaining} modification(s) en cours d'envoi.`
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return {
+      success: false,
+      quarantinedCount: 0,
+      remainingPending: 0,
+      message: `Erreur lors du déblocage : ${msg}`
+    }
   }
 }
 
@@ -391,10 +468,30 @@ function sanitizeRowPayload(tableName: string, action: string, rawData: any, rec
     // Ignore local merge error
   }
 
+  // Strip local SQLite-only columns that do not exist on Supabase
   if ('search_text' in payload) delete payload.search_text
-  if ('is_reenrollment' in payload) delete payload.is_reenrollment
-  if ('payroll_start_date' in payload) delete payload.payroll_start_date
-  if (tableName === 'parent_events' && 'school_year' in payload) delete payload.school_year
+  if ('sync_status' in payload) delete payload.sync_status
+  if ('last_synced_at' in payload) delete payload.last_synced_at
+
+  // student_payments on Supabase contains print_count, last_printed_at, last_printed_by, created_by, receipt_number
+  // Keep all of them in payload for multi-workstation print synchronization
+
+  if (tableName === 'cash_journal') {
+    // cash_journal on Supabase has related_payment_id, receipt_number, created_by.
+    // It does NOT have print_count directly (print_count is tracked on student_payments).
+    delete payload.print_count
+    delete payload.last_printed_at
+    delete payload.last_printed_by
+  }
+  if (tableName === 'student_fees') {
+    delete payload.is_reenrollment
+  }
+  if (tableName === 'personnel') {
+    delete payload.payroll_start_date
+  }
+  if (tableName === 'parent_events' && 'school_year' in payload) {
+    delete payload.school_year
+  }
 
   const dateFields = [
     'date_of_birth',
@@ -464,9 +561,10 @@ function sanitizeRowPayload(tableName: string, action: string, rawData: any, rec
 }
 
 /**
- * Deep merge finance_prices to prevent wiping out custom bus routes or uniform items
+ * Deep merge finance_prices to prevent wiping out custom bus routes or uniform items,
+ * while respecting recency of manual price updates between workstations.
  */
-function deepMergeFinancePrices(local: any, remote: any): any {
+function deepMergeFinancePrices(local: any, remote: any, preferRemote = false): any {
   if (!local && !remote) return {}
   if (!local) return remote
   if (!remote) return local
@@ -486,8 +584,10 @@ function deepMergeFinancePrices(local: any, remote: any): any {
   )
   const combinedRoutes = Array.from(new Set([...localRoutes, ...remoteRoutes]))
 
-  // Bus prices: merge dictionaries minus tombstones
-  const combinedBusPrices = { ...(remote.bus || {}), ...(local.bus || {}) }
+  // Bus prices: merge dictionaries minus tombstones, preferring the more recent workstation's changes
+  const combinedBusPrices = preferRemote
+    ? { ...(local.bus || {}), ...(remote.bus || {}) }
+    : { ...(remote.bus || {}), ...(local.bus || {}) }
   for (const r of tombstonedRoutes) {
     delete combinedBusPrices[r]
   }
@@ -507,13 +607,15 @@ function deepMergeFinancePrices(local: any, remote: any): any {
   )
   const combinedUniforms = Array.from(new Set([...localUniforms, ...remoteUniforms]))
 
-  // Uniform prices: merge dictionaries minus tombstones
-  const combinedUniformPrices = { ...(remote.uniforms || {}), ...(local.uniforms || {}) }
+  // Uniform prices: merge dictionaries minus tombstones, preferring the more recent workstation's changes
+  const combinedUniformPrices = preferRemote
+    ? { ...(local.uniforms || {}), ...(remote.uniforms || {}) }
+    : { ...(remote.uniforms || {}), ...(local.uniforms || {}) }
   for (const i of tombstonedUniforms) {
     delete combinedUniformPrices[i]
   }
 
-  // Tuition: merge dictionaries, prefer non-zero
+  // Tuition: merge dictionaries respecting the more recent workstation's saved prices
   const tuitionKeys = Array.from(
     new Set([...Object.keys(remote.tuition || {}), ...Object.keys(local.tuition || {})])
   )
@@ -521,19 +623,28 @@ function deepMergeFinancePrices(local: any, remote: any): any {
   for (const k of tuitionKeys) {
     const locVal = local.tuition?.[k]
     const remVal = remote.tuition?.[k]
-    combinedTuition[k] = locVal && locVal > 0 ? locVal : remVal || 0
+    if (preferRemote) {
+      combinedTuition[k] = remVal !== undefined && remVal > 0 ? remVal : (locVal || 0)
+    } else {
+      combinedTuition[k] = locVal !== undefined && locVal > 0 ? locVal : (remVal || 0)
+    }
   }
 
+  // Pick primary based on recency
+  const primary = preferRemote ? remote : local
+  const secondary = preferRemote ? local : remote
+
   return {
-    ...remote,
-    ...local,
+    ...secondary,
+    ...primary,
     busRoutes: combinedRoutes,
     bus: combinedBusPrices,
     deletedBusRoutes: Array.from(tombstonedRoutes),
     uniformItems: combinedUniforms,
     uniforms: combinedUniformPrices,
     deletedUniformItems: Array.from(tombstonedUniforms),
-    tuition: combinedTuition
+    tuition: combinedTuition,
+    classes: Array.from(new Set([...(primary.classes || []), ...(secondary.classes || [])]))
   }
 }
 
@@ -554,6 +665,8 @@ async function pushLocalChanges() {
   }
 
   let processedCount = 0
+  const attemptedIds = new Set<string>()
+  const sessionFailedTables = new Set<string>()
 
   while (true) {
     // Select batch of up to 50 items sorted by dependency order
@@ -617,18 +730,19 @@ async function pushLocalChanges() {
       )
       .all() as any[]
 
-    if (queue.length === 0) break
+    const unattemptedItems = queue.filter((item) => !attemptedIds.has(item.id))
+    if (unattemptedItems.length === 0) break
 
-    const failedTables = new Set<string>()
+    for (const item of unattemptedItems) {
+      attemptedIds.add(item.id)
 
-    for (const item of queue) {
-      if (failedTables.has(item.table_name)) {
+      if (sessionFailedTables.has(item.table_name)) {
         continue
       }
 
       // Dependency check: skip child tables if parent table failed
       const deps = TABLE_DEPENDENCIES[item.table_name] || []
-      if (deps.some((d) => failedTables.has(d))) {
+      if (deps.some((d) => sessionFailedTables.has(d))) {
         continue
       }
 
@@ -641,6 +755,12 @@ async function pushLocalChanges() {
         }
 
         const payload = sanitizeRowPayload(item.table_name, item.action, rawData, item.record_id)
+
+        // Skip workstation-specific local settings from cloud push
+        if (item.table_name === 'settings' && LOCAL_ONLY_SETTINGS.has(payload.key || item.record_id)) {
+          db.prepare("UPDATE sync_queue SET status = 'completed', error_message = NULL WHERE id = ?").run(item.id)
+          continue
+        }
 
         // Photo upload handling (Offline-first)
         if (
@@ -766,7 +886,7 @@ async function pushLocalChanges() {
           pendingCount: Math.max(0, totalItemsCount - processedCount)
         })
       } catch (error: any) {
-        failedTables.add(item.table_name)
+        sessionFailedTables.add(item.table_name)
         const errMsg = error?.message || 'Erreur inconnue Supabase'
         LoggerService.log(
           'error',
@@ -775,7 +895,15 @@ async function pushLocalChanges() {
           error
         )
 
-        // Keep status as error so it remains visible in the Sync modal and can be retried
+        // Automatically report to cloud telemetry ("mouchard")
+        TelemetryService.reportSyncBlockage(
+          item.table_name,
+          item.record_id,
+          errMsg,
+          totalItemsCount
+        ).catch(() => {})
+
+        // Keep status as error so it remains visible in the Sync modal and can be quarantined/retried
         db.prepare(
           `UPDATE sync_queue
            SET status = 'error', error_message = ?
@@ -971,9 +1099,18 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
               ).run(...Object.values(recordToSave))
             } else {
               // Local vs Cloud resolution
+              // SAFEGUARD: Never overwrite local records that have unpushed changes (sync_status === 'pending')
+              if (local && local.sync_status === 'pending') {
+                continue
+              }
+
               const localDate = new Date(local.updated_at || '2000-01-01')
               const cloudDate = new Date(record.updated_at || '2000-01-01')
-              if (localDate <= cloudDate || forceFullSync) {
+              const hasNewerPrint =
+                table === 'student_payments' &&
+                (recordToSave.print_count || 0) > (local.print_count || 0)
+
+              if (localDate <= cloudDate || forceFullSync || hasNewerPrint) {
                 const updates = Object.entries(recordToSave)
                   .map(([key]) => `${key} = ?`)
                   .join(', ')
@@ -981,6 +1118,28 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
                   ...Object.values(recordToSave),
                   record.id
                 )
+
+                // If a student payment received print metadata, cascade immediately to linked cash_journal
+                if (table === 'student_payments') {
+                  try {
+                    db.prepare(`
+                      UPDATE cash_journal 
+                      SET print_count = MAX(COALESCE(print_count, 0), ?),
+                          last_printed_at = COALESCE(?, last_printed_at),
+                          last_printed_by = COALESCE(?, last_printed_by),
+                          receipt_number = COALESCE(?, receipt_number)
+                      WHERE related_payment_id = ?
+                    `).run(
+                      recordToSave.print_count || 0,
+                      recordToSave.last_printed_at || null,
+                      recordToSave.last_printed_by || null,
+                      recordToSave.receipt_number || null,
+                      record.id
+                    )
+                  } catch {
+                    // Ignore if cash_journal column not migrated yet
+                  }
+                }
               }
             }
           } catch (err) {
@@ -1012,8 +1171,8 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
         for (const remoteRow of cloudSettings) {
           if (remoteRow.key === 'finance_prices' && remoteRow.value) {
             const localPricesRow = db
-              .prepare("SELECT value FROM settings WHERE key = 'finance_prices'")
-              .get() as { value: string } | undefined
+              .prepare("SELECT value, updated_at FROM settings WHERE key = 'finance_prices'")
+              .get() as { value: string; updated_at?: string } | undefined
 
             const remotePricesVal =
               typeof remoteRow.value === 'string'
@@ -1025,11 +1184,15 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
                 : localPricesRow.value
               : {}
 
-            const merged = deepMergeFinancePrices(localPricesVal, remotePricesVal)
+            const remoteDate = new Date(remoteRow.updated_at || '2000-01-01')
+            const localDate = new Date(localPricesRow?.updated_at || '2000-01-01')
+            const preferRemote = remoteDate >= localDate
+
+            const merged = deepMergeFinancePrices(localPricesVal, remotePricesVal, preferRemote)
             db.prepare(
               `INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('finance_prices', ?, ?)`
             ).run(JSON.stringify(merged), remoteRow.updated_at || new Date().toISOString())
-          } else if (remoteRow.key !== 'last_sync_time') {
+          } else if (remoteRow.key !== 'last_sync_time' && !LOCAL_ONLY_SETTINGS.has(remoteRow.key)) {
             const localRow = db
               .prepare('SELECT value, updated_at FROM settings WHERE key = ?')
               .get(remoteRow.key) as { value: string; updated_at?: string } | undefined

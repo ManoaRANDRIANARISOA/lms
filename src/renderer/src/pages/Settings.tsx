@@ -6,9 +6,13 @@ import { useState, useEffect } from 'react'
 import { getStudentPhotoUrl } from '../lib/image-utils'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useClasses } from '@/lib/useClasses'
-import { Trash2, Plus, AlertTriangle, Trash, Printer, CheckCircle2, RefreshCw, Wrench, Loader2 } from 'lucide-react'
+import { Trash2, Plus, AlertTriangle, Trash, Printer, CheckCircle2, RefreshCw, Wrench, Loader2, Ban, Building2 } from 'lucide-react'
+import { toast } from 'sonner'
+import defaultSchoolLogo from '@/assets/logo.png'
 import EmailSettings from '@/pages/settings/EmailSettings'
 import AssessmentSettings from '@/pages/settings/AssessmentSettings'
+import { DuplicateManager } from '@/components/settings/DuplicateManager'
+import { WorkstationMonitor } from '@/components/settings/WorkstationMonitor'
 
 function normalizeStationCode(raw?: string | null): string {
   if (!raw) return 'C1'
@@ -41,6 +45,8 @@ export default function Settings() {
   const [printerCopies, setPrinterCopies] = useState('2')
   const [stationCode, setStationCode] = useState('C1')
   const [availablePrinters, setAvailablePrinters] = useState<Array<{ name: string; isDefault: boolean }>>([])
+  const [availableUsbPorts, setAvailableUsbPorts] = useState<string[]>(['USB001', 'USB002', 'USB003'])
+  const [switchingPort, setSwitchingPort] = useState<string | null>(null)
   const [testingPrinter, setTestingPrinter] = useState(false)
   const [printerMessage, setPrinterMessage] = useState('')
 
@@ -51,6 +57,7 @@ export default function Settings() {
     portName?: string
     driverName?: string
     status?: string
+    availablePorts?: string[]
     error?: string
   } | null>(null)
   const [checkingPrinterStatus, setCheckingPrinterStatus] = useState(false)
@@ -141,7 +148,12 @@ export default function Settings() {
             setCheckingPrinterStatus(true)
             window.api.printer
               .checkStatus()
-              .then((st) => setPrinterSetupStatus(st))
+              .then((st) => {
+                setPrinterSetupStatus(st)
+                if (st?.availablePorts && st.availablePorts.length > 0) {
+                  setAvailableUsbPorts(st.availablePorts)
+                }
+              })
               .catch((err) => console.error('Erreur statut imprimante:', err))
               .finally(() => setCheckingPrinterStatus(false))
           }
@@ -159,6 +171,9 @@ export default function Settings() {
       try {
         const res = await window.api.printer.checkStatus()
         setPrinterSetupStatus(res)
+        if (res?.availablePorts && res.availablePorts.length > 0) {
+          setAvailableUsbPorts(res.availablePorts)
+        }
       } catch (err) {
         console.error('Erreur vérification imprimante', err)
       } finally {
@@ -211,15 +226,61 @@ export default function Settings() {
         const res = await window.api.printer.autoDetectPort()
         if (res.success) {
           setInstallSuccess(res.message || 'Port USB détecté et réassigné avec succès !')
+          toast.success(res.message || 'Port USB réassigné avec succès !')
           await checkPrinterInstallation()
         } else {
           setInstallError(res.error || 'Impossible de réassigner le port USB.')
+          toast.error(res.error || 'Impossible de réassigner le port USB.')
         }
       }
     } catch (e: any) {
       setInstallError(e?.message || 'Erreur auto-détection')
     } finally {
       setDetectingPort(false)
+    }
+  }
+
+  const handleSetUsbPort = async (port: string) => {
+    setSwitchingPort(port)
+    setInstallError(null)
+    setInstallSuccess(null)
+    try {
+      if (window.api?.printer?.setPort) {
+        const res = await window.api.printer.setPort(port, printerName)
+        if (res.success) {
+          setInstallSuccess(res.message || `Port basculé sur ${port} avec succès`)
+          toast.success(`Port basculé sur ${port}`)
+          await checkPrinterInstallation()
+        } else {
+          setInstallError(res.error || `Erreur affectation port ${port}`)
+          toast.error(res.error || `Erreur affectation port ${port}`)
+        }
+      }
+    } catch (err: any) {
+      const msg = err?.message || 'Erreur lors du changement de port'
+      setInstallError(msg)
+      toast.error(msg)
+    } finally {
+      setSwitchingPort(null)
+    }
+  }
+
+  const handleStationChange = async (val: string) => {
+    const norm = normalizeStationCode(val)
+    setStationCode(norm)
+    useAppStore.getState().setStationCode(norm)
+    try {
+      if (window.api) {
+        const res = await window.api.settings.set('pos_station_code', norm)
+        if (res && res.success === false) {
+          toast.error(res.error || 'Erreur enregistrement caisse')
+          return
+        }
+        await useAppStore.getState().fetchSettings()
+        toast.success(`Poste de caisse configuré sur ${norm} (Ce réglage est actif immédiatement et restera permanent sur ce PC)`)
+      }
+    } catch (e: any) {
+      toast.error('Erreur enregistrement caisse: ' + (e?.message || String(e)))
     }
   }
 
@@ -235,6 +296,7 @@ export default function Settings() {
         await window.api.settings.set('printer_copies', parseInt(printerCopies) || 2)
         await window.api.settings.set('pos_station_code', normalizeStationCode(stationCode))
 
+        useAppStore.getState().setStationCode(stationCode)
         // Mettre à jour le store global instantanément pour éviter de devoir redémarrer
         await useAppStore.getState().fetchSettings()
 
@@ -262,6 +324,33 @@ export default function Settings() {
       setPrinterMessage('Erreur : ' + e.message)
     } finally {
       setTestingPrinter(false)
+    }
+  }
+
+  const [clearingQueue, setClearingQueue] = useState(false)
+  const handleClearPrinterQueue = async () => {
+    if (!window.api?.printer?.clearQueue) return
+    if (
+      !confirm(
+        "Arrêt d'urgence de l'impression :\n\nVoulez-vous forcer l'annulation immédiate de toutes les impressions en cours et vider la file d'attente Windows de l'imprimante thermique ?"
+      )
+    ) {
+      return
+    }
+    setClearingQueue(true)
+    setPrinterMessage('')
+    try {
+      const res = await window.api.printer.clearQueue(printerName)
+      if (res.success) {
+        setPrinterMessage((res as any).message || "File d'attente de l'imprimante vidée avec succès. Impression arrêtée.")
+        toast.success("File d'attente vidée avec succès !")
+      } else {
+        setPrinterMessage('Erreur purge : ' + (res.error || 'Erreur inconnue'))
+      }
+    } catch (e: any) {
+      setPrinterMessage('Erreur : ' + e.message)
+    } finally {
+      setClearingQueue(false)
     }
   }
 
@@ -355,337 +444,512 @@ export default function Settings() {
     setEditValue('')
   }
 
+  const handleResetLogo = async () => {
+    setSchoolLogo('')
+    setLogoPreview(null)
+    try {
+      if (window.api) {
+        await window.api.settings.set('school_logo', '')
+        await useAppStore.getState().fetchSettings()
+        toast.success('Logo réinitialisé au blason officiel de l\'établissement')
+      }
+    } catch (err: any) {
+      toast.error('Erreur réinitialisation logo: ' + err.message)
+    }
+  }
+
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">Paramètres</h1>
+    <div className="w-full space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Paramètres du Système</h1>
+          <p className="text-sm text-gray-500">
+            Configuration générale de l'établissement, caisse locale, imprimante thermique et synchronisation
+          </p>
+        </div>
+      </div>
 
       <div className="space-y-6">
-        {/* School Configuration */}
-        <div className="bg-white p-6 rounded shadow max-w-xl border border-gray-100">
-          <h2 className="text-lg font-semibold mb-4 text-gray-800">Configuration de l'École</h2>
-          <div className="space-y-4">
-            <div className="grid w-full items-center gap-1.5">
-              <Label htmlFor="schoolName">Nom de l'établissement</Label>
-              <Input
-                type="text"
-                id="schoolName"
-                placeholder="Ex: École Privée Les Élites"
-                value={schoolName}
-                onChange={(e) => setSchoolName(e.target.value)}
-              />
+        {/* Section 1 : Configuration de l'Établissement & Logo */}
+        <div className="bg-white p-6 rounded-xl border border-gray-200/80 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-primary" />
+              <h2 className="text-lg font-semibold text-gray-800">Configuration de l'Établissement</h2>
             </div>
-            <div className="grid w-full items-center gap-1.5">
-              <Label htmlFor="schoolLogo">Logo de l'établissement</Label>
-              <div className="flex gap-4 items-center">
-                <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200">
-                  {isLoadingImage && (
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                  )}
-                  {!isLoadingImage && logoPreview ? (
-                    <img
-                      src={getStudentPhotoUrl(logoPreview) || ''}
-                      alt="Logo"
-                      className="w-full h-full object-contain"
-                    />
-                  ) : (
-                    !isLoadingImage && (
-                      <span className="text-gray-400 text-xs text-center p-1">Aucun logo</span>
-                    )
-                  )}
-                </div>
-                <div className="flex-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleLogoSelect}
-                    disabled={isLoadingImage}
-                  >
-                    {isLoadingImage ? 'Chargement...' : 'Choisir un logo...'}
-                  </Button>
-                  {schoolLogo && (
-                    <p
-                      className="text-xs text-gray-500 mt-2 truncate max-w-[200px]"
-                      title={schoolLogo}
-                    >
-                      {schoolLogo}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="grid w-full items-center gap-1.5">
-              <Label htmlFor="currentYear">Année Scolaire Courante</Label>
-              <Input
-                type="text"
-                id="currentYear"
-                placeholder="Ex: 2025-2026"
-                value={currentYear}
-                onChange={(e) => setCurrentYear(e.target.value)}
-              />
-            </div>
-            <Button
-              onClick={handleSaveConfig}
-              disabled={loading || !canWrite('settings')}
-              className="w-full"
-            >
-              {loading ? 'Enregistrement...' : 'Enregistrer la Configuration'}
-            </Button>
-            {message && message.includes('Configuration') && (
-              <p className="mt-2 text-sm font-medium text-green-600 p-2 bg-green-50 rounded border border-green-100">
-                {message}
-              </p>
-            )}
-            {message && message.includes('Erreur sauvegarde') && (
-              <p className="mt-2 text-sm font-medium text-red-600 p-2 bg-red-50 rounded border border-red-100">
-                {message}
-              </p>
-            )}
+            <span className="text-xs font-medium text-gray-500 bg-gray-50 border border-gray-200 px-2.5 py-0.5 rounded-full">
+              Informations Générales
+            </span>
           </div>
-        </div>
 
-        {/* Thermal Printer Settings (Xprinter 80mm) */}
-        <div className="bg-white p-6 rounded shadow max-w-xl border border-gray-100 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Printer className="w-5 h-5 text-blue-600" />
-            <h2 className="text-lg font-semibold text-gray-800">
-              Imprimante Thermique (Tickets 80mm)
-            </h2>
-          </div>
-          <p className="text-sm text-gray-500 mb-4">
-            Configuration de l'impression directe des reçus de caisse au format ticket 80 mm (avec logo et double exemplaire).
-          </p>
-
-          <div className="space-y-4">
-            <div className="grid w-full items-center gap-1.5">
-              <Label htmlFor="printerName">Imprimante Windows</Label>
-              {availablePrinters.length > 0 ? (
-                <select
-                  id="printerName"
-                  value={printerName}
-                  onChange={(e) => setPrinterName(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {availablePrinters.map((p) => (
-                    <option key={p.name} value={p.name}>
-                      {p.name} {p.name === 'POS-80' ? '(Recommandé pour Xprinter)' : ''}
-                    </option>
-                  ))}
-                  {!availablePrinters.some((p) => p.name === printerName) && (
-                    <option value={printerName}>{printerName}</option>
-                  )}
-                </select>
-              ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+            {/* Colonne Gauche : Nom et Année Scolaire */}
+            <div className="space-y-4">
+              <div className="grid w-full items-center gap-1.5">
+                <Label htmlFor="schoolName">Nom de l'établissement</Label>
                 <Input
                   type="text"
-                  id="printerName"
-                  placeholder="Ex: POS-80"
-                  value={printerName}
-                  onChange={(e) => setPrinterName(e.target.value)}
+                  id="schoolName"
+                  placeholder="Ex: Lycée Privé Manjary Soa"
+                  value={schoolName}
+                  onChange={(e) => setSchoolName(e.target.value)}
                 />
-              )}
-              <p className="text-xs text-gray-500">
-                Nom de l'imprimante dans Windows (ex: <code>POS-80</code>).
-              </p>
-            </div>
-
-            <div className="grid w-full items-center gap-1.5">
-              <Label htmlFor="printerCopies">Nombre d'exemplaires par impression</Label>
-              <select
-                id="printerCopies"
-                value={printerCopies}
-                onChange={(e) => setPrinterCopies(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="2">2 exemplaires (Exemplaire Parent + Exemplaire Caisse) — Standard</option>
-                <option value="1">1 exemplaire (Parent uniquement)</option>
-              </select>
-            </div>
-
-            <div className="grid w-full items-center gap-1.5 pt-1 border-t border-gray-100 mt-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="stationCode" className="font-semibold text-gray-800">
-                  Identifiant du Poste de Caisse (Multi-Postes)
-                </Label>
-                <span className="text-[10px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded font-mono font-medium">
-                  Anti-conflit Hors-Ligne
-                </span>
               </div>
-              <select
-                id="stationCode"
-                value={stationCode}
-                onChange={(e) => setStationCode(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="C1">Caisse C1 (Caisse Principale / Secrétariat) — ex: REC-2026-C1-00062</option>
-                <option value="C2">Caisse C2 (Caisse Secondaire / Direction) — ex: REC-2026-C2-00001</option>
-                <option value="C3">Caisse C3 (Comptabilité / Bureau 3) — ex: REC-2026-C3-00001</option>
-                <option value="C4">Caisse C4 (Guichet 4) — ex: REC-2026-C4-00001</option>
-                <option value="C5">Caisse C5 (Guichet 5) — ex: REC-2026-C5-00001</option>
-              </select>
-              <p className="text-xs text-gray-500">
-                Chaque poste de travail doit être configuré avec son propre numéro de caisse (C1, C2, etc.) afin que la numérotation des reçus (<code>REC-AAAA-Cx-XXXXX</code>) soit strictement séquentielle et sans aucun risque de doublon entre les stations en mode hors-ligne.
-              </p>
-            </div>
 
-            {/* Assistant Matériel : Pilote POS-80 (Visible uniquement pour le rôle Admin) */}
-            {isAdmin && (
-              <div className="mt-2 p-3.5 rounded-lg border border-blue-200/80 bg-blue-50/40 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Wrench className="w-4 h-4 text-blue-600" />
-                    <span className="text-xs font-semibold text-gray-800">
-                      Configuration Matérielle : Pilote Windows POS-80
-                    </span>
-                  </div>
-                  <span className="text-[10px] uppercase tracking-wider font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                    Admin
-                  </span>
-                </div>
-
-                {checkingPrinterStatus ? (
-                  <div className="flex items-center gap-2 text-xs text-gray-500 py-1">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                    <span>Vérification de l'état Windows de l'imprimante...</span>
-                  </div>
-                ) : printerSetupStatus?.isInstalled ? (
-                  <div className="bg-white p-2.5 rounded border border-emerald-200 shadow-2xs space-y-1">
-                    <div className="flex items-center gap-1.5 text-emerald-700 font-medium text-xs">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>Imprimante POS-80 déjà installée et prête</span>
-                    </div>
-                    <div className="text-[11px] text-gray-600 font-mono pl-5 space-y-0.5">
-                      <div>Port : <span className="font-semibold text-gray-800">{printerSetupStatus.portName || 'USB001'}</span></div>
-                      <div>Pilote : <span className="font-semibold text-gray-800">{printerSetupStatus.driverName || 'Generic / Text Only'}</span> (Statut : {printerSetupStatus.status || 'Normal'})</div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-amber-50 p-2.5 rounded border border-amber-200 text-xs text-amber-800 space-y-1">
-                    <div className="flex items-center gap-1.5 font-semibold">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>Imprimante POS-80 non configurée sur ce PC</span>
-                    </div>
-                    <p className="text-[11px] text-amber-700">
-                      Ce poste n'a pas encore l'imprimante ticket enregistrée. Branchez la Xprinter en USB et allumez-la avant de lancer l'initialisation.
-                    </p>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2 pt-0.5">
-                  <Button
-                    type="button"
-                    variant={printerSetupStatus?.isInstalled ? "outline" : "default"}
-                    size="sm"
-                    onClick={handleInstallDriver}
-                    disabled={installingPrinter || checkingPrinterStatus}
-                    className={
-                      printerSetupStatus?.isInstalled
-                        ? "text-xs border-blue-300 text-blue-700 hover:bg-blue-100/60"
-                        : "text-xs bg-blue-600 hover:bg-blue-700 text-white"
-                    }
-                  >
-                    {installingPrinter ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                        Configuration en cours...
-                      </>
-                    ) : printerSetupStatus?.isInstalled ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                        Réinitialiser / Réparer l'imprimante POS-80
-                      </>
-                    ) : (
-                      <>
-                        <Wrench className="w-3.5 h-3.5 mr-1.5" />
-                        Initialiser l'imprimante POS-80 (Automatique)
-                      </>
-                    )}
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAutoDetectPort}
-                    disabled={detectingPort || installingPrinter}
-                    className="text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-                    title="Détecte automatiquement le port USB (USB001, USB002...) de la Xprinter et résout les conflits avec d'autres imprimantes (Nicon/Canon)"
-                  >
-                    {detectingPort ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                        Détection du port...
-                      </>
-                    ) : (
-                      <>
-                        <Wrench className="w-3.5 h-3.5 mr-1.5" />
-                        Auto-détecter port USB (Conflit Nicon)
-                      </>
-                    )}
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={checkPrinterInstallation}
-                    disabled={checkingPrinterStatus || installingPrinter}
-                    title="Actualiser la vérification"
-                    className="text-xs text-gray-500 hover:text-gray-700 h-8 px-2"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${checkingPrinterStatus ? 'animate-spin' : ''}`} />
-                  </Button>
-                </div>
-
-                {installSuccess && (
-                  <p className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 p-2 rounded">
-                    {installSuccess}
-                  </p>
-                )}
-
-                {installError && (
-                  <p className="text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 p-2 rounded">
-                    {installError}
-                  </p>
-                )}
+              <div className="grid w-full items-center gap-1.5">
+                <Label htmlFor="currentYear">Année Scolaire Courante</Label>
+                <Input
+                  type="text"
+                  id="currentYear"
+                  placeholder="Ex: 2026-2027"
+                  value={currentYear}
+                  onChange={(e) => setCurrentYear(e.target.value)}
+                />
               </div>
-            )}
 
-            <div className="flex gap-3 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleTestPrint}
-                disabled={testingPrinter}
-                className="flex-1 border-primary/30 text-primary hover:bg-accent/20"
-              >
-                <Printer className="w-4 h-4 mr-2 text-primary" />
-                {testingPrinter ? 'Impression en cours...' : 'Tester l\'impression (Ticket Test)'}
-              </Button>
               <Button
                 onClick={handleSaveConfig}
                 disabled={loading || !canWrite('settings')}
-                className="flex-1"
+                className="w-full mt-2"
               >
-                {loading ? 'Enregistrement...' : 'Enregistrer les Réglages'}
+                {loading ? 'Enregistrement...' : 'Enregistrer la Configuration'}
               </Button>
+
+              {message && message.includes('Configuration') && (
+                <p className="mt-2 text-sm font-medium text-green-600 p-2 bg-green-50 rounded border border-green-100">
+                  {message}
+                </p>
+              )}
+              {message && message.includes('Erreur sauvegarde') && (
+                <p className="mt-2 text-sm font-medium text-red-600 p-2 bg-red-50 rounded border border-red-100">
+                  {message}
+                </p>
+              )}
             </div>
 
-            {printerMessage && (
-              <p
-                className={`mt-2 text-sm font-medium p-2.5 rounded border ${
-                  printerMessage.includes('succès')
-                    ? 'text-green-700 bg-green-50 border-green-200'
-                    : 'text-red-700 bg-red-50 border-red-200'
-                }`}
-              >
-                {printerMessage}
-              </p>
-            )}
+            {/* Colonne Droite : Logo de l'établissement */}
+            <div className="p-4 bg-gray-50/70 rounded-xl border border-gray-200/60 space-y-3">
+              <Label htmlFor="schoolLogo" className="font-semibold text-gray-700">Logo de l'établissement</Label>
+              <div className="flex gap-4 items-center">
+                <div className="w-24 h-24 bg-white rounded-xl flex items-center justify-center overflow-hidden border-2 border-primary/20 p-1.5 shadow-sm shrink-0">
+                  {isLoadingImage ? (
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                  ) : logoPreview ? (
+                    <img
+                      src={getStudentPhotoUrl(logoPreview) || ''}
+                      alt="Logo personnalisé"
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <img
+                      src={defaultSchoolLogo}
+                      alt="Logo officiel actif"
+                      className="w-full h-full object-contain"
+                    />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleLogoSelect}
+                      disabled={isLoadingImage}
+                      className="text-xs"
+                    >
+                      {isLoadingImage ? 'Chargement...' : 'Changer le logo...'}
+                    </Button>
+                    {schoolLogo && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleResetLogo}
+                        className="text-xs text-muted-foreground hover:text-destructive"
+                      >
+                        Rétablir officiel
+                      </Button>
+                    )}
+                  </div>
+                  <div>
+                    {schoolLogo ? (
+                      <p className="text-xs text-emerald-700 font-medium truncate" title={schoolLogo}>
+                        ✓ Logo personnalisé actif ({schoolLogo})
+                      </p>
+                    ) : (
+                      <p className="text-xs text-blue-700 font-medium flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <span>Blason officiel actif (Lycée Privé Manjary Soa)</span>
+                      </p>
+                    )}
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      Ce logo s'affiche automatiquement en tête des tickets de caisse 80 mm et des bilans.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
+        {/* Section 2 : Imprimante Thermique (Tickets 80mm) — Disposée en dessous */}
+        <div className="bg-white p-6 rounded-xl border border-gray-200/80 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+            <div className="flex items-center gap-2">
+              <Printer className="w-5 h-5 text-blue-600" />
+              <h2 className="text-lg font-semibold text-gray-800">
+                Imprimante Thermique (Tickets 80mm)
+              </h2>
+            </div>
+            <span className="text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+              ESC/POS Direct
+            </span>
+          </div>
+
+          <p className="text-xs text-gray-500">
+            Impression directe des reçus de caisse 80 mm avec logo, code-barres et double exemplaire (Parent + Caisse).
+          </p>
+
+          <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid w-full items-center gap-1.5">
+                  <Label htmlFor="printerName" className="text-xs font-semibold text-gray-700">Imprimante Windows</Label>
+                  {availablePrinters.length > 0 ? (
+                    <select
+                      id="printerName"
+                      value={printerName}
+                      onChange={(e) => setPrinterName(e.target.value)}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {availablePrinters.map((p) => (
+                        <option key={p.name} value={p.name}>
+                          {p.name} {p.name === 'POS-80' ? '(Recommandé)' : ''}
+                        </option>
+                      ))}
+                      {!availablePrinters.some((p) => p.name === printerName) && (
+                        <option value={printerName}>{printerName}</option>
+                      )}
+                    </select>
+                  ) : (
+                    <Input
+                      type="text"
+                      id="printerName"
+                      placeholder="Ex: POS-80"
+                      value={printerName}
+                      onChange={(e) => setPrinterName(e.target.value)}
+                    />
+                  )}
+                  <p className="text-[11px] text-gray-500">
+                    Nom du périphérique Windows (défaut : <code>POS-80</code>).
+                  </p>
+                </div>
+
+                <div className="grid w-full items-center gap-1.5">
+                  <Label htmlFor="printerCopies" className="text-xs font-semibold text-gray-700">Nombre d'exemplaires</Label>
+                  <select
+                    id="printerCopies"
+                    value={printerCopies}
+                    onChange={(e) => setPrinterCopies(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="2">2 exemplaires (Parent + Caisse)</option>
+                    <option value="1">1 exemplaire (Parent uniquement)</option>
+                  </select>
+                  <p className="text-[11px] text-gray-500">
+                    Découpe automatique du papier entre chaque reçu.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="stationCode" className="text-xs font-semibold text-gray-800">
+                    Identifiant du Poste de Caisse (Multi-Postes)
+                  </Label>
+                  <span className="text-[10px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded font-mono font-medium">
+                    Anti-conflit Hors-Ligne
+                  </span>
+                </div>
+                <select
+                  id="stationCode"
+                  value={stationCode}
+                  onChange={(e) => handleStationChange(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="C1">Caisse C1 (Direction / Caisse Principale) — ex: REC-2026-C1-00062</option>
+                  <option value="C2">Caisse C2 (Secrétariat / Caisse 2) — ex: REC-2026-C2-00001</option>
+                  <option value="C3">Caisse C3 (Comptabilité / Bureau 3) — ex: REC-2026-C3-00001</option>
+                  <option value="C4">Caisse C4 (Guichet 4) — ex: REC-2026-C4-00001</option>
+                  <option value="C5">Caisse C5 (Guichet 5) — ex: REC-2026-C5-00001</option>
+                </select>
+                <p className="text-[11px] text-gray-500">
+                  Ce numéro garantit la continuité séquentielle sans collision entre postes en mode hors-ligne. Propre à ce PC physique.
+                </p>
+              </div>
+
+              {/* Assistant Matériel : Pilote POS-80 & Sélecteur USB (Visible Admin) */}
+              {isAdmin && (
+                <div className="p-3.5 rounded-lg border border-blue-200/80 bg-blue-50/40 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Wrench className="w-4 h-4 text-blue-600" />
+                      <span className="text-xs font-semibold text-gray-800">
+                        Configuration Matérielle & Plug & Play
+                      </span>
+                    </div>
+                    <span className="text-[10px] uppercase tracking-wider font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                      Admin
+                    </span>
+                  </div>
+
+                  {/* Statut de l'imprimante */}
+                  {checkingPrinterStatus ? (
+                    <div className="flex items-center gap-2 text-xs text-gray-500 py-1">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                      <span>Vérification du matériel et détection USB...</span>
+                    </div>
+                  ) : printerSetupStatus?.isInstalled ? (
+                    <div
+                      className={`p-2.5 rounded border shadow-2xs space-y-1 ${
+                        (printerSetupStatus as any).isConnected !== false
+                          ? 'bg-white border-emerald-200'
+                          : 'bg-amber-50/70 border-amber-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-medium text-xs">
+                        {(printerSetupStatus as any).isConnected !== false ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span className="text-emerald-700 font-semibold">
+                              Imprimante POS-80 connectée et prête (En ligne)
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                            <span className="text-amber-800 font-semibold">
+                              Imprimante installée mais débranchée ou hors-tension
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-gray-600 font-mono pl-5 space-y-0.5">
+                        <div>
+                          Port physique actif :{' '}
+                          <span className="font-semibold text-gray-800">
+                            {printerSetupStatus.portName || 'USB001'}
+                          </span>{' '}
+                          {(printerSetupStatus as any).isConnected !== false ? (
+                            <span className="text-emerald-600 font-sans font-medium text-[10px] bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 ml-1">
+                              Connecté
+                            </span>
+                          ) : (
+                            <span className="text-amber-600 font-sans font-medium text-[10px] bg-amber-100 px-1 py-0.2 rounded border border-amber-300 ml-1">
+                              En attente
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          Pilote :{' '}
+                          <span className="font-semibold text-gray-800">
+                            {printerSetupStatus.driverName || 'Generic / Text Only'}
+                          </span>{' '}
+                          (Statut : {printerSetupStatus.status || 'Normal'})
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-amber-50 p-2.5 rounded border border-amber-200 text-xs text-amber-800 space-y-1">
+                      <div className="flex items-center gap-1.5 font-semibold">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>Imprimante POS-80 non configurée sur ce PC</span>
+                      </div>
+                      <p className="text-[11px] text-amber-700">
+                        Ce poste n'a pas encore l'imprimante ticket enregistrée. Branchez la Xprinter en USB et cliquez sur initialiser.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Sélecteur direct 1-clic de Port USB */}
+                  <div className="bg-white/80 p-2.5 rounded border border-blue-100 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-gray-700">Sélection directe du Port USB :</span>
+                      <span className="text-[10px] text-gray-500">
+                        Port actif : <strong className="text-blue-900">{printerSetupStatus?.portName || 'USB001'}</strong>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {(availableUsbPorts.length > 0 ? availableUsbPorts : ['USB001', 'USB002', 'USB003']).map((port) => {
+                        const isActive = printerSetupStatus?.portName === port
+                        return (
+                          <Button
+                            key={port}
+                            type="button"
+                            size="sm"
+                            variant={isActive ? 'default' : 'outline'}
+                            disabled={switchingPort !== null || checkingPrinterStatus}
+                            onClick={() => handleSetUsbPort(port)}
+                            className={`h-7 px-3 text-xs font-mono transition-all ${
+                              isActive
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm border-emerald-700'
+                                : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300'
+                            }`}
+                            title={`Basculer immédiatement l'imprimante Windows sur le port ${port}`}
+                          >
+                            {switchingPort === port ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                            {port} {isActive ? '✓ (Actif)' : ''}
+                          </Button>
+                        )
+                      })}
+                    </div>
+                    <p className="text-[10px] text-gray-500">
+                      Si l'imprimante a été branchée sur une autre prise USB, cliquez sur le port correspondant (ex: USB002) ou cliquez sur la détection automatique.
+                    </p>
+                  </div>
+
+                  {/* Boutons d'action Plug & Play */}
+                  <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAutoDetectPort}
+                      disabled={detectingPort || installingPrinter}
+                      className="text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                      title="Détecte automatiquement le port USB actif (USB001, USB002...) et répare le statut hors-ligne si besoin"
+                    >
+                      {detectingPort ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                          Détection du port...
+                        </>
+                      ) : (
+                        <>
+                          <Wrench className="w-3.5 h-3.5 mr-1.5" />
+                          Détecter & Calibrer port USB (Plug & Play)
+                        </>
+                      )}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant={printerSetupStatus?.isInstalled ? 'outline' : 'default'}
+                      size="sm"
+                      onClick={handleInstallDriver}
+                      disabled={installingPrinter || checkingPrinterStatus}
+                      className={
+                        printerSetupStatus?.isInstalled
+                          ? 'text-xs border-blue-300 text-blue-700 hover:bg-blue-100/60'
+                          : 'text-xs bg-blue-600 hover:bg-blue-700 text-white'
+                      }
+                    >
+                      {installingPrinter ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                          Configuration...
+                        </>
+                      ) : printerSetupStatus?.isInstalled ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                          Réinstaller POS-80
+                        </>
+                      ) : (
+                        <>
+                          <Wrench className="w-3.5 h-3.5 mr-1.5" />
+                          Initialiser POS-80
+                        </>
+                      )}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={checkPrinterInstallation}
+                      disabled={checkingPrinterStatus || installingPrinter}
+                      title="Actualiser la vérification"
+                      className="text-xs text-gray-500 hover:text-gray-700 h-8 px-2"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${checkingPrinterStatus ? 'animate-spin' : ''}`} />
+                    </Button>
+                  </div>
+
+                  {installSuccess && (
+                    <p className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 p-2 rounded">
+                      {installSuccess}
+                    </p>
+                  )}
+
+                  {installError && (
+                    <p className="text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 p-2 rounded">
+                      {installError}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* 3 Boutons de test, arrêt d'urgence et sauvegarde — Flex responsive aéré */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-gray-100">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleTestPrint}
+                    disabled={testingPrinter}
+                    className="border-primary/30 text-primary hover:bg-accent/20 text-xs h-9 px-3.5 font-medium"
+                  >
+                    <Printer className="w-4 h-4 mr-1.5 text-primary" />
+                    {testingPrinter ? 'Impression...' : 'Ticket Test'}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleClearPrinterQueue}
+                    disabled={clearingQueue}
+                    className="border-rose-300 text-rose-700 hover:bg-rose-50 hover:border-rose-400 text-xs h-9 px-3.5 font-medium"
+                    title="Force l'annulation immédiate de toutes les impressions bloquées et vide la file d'attente Windows"
+                  >
+                    {clearingQueue ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-1.5 animate-spin text-rose-600" />
+                        Purge...
+                      </>
+                    ) : (
+                      <>
+                        <Ban className="w-4 h-4 mr-1.5 text-rose-600" />
+                        Arrêt d'Urgence (Purge)
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                <Button
+                  onClick={handleSaveConfig}
+                  disabled={loading || !canWrite('settings')}
+                  className="text-xs h-9 px-5 shrink-0 font-medium"
+                >
+                  {loading ? 'Enregistrement...' : 'Enregistrer les Réglages'}
+                </Button>
+              </div>
+
+              {printerMessage && (
+                <p
+                  className={`text-xs font-medium p-2.5 rounded border ${
+                    printerMessage.includes('succès')
+                      ? 'text-green-700 bg-green-50 border-green-200'
+                      : 'text-red-700 bg-red-50 border-red-200'
+                  }`}
+                >
+                  {printerMessage}
+                </p>
+              )}
+            </div>
+          </div>
+
         {/* Class Management */}
-        <div className="bg-white p-6 rounded shadow max-w-4xl border border-gray-100 mb-6">
+        <div className="bg-white p-6 rounded-xl shadow-sm w-full border border-gray-100 mb-6">
           <h2 className="text-lg font-semibold mb-4 text-gray-800">
             Gestion des Classes par Section
           </h2>
@@ -828,14 +1092,16 @@ export default function Settings() {
           </div>
         </div>
 
-        <div className="max-w-2xl">
+        <div className="w-full">
           <h2 className="text-lg font-semibold mb-4 text-gray-800">📧 Service Email</h2>
           <EmailSettings />
         </div>
 
         <AssessmentSettings />
+        <DuplicateManager />
+        <WorkstationMonitor />
 
-        <div className="bg-white p-6 rounded shadow max-w-xl border-red-100 border">
+        <div className="bg-white p-6 rounded-xl shadow-sm w-full border-red-100 border">
           <h2 className="text-lg font-semibold mb-4 text-red-600">Zone de Danger</h2>
           <p className="text-gray-600 mb-4">
             Utilisez ces outils pour réparer la synchronisation avec le cloud ou pour réinitialiser
@@ -907,7 +1173,7 @@ export default function Settings() {
         </div>
 
         {/* System Logs */}
-        <div className="bg-white p-6 rounded shadow max-w-4xl border border-gray-100">
+        <div className="bg-white p-6 rounded-xl shadow-sm w-full border border-gray-100">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-orange-500" />

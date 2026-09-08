@@ -14,7 +14,9 @@ import {
   WifiOff,
   DownloadCloud,
   Users,
-  Check
+  Wrench,
+  FileText,
+  Archive
 } from 'lucide-react'
 
 export const SyncProgressModal: React.FC = () => {
@@ -25,49 +27,79 @@ export const SyncProgressModal: React.FC = () => {
     isOnline,
     latencyMs,
     pendingCount,
+    errorCount,
+    quarantinedCount,
     lastSyncTime,
     healthError,
     progress,
     errors,
     startSync,
-    retryErrors
+    retryErrors,
+    quarantineAndUnblock
   } = useSyncStore()
 
-  const [duplicateGroups, setDuplicateGroups] = React.useState<any[]>([])
-  const [scanningDuplicates, setScanningDuplicates] = React.useState(false)
-  const [duplicateMessage, setDuplicateMessage] = React.useState<string | null>(null)
+  const [isUnblocking, setIsUnblocking] = React.useState(false)
 
-  const handleScanDuplicates = async () => {
-    setScanningDuplicates(true)
-    setDuplicateMessage(null)
+  const handleQuarantineAndUnblock = async () => {
+    setIsUnblocking(true)
     try {
-      if (window.api.duplicates?.scan) {
-        const res = await window.api.duplicates.scan()
-        if (res.success) {
-          setDuplicateGroups(res.groups || [])
-          if (res.groups?.length === 0) {
-            setDuplicateMessage('Aucun doublon détecté. Vos données élèves sont saines.')
-          }
-        }
-      }
-    } catch (e: any) {
-      setDuplicateMessage('Erreur: ' + (e?.message || ''))
+      await quarantineAndUnblock()
     } finally {
-      setScanningDuplicates(false)
+      setIsUnblocking(false)
     }
   }
 
-  const handleMerge = async (keepId: string, removeId: string) => {
-    try {
-      if (window.api.duplicates?.merge) {
-        const res = await window.api.duplicates.merge(keepId, removeId)
-        if (res.success) {
-          await handleScanDuplicates()
-        }
-      }
-    } catch (e) {
-      console.error(e)
+  const handleExportErrors = () => {
+    const lines = [
+      `============================================================`,
+      `          RAPPORT DE DIAGNOSTIC DE SYNCHRONISATION          `,
+      `============================================================`,
+      `Date & Heure : ${new Date().toLocaleString('fr-FR')}`,
+      `État Réseau  : ${isOnline ? 'En ligne' : 'Hors ligne'} (Latence: ${latencyMs ?? 'N/A'} ms)`,
+      `File Locale  : ${pendingCount} modification(s) en attente`,
+      `Blocages     : ${errorCount} erreur(s)`,
+      `Quarantaine  : ${quarantinedCount} enregistrement(s) isolé(s)`,
+      `Dernière syn : ${lastSyncTime ? new Date(lastSyncTime).toLocaleString('fr-FR') : 'Jamais'}`,
+      ``,
+      `--- DÉTAIL DES ANOMALIES & ERREURS ---`,
+      ``
+    ]
+
+    if (errors.length === 0) {
+      lines.push('Aucune anomalie active enregistrée dans la file.')
+    } else {
+      errors.forEach((err, idx) => {
+        lines.push(
+          `#${idx + 1} [Table: ${err.table_name}] [Action: ${err.action}] [Statut: ${err.status}]`,
+          `    ID Enregistrement : ${err.record_id}`,
+          `    Date Mise à Jour  : ${new Date(err.updated_at).toLocaleString('fr-FR')}`,
+          `    Message d'erreur  : ${err.error_message || 'Non spécifié'}`,
+          ``
+        )
+      })
     }
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `rapport_synchro_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_')}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const humanizeError = (msg?: string) => {
+    if (!msg) return 'Erreur de contrainte cloud indéterminée'
+    if (msg.includes('duplicate key value violates unique constraint')) {
+      return 'Doublon sur le serveur : cet enregistrement existe déjà dans la base cloud.'
+    }
+    if (msg.includes('violates foreign key constraint')) {
+      return 'Dépendance manquante : la fiche parente (ex: élève) doit d’abord être synchronisée.'
+    }
+    if (msg.includes('Failed to fetch') || msg.includes('timeout') || msg.includes('délai')) {
+      return 'Rupture temporaire de connexion internet pendant l’envoi.'
+    }
+    return msg
   }
 
   const formattedLastSync = lastSyncTime
@@ -224,122 +256,115 @@ export const SyncProgressModal: React.FC = () => {
         </div>
 
         {/* Errors & Quality Assurance Section */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-600 flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-primary" />
-              Contrôle Qualité & Intégrité des Données
+              Contrôle Qualité & Intégrité de la File
             </h4>
-            {errors.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
               <Button
                 variant="outline"
                 size="sm"
-                className="text-xs h-7 text-blue-700 border-blue-300 hover:bg-blue-50"
-                onClick={retryErrors}
-                disabled={isSyncing}
+                className="text-[11px] h-7 text-gray-700 hover:bg-gray-100"
+                onClick={handleExportErrors}
+                title="Télécharge le rapport technique complet au format texte"
               >
-                <RotateCcw className="w-3.5 h-3.5 mr-1" />
-                Réessayer tous les blocages ({errors.length})
+                <FileText className="w-3.5 h-3.5 mr-1 text-gray-500" />
+                Exporter (.txt)
               </Button>
-            )}
+              {errors.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-[11px] h-7 text-blue-700 border-blue-300 hover:bg-blue-50"
+                  onClick={retryErrors}
+                  disabled={isSyncing || isUnblocking}
+                >
+                  <RotateCcw className="w-3 h-3 mr-1" />
+                  Réessayer ({errors.length})
+                </Button>
+              )}
+              {(errors.length > 0 || (pendingCount > 0 && errors.length > 0)) && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="text-[11px] h-7 bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-xs"
+                  onClick={handleQuarantineAndUnblock}
+                  disabled={isSyncing || isUnblocking}
+                  title="Isole les erreurs bloquantes en quarantaine et envoie le reste de la file immédiatement"
+                >
+                  <Wrench className={`w-3 h-3 mr-1 ${isUnblocking ? 'animate-spin' : ''}`} />
+                  {isUnblocking ? 'Déblocage...' : 'Réparer & forcer le déblocage'}
+                </Button>
+              )}
+            </div>
           </div>
+
+          {/* Quarantined items notification */}
+          {quarantinedCount > 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg flex items-start gap-2.5 text-xs text-amber-900">
+              <Archive className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <div className="font-semibold flex items-center justify-between">
+                  <span>{quarantinedCount} élément(s) sécurisé(s) en quarantaine</span>
+                  <button
+                    onClick={retryErrors}
+                    disabled={isSyncing}
+                    className="text-[11px] text-amber-700 underline hover:text-amber-900 ml-2"
+                  >
+                    Tenter de réintégrer
+                  </button>
+                </div>
+                <p className="text-[11px] text-amber-800/90 mt-0.5 leading-relaxed">
+                  Ces modifications ont été isolées pour ne plus bloquer l'envoi de vos autres écritures saines. Elles restent conservées sur votre poste et sont signalées dans la télémétrie cloud.
+                </p>
+              </div>
+            </div>
+          )}
 
           {errors.length === 0 ? (
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2.5 text-xs text-emerald-800">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>
-                Aucune anomalie détectée. Vos données sont synchronisées ou en file d'attente saine.
+                Aucune anomalie bloquante. Vos données sont synchronisées ou en file d'attente saine.
               </span>
             </div>
           ) : (
             <div className="border border-red-200 rounded-lg max-h-48 overflow-y-auto divide-y divide-red-100 bg-red-50/40">
               {errors.map((err) => (
-                <div key={err.id} className="p-2.5 text-xs text-red-900 space-y-0.5">
+                <div key={err.id} className="p-2.5 text-xs text-red-900 space-y-1">
                   <div className="flex justify-between items-center font-medium">
-                    <span className="bg-red-200 text-red-800 px-1.5 py-0.2 rounded text-[10px]">
-                      {err.table_name}
+                    <span className="bg-red-200 text-red-800 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold">
+                      {err.table_name} • {err.action}
                     </span>
                     <span className="text-[10px] text-gray-500">
                       {new Date(err.updated_at).toLocaleTimeString('fr-FR')}
                     </span>
                   </div>
-                  <div className="text-red-700 break-words text-[11px]">
-                    {err.error_message || 'Erreur inconnue de contrainte cloud'}
+                  <div className="font-medium text-red-800 text-[11px]">
+                    {humanizeError(err.error_message)}
                   </div>
+                  {err.error_message && (
+                    <div className="text-gray-500 text-[10px] font-mono truncate" title={err.error_message}>
+                      Détail technique : {err.error_message}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Duplicate Students Health Check */}
-        <div className="space-y-2 pt-2 border-t border-gray-200">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-indigo-600" />
-              Nettoyage des Doublons Élèves
-            </h4>
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs h-7 text-indigo-700 border-indigo-200 hover:bg-indigo-50"
-              onClick={handleScanDuplicates}
-              disabled={scanningDuplicates}
-            >
-              {scanningDuplicates ? (
-                <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" />
-              ) : (
-                <Users className="w-3.5 h-3.5 mr-1" />
-              )}
-              {scanningDuplicates ? 'Scan en cours...' : 'Scanner les doublons'}
-            </Button>
-          </div>
-
-          {duplicateMessage && (
-            <div className="p-2.5 text-xs rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800">
-              {duplicateMessage}
-            </div>
-          )}
-
-          {duplicateGroups.length > 0 && (
-            <div className="space-y-2 border border-amber-200 rounded-lg p-2.5 bg-amber-50/50 max-h-48 overflow-y-auto">
-              <div className="text-xs font-semibold text-amber-900 flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                {duplicateGroups.length} groupe{duplicateGroups.length > 1 ? 's' : ''} de doublons détecté{duplicateGroups.length > 1 ? 's' : ''} :
-              </div>
-              {duplicateGroups.map((g, idx) => (
-                <div key={idx} className="bg-white p-2 rounded border border-amber-200 text-xs space-y-1.5">
-                  <div className="font-semibold text-gray-900">{g.name}</div>
-                  <div className="space-y-1">
-                    {g.records.map((r: any, rIdx: number) => (
-                      <div key={r.id} className="flex items-center justify-between gap-2 p-1.5 rounded bg-gray-50 text-[11px]">
-                        <div>
-                          <span className="font-medium text-gray-800">Matr: {r.registration_number || 'Sans matricule'}</span>
-                          <span className="text-gray-500 ml-2">Classe: {r.class_name || '-'}</span>
-                          <span className="text-gray-500 ml-2">({r.payments_count} paiement{r.payments_count > 1 ? 's' : ''})</span>
-                        </div>
-                        {rIdx > 0 && (
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="h-6 text-[10px] px-2"
-                            onClick={() => handleMerge(g.records[0].id, r.id)}
-                          >
-                            Fusionner vers le 1er
-                          </Button>
-                        )}
-                        {rIdx === 0 && (
-                          <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-0.5">
-                            <Check className="w-3 h-3" /> Principal
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+        {/* Note Réconciliation & Doublons */}
+        <div className="pt-2 border-t border-gray-200 flex items-center justify-between text-xs text-gray-500">
+          <span className="flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Gestion des doublons (élèves & paiements multi-postes)</span>
+          </span>
+          <span className="text-[11px] text-indigo-600 font-semibold bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded">
+            Disponible dans Paramètres
+          </span>
         </div>
       </div>
     </Dialog>

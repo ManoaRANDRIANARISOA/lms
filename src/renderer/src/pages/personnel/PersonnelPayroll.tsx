@@ -24,7 +24,7 @@ export default function PersonnelPayroll(): React.JSX.Element {
   })
 
   const [unpaidData, setUnpaidData] = useState<UnpaidRow[]>([])
-  const [missingHireDate, setMissingHireDate] = useState<Personnel[]>([])
+  const [missingPayrollStartDate, setMissingPayrollStartDate] = useState<Personnel[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -35,26 +35,21 @@ export default function PersonnelPayroll(): React.JSX.Element {
     async function computeAll() {
       setLoading(true)
       const data: UnpaidRow[] = []
-      const missing: Personnel[] = []
+      const missingStart: Personnel[] = []
 
       const d = new Date()
       const realCurrentMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 
       for (const p of personnel) {
         if (p.status === 'parttime' || p.status === 'fulltime') {
-          if (!p.hire_date) {
-            missing.push(p)
+          // Si l'utilisateur n'a pas défini manuellement de début d'exercice pour ce personnel,
+          // on ne génère aucun impayé rétroactif.
+          if (!p.payroll_start_date) {
+            missingStart.push(p)
             continue
           }
 
-          const hireDate = new Date(p.hire_date)
-          const hireMonthStr = `${hireDate.getFullYear()}-${String(hireDate.getMonth() + 1).padStart(2, '0')}`
-
-          let effectiveStartMonth = hireMonthStr
-          if (p.payroll_start_date) {
-            effectiveStartMonth =
-              p.payroll_start_date > hireMonthStr ? p.payroll_start_date : hireMonthStr
-          }
+          const effectiveStartMonth = p.payroll_start_date.substring(0, 7)
 
           if (filterType === 'specific') {
             if (specificMonth >= effectiveStartMonth) {
@@ -69,18 +64,11 @@ export default function PersonnelPayroll(): React.JSX.Element {
               }
             }
           } else {
-            // Tous les impayés (remonter jusqu'à 12 mois maximum ou depuis hire_date)
+            // Tous les impayés depuis son début d'exercice jusqu'au mois en cours
             const monthsToCheck: string[] = []
-
-            const endDate = new Date() // current
-
-            const limitDate = new Date()
-            limitDate.setMonth(limitDate.getMonth() - 12)
-            limitDate.setDate(1)
-
-            const actualStart = limitDate
-
-            const curr = new Date(actualStart)
+            const [sYear, sMonth] = effectiveStartMonth.split('-').map(Number)
+            const curr = new Date(sYear, (sMonth || 1) - 1, 1)
+            const endDate = new Date()
 
             while (curr <= endDate) {
               const monthStr = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}`
@@ -89,7 +77,7 @@ export default function PersonnelPayroll(): React.JSX.Element {
               }
               curr.setMonth(curr.getMonth() + 1)
             }
-            // always include current month just in case
+
             if (
               !monthsToCheck.includes(realCurrentMonth) &&
               realCurrentMonth >= effectiveStartMonth
@@ -119,7 +107,7 @@ export default function PersonnelPayroll(): React.JSX.Element {
       })
 
       setUnpaidData(data)
-      setMissingHireDate(missing)
+      setMissingPayrollStartDate(missingStart)
       setLoading(false)
     }
 
@@ -165,18 +153,15 @@ export default function PersonnelPayroll(): React.JSX.Element {
       </div>
 
       <div className="bg-white rounded-xl border border-red-100 shadow-sm overflow-hidden">
-        {missingHireDate.length > 0 && (
+        {missingPayrollStartDate.length > 0 && (
           <div className="bg-amber-50 border-b border-amber-200 p-4 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div>
               <h3 className="text-sm font-semibold text-amber-800">
-                Action requise : Dates d'embauche manquantes
+                Début d'exercice à définir ({missingPayrollStartDate.length} employé(s))
               </h3>
               <p className="text-sm text-amber-700 mt-1">
-                <span className="font-bold">{missingHireDate.length} employé(s)</span> n'ont pas de
-                date d'embauche définie dans leur dossier. Afin de garantir l'exactitude des
-                calculs, ils sont temporairement masqués de la liste des salaires à payer. Veuillez
-                aller dans la "Liste du personnel" et mettre à jour leur dossier.
+                <span className="font-bold">{missingPayrollStartDate.length} employé(s)</span> n'ont pas encore de « Début de paie (Exercice) » défini dans leur fiche et sont donc exclus du calcul des impayés. Vous pouvez définir leur mois de démarrage manuellement dans la Liste du personnel.
               </p>
             </div>
           </div>

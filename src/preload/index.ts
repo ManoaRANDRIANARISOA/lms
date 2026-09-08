@@ -357,7 +357,9 @@ const api = {
     checkStatus: () => ipcRenderer.invoke('printer:checkStatus'),
     installDriver: () => ipcRenderer.invoke('printer:installDriver'),
     autoDetectPort: () => ipcRenderer.invoke('printer:autoDetectPort'),
-    clearQueue: (printerName?: string) => ipcRenderer.invoke('printer:clearQueue', printerName)
+    clearQueue: (printerName?: string) => ipcRenderer.invoke('printer:clearQueue', printerName),
+    setPort: (portName: string, printerName?: string) =>
+      ipcRenderer.invoke('printer:setPort', portName, printerName)
   },
 
   // --------------------------------------------
@@ -383,6 +385,7 @@ const api = {
     start: (forceFullSync?: boolean) => ipcRenderer.invoke('sync:start', forceFullSync),
     getErrors: () => ipcRenderer.invoke('sync:getErrors'),
     retryErrors: () => ipcRenderer.invoke('sync:retryErrors'),
+    quarantineAndUnblock: () => ipcRenderer.invoke('sync:quarantineAndUnblock'),
     onProgress: (callback: (data: any) => void) => {
       const listener = (_event: IpcRendererEvent, data: any) => callback(data)
       ipcRenderer.on('sync:progress', listener)
@@ -390,6 +393,15 @@ const api = {
         ipcRenderer.removeListener('sync:progress', listener)
       }
     }
+  },
+
+  // --------------------------------------------
+  // Telemetry ("Mouchard" Multi-postes)
+  // --------------------------------------------
+  telemetry: {
+    fetchStationErrors: (limit?: number) => ipcRenderer.invoke('telemetry:fetchStationErrors', limit),
+    reportError: (context: string, message: string, details?: any) =>
+      ipcRenderer.invoke('telemetry:reportError', context, message, details)
   },
 
   // --------------------------------------------
@@ -411,7 +423,11 @@ const api = {
   duplicates: {
     scan: () => ipcRenderer.invoke('duplicates:scan'),
     merge: (keepId: string, removeId: string) =>
-      ipcRenderer.invoke('duplicates:merge', { keepId, removeId })
+      ipcRenderer.invoke('duplicates:merge', { keepId, removeId }),
+    scanPayments: () => ipcRenderer.invoke('duplicates:scanPayments'),
+    resolvePayment: (keepPaymentId: string, removePaymentId: string, reason?: string) =>
+      ipcRenderer.invoke('duplicates:resolvePayment', { keepPaymentId, removePaymentId, reason }),
+    autoResolveCollisions: () => ipcRenderer.invoke('duplicates:autoResolveCollisions')
   }
 }
 

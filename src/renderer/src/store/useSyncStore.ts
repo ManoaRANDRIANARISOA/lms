@@ -30,6 +30,7 @@ interface SyncState {
   latencyMs?: number
   pendingCount: number
   errorCount: number
+  quarantinedCount: number
   lastSyncTime: string | null
   healthError?: string
   progress: SyncProgressData
@@ -42,6 +43,7 @@ interface SyncState {
   startSync: (forceFull?: boolean) => Promise<boolean>
   fetchErrors: () => Promise<void>
   retryErrors: () => Promise<boolean>
+  quarantineAndUnblock: () => Promise<boolean>
   openModal: () => void
   closeModal: () => void
   init: () => () => void
@@ -55,9 +57,10 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   latencyMs: undefined,
   pendingCount: 0,
   errorCount: 0,
+  quarantinedCount: 0,
   lastSyncTime: null,
   healthError: undefined,
-  appVersion: '1.1.7',
+  appVersion: '1.1.9',
   progress: {
     phase: 'idle',
     current: 0,
@@ -89,6 +92,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
           latencyMs: status.latencyMs,
           pendingCount: status.pendingCount,
           errorCount: status.errorCount,
+          quarantinedCount: status.quarantinedCount || 0,
           lastSyncTime: status.lastSyncTime,
           healthError: undefined
         })
@@ -169,6 +173,26 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       return false
     } catch (err) {
       console.error('Failed to retry sync errors:', err)
+      return false
+    }
+  },
+
+  quarantineAndUnblock: async () => {
+    try {
+      if (!window.api?.sync?.quarantineAndUnblock) return false
+      const res = await window.api.sync.quarantineAndUnblock()
+      await get().fetchStatus()
+      await get().fetchErrors()
+      if (res.success) {
+        toast.success(res.message || 'File de synchronisation débloquée avec succès')
+        return true
+      } else {
+        toast.error(res.message || 'Erreur lors du déblocage de la file')
+        return false
+      }
+    } catch (err) {
+      console.error('Failed to quarantine and unblock sync queue:', err)
+      toast.error('Erreur lors du déblocage de la file')
       return false
     }
   },

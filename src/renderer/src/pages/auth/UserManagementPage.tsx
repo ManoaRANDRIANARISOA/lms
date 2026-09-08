@@ -115,8 +115,8 @@ export default function UserManagementPage(): React.JSX.Element {
   // Render
   // --------------------------------------------
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="w-full space-y-6">
+      <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Gestion des Utilisateurs</h1>
         <div className="flex items-center gap-2">
           <button

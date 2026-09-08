@@ -68,7 +68,8 @@ const studentSchema = z.object({
   parent_personnel_id: z.string().nullable().optional(),
 
   initial_payment_amount: z.number().optional(),
-  initial_payment_type: z.string().optional()
+  initial_payment_type: z.string().optional(),
+  student_status: z.enum(['Inscrit', 'Pré-inscrit', 'Ancien', 'Quitté', 'Non inscrit']).optional()
 })
 
 type StudentFormValues = z.infer<typeof studentSchema>
@@ -105,23 +106,22 @@ export default function StudentForm({
   const { prices, fetchPrices } = useFinanceStore()
   const { classes: availableClasses } = useClasses()
 
+  const isInitialReenrollment =
+    initialFees?.is_reenrollment === 1 ||
+    initialFees?.is_reenrollment === true ||
+    initialData?.student_status === 'Ancien'
+
   const [enrollmentType, setEnrollmentType] = useState<'enrollment' | 'reenrollment'>(
-    initialFees?.is_reenrollment
-      ? 'reenrollment'
-      : initialData?.student_status === 'Ancien'
-        ? 'reenrollment'
-        : 'enrollment'
+    isInitialReenrollment ? 'reenrollment' : 'enrollment'
   )
 
   useEffect(() => {
-    if (initialData) {
-      setEnrollmentType(
-        initialFees?.is_reenrollment
-          ? 'reenrollment'
-          : initialData.student_status === 'Ancien'
-            ? 'reenrollment'
-            : 'enrollment'
-      )
+    if (initialData || initialFees) {
+      const isReen =
+        initialFees?.is_reenrollment === 1 ||
+        initialFees?.is_reenrollment === true ||
+        initialData?.student_status === 'Ancien'
+      setEnrollmentType(isReen ? 'reenrollment' : 'enrollment')
     }
   }, [initialData, initialFees])
 
@@ -338,21 +338,28 @@ export default function StudentForm({
 
       let success = false
       if (initialData) {
-        success = await updateStudent(initialData.id, payload)
-
         // Rectify enrollment type if changed by user
-        const initialType = initialFees?.is_reenrollment
-          ? 'reenrollment'
-          : initialData.student_status === 'Ancien'
-            ? 'reenrollment'
-            : 'enrollment'
+        const isCurrentReenrollment =
+          initialFees?.is_reenrollment === 1 ||
+          initialFees?.is_reenrollment === true ||
+          initialData.student_status === 'Ancien'
+        const initialType = isCurrentReenrollment ? 'reenrollment' : 'enrollment'
 
         if (enrollmentType !== initialType && window.api?.student?.rectifyEnrollmentType) {
           const targetYear = initialFees?.school_year || useAppStore.getState().currentYear
           await window.api.student.rectifyEnrollmentType(initialData.id, targetYear, enrollmentType)
         }
 
-        if (success) toast.success("Dossier élève mis à jour avec succès")
+        // Pass student_status in payload to maintain coherence
+        payload.student_status = enrollmentType === 'enrollment' ? 'Inscrit' : 'Ancien'
+
+        success = await updateStudent(initialData.id, payload)
+
+        if (success) {
+          const targetYear = initialFees?.school_year || useAppStore.getState().currentYear
+          await useStudentStore.getState().getStudent(initialData.id, targetYear)
+          toast.success("Dossier élève mis à jour avec succès")
+        }
       } else {
         success = await createStudent(payload)
         if (success) toast.success("Dossier élève créé avec succès")

@@ -101,8 +101,8 @@ export default function AuditLogPage(): React.JSX.Element {
   // Render
   // --------------------------------------------
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Journal d'Audit</h1>
+    <div className="w-full space-y-6">
+      <h1 className="text-2xl font-bold">Journal d'Audit</h1>
 
       {/* Filters */}
       <div className="bg-card rounded-lg border shadow-sm p-4 mb-6">

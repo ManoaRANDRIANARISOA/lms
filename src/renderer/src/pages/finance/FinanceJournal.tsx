@@ -237,7 +237,8 @@ export default function FinanceJournal() {
     fetchTotalBalance
   } = useCashJournalStore()
   const { canWrite } = usePermissions()
-  const { currentYear } = useAppStore()
+  const { currentYear, stationCode } = useAppStore()
+  const activeStation = stationCode || 'C1'
 
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -447,10 +448,10 @@ export default function FinanceJournal() {
         payment_type: e.category,
         month: extractedMonth,
         receipt_number: (e as any).receipt_number
-          ? (e as any).receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, 'REC-$1-C1-$2')
+          ? (e as any).receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, `REC-$1-${activeStation}-$2`)
           : undefined,
         is_duplicate: isItemDup,
-        duplicate_count: isItemDup ? ((e as any).print_count || 0) + 1 : 1
+        duplicate_count: isItemDup ? ((e as any).print_count || 1) : 1
       }
     })
 
@@ -467,12 +468,12 @@ export default function FinanceJournal() {
     const validNums = selected
       .map((e) =>
         (e as any).receipt_number
-          ? (e as any).receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, 'REC-$1-C1-$2')
+          ? (e as any).receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, `REC-$1-${activeStation}-$2`)
           : ''
       )
       .filter(Boolean)
 
-    let groupedNum = `REC-${new Date().getFullYear()}-C1-${Date.now().toString().slice(-5)}`
+    let groupedNum = `REC-${new Date().getFullYear()}-${activeStation}-${Date.now().toString().slice(-5)}`
     if (validNums.length === 1) {
       groupedNum = validNums[0]
     } else if (validNums.length > 1) {
@@ -511,7 +512,7 @@ export default function FinanceJournal() {
           payment_method: primaryMethod,
           receipt_number: groupedNum,
           is_duplicate: allDup,
-          duplicate_count: allDup ? maxCount + 1 : 1,
+          duplicate_count: allDup ? maxCount : 1,
           items
         },
         2
@@ -520,7 +521,7 @@ export default function FinanceJournal() {
       if (res.success) {
         toast.success(
           allDup
-            ? `Reçu groupé (Duplicata N°${maxCount + 1}) imprimé en 2 exemplaires`
+            ? `Reçu groupé (Duplicata N°${maxCount}) imprimé en 2 exemplaires`
             : anyDup
               ? 'Reçu groupé imprimé (avec mentions duplicatas sur articles réimprimés)'
               : 'Reçu groupé imprimé en 2 exemplaires (Parent + Caisse)',
@@ -538,7 +539,7 @@ export default function FinanceJournal() {
 
   // ── Render ──
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="w-full space-y-4">
       <ReadOnlyBanner resource="cash_journal" />
 
       <div className="flex justify-between items-center mb-6">
@@ -982,43 +983,40 @@ export default function FinanceJournal() {
         </div>
       )}
 
-      {/* ── Table ── */}
+      {/* ── Table Responsive 6 Colonnes (Descente de ligne & 0 Scroll Horizontal) ── */}
       <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
-            <thead className="bg-gray-50 text-gray-700 uppercase font-medium border-b">
+            <thead className="bg-gray-50 text-gray-700 uppercase font-semibold border-b text-[11px] tracking-wider">
               <tr>
-                <th className="px-4 py-3 w-10 text-center">
+                <th className="px-2 py-3 w-10 text-center">
                   <input
                     type="checkbox"
                     checked={
                       incomeEntries.length > 0 && selectedEntryIds.length === incomeEntries.length
                     }
                     onChange={toggleSelectAllEntries}
-                    className="rounded border-gray-300 text-primary focus:ring-primary cursor-pointer w-4 h-4 accent-[#AD8B73]"
+                    className="rounded border-gray-300 text-primary focus:ring-primary cursor-pointer w-3.5 h-3.5 accent-[#AD8B73]"
                     title="Tout sélectionner (recettes)"
                   />
                 </th>
-                <th className="px-6 py-3">Date</th>
-                <th className="px-6 py-3">Département</th>
-                <th className="px-6 py-3">Nom</th>
-                <th className="px-6 py-3">Classe</th>
-                <th className="px-6 py-3">Catégorie</th>
-                <th className="px-6 py-3">Description</th>
-                <th className="px-6 py-3 text-right">Montant</th>
-                <th className="px-6 py-3 text-center">Actions</th>
+                <th className="px-3 py-3 w-28 whitespace-nowrap">Date / Dép.</th>
+                <th className="px-3 py-3 min-w-[160px] max-w-[240px]">Élève / Classe</th>
+                <th className="px-3 py-3 min-w-[180px]">Catégorie & Détails</th>
+                <th className="px-3 py-3 w-36 text-right whitespace-nowrap">Montant / Reçu</th>
+                <th className="px-3 py-3 w-36 text-center whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                     Chargement...
                   </td>
                 </tr>
               ) : enriched.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                     Aucune entrée trouvée.
                   </td>
                 </tr>
@@ -1032,119 +1030,156 @@ export default function FinanceJournal() {
                     <tr
                       key={entry.id}
                       className={cn(
-                        'hover:bg-gray-50/50 transition-colors',
+                        'group hover:bg-gray-50/70 transition-colors',
                         selectedEntryIds.includes(entry.id) && 'bg-primary/5'
                       )}
                     >
-                      <td className="px-4 py-4 text-center">
+                      {/* Col 1: Checkbox */}
+                      <td className="px-2 py-3 text-center align-middle">
                         {entry.type === 'income' ? (
                           <input
                             type="checkbox"
                             checked={selectedEntryIds.includes(entry.id)}
                             onChange={() => toggleSelectEntry(entry.id)}
-                            className="rounded border-gray-300 text-primary focus:ring-primary cursor-pointer w-4 h-4 accent-[#AD8B73]"
+                            className="rounded border-gray-300 text-primary focus:ring-primary cursor-pointer w-3.5 h-3.5 accent-[#AD8B73]"
                           />
                         ) : (
                           <span className="text-gray-300 text-xs">—</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {new Date(entry.transaction_date).toLocaleDateString()}
+
+                      {/* Col 2: Date + Département (empilés) */}
+                      <td className="px-3 py-3 align-top whitespace-nowrap">
+                        <div className="font-medium text-xs text-gray-900">
+                          {new Date(entry.transaction_date).toLocaleDateString('fr-FR')}
+                        </div>
+                        <div className="mt-1">
+                          <span
+                            className={cn(
+                              'inline-block px-1.5 py-0.5 rounded text-[10px] font-medium tracking-wide',
+                              entry.department === 'bus'
+                                ? 'bg-amber-100 text-amber-800'
+                                : entry.department === 'ecole'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-blue-100 text-blue-800'
+                            )}
+                          >
+                            {translateDepartment(entry.department)}
+                          </span>
+                        </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={cn(
-                            'px-2 py-1 rounded text-xs',
-                            entry.department === 'bus'
-                              ? 'bg-amber-100 text-amber-800'
-                              : entry.department === 'ecole'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-blue-100 text-blue-800'
-                          )}
+
+                      {/* Col 3: Nom élève / Tiers + Classe (empilés) */}
+                      <td className="px-3 py-3 align-top min-w-[160px] max-w-[240px]">
+                        <div
+                          className="font-semibold text-xs text-gray-900 truncate"
+                          title={studentName || entry.description || '—'}
                         >
-                          {translateDepartment(entry.department)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 font-medium text-gray-900">{studentName || '—'}</td>
-                      <td className="px-6 py-4">
-                        {entry.student_class ? (
-                          entry.student_class.startsWith('Ancien') ? (
-                            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">
-                              {entry.student_class}
-                            </span>
-                          ) : entry.student_class.startsWith('Pré-inscrit') ? (
-                            <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium">
-                              {entry.student_class}
-                            </span>
-                          ) : entry.student_class.startsWith('Quitté') ? (
-                            <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-medium">
-                              {entry.student_class}
-                            </span>
-                          ) : entry.student_class === 'Non inscrit' ? (
-                            <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">
-                              {entry.student_class}
-                            </span>
+                          {studentName ||
+                            (entry.description?.startsWith('Paiement Salaire')
+                              ? entry.description.split(' - ')[1]
+                              : entry.description || '—')}
+                        </div>
+                        <div className="mt-1">
+                          {entry.student_class ? (
+                            entry.student_class.startsWith('Ancien') ? (
+                              <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-800 rounded text-[10px] font-medium">
+                                {entry.student_class}
+                              </span>
+                            ) : entry.student_class.startsWith('Pré-inscrit') ? (
+                              <span className="px-1.5 py-0.5 bg-purple-100 text-purple-800 rounded text-[10px] font-medium">
+                                {entry.student_class}
+                              </span>
+                            ) : entry.student_class.startsWith('Quitté') ? (
+                              <span className="px-1.5 py-0.5 bg-red-100 text-red-800 rounded text-[10px] font-medium">
+                                {entry.student_class}
+                              </span>
+                            ) : entry.student_class === 'Non inscrit' ? (
+                              <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px]">
+                                {entry.student_class}
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-[10px] font-medium">
+                                {entry.student_class}
+                              </span>
+                            )
                           ) : (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
-                              {entry.student_class}
-                            </span>
-                          )
-                        ) : (
-                          '—'
-                        )}
+                            <span className="text-gray-400 text-[11px]">—</span>
+                          )}
+                        </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <span
+
+                      {/* Col 4: Catégorie + Description (empilés avec descente de ligne) */}
+                      <td className="px-3 py-3 align-top min-w-[180px]">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span
+                            className={cn(
+                              'px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border',
+                              CATEGORY_COLORS[entry.category] ||
+                                'bg-gray-50 text-gray-700 border-gray-200'
+                            )}
+                          >
+                            {translateCategory(entry.category, entry.department)}
+                          </span>
+                          {entry.payment_method && (
+                            <span className="text-[10px] text-gray-400 capitalize">
+                              • {entry.payment_method === 'cash' ? 'espèces' : entry.payment_method}
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className="text-xs text-gray-600 mt-1 line-clamp-2 leading-relaxed"
+                          title={entry.description}
+                        >
+                          {entry.description || '—'}
+                        </div>
+                      </td>
+
+                      {/* Col 5: Montant + Statut Reçu (empilés) */}
+                      <td className="px-3 py-3 align-top text-right whitespace-nowrap">
+                        <div
                           className={cn(
-                            'px-2 py-1 rounded text-xs font-medium border',
-                            CATEGORY_COLORS[entry.category] ||
-                              'bg-gray-50 text-gray-700 border-gray-200'
+                            'font-bold text-xs sm:text-sm',
+                            entry.type === 'income' ? 'text-green-700' : 'text-red-700'
                           )}
                         >
-                          {translateCategory(entry.category, entry.department)}
-                        </span>
+                          {entry.type === 'income' ? '+' : '-'} {entry.amount?.toLocaleString()} Ar
+                        </div>
+                        <div className="mt-1 flex justify-end">
+                          {entry.type === 'income' ? (
+                            pCount === 0 ? (
+                              <span
+                                className="text-[10px] bg-gray-100 text-gray-600 border border-gray-200 px-1.5 py-0.5 rounded font-medium"
+                                title="Ce reçu n'a pas encore été imprimé"
+                              >
+                                Non imprimé
+                              </span>
+                            ) : pCount === 1 ? (
+                              <span
+                                className="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 rounded font-medium"
+                                title="Reçu original déjà délivré (1er tirage)"
+                              >
+                                Original émis
+                              </span>
+                            ) : (
+                              <span
+                                className="text-[10px] bg-amber-50 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded font-medium"
+                                title={`Ce reçu a été réimprimé ${pCount - 1} fois (Duplicata N°${pCount - 1})`}
+                              >
+                                Duplicata ({pCount - 1})
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-[10px] text-gray-400 italic">Décaissement</span>
+                          )}
+                        </div>
                       </td>
-                      <td
-                        className="px-6 py-4 text-gray-600 max-w-xs truncate"
-                        title={entry.description}
-                      >
-                        {entry.description || '-'}
-                      </td>
-                      <td
-                        className={cn(
-                          'px-6 py-4 text-right font-bold',
-                          entry.type === 'income' ? 'text-green-700' : 'text-red-700'
-                        )}
-                      >
-                        {entry.type === 'income' ? '+' : '-'}
-                        {entry.amount?.toLocaleString()} Ar
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <div className="flex justify-center items-center gap-1.5">
+
+                      {/* Col 6: Actions rapides */}
+                      <td className="px-3 py-3 align-middle text-center whitespace-nowrap">
+                        <div className="flex justify-center items-center gap-1">
                           {entry.type === 'income' && (
                             <>
-                              {pCount === 0 ? (
-                                <span
-                                  className="text-[10px] bg-gray-100 text-gray-600 border border-gray-200 px-1.5 py-0.5 rounded font-medium shrink-0"
-                                  title="Ce reçu n'a pas encore été imprimé"
-                                >
-                                  Non imprimé
-                                </span>
-                              ) : pCount === 1 ? (
-                                <span
-                                  className="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 rounded font-medium shrink-0"
-                                  title="Reçu original déjà délivré (1er tirage)"
-                                >
-                                  Original émis
-                                </span>
-                              ) : (
-                                <span
-                                  className="text-[10px] bg-amber-50 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded font-medium shrink-0"
-                                  title={`Ce reçu a été réimprimé ${pCount} fois (Duplicata)`}
-                                >
-                                  Duplicata ({pCount})
-                                </span>
-                              )}
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1156,9 +1191,9 @@ export default function FinanceJournal() {
                                   const rNum = (entry as any).receipt_number
                                     ? (entry as any).receipt_number.replace(
                                         /^REC-(\d{4})-(\d{5})$/,
-                                        'REC-$1-C1-$2'
+                                        `REC-$1-${activeStation}-$2`
                                       )
-                                    : `REC-${currentYear ? currentYear.slice(0, 4) : new Date().getFullYear()}-C1-${(entry.id || Date.now().toString()).slice(-5).toUpperCase()}`
+                                    : `REC-${currentYear ? currentYear.slice(0, 4) : new Date().getFullYear()}-${activeStation}-${(entry.id || Date.now().toString()).slice(-5).toUpperCase()}`
                                   const pCount = (entry as any).print_count || 0
                                   const pData = {
                                     id: (entry as any).related_payment_id || entry.id,
@@ -1209,9 +1244,9 @@ export default function FinanceJournal() {
                                   const rNum = (entry as any).receipt_number
                                     ? (entry as any).receipt_number.replace(
                                         /^REC-(\d{4})-(\d{5})$/,
-                                        'REC-$1-C1-$2'
+                                        `REC-$1-${activeStation}-$2`
                                       )
-                                    : `REC-${currentYear ? currentYear.slice(0, 4) : new Date().getFullYear()}-C1-${(entry.id || Date.now().toString()).slice(-5).toUpperCase()}`
+                                    : `REC-${currentYear ? currentYear.slice(0, 4) : new Date().getFullYear()}-${activeStation}-${(entry.id || Date.now().toString()).slice(-5).toUpperCase()}`
                                   const pCount = (entry as any).print_count || 0
                                   const isDup = pCount >= 1
                                   const paymentId = (entry as any).related_payment_id || entry.id
@@ -1238,18 +1273,18 @@ export default function FinanceJournal() {
                                         receipt_number: rNum,
                                         cashier_name: (entry as any).created_by || 'Administrateur',
                                         is_duplicate: isDup,
-                                        duplicate_count: isDup ? pCount + 1 : 1
+                                        duplicate_count: isDup ? pCount : 1
                                       },
                                       2
                                     )
                                     if (r.success) {
                                       toast.success(
                                         isDup
-                                          ? `Duplicata N°${pCount + 1} imprimé en 2 exemplaires (Parent + Caisse)`
+                                          ? `Duplicata N°${pCount} imprimé en 2 exemplaires (Parent + Caisse)`
                                           : 'Ticket imprimé en 2 exemplaires (Parent + Caisse)',
                                         { id: toastId }
                                       )
-                                      fetchEntries()
+                                      fetchEntries({ ...filters, schoolYear: currentYear })
                                     } else {
                                       toast.error(r.error || "Échec d'impression", { id: toastId })
                                     }
@@ -1319,33 +1354,33 @@ export default function FinanceJournal() {
 
               {/* ── Summary footer ── */}
               {summary && enriched.length > 0 && (
-                <tr className="bg-gray-50 border-t-2 font-semibold">
-                  <td className="px-6 py-4" colSpan={5}>
-                    <div className="flex items-center text-gray-700">
-                      <span className="uppercase text-xs tracking-wider">
+                <tr className="bg-gray-50/90 border-t-2 font-semibold text-xs">
+                  <td className="px-3 py-3" colSpan={3}>
+                    <div className="flex items-center text-gray-700 flex-wrap gap-1">
+                      <span className="uppercase text-xs tracking-wider font-bold">
                         Total sur la sélection
                       </span>
                       {filters.startDate && (
-                        <span className="text-xs text-gray-500 ml-2 font-normal">
+                        <span className="text-xs text-gray-500 font-normal">
                           du {new Date(filters.startDate).toLocaleDateString('fr-FR')}
                         </span>
                       )}
                       {filters.endDate && (
-                        <span className="text-xs text-gray-500 ml-1 font-normal">
+                        <span className="text-xs text-gray-500 font-normal">
                           au {new Date(filters.endDate).toLocaleDateString('fr-FR')}
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex flex-col text-xs font-normal text-gray-500 gap-1">
-                      <div className="flex justify-between w-32 ml-auto">
+                  <td className="px-3 py-3">
+                    <div className="flex flex-col text-xs font-normal text-gray-500 gap-0.5">
+                      <div className="flex justify-between gap-2">
                         <span>Entrées :</span>
                         <span className="text-green-600 font-medium">
                           {summary.totalIncome.toLocaleString()} Ar
                         </span>
                       </div>
-                      <div className="flex justify-between w-32 ml-auto">
+                      <div className="flex justify-between gap-2">
                         <span>Sorties :</span>
                         <span className="text-red-600 font-medium">
                           {summary.totalExpense.toLocaleString()} Ar
@@ -1355,17 +1390,15 @@ export default function FinanceJournal() {
                   </td>
                   <td
                     className={cn(
-                      'px-6 py-4 text-right align-bottom text-lg',
+                      'px-3 py-3 text-right align-middle text-sm font-bold whitespace-nowrap',
                       summary.totalIncome - summary.totalExpense >= 0
                         ? 'text-blue-700'
                         : 'text-red-700'
                     )}
                   >
-                    <div className="font-bold">
-                      {(summary.totalIncome - summary.totalExpense).toLocaleString()} Ar
-                    </div>
+                    {(summary.totalIncome - summary.totalExpense).toLocaleString()} Ar
                   </td>
-                  <td></td>
+                  <td className="px-3 py-3"></td>
                 </tr>
               )}
             </tbody>
@@ -1382,7 +1415,7 @@ export default function FinanceJournal() {
         studentNumber={selectedJournalPayment ? selectedJournalPayment.studentNumber : ''}
         className={selectedJournalPayment ? selectedJournalPayment.className : ''}
         onPrintSuccess={() => {
-          fetchEntries()
+          fetchEntries({ ...filters, schoolYear: currentYear })
         }}
       />
     </div>

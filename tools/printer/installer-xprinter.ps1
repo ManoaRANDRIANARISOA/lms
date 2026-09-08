@@ -50,38 +50,35 @@ if ($existingDriver) {
     }
 }
 
-# 4. Détection intelligente du port USB (évite les conflits avec d'autres imprimantes comme Canon/Nicon)
-Write-Host "[3/3] Detection intelligente du port USB pour l'imprimante thermique..." -ForegroundColor Yellow
+# 4. Détection intelligente du port USB actif (PnP matériel réel)
+Write-Host "[3/3] Detection materielle reelle du port USB de l'imprimante thermique..." -ForegroundColor Yellow
 
-$occupiedPorts = @()
+$printerPort = ""
 try {
-    $otherPrinters = Get-Printer -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne "POS-80" -and $_.PortName -like "USB*" }
-    if ($otherPrinters) {
-        $occupiedPorts = $otherPrinters | ForEach-Object { $_.PortName }
-        Write-Host "  -> Ports USB deja occupes par d'autres peripheriques/imprimantes : $($occupiedPorts -join ', ')" -ForegroundColor Cyan
+    $activeDev = Get-PnpDevice -ErrorAction SilentlyContinue | Where-Object {
+        ($_.InstanceId -like '*USBPRINT*' -or $_.Service -eq 'usbprint') -and $_.Present -eq $true
+    } | Select-Object -First 1
+
+    if ($activeDev -and $activeDev.InstanceId -match '(USB\d+)') {
+        $printerPort = $matches[1]
+        Write-Host "  -> Port USB physique actif detecte via PnP : $printerPort" -ForegroundColor Green
     }
 } catch {}
 
-$availableUsbPorts = @("USB001", "USB002", "USB003", "USB004", "USB005")
-$printerPort = "USB001"
-foreach ($p in $availableUsbPorts) {
-    if ($occupiedPorts -notcontains $p) {
-        $printerPort = $p
-        break
-    }
+if (-not $printerPort) {
+    try {
+        $regPorts = Get-ChildItem 'HKLM:\SYSTEM\CurrentControlSet\Enum\USBPRINT' -Recurse -ErrorAction SilentlyContinue | Get-ItemProperty | Where-Object { $_.PortName -like 'USB*' }
+        if ($regPorts) {
+            $printerPort = ($regPorts | Select-Object -First 1).PortName
+            Write-Host "  -> Port USB retrouve via le registre Windows : $printerPort" -ForegroundColor Green
+        }
+    } catch {}
 }
 
-try {
-    $usbPrint = Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue | Where-Object { 
-        $_.Service -eq "usbprint" -or $_.Name -like "*POS*" -or $_.Name -like "*Xprinter*" 
-    }
-    if ($usbPrint) {
-        $pName = if ($usbPrint -is [array]) { $usbPrint[0].Name } else { $usbPrint.Name }
-        Write-Host "  -> Peripherique USB thermique detecte : $pName" -ForegroundColor Green
-    }
-} catch {}
-
-Write-Host "  -> Port selectionne pour POS-80 : $printerPort" -ForegroundColor Green
+if (-not $printerPort) {
+    $printerPort = "USB001"
+    Write-Host "  -> [Attention] Aucun port USB actif detecte (imprimante hors-tension ?). Port par defaut : $printerPort" -ForegroundColor Yellow
+}
 
 # 5. Création ou Mise à jour de l'imprimante POS-80
 if ($existingPrinter) {
@@ -114,6 +111,44 @@ if ($existingPrinter) {
         }
     }
 }
+
+# 6. Forcer la désactivation de la communication bidirectionnelle (BiDi)
+try {
+    Set-Printer -Name "POS-80" -EnableBidi $false -ErrorAction SilentlyContinue
+    $wmi = Get-WmiObject -Query "Select * from Win32_Printer where Name='POS-80'" -ErrorAction SilentlyContinue
+    if ($wmi) {
+        if ($wmi.EnableBIDI) {
+            $wmi.EnableBIDI = $false
+            $wmi.Put() | Out-Null
+        }
+        if ($wmi.WorkOffline) {
+            $wmi.WorkOffline = $false
+            $wmi.Put() | Out-Null
+            Write-Host "  -> Statut 'Hors-connexion' desactive : l'imprimante est desormais EN LIGNE." -ForegroundColor Green
+        }
+    }
+} catch {}
+
+# 7. S'assurer que POS-80 n'est PAS l'imprimante Windows par défaut (évite que Word/PDF sortent dessus)
+try {
+    $def = Get-CimInstance Win32_Printer -Filter "Default=True" -ErrorAction SilentlyContinue
+    if ($def -and $def.Name -eq 'POS-80') {
+        $pdf = Get-WmiObject -Query "Select * from Win32_Printer where Name='Microsoft Print to PDF'" -ErrorAction SilentlyContinue
+        if ($pdf) {
+            $pdf.SetDefaultPrinter() | Out-Null
+            Write-Host "  -> Imprimante par defaut Windows preservee (seul le LMS utilisera POS-80)." -ForegroundColor Green
+        }
+    }
+} catch {}
+
+# 8. Nettoyer les éventuels travaux d'impression bloqués
+try {
+    $wmiCancel = Get-WmiObject -Query "Select * from Win32_Printer where Name='POS-80'" -ErrorAction SilentlyContinue
+    if ($wmiCancel) {
+        $wmiCancel.CancelAllJobs() | Out-Null
+    }
+    Get-PrintJob -PrinterName 'POS-80' -ErrorAction SilentlyContinue | Remove-PrintJob -ErrorAction SilentlyContinue
+} catch {}
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan

@@ -33,10 +33,14 @@ export function registerPrinterHandlers(): void {
 
       // If payment_ids are provided, check and record print count
       if (paymentData.payment_ids && paymentData.payment_ids.length > 0) {
-        const printRecord = PaymentRepository.recordReceiptPrint(paymentData.payment_ids, operatorName)
+        const printRecord = PaymentRepository.recordReceiptPrint(
+          paymentData.payment_ids,
+          operatorName,
+          paymentData.receipt_number
+        )
         if (printRecord.success) {
           isDuplicate = printRecord.is_duplicate
-          duplicateCount = printRecord.print_count
+          duplicateCount = isDuplicate ? (printRecord.duplicate_count || 1) : 1
         }
       }
 
@@ -142,6 +146,18 @@ export function registerPrinterHandlers(): void {
       return await ThermalPrinterService.clearSpoolerQueue(printerName)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Erreur de purge de la file d’attente'
+      return { success: false, error: message }
+    }
+  })
+
+  // --------------------------------------------
+  // SET PRINTER USB PORT DIRECTLY (1-Click Switch)
+  // --------------------------------------------
+  ipcMain.handle('printer:setPort', async (_, portName: string, printerName?: string) => {
+    try {
+      return await ThermalPrinterService.setPrinterPort(portName, printerName)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erreur de changement de port USB'
       return { success: false, error: message }
     }
   })

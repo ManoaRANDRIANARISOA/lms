@@ -113,6 +113,7 @@ interface FinanceTabProps {
 }
 
 export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: FinanceTabProps) {
+  const stationCode = useAppStore((state) => state.stationCode) || 'C1'
   const [status, setStatus] = useState<TuitionStatusResult | null>(null)
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
@@ -404,10 +405,10 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           payment_method: payment.payment_method,
           description: payment.description || undefined,
           receipt_number: payment.receipt_number
-            ? payment.receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, 'REC-$1-C1-$2')
-            : `REC-${new Date().getFullYear()}-C1-${(payment.id || Date.now().toString()).slice(-5).toUpperCase()}`,
+            ? payment.receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, `REC-$1-${stationCode}-$2`)
+            : `REC-${new Date().getFullYear()}-${stationCode}-${(payment.id || Date.now().toString()).slice(-5).toUpperCase()}`,
           is_duplicate: isDuplicate,
-          duplicate_count: isDuplicate ? (payment.print_count || 0) + 1 : 1
+          duplicate_count: isDuplicate ? (payment.print_count || 1) : 1
         },
         2
       )
@@ -415,7 +416,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
       if (res.success) {
         toast.success(
           isDuplicate
-            ? `Duplicata N°${(payment.print_count || 0) + 1} imprimé (2 exemplaires)`
+            ? `Duplicata N°${payment.print_count || 1} imprimé (2 exemplaires)`
             : 'Reçu imprimé en 2 exemplaires (Parent + Caisse)',
           { id: toastId }
         )
@@ -492,7 +493,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
         month: p.month || undefined,
         receipt_number: p.receipt_number,
         is_duplicate: isItemDup,
-        duplicate_count: isItemDup ? (p.print_count || 0) + 1 : 1
+        duplicate_count: isItemDup ? (p.print_count || 1) : 1
       }
     })
 
@@ -507,7 +508,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     // Helper to normalize receipt numbers with station code
     const normalizeReceiptNumber = (num?: string): string => {
       if (!num) return ''
-      return num.replace(/^REC-(\d{4})-(\d{5})$/, 'REC-$1-C1-$2')
+      return num.replace(/^REC-(\d{4})-(\d{5})$/, `REC-$1-${stationCode}-$2`)
     }
 
     // Clean grouped receipt number format: if all have same receipt_number use that, otherwise use range
@@ -516,7 +517,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
       .filter((r): r is string => Boolean(r && r.trim()))
 
     const currentYear = new Date().getFullYear().toString()
-    let groupedReceiptNum = `REC-${currentYear}-C1-${Date.now().toString().slice(-5)}`
+    let groupedReceiptNum = `REC-${currentYear}-${stationCode}-${Date.now().toString().slice(-5)}`
     if (validReceiptNums.length === 1) {
       groupedReceiptNum = validReceiptNums[0]
     } else if (validReceiptNums.length > 1) {
@@ -552,7 +553,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           payment_method: primaryMethod,
           receipt_number: groupedReceiptNum,
           is_duplicate: allDuplicate,
-          duplicate_count: allDuplicate ? maxCount + 1 : 1,
+          duplicate_count: allDuplicate ? maxCount : 1,
           items
         },
         2
@@ -561,7 +562,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
       if (res.success) {
         toast.success(
           allDuplicate
-            ? `Reçu groupé (Duplicata N°${maxCount + 1}) imprimé en 2 exemplaires`
+            ? `Reçu groupé (Duplicata N°${maxCount}) imprimé en 2 exemplaires`
             : anyDuplicate
               ? 'Reçu groupé imprimé (avec mentions duplicatas sur articles réimprimés)'
               : 'Reçu groupé imprimé en 2 exemplaires (Parent + Caisse)',
@@ -1476,7 +1477,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                       <td className="px-4 py-3 text-foreground">
                         <div className="font-mono text-xs font-semibold text-primary">
                           {payment.receipt_number
-                            ? payment.receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, 'REC-$1-C1-$2')
+                            ? payment.receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, `REC-$1-${stationCode}-$2`)
                             : '—'}
                         </div>
                         <div className="text-[11px] text-muted-foreground">
@@ -1540,9 +1541,9 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                           ) : (
                             <span
                               className="text-[10px] bg-amber-50 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded font-medium shrink-0"
-                              title={`Ce reçu a été réimprimé ${payment.print_count} fois (Duplicata)`}
+                              title={`Ce reçu a été réimprimé ${(payment.print_count || 1) - 1} fois (Duplicata N°${(payment.print_count || 1) - 1})`}
                             >
-                              Duplicata ({payment.print_count})
+                              Duplicata ({(payment.print_count || 1) - 1})
                             </span>
                           )}
                           <Button

@@ -643,6 +643,123 @@ if ($res) { Write-Output "SUCCESS" } else { Write-Output "FAILED" }
   }
 
   /**
+   * Intelligently inspects the Windows spooler, verifies active USB PnP hardware,
+   * re-binds POS-80 to the active USB port if moved, forces online mode, and purges stuck error jobs.
+   */
+  static async ensurePrinterReady(
+    customPrinterName?: string
+  ): Promise<{
+    ready: boolean
+    isInstalled: boolean
+    isConnected: boolean
+    activePort?: string
+    currentPort?: string
+    availablePorts?: string[]
+    isOffline?: boolean
+    error?: string
+    message?: string
+  }> {
+    return new Promise((resolve) => {
+      const printerName = customPrinterName || this.getPrinterName()
+      const isDev = !app.isPackaged
+      const scriptCandidates = [
+        isDev ? path.join(process.cwd(), 'tools/printer/detect-xprinter.ps1') : null,
+        path.join(process.resourcesPath, 'tools/printer/detect-xprinter.ps1'),
+        path.join(app.getAppPath(), 'tools/printer/detect-xprinter.ps1'),
+        path.join(process.cwd(), 'tools/printer/detect-xprinter.ps1')
+      ].filter(Boolean) as string[]
+
+      const scriptPath = scriptCandidates.find((p) => fs.existsSync(p))
+
+      let psArgs: string[]
+      if (scriptPath) {
+        psArgs = [
+          '-NoProfile',
+          '-NonInteractive',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-File',
+          scriptPath,
+          '-TargetPrinter',
+          printerName,
+          '-AutoFix'
+        ]
+      } else {
+        const inlineScript = `
+          $p = Get-Printer -Name '${printerName}' -ErrorAction SilentlyContinue
+          $act = Get-PnpDevice -Class 'Printer','USB' -Status 'OK' -ErrorAction SilentlyContinue | Where-Object { ($_.InstanceId -like 'USBPRINT*' -or $_.Service -eq 'usbprint') -and $_.Present -eq $true } | Select-Object -First 1
+          $port = ''
+          if ($act -and $act.InstanceId -match '(USB\\d+)') { $port = $matches[1] }
+          if (-not $port) {
+            $reg = Get-ChildItem 'HKLM:\\SYSTEM\\CurrentControlSet\\Enum\\USBPRINT' -Recurse -ErrorAction SilentlyContinue | Get-ItemProperty | Where-Object { $_.PortName -like 'USB*' }
+            if ($reg) { $port = ($reg | Select-Object -First 1).PortName }
+          }
+          if ($p -and $port -and $p.PortName -ne $port) { Set-Printer -Name '${printerName}' -PortName $port -ErrorAction SilentlyContinue }
+          try {
+            $w = Get-WmiObject -Query "Select * from Win32_Printer where Name='${printerName}'" -ErrorAction SilentlyContinue
+            if ($w -and $w.WorkOffline) { $w.WorkOffline = $false; $w.Put() | Out-Null }
+          } catch {}
+          $allPorts = @(Get-PrinterPort -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'USB*' } | Select-Object -ExpandProperty Name | Sort-Object)
+          @{ installed = [bool]$p; connected = [bool]$port; activePort = $port; currentPort = if($p){$p.PortName}else{''}; availablePorts = $allPorts; isOffline = $false } | ConvertTo-Json -Compress
+        `
+        psArgs = [
+          '-NoProfile',
+          '-NonInteractive',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-Command',
+          inlineScript
+        ]
+      }
+
+      const ps = spawn('powershell.exe', psArgs)
+      let stdout = ''
+
+      ps.stdout.on('data', (d) => {
+        stdout += d.toString()
+      })
+
+      ps.on('close', () => {
+        try {
+          const res = JSON.parse(stdout.trim())
+          const isInstalled = Boolean(res.installed)
+          const isConnected = Boolean(res.connected)
+          const isOffline = Boolean(res.isOffline)
+
+          const ready = isInstalled && isConnected && !isOffline
+          resolve({
+            ready,
+            isInstalled,
+            isConnected,
+            activePort: res.activePort,
+            currentPort: res.currentPort,
+            availablePorts: Array.isArray(res.availablePorts) ? res.availablePorts : ['USB001', 'USB002', 'USB003'],
+            isOffline,
+            error: res.error,
+            message: res.message
+          })
+        } catch {
+          resolve({
+            ready: true,
+            isInstalled: true,
+            isConnected: true,
+            availablePorts: ['USB001', 'USB002', 'USB003']
+          })
+        }
+      })
+
+      ps.on('error', (err) => {
+        resolve({
+          ready: false,
+          isInstalled: false,
+          isConnected: false,
+          error: err.message
+        })
+      })
+    })
+  }
+
+  /**
    * Print a complete payment receipt with 2 copies (Parent + Cashier)
    * Dispatches copies separately with 750ms cutter cooldown to prevent jams and resets
    */
@@ -653,6 +770,28 @@ if ($res) { Write-Output "SUCCESS" } else { Write-Output "FAILED" }
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const printerName = customPrinterName || this.getPrinterName()
+
+      // 1. Pre-flight check & automatic USB port resolution
+      const prep = await this.ensurePrinterReady(printerName)
+      if (!prep.isInstalled) {
+        return {
+          success: false,
+          error: `L'imprimante '${printerName}' n'est pas installée sous Windows. Veuillez l'initialiser dans Paramètres.`
+        }
+      }
+      if (!prep.isConnected) {
+        return {
+          success: false,
+          error:
+            'Imprimante thermique non détectée. Vérifiez que la Xprinter est allumée et branchée en USB.'
+        }
+      }
+      if (prep.isOffline) {
+        return {
+          success: false,
+          error: "L'imprimante est signalée hors-ligne par Windows. Vérifiez le câble USB."
+        }
+      }
 
       // Copy 1: Parent Copy
       const copy1Bytes = this.buildSingleReceiptBytes(data, 'PARENT')
@@ -736,6 +875,10 @@ if ($res) { Write-Output "SUCCESS" } else { Write-Output "FAILED" }
     targetPrinter?: string
   ): Promise<{ success: boolean; error?: string }> {
     const printer = targetPrinter || this.getPrinterName()
+    const stationCode = normalizeStationCode(
+      SettingsRepository.get('pos_station_code') as string
+    )
+    const currentYear = new Date().getFullYear().toString()
     const dummyData: ReceiptData = {
       student_name: 'TEST ÉLÈVE — RAKOTO Jean',
       student_number: 'MAT-2026-001',
@@ -744,9 +887,9 @@ if ($res) { Write-Output "SUCCESS" } else { Write-Output "FAILED" }
       payment_type: 'enrollment',
       payment_date: new Date().toISOString().split('T')[0],
       month: 'Septembre 2026',
-      receipt_number: 'TEST-001',
+      receipt_number: `REC-${currentYear}-${stationCode}-TEST`,
       payment_method: 'cash',
-      cashier_name: 'Administrateur Test'
+      cashier_name: `Caissier Test (${stationCode})`
     }
     return await this.printReceipt(dummyData, 1, printer)
   }
@@ -754,57 +897,44 @@ if ($res) { Write-Output "SUCCESS" } else { Write-Output "FAILED" }
   /**
    * Check if POS-80 printer is currently installed and ready in Windows
    */
-  static async checkPrinterStatus(): Promise<{
+  static async checkPrinterStatus(customPrinterName?: string): Promise<{
     isInstalled: boolean
-    name?: string
+    isConnected: boolean
+    name: string
     portName?: string
     driverName?: string
     status?: string
+    isOffline?: boolean
+    availablePorts?: string[]
     error?: string
   }> {
-    return new Promise((resolve) => {
-      const psScript = `Get-Printer -Name 'POS-80' -ErrorAction SilentlyContinue | Select-Object Name, PortName, DriverName, PrinterStatus | ConvertTo-Json -Compress`
-      const ps = spawn('powershell.exe', [
-        '-NoProfile',
-        '-NonInteractive',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-Command',
-        psScript
-      ])
-
-      let stdout = ''
-      ps.stdout.on('data', (d) => {
-        stdout += d.toString()
-      })
-
-      ps.on('close', () => {
-        try {
-          if (!stdout.trim()) {
-            resolve({ isInstalled: false })
-            return
-          }
-          const parsed = JSON.parse(stdout)
-          if (parsed && parsed.Name) {
-            resolve({
-              isInstalled: true,
-              name: parsed.Name,
-              portName: parsed.PortName,
-              driverName: parsed.DriverName,
-              status: parsed.PrinterStatus === 0 ? 'Normal' : String(parsed.PrinterStatus)
-            })
-            return
-          }
-          resolve({ isInstalled: false })
-        } catch {
-          resolve({ isInstalled: false })
-        }
-      })
-
-      ps.on('error', (err) => {
-        resolve({ isInstalled: false, error: err.message })
-      })
-    })
+    const printerName = customPrinterName || this.getPrinterName()
+    try {
+      const prep = await this.ensurePrinterReady(printerName)
+      return {
+        isInstalled: prep.isInstalled,
+        isConnected: prep.isConnected,
+        name: printerName,
+        portName: prep.currentPort || prep.activePort || 'USB001',
+        driverName: 'Generic / Text Only',
+        isOffline: prep.isOffline,
+        availablePorts: prep.availablePorts || ['USB001', 'USB002', 'USB003'],
+        status: prep.isConnected
+          ? prep.isOffline
+            ? 'Hors-ligne'
+            : 'En ligne et prête'
+          : 'Débranchée ou éteinte',
+        error: prep.error
+      }
+    } catch (e: any) {
+      return {
+        isInstalled: false,
+        isConnected: false,
+        name: printerName,
+        availablePorts: ['USB001', 'USB002', 'USB003'],
+        error: e?.message || 'Erreur vérification statut imprimante'
+      }
+    }
   }
 
   /**
@@ -857,13 +987,15 @@ if ($res) { Write-Output "SUCCESS" } else { Write-Output "FAILED" }
             resolve({
               success: false,
               isInstalled: false,
-              error: "L'installation a été annulée ou l'autorisation administrateur Windows n'a pas été accordée."
+              error:
+                "L'installation a été annulée ou l'autorisation administrateur Windows n'a pas été accordée."
             })
           } else {
             resolve({
               success: false,
               isInstalled: false,
-              error: "Le script s'est exécuté mais l'imprimante POS-80 n'a pas été détectée. Vérifiez que la Xprinter est allumée et branchée en USB."
+              error:
+                "Le script s'est exécuté mais l'imprimante POS-80 n'a pas été détectée. Vérifiez que la Xprinter est allumée et branchée en USB."
             })
           }
         }
@@ -883,33 +1015,109 @@ if ($res) { Write-Output "SUCCESS" } else { Write-Output "FAILED" }
    * Intelligently auto-detect which USB port is occupied by POS-80 (avoiding conflicts with other printers like Canon/Nicon)
    * and automatically re-binds POS-80 to that port in Windows.
    */
-  static async autoDetectAndBindPort(): Promise<{
+  static async autoDetectAndBindPort(customPrinterName?: string): Promise<{
     success: boolean
     message?: string
     error?: string
     detectedPort?: string
+    availablePorts?: string[]
   }> {
+    const printerName = customPrinterName || this.getPrinterName()
+    const prep = await this.ensurePrinterReady(printerName)
+    if (!prep.isInstalled) {
+      return {
+        success: false,
+        detectedPort: prep.activePort,
+        error: `L'imprimante '${printerName}' n'est pas encore créée sous Windows. Lancez d'abord l'initialisation.`
+      }
+    }
+    if (!prep.isConnected) {
+      return {
+        success: false,
+        error:
+          'Aucune imprimante thermique USB active détectée. Vérifiez que la Xprinter est allumée et branchée.'
+      }
+    }
+    return {
+      success: true,
+      detectedPort: prep.activePort || prep.currentPort,
+      availablePorts: prep.availablePorts || ['USB001', 'USB002', 'USB003'],
+      message: `Imprimante ${printerName} reliée avec succès au port physique ${prep.activePort || prep.currentPort} (En ligne et prête) !`
+    }
+  }
+
+  /**
+   * Emergency Purge & Reset of Windows Print Queue:
+   * 1. Removes all pending/stuck print jobs via Remove-PrintJob
+   * 2. Uses Win32_Printer WMI CancelAllJobs() to immediately abort active jobs
+   * 3. Wakes up the spooler by setting WorkOffline = $false
+   */
+  static async clearSpoolerQueue(
+    customPrinterName?: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    const printerName = customPrinterName || this.getPrinterName()
     return new Promise((resolve) => {
       const psScript = `
-        $occupied = @()
-        $otherPrinters = Get-Printer -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne 'POS-80' -and $_.PortName -like 'USB*' }
-        if ($otherPrinters) {
-          $occupied = $otherPrinters | ForEach-Object { $_.PortName }
-        }
-        $candidatePorts = @('USB001', 'USB002', 'USB003', 'USB004', 'USB005')
-        $chosenPort = 'USB001'
-        foreach ($p in $candidatePorts) {
-          if ($occupied -notcontains $p) {
-            $chosenPort = $p
-            break
+        try {
+          Get-PrintJob -PrinterName '${printerName}' -ErrorAction SilentlyContinue | Remove-PrintJob -ErrorAction SilentlyContinue
+        } catch {}
+        try {
+          $w = Get-WmiObject -Query "Select * from Win32_Printer where Name='${printerName}'" -ErrorAction SilentlyContinue
+          if ($w) {
+            $w.CancelAllJobs() | Out-Null
+            $w.WorkOffline = $false
+            $w.Put() | Out-Null
           }
-        }
-        $pos = Get-Printer -Name 'POS-80' -ErrorAction SilentlyContinue
-        if ($pos) {
-          Set-Printer -Name 'POS-80' -PortName $chosenPort -ErrorAction SilentlyContinue
-          Write-Output "BOUND:$chosenPort"
-        } else {
-          Write-Output "NOT_INSTALLED:$chosenPort"
+        } catch {}
+        Write-Output 'CLEARED'
+      `
+      const ps = spawn('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        psScript
+      ])
+
+      ps.on('close', () => {
+        resolve({
+          success: true,
+          message: `File d'attente de l'imprimante ${printerName} vidée et réinitialisée avec succès ! Tout travail en cours ou bloqué a été annulé.`
+        })
+      })
+
+      ps.on('error', (err) => {
+        resolve({ success: false, error: err.message })
+      })
+    })
+  }
+
+  /**
+   * Set printer port directly in Windows (e.g. 'USB001', 'USB002', 'USB003')
+   * Cancels any stuck jobs, disables BiDi, and forces printer online.
+   */
+  static async setPrinterPort(
+    portName: string,
+    customPrinterName?: string
+  ): Promise<{ success: boolean; currentPort?: string; message?: string; error?: string }> {
+    const printerName = customPrinterName || this.getPrinterName()
+    return new Promise((resolve) => {
+      const psScript = `
+        try {
+          $p = Get-Printer -Name '${printerName}' -ErrorAction Stop
+          Set-Printer -Name '${printerName}' -PortName '${portName}' -EnableBidi $false -ErrorAction Stop
+          $wmi = Get-WmiObject -Query "Select * from Win32_Printer where Name='${printerName}'" -ErrorAction SilentlyContinue
+          if ($wmi) {
+            if ($wmi.EnableBIDI) { $wmi.EnableBIDI = $false }
+            $wmi.WorkOffline = $false
+            $wmi.Put() | Out-Null
+            $wmi.CancelAllJobs() | Out-Null
+          }
+          Get-PrintJob -PrinterName '${printerName}' -ErrorAction SilentlyContinue | Remove-PrintJob -ErrorAction SilentlyContinue
+          Write-Output "SUCCESS"
+        } catch {
+          Write-Output "ERROR: $($_.Exception.Message)"
         }
       `
       const ps = spawn('powershell.exe', [
@@ -922,65 +1130,27 @@ if ($res) { Write-Output "SUCCESS" } else { Write-Output "FAILED" }
       ])
 
       let stdout = ''
-      let stderr = ''
       ps.stdout.on('data', (d) => {
         stdout += d.toString()
       })
-      ps.stderr.on('data', (d) => {
-        stderr += d.toString()
-      })
-
-      ps.on('close', () => {
-        if (stdout.includes('BOUND:')) {
-          const port = stdout.split('BOUND:')[1]?.trim()
+      ps.on('close', (code) => {
+        if (code === 0 && stdout.includes('SUCCESS')) {
           resolve({
             success: true,
-            detectedPort: port,
-            message: `Imprimante POS-80 reliée avec succès au port ${port} (aucun conflit détecté).`
-          })
-        } else if (stdout.includes('NOT_INSTALLED:')) {
-          const port = stdout.split('NOT_INSTALLED:')[1]?.trim()
-          resolve({
-            success: false,
-            detectedPort: port,
-            error: `L'imprimante POS-80 n'est pas encore créée sous Windows. Lancez d'abord l'installation du pilote.`
+            currentPort: portName,
+            message: `Port de l'imprimante ${printerName} configuré sur ${portName} (En ligne).`
           })
         } else {
           resolve({
             success: false,
-            error: stderr || "Impossible de reconfigurer le port USB de l'imprimante."
+            error: stdout.replace('ERROR:', '').trim() || `Impossible de basculer sur le port ${portName}.`
           })
         }
       })
-
-      ps.on('error', (err) => {
-        resolve({ success: false, error: err.message })
-      })
-    })
-  }
-
-  /**
-   * Purge stuck print queue jobs in Windows Spooler
-   */
-  static async clearSpoolerQueue(printerName = 'POS-80'): Promise<{ success: boolean; error?: string }> {
-    return new Promise((resolve) => {
-      const psScript = `Get-PrintJob -PrinterName '${printerName}' -ErrorAction SilentlyContinue | Remove-PrintJob -ErrorAction SilentlyContinue; Write-Output 'CLEARED'`
-      const ps = spawn('powershell.exe', [
-        '-NoProfile',
-        '-NonInteractive',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-Command',
-        psScript
-      ])
-
-      ps.on('close', () => {
-        resolve({ success: true })
-      })
-
       ps.on('error', (err) => {
         resolve({ success: false, error: err.message })
       })
     })
   }
 }
+

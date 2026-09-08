@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { ArrowUp, ArrowDown, Trash2, Plus, GripVertical, Pencil, Check, X } from 'lucide-react'
+import { ArrowUp, ArrowDown, Trash2, Plus, GripVertical, Pencil, Check, X, Save } from 'lucide-react'
 import { defaultPrices, FinancePrices, resolveClassPrice } from '@/lib/finance-settings'
 import { useFinanceStore } from '@/store/useFinanceStore'
 import { useClasses } from '@/lib/useClasses'
 import { usePermissions } from '@/lib/usePermissions'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
+import { toast } from 'sonner'
 
 export default function FinanceConfig() {
   const { prices: storedPrices, fetchPrices, savePrices, loading: storeLoading } = useFinanceStore()
@@ -52,15 +53,21 @@ export default function FinanceConfig() {
     }
   }, [storedPrices, storeLoading, settingsClasses])
 
+  const isDirty = useMemo(() => {
+    return JSON.stringify(prices) !== JSON.stringify(storedPrices)
+  }, [prices, storedPrices])
+
   const saveSettings = async () => {
     setSaving(true)
     setMessage(null)
     try {
       await savePrices(prices)
+      toast.success('Paramètres financiers enregistrés avec succès')
       setMessage({ text: 'Paramètres enregistrés avec succès', type: 'success' })
       setTimeout(() => setMessage(null), 3000)
     } catch (error) {
       if (import.meta.env.DEV) console.error('Failed to save settings', error)
+      toast.error("Erreur lors de l'enregistrement des paramètres")
       setMessage({ text: "Erreur lors de l'enregistrement", type: 'error' })
     } finally {
       setSaving(false)
@@ -102,8 +109,13 @@ export default function FinanceConfig() {
   const handleAddBusRoute = () => {
     if (!newBusRoute.trim()) return
     const trimmed = newBusRoute.trim()
-    if (prices.busRoutes && prices.busRoutes.includes(trimmed)) {
-      alert('Cette zone existe déjà.')
+    const alreadyExists =
+      prices.busRoutes &&
+      prices.busRoutes.some((r) => r.toLowerCase().trim() === trimmed.toLowerCase())
+    if (alreadyExists) {
+      toast.error(`La zone "${trimmed}" existe déjà.`, {
+        description: 'Veuillez choisir un nom unique ou modifier son prix ci-dessus.'
+      })
       return
     }
     setPrices((prev) => ({
@@ -113,6 +125,7 @@ export default function FinanceConfig() {
       deletedBusRoutes: (prev.deletedBusRoutes || []).filter((r) => r !== trimmed)
     }))
     setNewBusRoute('')
+    toast.success(`Zone "${trimmed}" ajoutée.`)
   }
 
   const handleSaveRenameBusRoute = async (oldRoute: string, newRouteName: string) => {
@@ -122,8 +135,11 @@ export default function FinanceConfig() {
       setEditingBusRoute(null)
       return
     }
-    if (prices.busRoutes?.includes(trimmed)) {
-      alert(`La zone "${trimmed}" existe déjà.`)
+    const alreadyExists = prices.busRoutes?.some(
+      (r) => r.toLowerCase().trim() === trimmed.toLowerCase() && r !== oldRoute
+    )
+    if (alreadyExists) {
+      toast.error(`La zone "${trimmed}" existe déjà.`)
       return
     }
 
@@ -187,8 +203,13 @@ export default function FinanceConfig() {
   const handleAddUniformItem = () => {
     if (!newUniformItem.trim()) return
     const trimmed = newUniformItem.trim()
-    if (prices.uniformItems && prices.uniformItems.includes(trimmed)) {
-      alert('Cet article existe déjà.')
+    const alreadyExists =
+      prices.uniformItems &&
+      prices.uniformItems.some((i) => i.toLowerCase().trim() === trimmed.toLowerCase())
+    if (alreadyExists) {
+      toast.error(`L'article "${trimmed}" existe déjà.`, {
+        description: 'Veuillez choisir un nom unique ou modifier son prix ci-dessus.'
+      })
       return
     }
     setPrices((prev) => ({
@@ -198,6 +219,7 @@ export default function FinanceConfig() {
       deletedUniformItems: (prev.deletedUniformItems || []).filter((i) => i !== trimmed)
     }))
     setNewUniformItem('')
+    toast.success(`Article "${trimmed}" ajouté.`)
   }
 
   const handleSaveRenameUniformItem = (oldItem: string, newItemName: string) => {
@@ -207,8 +229,11 @@ export default function FinanceConfig() {
       setEditingUniformItem(null)
       return
     }
-    if (prices.uniformItems?.includes(trimmed)) {
-      alert(`L'article "${trimmed}" existe déjà.`)
+    const alreadyExists = prices.uniformItems?.some(
+      (i) => i.toLowerCase().trim() === trimmed.toLowerCase() && i !== oldItem
+    )
+    if (alreadyExists) {
+      toast.error(`L'article "${trimmed}" existe déjà.`)
       return
     }
     setPrices((prev) => {
@@ -699,6 +724,38 @@ export default function FinanceConfig() {
           </Button>
         </div>
       </div>
+
+      {/* Sticky Bottom Action Bar */}
+      {canEditFinance && (
+        <div className="sticky bottom-4 z-30 flex items-center justify-between p-4 bg-white/95 backdrop-blur border border-blue-200 rounded-xl shadow-xl transition-all mt-6">
+          <div className="flex items-center gap-3">
+            {isDirty ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                Modifications non enregistrées
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                Tous les tarifs sont à jour
+              </span>
+            )}
+            <span className="text-xs text-gray-500 hidden sm:inline">
+              {isDirty
+                ? 'Pensez à cliquer sur Enregistrer pour propager vos modifications.'
+                : 'Aucun changement en attente.'}
+            </span>
+          </div>
+          <Button
+            onClick={saveSettings}
+            disabled={saving || !isDirty}
+            className="px-6 font-semibold shadow-md gap-2"
+          >
+            <Save className="w-4 h-4" />
+            {saving ? 'Enregistrement...' : 'Enregistrer les modifications'}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

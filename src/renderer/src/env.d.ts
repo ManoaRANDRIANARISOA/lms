@@ -716,6 +716,7 @@ interface APIType {
       portName?: string
       driverName?: string
       status?: string
+      availablePorts?: string[]
       error?: string
     }>
     installDriver: () => Promise<{
@@ -729,8 +730,13 @@ interface APIType {
       message?: string
       error?: string
       detectedPort?: string
+      availablePorts?: string[]
     }>
-    clearQueue: (printerName?: string) => Promise<{ success: boolean; error?: string }>
+    clearQueue: (printerName?: string) => Promise<{ success: boolean; message?: string; error?: string }>
+    setPort: (
+      portName: string,
+      printerName?: string
+    ) => Promise<{ success: boolean; currentPort?: string; message?: string; error?: string }>
   }
   auth: AuthAPI
   dialog: DialogAPI
@@ -745,6 +751,7 @@ interface APIType {
       latencyMs?: number
       pendingCount: number
       errorCount: number
+      quarantinedCount?: number
       lastSyncTime: string | null
       error?: string
     }>
@@ -764,6 +771,13 @@ interface APIType {
       error?: string
     }>
     retryErrors: () => Promise<{ success: boolean; count?: number; error?: string }>
+    quarantineAndUnblock: () => Promise<{
+      success: boolean
+      quarantinedCount?: number
+      remainingPending?: number
+      message?: string
+      error?: string
+    }>
     onProgress: (
       callback: (data: {
         phase: 'idle' | 'checking' | 'pushing' | 'pulling' | 'success' | 'error'
@@ -807,6 +821,75 @@ interface APIType {
       keepId: string,
       removeId: string
     ) => Promise<{ success: boolean; message?: string; error?: string }>
+    scanPayments: () => Promise<{
+      success: boolean
+      count?: number
+      error?: string
+      groups: Array<{
+        group_id: string
+        student: {
+          id: string
+          first_name: string
+          last_name: string
+          class_name: string | null
+          registration_number: string | null
+        }
+        payment_type: string
+        payment_type_label: string
+        month: string
+        school_year: string
+        records: Array<{
+          id: string
+          receipt_number: string | null
+          amount: number
+          payment_date: string
+          payment_method: string
+          created_by: string
+          created_at: string
+          station: string
+          print_count: number
+        }>
+      }>
+    }>
+    resolvePayment: (
+      keepPaymentId: string,
+      removePaymentId: string,
+      reason?: string
+    ) => Promise<{ success: boolean; message?: string; error?: string }>
+    autoResolveCollisions: () => Promise<{
+      success: boolean
+      count?: number
+      message?: string
+      error?: string
+      resolved?: Array<{
+        student_name: string
+        class_name: string | null
+        payment_type: string
+        month: string
+        amount: number
+        kept_receipt: string
+        removed_receipt: string
+      }>
+    }>
+  }
+  telemetry: {
+    fetchStationErrors: (limit?: number) => Promise<{
+      success: boolean
+      reports?: Array<{
+        id: number
+        station: string
+        hostname: string
+        context: string
+        message: string
+        table_name?: string
+        record_id?: string
+        pending_count?: number
+        error_details?: string
+        timestamp: string
+      }>
+      error?: string
+    }>
+    reportError: (context: string, message: string, details?: any) => Promise<boolean>
   }
 }
 

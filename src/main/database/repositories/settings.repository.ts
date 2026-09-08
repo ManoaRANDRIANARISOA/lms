@@ -1,6 +1,14 @@
 import db from '../db'
 import { addToSyncQueue } from '../../services/sync.service'
 
+export const LOCAL_ONLY_SETTINGS = new Set([
+  'pos_station_code',
+  'printer_name',
+  'printer_copies',
+  'email_logs',
+  'email_last_sent_date'
+])
+
 export class SettingsRepository {
   static get(key: string): unknown {
     try {
@@ -75,8 +83,10 @@ export class SettingsRepository {
 
       stmt.run(key, jsonValue)
 
-      // Sync settings to cloud (optional — settings are lightweight config)
-      addToSyncQueue('settings', key, 'update', { key, value: jsonValue })
+      // Only sync non-local settings to cloud (station code and printer configs are local to each physical workstation)
+      if (!LOCAL_ONLY_SETTINGS.has(key)) {
+        addToSyncQueue('settings', key, 'update', { key, value: jsonValue })
+      }
 
       return true
     } catch (error) {

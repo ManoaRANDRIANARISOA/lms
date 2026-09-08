@@ -50,38 +50,64 @@ export class PaymentRepository {
     const patternWithStation = `REC-${yearPrefix}-${stationCode}-%`
     const patternWithoutStation = `REC-${yearPrefix}-%`
 
-    // Find highest sequence number for this station
+    // Find highest sequence number for this station across both student_payments and cash_journal
     const maxStationRecord = db
       .prepare(
         `
-      SELECT MAX(
-        CAST(
-          SUBSTR(
-            receipt_number, 
-            INSTR(receipt_number, '-' || ? || '-') + LENGTH(? || '-') + 1
-          ) AS INTEGER
-        )
-      ) as max_num 
-      FROM student_payments 
-      WHERE receipt_number LIKE ?
+      SELECT MAX(max_num) as max_num FROM (
+        SELECT MAX(
+          CAST(
+            SUBSTR(
+              receipt_number, 
+              INSTR(receipt_number, '-' || ? || '-') + LENGTH(? || '-') + 1
+            ) AS INTEGER
+          )
+        ) as max_num 
+        FROM student_payments 
+        WHERE receipt_number LIKE ?
+        UNION ALL
+        SELECT MAX(
+          CAST(
+            SUBSTR(
+              receipt_number, 
+              INSTR(receipt_number, '-' || ? || '-') + LENGTH(? || '-') + 1
+            ) AS INTEGER
+          )
+        ) as max_num 
+        FROM cash_journal 
+        WHERE receipt_number LIKE ?
+      )
     `
       )
-      .get(stationCode, stationCode, patternWithStation) as { max_num: number | null } | undefined
+      .get(
+        stationCode,
+        stationCode,
+        patternWithStation,
+        stationCode,
+        stationCode,
+        patternWithStation
+      ) as { max_num: number | null } | undefined
 
     let nextNum = 1
     if (maxStationRecord && maxStationRecord.max_num && maxStationRecord.max_num > 0) {
       nextNum = maxStationRecord.max_num + 1
     } else if (stationCode === 'C1') {
-      // Fallback for C1: check legacy receipts format 'REC-2026-00061'
+      // Fallback for C1: check legacy receipts format 'REC-2026-00061' across both tables
       const legacyMax = db
         .prepare(
           `
-        SELECT MAX(CAST(SUBSTR(receipt_number, 10) AS INTEGER)) as max_num 
-        FROM student_payments 
-        WHERE receipt_number LIKE ? AND receipt_number NOT LIKE 'REC-%-%-%'
+        SELECT MAX(max_num) as max_num FROM (
+          SELECT MAX(CAST(SUBSTR(receipt_number, 10) AS INTEGER)) as max_num 
+          FROM student_payments 
+          WHERE receipt_number LIKE ? AND receipt_number NOT LIKE 'REC-%-%-%'
+          UNION ALL
+          SELECT MAX(CAST(SUBSTR(receipt_number, 10) AS INTEGER)) as max_num 
+          FROM cash_journal 
+          WHERE receipt_number LIKE ? AND receipt_number NOT LIKE 'REC-%-%-%'
+        )
       `
         )
-        .get(patternWithoutStation) as { max_num: number | null } | undefined
+        .get(patternWithoutStation, patternWithoutStation) as { max_num: number | null } | undefined
 
       nextNum = (legacyMax?.max_num || 0) + 1
     }
@@ -91,43 +117,206 @@ export class PaymentRepository {
 
   static recordReceiptPrint(
     paymentIds: string[],
-    userName: string = 'Administrateur'
-  ): { success: boolean; is_duplicate: boolean; print_count: number } {
+    userName: string = 'Administrateur',
+    receiptNumber?: string
+  ): { success: boolean; is_duplicate: boolean; print_count: number; duplicate_count: number } {
     if (!paymentIds || paymentIds.length === 0) {
-      return { success: false, is_duplicate: false, print_count: 0 }
+      return { success: false, is_duplicate: false, print_count: 0, duplicate_count: 0 }
     }
 
-    const placeholders = paymentIds.map(() => '?').join(',')
-    const currentRecords = db
-      .prepare(
-        `SELECT id, receipt_number, print_count, amount, payment_type FROM student_payments WHERE id IN (${placeholders})`
-      )
-      .all(...paymentIds) as {
+    const spIds = new Set<string>()
+    const cjIds = new Set<string>()
+
+    for (const rawId of paymentIds) {
+      if (!rawId) continue
+
+      // 1. Check in student_payments
+      const sp = db.prepare('SELECT id FROM student_payments WHERE id = ?').get(rawId) as
+        | { id: string }
+        | undefined
+      if (sp) {
+        spIds.add(sp.id)
+        // Find matching cash_journal entry
+        const cjLinked = db
+          .prepare('SELECT id FROM cash_journal WHERE related_payment_id = ?')
+          .all(sp.id) as { id: string }[]
+        cjLinked.forEach((r) => cjIds.add(r.id))
+      }
+
+      // 2. Check in cash_journal
+      const cj = db
+        .prepare(
+          'SELECT id, related_payment_id, related_student_id, transaction_date, amount FROM cash_journal WHERE id = ?'
+        )
+        .get(rawId) as
+        | {
+            id: string
+            related_payment_id: string | null
+            related_student_id: string | null
+            transaction_date: string
+            amount: number
+          }
+        | undefined
+
+      if (cj) {
+        cjIds.add(cj.id)
+        if (cj.related_payment_id) {
+          spIds.add(cj.related_payment_id)
+        } else if (cj.related_student_id) {
+          // Find matching student_payments entry
+          const matchSp = db
+            .prepare(
+              `SELECT id FROM student_payments 
+               WHERE student_id = ? AND payment_date = ? AND amount = ? AND deleted = 0 
+               LIMIT 1`
+            )
+            .get(cj.related_student_id, cj.transaction_date, cj.amount) as
+            | { id: string }
+            | undefined
+          if (matchSp) {
+            spIds.add(matchSp.id)
+            // Permanently link in cash_journal for instant joins
+            db.prepare('UPDATE cash_journal SET related_payment_id = ? WHERE id = ?').run(
+              matchSp.id,
+              cj.id
+            )
+          }
+        }
+      }
+    }
+
+    const spList = Array.from(spIds)
+    const cjList = Array.from(cjIds)
+
+    let currentSpRecords: {
       id: string
-      receipt_number: string
+      receipt_number: string | null
       print_count: number
       amount: number
-      payment_type: string
-    }[]
+    }[] = []
+    if (spList.length > 0) {
+      const ph = spList.map(() => '?').join(',')
+      currentSpRecords = db
+        .prepare(
+          `SELECT id, receipt_number, print_count, amount FROM student_payments WHERE id IN (${ph})`
+        )
+        .all(...spList) as any[]
+    }
 
-    const maxPrintCount = Math.max(0, ...currentRecords.map((r) => r.print_count || 0))
+    let currentCjRecords: {
+      id: string
+      receipt_number: string | null
+      print_count: number
+      amount: number
+    }[] = []
+    if (cjList.length > 0) {
+      const ph = cjList.map(() => '?').join(',')
+      currentCjRecords = db
+        .prepare(
+          `SELECT id, receipt_number, print_count, amount FROM cash_journal WHERE id IN (${ph})`
+        )
+        .all(...cjList) as any[]
+    }
+
+    const allRecords = [...currentSpRecords, ...currentCjRecords]
+    const maxPrintCount = Math.max(0, ...allRecords.map((r) => r.print_count || 0))
     const isDuplicate = maxPrintCount >= 1
     const newPrintCount = maxPrintCount + 1
+    // Accounting standard:
+    // 1st print: maxPrintCount = 0 -> Original (duplicate_count = 0)
+    // 2nd print: maxPrintCount = 1 -> Duplicata N° 1 (duplicate_count = 1)
+    // 3rd print: maxPrintCount = 2 -> Duplicata N° 2 (duplicate_count = 2)
+    const currentDuplicateNumber = isDuplicate ? maxPrintCount : 0
 
-    db.prepare(
-      `
-      UPDATE student_payments 
-      SET print_count = COALESCE(print_count, 0) + 1,
-          last_printed_at = CURRENT_TIMESTAMP,
-          last_printed_by = ?
-      WHERE id IN (${placeholders})
-    `
-    ).run(userName, ...paymentIds)
+    // Update student_payments
+    if (spList.length > 0) {
+      const ph = spList.map(() => '?').join(',')
+      const nowIso = new Date().toISOString()
+      if (receiptNumber) {
+        db.prepare(
+          `
+          UPDATE student_payments 
+          SET print_count = COALESCE(print_count, 0) + 1,
+              last_printed_at = CURRENT_TIMESTAMP,
+              last_printed_by = ?,
+              receipt_number = COALESCE(receipt_number, ?),
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id IN (${ph})
+        `
+        ).run(userName, receiptNumber, ...spList)
+      } else {
+        db.prepare(
+          `
+          UPDATE student_payments 
+          SET print_count = COALESCE(print_count, 0) + 1,
+              last_printed_at = CURRENT_TIMESTAMP,
+              last_printed_by = ?,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id IN (${ph})
+        `
+        ).run(userName, ...spList)
+      }
+
+      for (const spId of spList) {
+        addToSyncQueue('student_payments', spId, 'update', {
+          id: spId,
+          print_count: newPrintCount,
+          last_printed_at: nowIso,
+          last_printed_by: userName,
+          ...(receiptNumber ? { receipt_number: receiptNumber } : {})
+        })
+      }
+    }
+
+    // Update cash_journal
+    if (cjList.length > 0) {
+      const ph = cjList.map(() => '?').join(',')
+      if (receiptNumber) {
+        db.prepare(
+          `
+          UPDATE cash_journal 
+          SET print_count = COALESCE(print_count, 0) + 1,
+              last_printed_at = CURRENT_TIMESTAMP,
+              last_printed_by = ?,
+              receipt_number = COALESCE(receipt_number, ?),
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id IN (${ph})
+        `
+        ).run(userName, receiptNumber, ...cjList)
+      } else {
+        db.prepare(
+          `
+          UPDATE cash_journal 
+          SET print_count = COALESCE(print_count, 0) + 1,
+              last_printed_at = CURRENT_TIMESTAMP,
+              last_printed_by = ?,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id IN (${ph})
+        `
+        ).run(userName, ...cjList)
+      }
+
+      for (const cjId of cjList) {
+        addToSyncQueue('cash_journal', cjId, 'update', {
+          id: cjId,
+          ...(receiptNumber ? { receipt_number: receiptNumber } : {})
+        })
+      }
+    }
 
     // Audit log
     try {
-      const receiptNumbers = currentRecords.map((r) => r.receipt_number).filter(Boolean).join(', ')
-      const totalAmount = currentRecords.reduce((sum, r) => sum + (r.amount || 0), 0)
+      const receiptNumbers = Array.from(
+        new Set(
+          [
+            ...currentSpRecords.map((r) => r.receipt_number),
+            ...currentCjRecords.map((r) => r.receipt_number),
+            receiptNumber
+          ].filter(Boolean)
+        )
+      ).join(', ')
+
+      const totalAmount = currentSpRecords.reduce((sum, r) => sum + (r.amount || 0), 0)
 
       db.prepare(
         `
@@ -136,14 +325,15 @@ export class PaymentRepository {
       `
       ).run(
         isDuplicate
-          ? `Duplicata N°${newPrintCount} émis par ${userName} pour reçu(s): ${receiptNumbers} (Total: ${totalAmount.toLocaleString()} Ar)`
-          : `Reçu original émis par ${userName} pour reçu(s): ${receiptNumbers} (Total: ${totalAmount.toLocaleString()} Ar)`,
+          ? `Duplicata N°${currentDuplicateNumber} émis par ${userName} pour reçu(s): ${receiptNumbers || 'Groupé'} (Total: ${totalAmount.toLocaleString()} Ar)`
+          : `Reçu original émis par ${userName} pour reçu(s): ${receiptNumbers || 'Groupé'} (Total: ${totalAmount.toLocaleString()} Ar)`,
         JSON.stringify({
           action: isDuplicate ? 'reprint_receipt' : 'print_receipt',
           user_id: userName,
           payment_ids: paymentIds,
           receipt_numbers: receiptNumbers,
           is_duplicate: isDuplicate,
+          duplicate_count: currentDuplicateNumber,
           print_count: newPrintCount,
           total_amount: totalAmount
         })
@@ -152,7 +342,12 @@ export class PaymentRepository {
       console.warn('Could not write receipt print audit log:', e)
     }
 
-    return { success: true, is_duplicate: isDuplicate, print_count: newPrintCount }
+    return {
+      success: true,
+      is_duplicate: isDuplicate,
+      print_count: newPrintCount,
+      duplicate_count: currentDuplicateNumber
+    }
   }
 
   static create(

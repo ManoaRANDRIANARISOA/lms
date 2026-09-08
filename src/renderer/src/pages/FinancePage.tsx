@@ -17,7 +17,7 @@ export default function FinancePage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="w-full space-y-4">
       <ReadOnlyBanner resource="payments" />
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Module Finance</h1>

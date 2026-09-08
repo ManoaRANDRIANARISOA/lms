@@ -54,26 +54,24 @@ function getConfig(): EmailConfig | null {
 }
 
 function saveConfig(config: EmailConfig): void {
-  const existing = db.prepare("SELECT key FROM settings WHERE key = 'email_config'").get()
-  if (existing) {
-    db.prepare(
-      "UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE key = 'email_config'"
-    ).run(JSON.stringify(config))
-  } else {
-    db.prepare("INSERT INTO settings (key, value, sync_status) VALUES (?, ?, 'pending')").run(
-      'email_config',
-      JSON.stringify(config)
-    )
+  const cleaned: EmailConfig = {
+    ...config,
+    gmail_address: config.gmail_address ? config.gmail_address.trim() : '',
+    gmail_app_password: config.gmail_app_password ? config.gmail_app_password.replace(/\s+/g, '') : '',
+    recipient_email: config.recipient_email ? config.recipient_email.trim() : 'christineanjarasoa36@gmail.com'
   }
+  SettingsRepository.set('email_config', cleaned)
 }
 
 function initTransporter(config: EmailConfig): boolean {
-  if (!config.gmail_address || !config.gmail_app_password) return false
+  const user = config.gmail_address?.trim()
+  const pass = config.gmail_app_password?.replace(/\s+/g, '')
+  if (!user || !pass) return false
   transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-      user: config.gmail_address,
-      pass: config.gmail_app_password
+      user,
+      pass
     }
   })
   return true
@@ -87,17 +85,11 @@ function addEmailLog(log: EmailLog): void {
     const logs: EmailLog[] = existing ? JSON.parse(existing.value) : []
     logs.unshift(log)
     if (logs.length > 50) logs.length = 50
-    const row = db.prepare("SELECT key FROM settings WHERE key = 'email_logs'").get()
-    if (row) {
-      db.prepare(
-        "UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = 'email_logs'"
-      ).run(JSON.stringify(logs))
-    } else {
-      db.prepare("INSERT INTO settings (key, value, sync_status) VALUES (?, ?, 'synced')").run(
-        'email_logs',
-        JSON.stringify(logs)
-      )
-    }
+    db.prepare(`
+      INSERT INTO settings (key, value, updated_at)
+      VALUES ('email_logs', ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+    `).run(JSON.stringify(logs))
   } catch {
     // Silent fail for logging
   }
@@ -141,13 +133,15 @@ export class EmailService {
 
   static async testConnection(): Promise<{ success: boolean; error?: string }> {
     const config = getConfig()
-    if (!config?.gmail_address || !config?.gmail_app_password) {
-      return { success: false, error: 'Configuration email manquante' }
+    const user = config?.gmail_address?.trim()
+    const pass = config?.gmail_app_password?.replace(/\s+/g, '')
+    if (!user || !pass) {
+      return { success: false, error: 'Configuration email incomplète : adresse Gmail ou mot de passe manquant' }
     }
     try {
       const testTransporter = nodemailer.createTransport({
         service: 'gmail',
-        auth: { user: config.gmail_address, pass: config.gmail_app_password }
+        auth: { user, pass }
       })
       await testTransporter.verify()
       return { success: true }
@@ -519,18 +513,11 @@ export class EmailService {
             .then((res) => {
               if (res.success) {
                 try {
-                  const exists = db
-                    .prepare("SELECT key FROM settings WHERE key = 'email_last_sent_date'")
-                    .get()
-                  if (exists) {
-                    db.prepare(
-                      "UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = 'email_last_sent_date'"
-                    ).run(JSON.stringify(today))
-                  } else {
-                    db.prepare(
-                      "INSERT INTO settings (key, value, sync_status) VALUES (?, ?, 'synced')"
-                    ).run('email_last_sent_date', JSON.stringify(today))
-                  }
+                  db.prepare(`
+                    INSERT INTO settings (key, value, updated_at)
+                    VALUES ('email_last_sent_date', ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+                  `).run(JSON.stringify(today))
                 } catch {
                   /* silent */
                 }
