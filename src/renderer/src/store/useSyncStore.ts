@@ -60,7 +60,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   quarantinedCount: 0,
   lastSyncTime: null,
   healthError: undefined,
-  appVersion: '1.1.9',
+  appVersion: '1.1.11',
   progress: {
     phase: 'idle',
     current: 0,

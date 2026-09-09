@@ -443,7 +443,7 @@
   <!-- HERO SECTION -->
   <header class="hero">
     <div class="hero-badges">
-      <span class="badge badge-gold">✨ Version 1.1.9 Officielle</span>
+      <span class="badge badge-gold">✨ Version 1.1.11 Officielle</span>
       <span class="badge badge-gold">⚡ Local-First & 100% Offline-Proof</span>
       <span class="badge badge-gold">🖨️ Ticket Thermique 80mm ESC/POS</span>
     </div>
@@ -459,11 +459,11 @@
     <a href="#installation" class="nav-btn">💻 Installation Client</a>
     <a href="#imprimante" class="nav-btn">🖨️ Configuration Imprimante</a>
     <a href="#recus" class="nav-btn">🧾 Reçus & Duplicatas</a>
-    <a href="#modules" class="nav-btn">📚 Modules du Logiciel</a>
+    <a href="#modules" class="nav-btn">📚 Modules & Bonus Offerts</a>
     <a href="#email-bilan" class="nav-btn">📧 Service Email & Bilan Quotidien</a>
     <a href="#exercice-personnel" class="nav-btn">👥 Début d'Exercice & Paie</a>
-    <a href="#faq" class="nav-btn">❓ FAQ & Bonnes Pratiques</a>
     <a href="#depannage-materiel" class="nav-btn">🛠️ Dépannage & Fiches 7.1 à 7.8</a>
+    <a href="#avenant3" class="nav-btn" style="background: var(--primary-darker); color: #FFF;">💼 Avenant N°3 (Extension Caisse)</a>
   </nav>
 
   <!-- SECTION 1: AVANTAGES & NORMES D'INDUSTRIE -->
@@ -522,16 +522,16 @@
 
     <div class="step-list">
       <div class="step-item">
-        <h4>Téléchargement de l'Installateur Officiel (Setup v1.1.9)</h4>
+        <h4>Téléchargement de l'Installateur Officiel (Setup v1.1.11)</h4>
         <p>
-          Copiez le fichier d'installation <strong><code>lms-1.1.9-setup.exe</code></strong> (disponible sur la clé USB ou dans le dossier <code>dist/</code>) sur l'ordinateur du client.
+          Copiez le fichier d'installation <strong><code>lms-1.1.11-setup.exe</code></strong> (disponible sur la clé USB ou dans le dossier <code>dist/</code>) sur l'ordinateur du client.
         </p>
       </div>
 
       <div class="step-item">
         <h4>Exécution de l'Installation Windows</h4>
         <p>
-          Double-cliquez sur <code>lms-1.1.9-setup.exe</code>. L'assistant d'installation NSIS configure automatiquement l'application, crée le raccourci sur le Bureau et initialise l'environnement sécurisé sans nécessiter d'accès internet pour l'installation locale.
+          Double-cliquez sur <code>lms-1.1.11-setup.exe</code>. L'assistant d'installation NSIS configure automatiquement l'application, crée le raccourci sur le Bureau et initialise l'environnement sécurisé sans nécessiter d'accès internet pour l'installation locale.
         </p>
       </div>
 
@@ -677,103 +677,313 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
     <table class="manual-table">
       <thead>
         <tr>
-          <th style="width: 22%;">Module</th>
-          <th style="width: 45%;">Fonctionnalités Principales</th>
-          <th style="width: 33%;">Bonnes Pratiques Caissier / Utilisateur</th>
+          <th style="width: 18%;">Module</th>
+          <th style="width: 34%;">Socle Métier Livré (Contrat & Avenants)</th>
+          <th style="width: 26%;">Innovations & Bonus Offerts (Sans Surcoût)</th>
+          <th style="width: 22%;">Bonnes Pratiques Caissier / Direction</th>
         </tr>
       </thead>
       <tbody>
         <tr>
           <td><strong>👨‍🎓 1. Élèves & Inscriptions</strong></td>
           <td>
-            • Fiche complète de l'élève (photo, matricule automatique, parents).<br>
+            • Fiche complète de l'élève (état civil, matricule auto, photo, parents).<br>
             • Inscription directe (Nouveau) ou Réinscription (Ancien).<br>
-            • Auto-provisioning des tarifs annuels personnalisés.
+            • <strong>Gestion intégrale de la Fratrie bidirectionnelle</strong> et calcul de la réduction/exonération FRAM pour le 2e enfant.<br>
+            • Auto-provisioning des grilles tarifaires annuelles.
           </td>
           <td>
-            Veillez à bien choisir le statut (Nouveau vs Ancien) lors de la création pour appliquer automatiquement les droits d'inscription corrects (145 000 Ar vs 115 000 Ar).
+            <span class="badge badge-success">✨ Offert</span> <strong>Gestion des départs :</strong> Signalement des abandons/départs en cours d'année avec gel comptable.<br>
+            <span class="badge badge-success">✨ Offert</span> <strong>Export modulaire :</strong> Extraction ciblée Excel/CSV multi-colonnes.
+          </td>
+          <td>
+            Vérifier le statut (Nouveau vs Ancien) lors de l'inscription pour appliquer le barème exact (145 000 Ar vs 115 000 Ar).
           </td>
         </tr>
         <tr>
           <td><strong>💰 2. Suivi Financier & Caisse 80mm</strong></td>
           <td>
-            • Tableau des mensualités (Écolage mois par mois).<br>
-            • Encaissement express avec impression automatique en 2 exemplaires.<br>
-            • Sélection multiple pour impression de <strong>Reçu Groupé</strong>.<br>
-            • Bouton 👁️ pour voir l'audit complet et le statut du reçu.
+            • Échéancier de scolarité mois par mois (11 mois, 15 niveaux).<br>
+            • Encaissement express avec impression automatique en <strong>double exemplaire (Parent / Caisse)</strong>.<br>
+            • Numérotation séquentielle certifiée par station (<code>REC-2026-C1-XXXXX</code>).<br>
+            • Suivi des règlements (Espèces, Chèques, Virement, Mobile Money).
           </td>
           <td>
-            Utilisez les cases à cocher pour sortir un seul ticket quand un parent paie plusieurs mois ou plusieurs rubriques en même temps.
+            <span class="badge badge-success">✨ Offert</span> <strong>Système Anti-Fraude & Duplicatas :</strong> Tampon officiel infalsifiable <em>DUPLICATA N° X</em> avec opérateur et horodatage.<br>
+            <span class="badge badge-success">✨ Offert</span> <strong>Reçu Groupé Multi-Sélection :</strong> Impression d'un seul ticket pour plusieurs mois ou rubriques.
+          </td>
+          <td>
+            Utiliser les cases à cocher pour regrouper plusieurs mois sur un seul ticket thermique afin d'économiser le papier.
           </td>
         </tr>
         <tr>
-          <td><strong>📖 3. Journal de Caisse & Checking</strong></td>
+          <td><strong>📖 3. Journal de Caisse Général</strong></td>
           <td>
-            • Vue unifiée de toutes les entrées et sorties d'argent.<br>
-            • Filtres par département (Élève, Bus, École, Salaires).<br>
-            • Rapprochement de fin de journée pour comparer le tiroir physique avec le total logiciel.
+            • Vue unifiée de l'ensemble des entrées et sorties de trésorerie de l'établissement.<br>
+            • Filtres par date (Aujourd'hui, Semaine, Mois) et par département (Élève, Bus, École).<br>
+            • Calcul en direct du solde général et indicateurs de recettes/dépenses.
           </td>
           <td>
-            Le soir, faites le checking de caisse en comparant la somme des tickets dans votre tiroir avec le total affiché dans le Journal Financier.
+            <span class="badge badge-success">✨ Offert</span> <strong>Synchronisation Salaires auto :</strong> Intégration immédiate des salaires payés dans les dépenses de caisse.<br>
+            <span class="badge badge-success">✨ Offert</span> <strong>Audit visuel :</strong> Consultation instantanée de la fiche de tirage en 1 clic.
+          </td>
+          <td>
+            Comparer en fin de journée le total général des encaissements affiché avec la somme des tickets physiques déposés dans le tiroir.
           </td>
         </tr>
         <tr>
           <td><strong>🚌 4. Transport & Cantine</strong></td>
           <td>
-            • Gestion des abonnements mensuels au bus et à la cantine.<br>
-            • Suivi automatique des règlements et calcul des restes à payer.
+            • Inscription aux services de bus (axes de transport) et cantine.<br>
+            • <strong>Pointage journalier interactif</strong> et comptabilisation des présences effectives.<br>
+            • Suivi automatique des mensualités et soldes débiteurs.
           </td>
           <td>
-            Lorsqu'un élève prend le bus ou la cantine en cours d'année, activez l'option dans son suivi financier pour générer son échéancier.
+            <span class="badge badge-success">✨ Offert</span> <strong>Facturation dynamique :</strong> Prise en compte souple des présences réelles sans forfait rigide imposé.
+          </td>
+          <td>
+            Pointer régulièrement la cantine et le bus pour fiabiliser le décompte mensuel des familles.
           </td>
         </tr>
         <tr>
           <td><strong>👥 5. Personnel & Salaires</strong></td>
           <td>
-            • Pointage des présences et gestion des absences.<br>
-            • Calcul des cotisations légales : CNAPS (1%), OSTIE (1%), IRSA.<br>
-            • Édition des fiches de paie conformes en PDF.<br>
-            • <strong>Début de paie (Exercice) :</strong> Verrou temporel mensuel par employé évitant la génération d'impayés fictifs antérieurs.
+            • Registre complet des employés (enseignants, administratifs).<br>
+            • Pointage des présences, retards et absences justifiées/injustifiées.<br>
+            • Calcul des cotisations légales malgaches : CNAPS (1%), OSTIE (1%), IRSA.<br>
+            • Édition des fiches de paie officielles en PDF.
           </td>
           <td>
-            Les salaires enregistrés sont automatiquement synchronisés comme dépenses dans le Journal de Caisse. Définissez le début d'exercice pour chaque employé ou globalement pour cadrer la rentrée scolaire.
+            <span class="badge badge-success">✨ Offert</span> <strong>Début de paie (Exercice AAAA-MM) :</strong> Verrou temporel mensuel évitant la génération d'arriérés fictifs.<br>
+            <span class="badge badge-success">✨ Offert</span> <strong>Gestion des acomptes & déductions libres</strong>.
+          </td>
+          <td>
+            Définir le début d'exercice lors de la rentrée pour cadrer l'historique financier de chaque employé.
           </td>
         </tr>
         <tr>
           <td><strong>📊 6. Notes & Bulletins</strong></td>
           <td>
             • Saisie ergonomique des notes par matière et coefficient.<br>
+            • Barème adapté par cycle : Maternelle, Primaire, Collège, Lycée.<br>
             • Calcul automatique des moyennes trimestrielles et rangs.<br>
-            • Génération en 1 clic des bulletins scolaires officiels du Lycée Manjary Soa.
+            • Génération officielle des bulletins scolaires en PDF du Lycée.
           </td>
           <td>
-            Vérifiez que toutes les matières de la classe ont leurs coefficients configurés dans les Paramètres avant l'édition des bulletins.
+            <span class="badge badge-success">✨ Offert</span> <strong>Types d'examens dynamiques :</strong> Gestion personnalisée des évaluations (journalières, trimestrielles, blanc).
+          </td>
+          <td>
+            Vérifier que tous les coefficients sont paramétrés dans les Réglages avant le tirage final des bulletins.
           </td>
         </tr>
         <tr>
           <td><strong>📜 7. Certificats de Scolarité</strong></td>
           <td>
-            • Édition instantanée des certificats officiels avec logo, photo et signature de la Direction.<br>
-            • Adresse officielle automatique : <em>Lot H 81 Miadana Alasora</em>.
+            • Édition instantanée des certificats officiels avec logo du lycée, photo élève et adresse officielle <em>Lot H 81 Miadana Alasora</em>.
           </td>
           <td>
-            Téléchargeable en PDF A4 ou imprimable directement depuis le navigateur.
+            <span class="badge badge-success">✨ Offert</span> Téléchargeable en PDF A4 ou imprimable directement en 1 clic.
+          </td>
+          <td>
+            Idéal pour délivrer immédiatement les pièces administratives demandées par les parents sans délai.
           </td>
         </tr>
         <tr>
           <td><strong>📧 8. Service Email & Bilan Quotidien</strong></td>
           <td>
-            • Transmission automatique du bilan de caisse journalier par email à la Directrice (<strong>christineanjarasoa36@gmail.com</strong>).<br>
-            • Déclenchement automatique chaque soir à <strong>18h00</strong> (du lundi au samedi inclus).<br>
-            • Pièce jointe officielle générée automatiquement : <code>bilan_AAAA-MM-JJ.pdf</code> avec signatures et visas comptables.<br>
-            • Bouton d'envoi immédiat pour expédier le bilan du jour en direct à tout moment.
+            • Transmission automatique du bilan de caisse journalier à la Directrice (<strong>christineanjarasoa36@gmail.com</strong>) à 18h00 du lundi au samedi.<br>
+            • Document PDF officiel certifié joint (<code>bilan_AAAA-MM-JJ.pdf</code>).
           </td>
           <td>
-            Générez votre mot de passe d'application Google (16 lettres) dans Google Sécurité. Le logiciel retire automatiquement les espaces et pré-remplit les adresses.
+            <span class="badge badge-success">✨ Offert</span> Bouton d'envoi immédiat du jour pour expédier le bilan à la demande.<br>
+            <span class="badge badge-success">✨ Offert</span> Nettoyage automatique des espaces du mot de passe d'application Google.
+          </td>
+          <td>
+            Vérifier que le PC principal reste allumé jusqu'à 18h05 ou déclencher l'envoi manuel avant de fermer.
+          </td>
+        </tr>
+        <tr>
+          <td><strong>🔐 9. Contrôle d'Accès RBAC (Avenant N°1 & Mise à Jour)</strong></td>
+          <td>
+            • 4 rôles stricts : Admin, Secrétariat, Comptabilité, Direction.<br>
+            • <strong>Direction Générale :</strong> Accès opérationnel complet sur les Fiches Élèves, la Caisse, les Salaires & Personnel, les Notes & Bulletins, le Bus & Cantine et les Rapports Financiers.<br>
+            • <strong>Sécurité Infrastructure :</strong> Les paramètres techniques sensibles (ports imprimantes, codes de stations physiques C1/C2, sauvegarde/restauration BDD) sont réservés à l'Administrateur.<br>
+            • Authentification locale 100% offline avec hash bcrypt et sessions sécurisées.
+          </td>
+          <td>
+            <span class="badge badge-success">✨ Offert Sérénité</span> <strong>Journal d'Audit Infalsifiable (AuditLogPage) :</strong> Traçabilité complète de qui a modifié quoi et quand.<br>
+            <span class="badge badge-success">✨ Offert</span> Mode lecture seule intelligent sans plantage d'écran.
+          </td>
+          <td>
+            Chaque collaborateur doit utiliser son compte personnel nominatif.
+          </td>
+        </tr>
+        <tr>
+          <td><strong>🖨️ 10. Matériel & Impression (Avenant N°2)</strong></td>
+          <td>
+            • Intégration du pilote POS-80 pour tickets thermiques 80mm ESC/POS.<br>
+            • Double tirage automatique (Parent / Caisse).<br>
+            • Numérotation séquentielle par station C1, C2, C3.
+          </td>
+          <td>
+            <span class="badge badge-success">✨ Offert</span> <strong>Auto-détection de port USB :</strong> Résolution automatique des conflits Canon/Nicon.<br>
+            <span class="badge badge-success">✨ Offert</span> <strong>Arrêt d'urgence Spooler :</strong> Purge instantanée de la file d'impression Windows.<br>
+            <span class="badge badge-success">✨ Offert</span> <strong>Module Arbitrage Doublons :</strong> Écran dédié pour résoudre les encaissements concurrents.
+          </td>
+          <td>
+            En cas de blocage d'impression, utiliser le bouton d'urgence plutôt que d'éteindre brutalement l'ordinateur.
           </td>
         </tr>
       </tbody>
     </table>
+
+    <!-- MATRICE DÉTAILLÉE DES DROITS D'ACCÈS PAR RÔLE -->
+    <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 22px; margin-top: 24px; box-shadow: var(--shadow-sm);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="badge badge-gold" style="font-size: 12px;">🛡️ Sécurité & Gouvernance</span>
+          <h3 style="font-size: 17px; font-weight: 800; color: var(--primary-darker); margin: 0;">
+            Matrice Officielle des Droits d'Accès par Profil (Norme RBAC v1.1.11)
+          </h3>
+        </div>
+        <span class="badge badge-success">Conforme Direction Générale</span>
+      </div>
+
+      <p style="font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 16px;">
+        Pour garantir l'intégrité de la comptabilité et la sérénité du travail au quotidien, les droits d'accès sont rigoureusement définis. La <strong>Direction</strong> dispose d'un pouvoir d'action et de décision opérationnel total sur la scolarité, les finances, les <strong>salaires du personnel</strong>, les <strong>notes et bulletins</strong> ainsi que le <strong>transport et la cantine</strong>, tout en confiant la configuration technique et les imprimantes à l'Administrateur.
+      </p>
+
+      <table class="manual-table" style="font-size: 13px;">
+        <thead>
+          <tr>
+            <th>Module / Fonctionnalité</th>
+            <th style="text-align: center;">👑 Direction</th>
+            <th style="text-align: center;">📝 Secrétariat</th>
+            <th style="text-align: center;">💼 Comptabilité</th>
+            <th style="text-align: center;">⚙️ Administrateur</th>
+            <th>Périmètre & Justification Métier</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>👥 Salaires & Personnel</strong></td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>La Direction gère les contrats, valide les acomptes et supervise la paie.</td>
+          </tr>
+          <tr>
+            <td><strong>📊 Notes & Bulletins</strong></td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>La Direction valide, rectifie et vise officiellement les bulletins scolaires.</td>
+          </tr>
+          <tr>
+            <td><strong>🚌 Transport (Bus) & Cantine</strong></td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--info); font-weight: 600;">Lecture</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>Inscriptions directes, modifications et pointage des présences journalières.</td>
+          </tr>
+          <tr>
+            <td><strong>👨‍🎓 Fiches Élèves & Fratries</strong></td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--info); font-weight: 600;">Lecture</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>Inscriptions, réinscriptions, suivi des familles et fratries.</td>
+          </tr>
+          <tr>
+            <td><strong>💰 Encaissements & Caisse 80mm</strong></td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>Encaissements des frais de scolarité, droits, uniformes et tirage de reçus.</td>
+          </tr>
+          <tr>
+            <td><strong>📖 Journal de Caisse Général</strong></td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>Trésorerie consolidée de l'établissement (recettes et dépenses).</td>
+          </tr>
+          <tr>
+            <td><strong>📈 Rapports Financiers & Bilan</strong></td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>Suivi des impayés, bilans analytiques et exportations comptables.</td>
+          </tr>
+          <tr>
+            <td><strong>👁️ Journal d'Audit Système</strong></td>
+            <td style="text-align: center; color: var(--info); font-weight: 600;">Lecture (Contrôle)</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>Contrôle interne anti-fraude : traçabilité de qui a encaissé, imprimé ou modifié quoi.</td>
+          </tr>
+          <tr>
+            <td><strong>⚙️ Paramètres Système & BDD</strong></td>
+            <td style="text-align: center; color: var(--danger); font-weight: 700;">Masqué 🔒</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>Réservé IT (ports imprimantes, codes caisses C*, sauvegardes et reset BDD).</td>
+          </tr>
+          <tr>
+            <td><strong>🔑 Comptes Utilisateurs & Rôles</strong></td>
+            <td style="text-align: center; color: var(--danger); font-weight: 700;">Masqué 🔒</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>Gouvernance informatique : création des comptes et attribution des rôles.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- BLOC SERVICES D'INGÉNIERIE & ASSISTANCE MATÉRIELLE OFFERTS -->
+    <div style="background: linear-gradient(135deg, #FAF5F0 0%, #FFFFFF 100%); border: 2px solid var(--accent); border-radius: 12px; padding: 22px; margin-top: 24px; box-shadow: var(--shadow-sm);">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px;">
+        <span class="badge badge-gold" style="font-size: 12px;">🤝 Valeur Ajoutée Partenaire</span>
+        <h3 style="font-size: 17px; font-weight: 800; color: var(--primary-darker); margin: 0;">
+          Services d'Ingénierie, Conseil Matériel & Assistance Déjà Offerts à Titre Gracieux
+        </h3>
+      </div>
+      <p style="font-size: 14px; color: var(--text); line-height: 1.7; margin-bottom: 14px;">
+        Au-delà du développement logiciel pur, une assistance technique et matérielle d'envergure a été intégralement prise en charge à titre de geste commercial afin de garantir la réussite opérationnelle sur site :
+      </p>
+      <div class="grid-3" style="margin-bottom: 12px;">
+        <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
+          <h4 style="font-size: 14px; font-weight: 700; color: var(--primary); margin-bottom: 6px;">🛠️ Sourcing & Audit Imprimantes</h4>
+          <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
+            Prospection sur le marché malgache, benchmark et sélection d'imprimantes thermiques 80 mm robustes pour éliminer définitivement les frais d'encre et de cartouches de l'école.
+          </p>
+        </div>
+        <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
+          <h4 style="font-size: 14px; font-weight: 700; color: var(--primary); margin-bottom: 6px;">🛰️ Conseil Réseau & Starlink</h4>
+          <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
+            Accompagnement au dimensionnement et à la configuration de la connectivité haut débit Starlink et de la topologie réseau pour fiabiliser la synchronisation multi-postes.
+          </p>
+        </div>
+        <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
+          <h4 style="font-size: 14px; font-weight: 700; color: var(--primary); margin-bottom: 6px;">💻 Intégration Postes & Spooler</h4>
+          <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
+            Configuration des ports USB virtuels Windows, résolution des conflits avec les pilotes de bureau et création d'un moteur de purge d'urgence en 1 clic en cas de bourrage.
+          </p>
+        </div>
+      </div>
+      <div style="font-size: 12.5px; color: var(--text-muted); font-style: italic;">
+        Ces prestations de conseil et d'ingénierie terrain représentent plus de 800 000 Ar de valeur de service absorbée gracieusement pour accompagner l'équipe de direction.
+      </div>
+    </div>
   </section>
 
   <!-- SECTION 6: FAQ & BONNES PRATIQUES -->
@@ -930,7 +1140,7 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
       <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
         <li>Cliquez sur le badge de statut de synchronisation en haut de l'écran ou allez dans <strong>Paramètres</strong>.</li>
         <li>Cliquez sur <strong>« Réparer / Forcer la Synchronisation »</strong>.</li>
-        <li>Le moteur v1.1.9 réinitialise automatiquement le curseur de synchronisation, nettoie les données selon le schéma Cloud Supabase et renvoie toutes les écritures en attente.</li>
+        <li>Le moteur v1.1.10 réinitialise automatiquement le curseur de synchronisation, nettoie les données selon le schéma Cloud Supabase et renvoie toutes les écritures en attente.</li>
         <li>Dès que l'envoi est confirmé par le Cloud, le voyant passe instantanément au <strong>vert fixe (« Synchronisé »)</strong>.</li>
       </ol>
     </div>
@@ -1015,7 +1225,7 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
 
       <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Plug & Play Réel des Outils Xprinter :</h4>
       <p style="font-size: 13px; color: var(--text); line-height: 1.8;">
-        Tous les scripts nécessaires (<code>detect-xprinter.ps1</code>, <code>installer-xprinter.ps1</code>, <code>send-raw.ps1</code>) sont empaquetés directement dans l'installateur Windows <strong><code>lms-1.1.9-setup.exe</code></strong>. Vous n'avez plus besoin d'importer ou de copier des fichiers annexes : dès l'installation, le bouton d'auto-détection et le pilote thermique fonctionnent immédiatement sur n'importe quel port USB.
+        Tous les scripts nécessaires (<code>detect-xprinter.ps1</code>, <code>installer-xprinter.ps1</code>, <code>send-raw.ps1</code>) sont empaquetés directement dans l'installateur Windows <strong><code>lms-1.1.10-setup.exe</code></strong>. Vous n'avez plus besoin d'importer ou de copier des fichiers annexes : dès l'installation, le bouton d'auto-détection et le pilote thermique fonctionnent immédiatement sur n'importe quel port USB.
       </p>
     </div>
 
@@ -1210,9 +1420,187 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
     </div>
   </section>
 
+  <!-- SECTION 8: PROPOSITION D'AVENANT N°3 — RAPPROCHEMENT DE CAISSE & AUDIT MULTI-OPÉRATEURS -->
+  <section id="avenant3" class="card" style="border: 2px solid var(--primary); background: #FFFDFB;">
+    <div class="card-header" style="border-bottom: 2px solid var(--primary-light);">
+      <div>
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <span class="badge badge-gold">💼 Extension Optionnelle Hors Forfait</span>
+          <span class="badge badge-success">Audit & Contrôle Interne</span>
+        </div>
+        <h2 class="card-title" style="color: var(--primary-darker); font-size: 22px;">
+          8. Proposition d'Avenant N°3 — Module de Rapprochement de Caisse, Z de Caisse & Statistiques par Opérateur
+        </h2>
+      </div>
+    </div>
+
+    <p style="margin-bottom: 18px; font-size: 15px;">
+      Cette section formalise la proposition technique et financière relative à la demande récente du lycée concernant le <strong>filtrage des écritures de caisse par compte utilisateur / caissier</strong> et le <strong>suivi du volume de tickets traités</strong>.
+    </p>
+
+    <!-- 1. CONTEXTE TERRAIN -->
+    <div style="background: var(--surface-subtle); border-left: 4px solid var(--primary); padding: 16px 20px; border-radius: 8px; margin-bottom: 20px;">
+      <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin-bottom: 8px;">1. Contexte & Évolution Naturelle du Besoin Terrain</h3>
+      <p style="font-size: 14px; color: var(--text); line-height: 1.7; margin-bottom: 8px;">
+        Au lancement du projet (contrat initial LMS-2026-001 du 03 Février 2026), l'établissement envisageait une gestion financière centralisée sur un poste unique. Avec le déploiement opérationnel multi-postes (Avenant N°1 RBAC et Avenant N°2 Impression Thermique), <strong>deux à trois collaborateurs encaissent désormais simultanément</strong> (Bureau de la Direction sur Poste C1, Secrétariat sur Poste C2, Comptabilité sur Poste C3).
+      </p>
+      <p style="font-size: 14px; color: var(--text); line-height: 1.7;">
+        Cette organisation moderne fait naturellement émerger un besoin nouveau de <strong>contrôle interne et de checking physique de fin de journée</strong> : chaque soir à la clôture, la Direction et chaque caissier souhaitent pointer précisément le contenu du tiroir physique (espèces, chèques) en le comparant aux écritures saisies par ce compte spécifique.
+      </p>
+    </div>
+
+    <!-- 2. JUSTIFICATION CONTRACTUELLE -->
+    <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin-bottom: 10px;">2. Périmètre Contractuel Antérieur vs Nouvelle Demande</h3>
+    <p style="font-size: 13.5px; color: var(--text-muted); margin-bottom: 12px;">
+      Afin de préserver la parfaite clarté de nos engagements mutuels, voici le comparatif factuel entre les prestations déjà livrées et le présent besoin :
+    </p>
+
+    <table class="manual-table" style="margin-bottom: 20px;">
+      <thead>
+        <tr>
+          <th style="width: 28%;">Document Contractuel</th>
+          <th style="width: 42%;">Périmètre Convenu & Réalisé</th>
+          <th style="width: 30%;">Statut Vis-à-Vis de la Demande</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Contrat Initial LMS-2026-001</strong><br><em>(Pack Hybride 7 000 000 Ar)</em></td>
+          <td>
+            <strong>Journal de Caisse Général de l'Établissement</strong> : centralisation globale des recettes et dépenses (École, Bus), calcul du solde général, filtrage par dates et rubriques.
+          </td>
+          <td><span class="badge" style="background: #FEE2E2; color: #991B1B;">Non inclus</span> (vue globale établissement uniquement).</td>
+        </tr>
+        <tr>
+          <td><strong>Avenant N°1</strong><br><em>(Authentification & RBAC)</em></td>
+          <td>
+            <strong>Sécurisation des Accès</strong> : 4 rôles (Admin, Secrétariat, Comptabilité, Direction), sessions 60 min, permissions d'ouverture des modules (qui peut voir la finance).
+          </td>
+          <td><span class="badge" style="background: #FEE2E2; color: #991B1B;">Non inclus</span> (sécurité d'accès, pas de comptabilité analytique).</td>
+        </tr>
+        <tr>
+          <td><strong>Avenant N°2</strong><br><em>(Impression & Postes POS-80)</em></td>
+          <td>
+            <strong>Matériel & Numérotation Caisse</strong> : impression thermique 80mm ESC/POS, double tirage, préfixes de numéros de reçus isolés par poste (<code>C1</code>, <code>C2</code>) anti-doublon.
+          </td>
+          <td><span class="badge" style="background: #FEE2E2; color: #991B1B;">Non inclus</span> (format ticket, pas de ventilation comptable).</td>
+        </tr>
+        <tr style="background: #FFFBEB;">
+          <td><strong>Avenant N°3 (Proposé)</strong><br><em>(Module Rapprochement & Z de Caisse)</em></td>
+          <td>
+            <strong>Comptabilité Auxiliaire par Caissier</strong> : filtres dynamiques par compte opérateur, calcul des volumes de tickets traités, arrêt de caisse individuel et vérification de tiroir.
+          </td>
+          <td><span class="badge badge-gold">Objet du Présent Avenant</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- 3. FONCTIONNALITÉS PROPOSÉES -->
+    <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin-bottom: 12px;">3. Fonctionnalités Détaillées du Module de Rapprochement</h3>
+    <div class="grid-2" style="margin-bottom: 24px;">
+      <div class="advantage-box">
+        <h4>🎯 1. Filtre Dynamique par Opérateur & Code Poste</h4>
+        <p>
+          Ajout d'un sélecteur multi-critères dans le Journal Financier permettant d'isoler en 1 clic :
+          <br>• Tous les encaissements effectués par un collaborateur précis (ex: <em>Secrétaire 1</em>, <em>Comptable</em>).
+          <br>• Ou tous les flux traités sur une station physique déterminée (<em>Poste C1</em>, <em>Poste C2</em>, <em>Poste C3</em>).
+        </p>
+      </div>
+
+      <div class="advantage-box">
+        <h4>📊 2. Statistiques de Volumétrie & Nombre de Tickets</h4>
+        <p>
+          Indicateurs d'activité en temps réel pour chaque caisse :
+          <br>• Nombre total de tickets/paiements traités par jour, semaine, mois et année.
+          <br>• Panier moyen par transaction et répartition horaire de l'affluence au guichet.
+        </p>
+      </div>
+
+      <div class="advantage-box">
+        <h4>💵 3. Récolement & Billetage du Tiroir-Caisse (Pointage)</h4>
+        <p>
+          Ventilation instantanée des encaissements de l'opérateur par mode de règlement :
+          <br>• <strong>Total Espèces</strong> (à confronter directement avec les billets physiques du tiroir).
+          <br>• <strong>Total Chèques</strong> (avec liste des numéros de chèques remis).
+          <br>• <strong>Total Mobile Money / Virement</strong>.
+        </p>
+      </div>
+
+      <div class="advantage-box">
+        <h4>📜 4. Fiche / Ticket « Z de Clôture de Caisse »</h4>
+        <p>
+          Génération en 1 clic en fin de service du récapitulatif de clôture :
+          <br>• Impression automatique sur ticket thermique 80 mm ou export PDF A4 certifié.
+          <br>• Encadré pour visa contradictoire : signature du caissier et émargement de la Direction.
+        </p>
+      </div>
+    </div>
+
+    <!-- 4. TARIFICATION & MODALITÉS -->
+    <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin-bottom: 10px;">4. Devis Forfaitaire & Tarifs Justes et Équilibrés</h3>
+    <p style="font-size: 13.5px; color: var(--text-muted); margin-bottom: 14px;">
+      Compte tenu des fondations techniques déjà solides en place dans le logiciel (Avenant N°1 RBAC et Avenant N°2 Impression), la tarification a été strictement calculée au plus juste du travail d'adaptation restant, dans un esprit de transparence et de partenariat équitable pour les deux parties :
+    </p>
+
+    <div class="grid-2" style="margin-bottom: 24px;">
+      <!-- FORMULE 1 -->
+      <div style="background: #FFFFFF; border: 2px solid var(--border); border-radius: 12px; padding: 22px; display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--primary-dark); margin-bottom: 6px;">Formule 1 — Extension Opérationnelle</div>
+          <h4 style="font-size: 18px; font-weight: 800; color: var(--primary-darker); margin-bottom: 8px;">Filtres Caissiers & Comptage de Tickets</h4>
+          <div style="font-size: 24px; font-weight: 800; color: var(--primary); margin-bottom: 14px;">300 000 Ar</div>
+          
+          <ul style="font-size: 13.5px; color: var(--text); line-height: 1.8; margin-left: 18px; margin-bottom: 16px;">
+            <li>Sélecteur d'opérateur / caissier dans le Journal Financier.</li>
+            <li>Filtre par code station physique (Poste C1, Poste C2, Poste C3).</li>
+            <li>Compteur dynamique du nombre total de tickets traités (jour/semaine/mois).</li>
+            <li>Sous-total des encaissements par caissier et par mode de règlement.</li>
+            <li>Délai de réalisation : <strong>1 à 2 jours</strong>.</li>
+          </ul>
+
+          <div style="background: #F8FAFC; border-left: 3px solid #64748B; padding: 10px 12px; border-radius: 6px; font-size: 12.5px; color: #334155; margin-top: 10px;">
+            <strong>🎯 Argument Clé (Clarté Quotidienne) :</strong><br>
+            Permet à chaque collaborateur (secrétariat, comptabilité) de connaître instantanément son total du jour et son volume de tickets sans mélanger ses chiffres avec les autres bureaux. Idéal pour un pointage rapide le soir.
+          </div>
+        </div>
+      </div>
+
+      <!-- FORMULE 2 -->
+      <div style="background: #FFFFFF; border: 2px solid var(--primary); border-radius: 12px; padding: 22px; position: relative; box-shadow: var(--shadow); display: flex; flex-direction: column; justify-content: space-between;">
+        <span style="position: absolute; top: -11px; right: 18px; background: var(--primary); color: #FFF; font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 20px; text-transform: uppercase;">⭐ Recommandé Direction</span>
+        <div>
+          <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--primary-dark); margin-bottom: 6px;">Formule 2 — Contrôle & Sérénité Absolue</div>
+          <h4 style="font-size: 18px; font-weight: 800; color: var(--primary-darker); margin-bottom: 8px;">Clôture Journalière, Billetage & Ticket Z</h4>
+          <div style="font-size: 24px; font-weight: 800; color: var(--primary-darker); margin-bottom: 14px;">600 000 Ar</div>
+          
+          <ul style="font-size: 13.5px; color: var(--text); line-height: 1.8; margin-left: 18px; margin-bottom: 16px;">
+            <li><strong>Tout le contenu de la Formule 1 inclus</strong>.</li>
+            <li><strong>Interface de Billetage Physique</strong> : Saisie guidée des coupures de billets (20 000, 10 000, 5 000, 2 000, 1 000 Ar) et chèques présents dans le tiroir.</li>
+            <li><strong>Calcul Automatique des Écarts</strong> : Détection instantanée des surplus ou manquants de caisse (*Théorique logiciel vs Réel constaté*).</li>
+            <li><strong>Impression du « Ticket Z de Clôture » 80 mm</strong> : Ticket récapitulatif officiel sur imprimante thermique avec visa contradictoire (signature caissier + émargement Direction).</li>
+            <li><strong>Verrouillage Comptable de Clôture</strong> : Gel des écritures validées pour interdire toute altération rétroactive.</li>
+            <li>Délai de réalisation : <strong>3 à 4 jours</strong>.</li>
+          </ul>
+
+          <div style="background: #FEFCE8; border-left: 3px solid var(--warning); padding: 10px 12px; border-radius: 6px; font-size: 12.5px; color: #854D0E; margin-top: 10px;">
+            <strong>🛡️ Argument Clé (Bouclier Anti-Écart & Protection Direction) :</strong><br>
+            Supprime 100% des litiges de caisse. La Directrice n'a plus à recompter des liasses de billets à la main : le système calcule l'écart, verrouille la journée et imprime un ticket officiel scellé faisant foi juridique et comptable.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SYNTHESE POUR LE CLIENT -->
+    <div style="background: #F0FDF4; border-left: 4px solid var(--success); padding: 14px 18px; border-radius: 8px; font-size: 13.5px; color: #166534;">
+      <strong>🤝 Synthèse d'Orientation Commerciale :</strong><br>
+      • <strong>La Formule 1 (300 000 Ar)</strong> comble immédiatement le besoin formulé de visibilité sur le nombre de tickets et le tri par caissier.<br>
+      • <strong>La Formule 2 (600 000 Ar)</strong> transforme l'application en véritable système de caisse certifié, offrant à la Direction un contrôle financier infaillible et un gain de temps considérable lors de la fermeture quotidienne.
+    </div>
+  </section>
+
   <!-- FOOTER -->
   <footer style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 40px; border-top: 1px solid var(--border); padding-top: 20px;">
-    <strong>LMS Manjary Soa v1.1.9</strong> — Solution Professionnelle Développée pour le Lycée Privé Manjary Soa, Lot H 81 Miadana Alasora, Antananarivo.
+    <strong>LMS Manjary Soa v1.1.10</strong> — Solution Professionnelle Développée pour le Lycée Privé Manjary Soa, Lot H 81 Miadana Alasora, Antananarivo.
   </footer>
 
 </div>

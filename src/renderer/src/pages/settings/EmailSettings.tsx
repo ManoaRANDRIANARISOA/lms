@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { CheckCircle, XCircle, Send, Loader2, Eye, EyeOff, ExternalLink } from 'lucide-react'
+import { toast } from 'sonner'
 import { usePermissions } from '@/lib/usePermissions'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 
@@ -95,52 +96,68 @@ export default function EmailSettings() {
   const saveConfig = async () => {
     setSaving(true)
     setMessage(null)
+    const toastId = toast.loading('Enregistrement de la configuration email...')
     try {
       const result = await window.api.email.configure(config)
       if (result.success) {
-        setMessage({ text: 'Configuration enregistrée', type: 'success' })
+        toast.success('Configuration email enregistrée avec succès !', { id: toastId, duration: 4000 })
+        setMessage({ text: 'Configuration enregistrée avec succès', type: 'success' })
         loadStatus()
       } else {
-        setMessage({ text: result.error || 'Erreur', type: 'error' })
+        toast.error(`Erreur d'enregistrement : ${result.error || 'Erreur'}`, { id: toastId, duration: 6000 })
+        setMessage({ text: result.error || 'Erreur d\'enregistrement', type: 'error' })
       }
-    } catch {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erreur de sauvegarde'
+      toast.error(`Erreur : ${msg}`, { id: toastId, duration: 6000 })
       setMessage({ text: 'Erreur de sauvegarde', type: 'error' })
     } finally {
       setSaving(false)
     }
-    setTimeout(() => setMessage(null), 3000)
+    setTimeout(() => setMessage(null), 5000)
   }
 
   const testConnection = async () => {
     setTesting(true)
     setMessage(null)
+    const toastId = toast.loading('Vérification de la liaison SMTP avec Google...')
     try {
-      const result = await window.api.email.testConnection()
+      const result = await window.api.email.testConnection({
+        gmail_address: config.gmail_address,
+        gmail_app_password: config.gmail_app_password
+      })
       if (result.success) {
-        setMessage({ text: 'Connexion SMTP réussie', type: 'success' })
+        toast.success('Connexion SMTP Google réussie ! Vos identifiants sont 100% opérationnels.', { id: toastId, duration: 6000 })
+        setMessage({ text: 'Connexion SMTP Google réussie avec succès', type: 'success' })
       } else {
+        toast.error(`Échec du test : ${result.error || 'Connexion échouée'}`, { id: toastId, duration: 10000 })
         setMessage({ text: result.error || 'Connexion échouée', type: 'error' })
       }
-    } catch {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erreur de test'
+      toast.error(`Erreur inattendue : ${msg}`, { id: toastId, duration: 8000 })
       setMessage({ text: 'Erreur de test', type: 'error' })
     } finally {
       setTesting(false)
     }
-    setTimeout(() => setMessage(null), 5000)
+    setTimeout(() => setMessage(null), 10000)
   }
 
   const sendDailyReportNow = async () => {
     setSendingReport(true)
     setMessage(null)
+    const toastId = toast.loading('Génération du bilan officiel et envoi par email...')
     try {
       const result = await window.api.email.sendDailyReport()
       if (result.success) {
+        toast.success(`Rapport journalier avec PDF officiel envoyé à ${config.recipient_email} !`, { id: toastId, duration: 6000 })
         setMessage({
           text: `Rapport journalier complet avec PDF envoyé avec succès à ${config.recipient_email}`,
           type: 'success'
         })
         loadLogs()
       } else {
+        toast.error(`Échec de l'envoi : ${result.error || "Échec de l'envoi du rapport"}`, { id: toastId, duration: 9000 })
         setMessage({
           text: result.error || "Échec de l'envoi du rapport",
           type: 'error'
@@ -148,11 +165,12 @@ export default function EmailSettings() {
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erreur inattendue'
+      toast.error(`Erreur : ${msg}`, { id: toastId, duration: 8000 })
       setMessage({ text: msg, type: 'error' })
     } finally {
       setSendingReport(false)
     }
-    setTimeout(() => setMessage(null), 6000)
+    setTimeout(() => setMessage(null), 8000)
   }
 
   return (
@@ -289,6 +307,25 @@ export default function EmailSettings() {
               Envoi automatique du bilan journalier à 18h (Jours ouvrables : Lundi au Samedi)
             </Label>
           </div>
+
+          {message && (
+            <div
+              className={cn(
+                'p-3.5 rounded-lg text-sm font-medium flex items-start gap-2.5 shadow-sm transition-all',
+                message.type === 'success'
+                  ? 'bg-green-50 border border-green-200 text-green-800'
+                  : 'bg-red-50 border border-red-200 text-red-800'
+              )}
+            >
+              {message.type === 'success' ? (
+                <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+              ) : (
+                <XCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+              )}
+              <div className="flex-1">{message.text}</div>
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2 pt-2">
             {canWrite('settings') && (
               <>

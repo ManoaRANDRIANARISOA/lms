@@ -586,7 +586,10 @@ interface APIType {
       recipient_email: string
       auto_send_daily: boolean
     }) => Promise<{ success: boolean; error?: string }>
-    testConnection: () => Promise<{ success: boolean; error?: string }>
+    testConnection: (credentials?: {
+      gmail_address?: string
+      gmail_app_password?: string
+    }) => Promise<{ success: boolean; error?: string }>
     sendNow: (
       to: string,
       subject: string,

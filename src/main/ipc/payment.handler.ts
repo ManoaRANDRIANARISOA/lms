@@ -27,15 +27,21 @@ export function registerPaymentHandlers(): void {
     if (!canWrite('payments')) {
       return { success: false, error: 'Accès refusé: écriture paiements' }
     }
-    const result = PaymentRepository.create(payment)
+    const user = getCurrentUser()
+    const operatorName = user?.full_name || user?.username || 'Administrateur'
+    const paymentToCreate = {
+      ...payment,
+      created_by: payment.created_by || operatorName
+    }
+    const result = PaymentRepository.create(paymentToCreate)
     if (result.success && result.id) {
       logAction(
-        getCurrentUser()?.id || null,
+        user?.id || null,
         'create',
         'student_payments',
         result.id,
         null,
-        JSON.stringify(payment)
+        JSON.stringify(paymentToCreate)
       )
     }
     return result

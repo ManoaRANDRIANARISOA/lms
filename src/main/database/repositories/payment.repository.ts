@@ -426,7 +426,8 @@ export class PaymentRepository {
                 : ''
             }`
 
-        const cashDepartment = payment.payment_type === 'bus' ? 'bus' : 'eleve'
+        // All student payments (tuition, transport, canteen, uniform, etc.) belong to 'eleve' department
+        const cashDepartment = 'eleve'
 
         const cashId = uuidv4()
         db.prepare(
@@ -615,11 +616,11 @@ export class PaymentRepository {
     const conditions: string[] = []
 
     if (filters.startDate) {
-      conditions.push('sp.payment_date >= ?')
+      conditions.push('date(sp.payment_date) >= ?')
       params.push(filters.startDate)
     }
     if (filters.endDate) {
-      conditions.push('sp.payment_date <= ?')
+      conditions.push('date(sp.payment_date) <= ?')
       params.push(filters.endDate)
     }
     if (filters.type && filters.type !== 'all') {

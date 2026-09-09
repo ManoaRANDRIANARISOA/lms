@@ -315,7 +315,8 @@ const api = {
   // --------------------------------------------
   email: {
     configure: (config: Record<string, unknown>) => ipcRenderer.invoke('email:configure', config),
-    testConnection: () => ipcRenderer.invoke('email:testConnection'),
+    testConnection: (credentials?: { gmail_address?: string; gmail_app_password?: string }) =>
+      ipcRenderer.invoke('email:testConnection', credentials),
     sendNow: (to: string, subject: string, body: string) =>
       ipcRenderer.invoke('email:sendNow', to, subject, body),
     getStatus: () => ipcRenderer.invoke('email:getStatus'),

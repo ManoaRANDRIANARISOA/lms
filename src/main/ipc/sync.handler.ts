@@ -19,7 +19,7 @@ export function registerSyncHandlers(): void {
   // App version (Dynamic)
   // --------------------------------------------
   ipcMain.handle('app:getVersion', () => {
-    return app.getVersion() || '1.1.9'
+    return app.getVersion() || '1.1.11'
   })
 
   // --------------------------------------------
@@ -58,6 +58,10 @@ export function registerSyncHandlers(): void {
   ipcMain.handle('sync:start', async (_, forceFullSync: boolean = false) => {
     try {
       const result = await syncWithCloud(forceFullSync)
+      // Automatically flush pending offline error logs ("mouchard")
+      TelemetryService.flushPendingLogs().catch((e) =>
+        console.warn('Telemetry flush after sync error:', e)
+      )
       return result
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)

@@ -131,12 +131,18 @@ export class EmailService {
     }
   }
 
-  static async testConnection(): Promise<{ success: boolean; error?: string }> {
+  static async testConnection(credentials?: {
+    gmail_address?: string
+    gmail_app_password?: string
+  }): Promise<{ success: boolean; error?: string }> {
     const config = getConfig()
-    const user = config?.gmail_address?.trim()
-    const pass = config?.gmail_app_password?.replace(/\s+/g, '')
+    const user = credentials?.gmail_address?.trim() || config?.gmail_address?.trim()
+    const pass = credentials?.gmail_app_password?.replace(/\s+/g, '') || config?.gmail_app_password?.replace(/\s+/g, '')
     if (!user || !pass) {
-      return { success: false, error: 'Configuration email incomplète : adresse Gmail ou mot de passe manquant' }
+      return {
+        success: false,
+        error: 'Configuration email incomplète : adresse Gmail ou mot de passe d\'application manquant.'
+      }
     }
     try {
       const testTransporter = nodemailer.createTransport({
@@ -146,7 +152,30 @@ export class EmailService {
       await testTransporter.verify()
       return { success: true }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Connexion échouée'
+      const raw = error instanceof Error ? error.message : String(error)
+      let message = raw
+      if (
+        raw.includes('535') ||
+        raw.includes('BadCredentials') ||
+        raw.includes('Username and Password not accepted')
+      ) {
+        message =
+          'Identifiants Google non reconnus (Erreur 535) : Vérifiez que vous avez bien généré un "Mot de passe d\'application" Google de 16 lettres (sur myaccount.google.com/apppasswords) et non votre mot de passe habituel. (Remarque : la validation en 2 étapes doit être activée sur votre compte Google).'
+      } else if (raw.includes('ENOTFOUND') || raw.includes('EAI_AGAIN')) {
+        message = 'Serveurs Google inaccessibles : Vérifiez votre connexion Internet.'
+      } else if (raw.includes('ETIMEDOUT') || raw.includes('ECONNREFUSED')) {
+        message =
+          'Délai de connexion dépassé vers le serveur Google SMTP (Port 465/587 bloqué par votre réseau ou connexion trop lente).'
+      }
+
+      addEmailLog({
+        sent_at: new Date().toISOString(),
+        recipient: user,
+        subject: 'Test de connexion SMTP',
+        success: false,
+        error: message
+      })
+
       return { success: false, error: message }
     }
   }

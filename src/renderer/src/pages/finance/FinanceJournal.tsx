@@ -812,10 +812,12 @@ export default function FinanceJournal() {
                 size="sm"
                 className="h-7 text-xs px-3"
                 onClick={() => {
-                  const d = new Date()
-                  const day = d.getDay()
-                  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-                  const start = new Date(d.setDate(diff))
+                  const now = new Date()
+                  const day = now.getDay()
+                  // Monday as start of week: day 0 is Sunday -> shift -6, else 1 - day
+                  const diffToMonday = day === 0 ? -6 : 1 - day
+                  const start = new Date(now)
+                  start.setDate(now.getDate() + diffToMonday)
                   const end = new Date(start)
                   end.setDate(start.getDate() + 6)
                   const startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`

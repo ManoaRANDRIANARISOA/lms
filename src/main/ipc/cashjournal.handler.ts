@@ -22,10 +22,15 @@ export function registerCashJournalHandlers(): void {
       return { success: false, error: 'Accès refusé: création entrée journal' }
     }
     try {
-      const result = CashJournalRepository.create(data)
+      const user = getCurrentUser()
+      const operatorName = user?.full_name || user?.username || 'Administrateur'
+      const dataToCreate = {
+        ...data,
+        created_by: data.created_by || operatorName
+      }
+      const result = CashJournalRepository.create(dataToCreate)
       if (result.success) {
-        const user = getCurrentUser()
-        logAction(user?.id || null, 'create', 'cash_journal', result.id, null, JSON.stringify(data))
+        logAction(user?.id || null, 'create', 'cash_journal', result.id, null, JSON.stringify(dataToCreate))
       }
       return result
     } catch (error: unknown) {

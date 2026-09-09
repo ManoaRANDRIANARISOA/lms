@@ -27,6 +27,7 @@ import { fr } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { useFinanceStore } from '@/store/useFinanceStore'
 import { useAppStore } from '@/store/useAppStore'
+import { useAuthStore } from '@/store/useAuthStore'
 import { usePermissions } from '@/lib/usePermissions'
 import type { Payment, FeeRecord, FinancePrices } from '@shared/types'
 import ReceiptDetailModal from '@/components/finance/ReceiptDetailModal'
@@ -144,7 +145,11 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     month: '',
     description: '',
     payment_method: 'cash',
-    item: ''
+    item: '',
+    payment_date: (() => {
+      const d = new Date()
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    })()
   })
   const [expectedAmountOverride, setExpectedAmountOverride] = useState('')
 
@@ -317,9 +322,14 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           formData.payment_method
         )
       } else {
+        const now = new Date()
+        const localDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+        const authUser = useAuthStore.getState().user
+        const cashierOperator = authUser?.full_name || authUser?.username || 'Administrateur'
+
         const paymentData = {
           student_id: studentId,
-          payment_date: new Date().toISOString().split('T')[0],
+          payment_date: formData.payment_date || localDateStr,
           amount: amount,
           payment_type: formData.payment_type as Payment['payment_type'],
           month: ['tuition', 'canteen', 'bus'].includes(formData.payment_type)
@@ -330,7 +340,8 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
               ? `${formData.item}${formData.description ? ' - ' + formData.description : ''}`
               : formData.description,
           payment_method: formData.payment_method as Payment['payment_method'],
-          school_year: schoolYear
+          school_year: schoolYear,
+          created_by: cashierOperator
         }
 
         result = await window.api.payment.create(paymentData)
@@ -361,7 +372,11 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           month: '',
           description: '',
           payment_method: 'cash',
-          item: ''
+          item: '',
+          payment_date: (() => {
+            const d = new Date()
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+          })()
         })
         setExpectedAmountOverride('')
         loadData() // Reload data
@@ -1268,6 +1283,17 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
               </div>
             )
           })()}
+
+          <div className="grid gap-2">
+            <Label htmlFor="payment_date">Date du paiement</Label>
+            <Input
+              id="payment_date"
+              type="date"
+              value={formData.payment_date}
+              onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })}
+              required
+            />
+          </div>
 
           <div className="grid gap-2">
             <Label htmlFor="amount">Montant encaissé aujourd'hui (Ar)</Label>

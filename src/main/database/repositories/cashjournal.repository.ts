@@ -47,8 +47,8 @@ export class CashJournalRepository {
         INSERT INTO cash_journal (
           id, transaction_date, type, department, category, subcategory,
           amount, description, payment_method,
-          related_student_id, related_personnel_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          related_student_id, related_personnel_id, created_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
       ).run(
         id,
@@ -61,10 +61,15 @@ export class CashJournalRepository {
         entry.description || null,
         entry.payment_method || 'cash',
         entry.related_student_id || null,
-        entry.related_personnel_id || null
+        entry.related_personnel_id || null,
+        (entry as any).created_by || 'Administrateur'
       )
 
-      addToSyncQueue('cash_journal', id, 'create', { ...entry, id })
+      addToSyncQueue('cash_journal', id, 'create', {
+        ...entry,
+        id,
+        created_by: (entry as any).created_by || 'Administrateur'
+      })
       return { success: true, id }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Erreur inconnue'
@@ -140,11 +145,11 @@ export class CashJournalRepository {
       : []
 
     if (filters.startDate) {
-      query += ' AND cj.transaction_date >= ?'
+      query += ' AND date(cj.transaction_date) >= ?'
       params.push(filters.startDate)
     }
     if (filters.endDate) {
-      query += ' AND cj.transaction_date <= ?'
+      query += ' AND date(cj.transaction_date) <= ?'
       params.push(filters.endDate)
     }
     if (filters.type && filters.type !== 'all') {
@@ -152,8 +157,14 @@ export class CashJournalRepository {
       params.push(filters.type)
     }
     if (filters.department && filters.department !== 'all') {
-      query += ' AND cj.department = ?'
-      params.push(filters.department)
+      if (filters.department === 'eleve') {
+        query += ' AND (cj.department = "eleve" OR (cj.department = "bus" AND cj.related_student_id IS NOT NULL))'
+      } else if (filters.department === 'bus') {
+        query += ' AND cj.department = "bus" AND cj.related_student_id IS NULL'
+      } else {
+        query += ' AND cj.department = ?'
+        params.push(filters.department)
+      }
     }
     if (filters.category && filters.category !== 'all') {
       const cats = filters.category

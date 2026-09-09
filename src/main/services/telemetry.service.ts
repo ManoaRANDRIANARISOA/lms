@@ -53,7 +53,7 @@ export class TelemetryService {
   }
 
   /**
-   * Reports a critical error or sync failure to Supabase audit_logs
+   * Reports a critical error or sync failure to local SQLite and attempts transmission to Supabase
    */
   static async reportError(
     context: string,
@@ -61,42 +61,79 @@ export class TelemetryService {
     details?: any,
     extra?: { tableName?: string; recordId?: string; pendingCount?: number }
   ): Promise<boolean> {
-    const stationCode = this.getStationCode()
-    const hostname = os.hostname()
+    const extraDetails = extra ? { ...(typeof details === 'object' ? details : { details }), ...extra } : details
 
-    // 1. Log locally
-    LoggerService.log('error', context, message, details)
+    // 1. Log locally to SQLite app_logs (persisted with resolved = 0)
+    LoggerService.log('error', context, message, extraDetails)
 
-    // 2. Transmit to Supabase audit_logs asynchronously
+    // 2. Attempt to flush pending logs (including this one) to Supabase audit_logs
+    const flushResult = await this.flushPendingLogs()
+    return flushResult.success
+  }
+
+  /**
+   * Flushes all un-transmitted local logs (resolved = 0) from SQLite `app_logs` to Supabase `audit_logs`.
+   * Preserves all logs in local SQLite forever (never deletes), and marks resolved = 1 on success.
+   */
+  static async flushPendingLogs(): Promise<{ success: boolean; count: number }> {
     try {
-      const payload: WorkstationTelemetryReport = {
-        station: stationCode,
-        hostname,
-        platform: `${process.platform} ${os.release()}`,
-        context,
-        message,
-        table_name: extra?.tableName,
-        record_id: extra?.recordId,
-        pending_count: extra?.pendingCount,
-        error_details: details ? (typeof details === 'string' ? details : JSON.stringify(details)) : null,
-        timestamp: new Date().toISOString()
+      const rows = db
+        .prepare('SELECT * FROM app_logs WHERE resolved = 0 ORDER BY id ASC LIMIT 50')
+        .all() as Array<{
+        id: number
+        level: string
+        context: string
+        message: string
+        details: string | null
+        created_at: string
+      }>
+
+      if (!rows || rows.length === 0) {
+        return { success: true, count: 0 }
       }
 
-      const { error } = await supabase.from('audit_logs').insert({
-        action: 'station_error',
-        table_name: 'telemetry',
-        record_id: stationCode,
-        new_value: JSON.stringify(payload)
-      })
+      const stationCode = this.getStationCode()
+      const hostname = os.hostname()
+      let sentCount = 0
 
-      if (error) {
-        console.warn('Could not transmit telemetry to Supabase:', error.message)
-        return false
+      for (const row of rows) {
+        let parsedDetails: any = null
+        try {
+          parsedDetails = row.details ? JSON.parse(row.details) : null
+        } catch {
+          parsedDetails = row.details
+        }
+
+        const payload: WorkstationTelemetryReport = {
+          station: stationCode,
+          hostname,
+          platform: `${process.platform} ${os.release()}`,
+          context: row.context || 'app',
+          message: row.message,
+          error_details: parsedDetails,
+          timestamp: row.created_at || new Date().toISOString()
+        }
+
+        const { error } = await supabase.from('audit_logs').insert({
+          action: 'station_error',
+          table_name: 'telemetry',
+          record_id: stationCode,
+          new_value: JSON.stringify(payload)
+        })
+
+        if (!error) {
+          db.prepare('UPDATE app_logs SET resolved = 1 WHERE id = ?').run(row.id)
+          sentCount++
+        } else {
+          console.warn('Could not transmit queued telemetry to Supabase:', error.message)
+          return { success: false, count: sentCount }
+        }
       }
-      return true
+
+      return { success: true, count: sentCount }
     } catch (err) {
-      console.warn('Telemetry transmission exception:', err)
-      return false
+      console.warn('Telemetry flush exception:', err)
+      return { success: false, count: 0 }
     }
   }
 

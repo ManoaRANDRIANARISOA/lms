@@ -63,13 +63,13 @@ export type Resource =
  * | Module                | Resource     | Admin | Secretariat | Accounting | Direction |
  * |----------------------|--------------|-------|-------------|------------|-----------|
  * | Fiches Élèves        | students     | full  | full        | read       | full      |
- * | Paiements            | payments     | full  | read        | full       | full      |
- * | Bus & Cantine        | attendance   | full  | full        | read       | read      |
- * | Notes & Bulletins    | grades       | full  | full        | none       | read      |
- * | Journal de Caisse    | cash_journal | full  | none        | full       | read      |
- * | Salaires & Personnel | personnel    | full  | none        | full       | read      |
+ * | Paiements            | payments     | full  | full        | full       | full      |
+ * | Bus & Cantine        | attendance   | full  | full        | read       | full      |
+ * | Notes & Bulletins    | grades       | full  | full        | none       | full      |
+ * | Journal de Caisse    | cash_journal | full  | none        | full       | full      |
+ * | Salaires & Personnel | personnel    | full  | none        | full       | full      |
  * | Rapports Financiers  | reports      | full  | none        | full       | full      |
- * | Paramètres Système   | settings     | full  | none        | none       | read      |
+ * | Paramètres Système   | settings     | full  | none        | none       | none      |
  * | Gestion Utilisateurs | users        | full  | none        | none       | none      |
  * | Logs Audit           | audit        | full  | none        | none       | read      |
  * | Événements           | events       | full  | full        | read       | full      |
@@ -117,13 +117,13 @@ const PERMISSION_MATRIX: Record<Role, Record<Resource, AccessLevel>> = {
   direction: {
     students: 'full',
     payments: 'full',
-    attendance: 'read',
-    grades: 'read',
+    attendance: 'full',
+    grades: 'full',
     cash_journal: 'full',
-    personnel: 'read',
+    personnel: 'full',
     reports: 'full',
-    settings: 'full',
-    users: 'full',
+    settings: 'none',
+    users: 'none',
     audit: 'read',
     events: 'full'
   }

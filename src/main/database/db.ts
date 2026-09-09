@@ -143,7 +143,9 @@ const runMigrations = (): void => {
     '038_auto_provision_all_enrolled_fees.sql',
     '039_normalize_receipt_station_codes.sql',
     '040_heal_finance_prices_settings.sql',
-    '041_add_print_tracking_to_cash_journal.sql'
+    '041_add_print_tracking_to_cash_journal.sql',
+    '042_fix_student_bus_cash_department.sql',
+    '043_merge_duplicate_users_and_update_admin.sql'
   ]
   migrations.forEach(applyMigration)
 }

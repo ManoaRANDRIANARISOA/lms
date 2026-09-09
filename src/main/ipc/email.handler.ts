@@ -32,12 +32,15 @@ export function registerEmailHandlers(): void {
     return result
   })
 
-  ipcMain.handle('email:testConnection', async () => {
-    if (!canRead('settings')) {
-      return { success: false, error: 'Accès refusé' }
+  ipcMain.handle(
+    'email:testConnection',
+    async (_, credentials?: { gmail_address?: string; gmail_app_password?: string }) => {
+      if (!canRead('settings')) {
+        return { success: false, error: 'Accès refusé' }
+      }
+      return EmailService.testConnection(credentials)
     }
-    return EmailService.testConnection()
-  })
+  )
 
   ipcMain.handle('email:sendNow', async (_, to, subject, body) => {
     if (!canWrite('reports')) {

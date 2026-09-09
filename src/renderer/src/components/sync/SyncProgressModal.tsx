@@ -118,6 +118,7 @@ export const SyncProgressModal: React.FC = () => {
       isOpen={isModalOpen}
       onClose={closeModal}
       title="Centre de Contrôle de Synchronisation Cloud"
+      maxWidth="max-w-2xl"
       footer={
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
           <div className="text-xs text-gray-500">

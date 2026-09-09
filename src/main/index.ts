@@ -31,6 +31,7 @@ import { registerDuplicateHandlers } from './ipc/duplicate.handler'
 import { startPeriodicSync } from './services/sync.service'
 import { startSessionMonitor, stopSessionMonitor } from './auth/session.service'
 import { EmailService } from './services/email.service'
+import { TelemetryService } from './services/telemetry.service'
 
 // Auth handlers are now registered via registerAuthHandlers() below
 
@@ -155,6 +156,13 @@ app.whenReady().then(() => {
 
   // Start Email Scheduler (daily report at 18h)
   EmailService.startScheduler()
+
+  // Flush pending offline telemetry logs ("mouchard") after startup
+  setTimeout(() => {
+    TelemetryService.flushPendingLogs().catch((err) => {
+      console.warn('Initial telemetry flush notice (offline or waiting network):', err)
+    })
+  }, 10000)
 
   createWindow()
 
