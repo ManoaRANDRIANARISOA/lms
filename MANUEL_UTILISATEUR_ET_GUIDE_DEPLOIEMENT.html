@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LMS Manjary Soa — Manuel d'Utilisation & Guide de Déploiement Client</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
   <style>
     :root {
       --primary: #AD8B73;
@@ -325,7 +328,7 @@
       font-family: 'JetBrains Mono', monospace;
       font-size: 12px;
       color: #0F172A;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
       line-height: 1.4;
       max-width: 380px;
       margin: 0 auto;
@@ -366,7 +369,8 @@
       font-size: 14px;
     }
 
-    table.manual-table th, table.manual-table td {
+    table.manual-table th,
+    table.manual-table td {
       padding: 12px 16px;
       border: 1px solid var(--border);
       text-align: left;
@@ -413,1307 +417,1732 @@
 
     /* Print styles */
     @media print {
-      body {
-        background: #FFFFFF;
-        color: #000000;
-        font-size: 12pt;
+      @page {
+        size: A4;
+        margin: 12mm 12mm 14mm 12mm;
       }
-      .nav-bar, .copy-btn {
+
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+
+      body {
+        background: #FFFFFF !important;
+        color: #1E293B !important;
+        font-size: 11pt;
+        line-height: 1.5;
+      }
+
+      .app-container {
+        max-width: 100% !important;
+        padding: 0 !important;
+      }
+
+      .nav-bar,
+      .copy-btn {
         display: none !important;
       }
-      .card, .hero {
-        box-shadow: none !important;
-        border: 1px solid #CCCCCC !important;
-        page-break-inside: avoid;
-      }
+
       .hero {
-        background: #F4EFEA !important;
-        color: #000000 !important;
+        background: linear-gradient(135deg, #2C2420 0%, #1A1512 100%) !important;
+        color: #FFFFFF !important;
+        box-shadow: none !important;
+        border-radius: 12px !important;
+        padding: 26px 22px !important;
+        margin-bottom: 22px !important;
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
-      .hero p, .hero h1 {
-        color: #000000 !important;
+
+      .hero h1 {
+        color: #FFFFFF !important;
+        font-size: 24px !important;
+      }
+
+      .hero p {
+        color: #E8DCD1 !important;
+        font-size: 12.5px !important;
+      }
+
+      .card {
+        box-shadow: none !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 12px !important;
+        margin-bottom: 22px !important;
+        padding: 20px !important;
+        page-break-inside: auto;
+        break-inside: auto;
+      }
+
+      .card-header {
+        page-break-after: avoid;
+        break-after: avoid;
+      }
+
+      h2, h3, h4 {
+        page-break-after: avoid;
+        break-after: avoid;
+      }
+
+      .advantage-box,
+      .step-item,
+      .receipt-mockup,
+      .alert,
+      tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+
+      table.manual-table {
+        page-break-inside: auto;
+        break-inside: auto;
+      }
+
+      table.manual-table th {
+        background: var(--surface-subtle) !important;
+        color: var(--primary-darker) !important;
+      }
+
+      .code-container {
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
     }
   </style>
 </head>
+
 <body>
 
-<div class="app-container">
+  <div class="app-container">
 
-  <!-- HERO SECTION -->
-  <header class="hero">
-    <div class="hero-badges">
-      <span class="badge badge-gold">✨ Version 1.1.11 Officielle</span>
-      <span class="badge badge-gold">⚡ Local-First & 100% Offline-Proof</span>
-      <span class="badge badge-gold">🖨️ Ticket Thermique 80mm ESC/POS</span>
-    </div>
-    <h1>LMS Manjary Soa — Manuel Complet & Guide de Déploiement</h1>
-    <p>
-      Guide de référence technique et utilisateur pour le déploiement sur les postes du client, l'installation de l'imprimante ticket 80mm, et la maîtrise intégrale des modules de gestion scolaire et financière.
-    </p>
-  </header>
+    <!-- HERO SECTION -->
+    <header class="hero">
+      <div class="hero-badges">
+        <span class="badge badge-gold">✨ Version 1.1.11 Officielle</span>
+        <span class="badge badge-gold">⚡ Local-First & 100% Offline-Proof</span>
+        <span class="badge badge-gold">🖨️ Ticket Thermique 80mm ESC/POS</span>
+      </div>
+      <h1>LMS Manjary Soa — Manuel Complet & Guide de Déploiement</h1>
+      <p>
+        Guide de référence technique et utilisateur pour le déploiement sur les postes du client, l'installation de
+        l'imprimante ticket 80mm, et la maîtrise intégrale des modules de gestion scolaire et financière.
+      </p>
+    </header>
 
-  <!-- NAVIGATION -->
-  <nav class="nav-bar">
-    <a href="#avantages" class="nav-btn">⭐ 1. Normes & Avantages</a>
-    <a href="#installation" class="nav-btn">💻 2. Déploiement & Postes</a>
-    <a href="#imprimante" class="nav-btn">🖨️ 3. Imprimante POS-80</a>
-    <a href="#recus" class="nav-btn">🧾 4. Reçus & Duplicatas</a>
-    <a href="#modules-livres" class="nav-btn">📚 5. Modules Livrés (CDC & Av. 1-2)</a>
-    <a href="#bonus-offerts" class="nav-btn" style="background: rgba(206, 171, 147, 0.25); color: var(--primary-darker); font-weight: 700;">💎 6. Bonus & Valeur Offerte</a>
-    <a href="#avenant3" class="nav-btn" style="background: var(--primary-darker); color: #FFF;">💼 7. Avenant N°3 (Extension Caisse)</a>
-    <a href="#depannage-materiel" class="nav-btn">🛠️ 8. Dépannage & Fiches Pratiques</a>
-    <a href="#faq" class="nav-btn">❓ 9. FAQ Caissiers</a>
-  </nav>
+    <!-- NAVIGATION -->
+    <nav class="nav-bar">
+      <a href="#avantages" class="nav-btn">⭐ 1. Normes & Avantages</a>
+      <a href="#installation" class="nav-btn">💻 2. Déploiement & Postes</a>
+      <a href="#imprimante" class="nav-btn">🖨️ 3. Imprimante POS-80</a>
+      <a href="#recus" class="nav-btn">🧾 4. Reçus & Duplicatas</a>
+      <a href="#modules-livres" class="nav-btn">📚 5. Modules Livrés (CDC & Av. 1-2)</a>
+      <a href="#bonus-offerts" class="nav-btn"
+        style="background: rgba(206, 171, 147, 0.25); color: var(--primary-darker); font-weight: 700;">💎 6. Bonus &
+        Valeur Offerte</a>
+      <a href="#avenant3" class="nav-btn" style="background: var(--primary-darker); color: #FFF;">💼 7. Avenant N°3
+        (Extension Caisse)</a>
+      <a href="#depannage-materiel" class="nav-btn">🛠️ 8. Dépannage & Fiches Pratiques</a>
+      <a href="#faq" class="nav-btn">❓ 9. FAQ Caissiers</a>
+    </nav>
 
-  <!-- SECTION 1: AVANTAGES & NORMES D'INDUSTRIE -->
-<section id="avantages" class="card">
-    <div class="card-header">
-      <h2 class="card-title">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-        1. Pourquoi Notre Solution est Supérieure : Normes & Avantages Clients
-      </h2>
-    </div>
-
-    <p style="margin-bottom: 20px;">
-      Le LMS Manjary Soa a été conçu selon les standards les plus stricts de l'industrie logicielle pour les établissements d'enseignement et les caisses décentralisées :
-    </p>
-
-    <div class="grid-2">
-      <div class="advantage-box">
-        <h4>⚡ Architecture Local-First (100% Fonctionnel Sans Internet)</h4>
-        <p>
-          Contrairement aux logiciels purement web qui deviennent inutilisables dès que la connexion 4G/Fibre coupe, le LMS s'exécute sur le moteur SQLite local à 0 ms de latence. Les caissiers encaissent sans aucun ralentissement.
-        </p>
+    <!-- SECTION 1: AVANTAGES & NORMES D'INDUSTRIE -->
+    <section id="avantages" class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon
+              points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
+            </polygon>
+          </svg>
+          1. Pourquoi Notre Solution est Supérieure : Normes & Avantages Clients
+        </h2>
       </div>
 
-      <div class="advantage-box">
-        <h4>🛡️ Standard Caisse Multi-Postes Anti-Conflit</h4>
-        <p>
-          Chaque ordinateur possède son propre identifiant de poste (<code>C1</code>, <code>C2</code>...). Deux caissiers déconnectés d'Internet peuvent encaisser en même temps sans jamais créer de doublon de reçu.
-        </p>
+      <p style="margin-bottom: 20px;">
+        Le LMS Manjary Soa a été conçu selon les standards les plus stricts de l'industrie logicielle pour les
+        établissements d'enseignement et les caisses décentralisées :
+      </p>
+
+      <div class="grid-2">
+        <div class="advantage-box">
+          <h4>⚡ Architecture Local-First (100% Fonctionnel Sans Internet)</h4>
+          <p>
+            Contrairement aux logiciels purement web qui deviennent inutilisables dès que la connexion 4G/Fibre coupe,
+            le LMS s'exécute sur le moteur SQLite local à 0 ms de latence. Les caissiers encaissent sans aucun
+            ralentissement.
+          </p>
+        </div>
+
+        <div class="advantage-box">
+          <h4>🛡️ Standard Caisse Multi-Postes Anti-Conflit</h4>
+          <p>
+            Chaque ordinateur possède son propre identifiant de poste (<code>C1</code>, <code>C2</code>...). Deux
+            caissiers déconnectés d'Internet peuvent encaisser en même temps sans jamais créer de doublon de reçu.
+          </p>
+        </div>
+
+        <div class="advantage-box">
+          <h4>⚖️ Norme Comptable & Régulation Anti-Fraude (Duplicatas)</h4>
+          <p>
+            Impossible de sortir un faux reçu en cachette. Le premier tirage est certifié <strong>ORIGINAL</strong>, et
+            toute réimpression ultérieure est automatiquement estampillée <strong>DUPLICATA N° X</strong> avec date,
+            heure et nom de l'opérateur.
+          </p>
+        </div>
+
+        <div class="advantage-box">
+          <h4>🔄 Synchronisation Asynchrone Sécurisée (Cloud Supabase)</h4>
+          <p>
+            Dès que la connexion Internet est détectée, le logiciel synchronise silencieusement en arrière-plan toutes
+            les données vers la base Cloud de l'administration sans perturber le travail de l'utilisateur.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: GUIDE D'INSTALLATION SUR LE PC DU CLIENT -->
+    <section id="installation" class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+            <line x1="8" y1="21" x2="16" y2="21"></line>
+            <line x1="12" y1="17" x2="12" y2="21"></line>
+          </svg>
+          2. Déploiement & Installation sur les Postes du Client
+        </h2>
+        <span class="badge badge-success">Prêt pour Production</span>
       </div>
 
-      <div class="advantage-box">
-        <h4>⚖️ Norme Comptable & Régulation Anti-Fraude (Duplicatas)</h4>
-        <p>
-          Impossible de sortir un faux reçu en cachette. Le premier tirage est certifié <strong>ORIGINAL</strong>, et toute réimpression ultérieure est automatiquement estampillée <strong>DUPLICATA N° X</strong> avec date, heure et nom de l'opérateur.
-        </p>
+      <div class="step-list">
+        <div class="step-item">
+          <h4>Téléchargement de l'Installateur Officiel (Setup v1.1.11)</h4>
+          <p>
+            Copiez le fichier d'installation <strong><code>lms-1.1.11-setup.exe</code></strong> (disponible sur la clé
+            USB ou dans le dossier <code>dist/</code>) sur l'ordinateur du client.
+          </p>
+        </div>
+
+        <div class="step-item">
+          <h4>Exécution de l'Installation Windows</h4>
+          <p>
+            Double-cliquez sur <code>lms-1.1.11-setup.exe</code>. L'assistant d'installation NSIS configure
+            automatiquement l'application, crée le raccourci sur le Bureau et initialise l'environnement sécurisé sans
+            nécessiter d'accès internet pour l'installation locale.
+          </p>
+        </div>
+
+        <div class="step-item">
+          <h4>Configuration du Code Caisse (Multi-Postes Indépendants)</h4>
+          <p>
+            Ouvrez le logiciel LMS, rendez-vous dans la page <strong>Paramètres</strong> $\rightarrow$ section
+            <em>"Imprimante Thermique & Poste de Caisse"</em> :
+            <br>• <strong>Ordinateur Direction</strong> : Sélectionnez <strong><code>Caisse C1</code></strong> (reçus
+            <code>REC-2026-C1-XXXXX</code>).
+            <br>• <strong>Ordinateur Secrétaire / Comptable 1</strong> : Sélectionnez
+            <strong><code>Caisse C2</code></strong> (reçus <code>REC-2026-C2-XXXXX</code>).
+            <br>• <strong>Ordinateur Secrétaire / Comptable 2</strong> : Sélectionnez
+            <strong><code>Caisse C3</code></strong> (reçus <code>REC-2026-C3-XXXXX</code>).
+            <br>• <em>Note PC Développeur / Test :</em> Vous pouvez tester sur n'importe quel code (C1, C2 ou DEV). Ce
+            paramètre est <strong>strictement local à chaque machine</strong> et n'écrase jamais les postes du client
+            lors des synchronisations cloud !
+            <br>Cliquez sur <em>"Enregistrer les Réglages"</em>.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: CONFIGURATION DE L'IMPRIMANTE THERMIQUE -->
+    <section id="imprimante" class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 6 2 18 2 18 9"></polyline>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+            <rect x="6" y="14" width="12" height="8"></rect>
+          </svg>
+          3. Initialisation & Pilote de l'Imprimante Thermique (Xprinter POS-80)
+        </h2>
       </div>
 
-      <div class="advantage-box">
-        <h4>🔄 Synchronisation Asynchrone Sécurisée (Cloud Supabase)</h4>
-        <p>
-          Dès que la connexion Internet est détectée, le logiciel synchronise silencieusement en arrière-plan toutes les données vers la base Cloud de l'administration sans perturber le travail de l'utilisateur.
-        </p>
-      </div>
-    </div>
-  </section>
+      <p style="margin-bottom: 16px;">
+        Pour que l'imprimante thermique 80 mm imprime à la vitesse maximale avec le massicot (coupe automatique) et sans
+        caractères chinois sur les accents français, deux méthodes simples sont à votre disposition :
+      </p>
 
-  <!-- SECTION 2: GUIDE D'INSTALLATION SUR LE PC DU CLIENT -->
-<section id="installation" class="card">
-    <div class="card-header">
-      <h2 class="card-title">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-        2. Déploiement & Installation sur les Postes du Client
-      </h2>
-      <span class="badge badge-success">Prêt pour Production</span>
-    </div>
-
-    <div class="step-list">
-      <div class="step-item">
-        <h4>Téléchargement de l'Installateur Officiel (Setup v1.1.11)</h4>
-        <p>
-          Copiez le fichier d'installation <strong><code>lms-1.1.11-setup.exe</code></strong> (disponible sur la clé USB ou dans le dossier <code>dist/</code>) sur l'ordinateur du client.
-        </p>
+      <div class="alert alert-info">
+        <strong>✨ Nouveauté v1.1.1 (Option intégrée) :</strong> L'administrateur peut désormais initialiser ou réparer
+        la connexion de l'imprimante thermique directement en 1 clic depuis l'application, avec détection automatique de
+        l'état actuel.
       </div>
 
-      <div class="step-item">
-        <h4>Exécution de l'Installation Windows</h4>
-        <p>
-          Double-cliquez sur <code>lms-1.1.11-setup.exe</code>. L'assistant d'installation NSIS configure automatiquement l'application, crée le raccourci sur le Bureau et initialise l'environnement sécurisé sans nécessiter d'accès internet pour l'installation locale.
-        </p>
+      <div class="step-list">
+        <div class="step-item">
+          <h4>Étape 1 : Branchement physique</h4>
+          <p>Branchez le câble USB de l'imprimante sur le PC, insérez le rouleau de papier thermique 80 mm (face
+            thermique vers la tête) et allumez l'imprimante.</p>
+        </div>
+
+        <div class="step-item">
+          <h4>Étape 2 (Méthode Recommandée) : Initialisation en 1 clic depuis le LMS</h4>
+          <p>
+            Connectez-vous en tant qu'<strong>Administrateur</strong>, ouvrez la page <strong>Paramètres</strong>
+            $\rightarrow$ section <em>"Imprimante Thermique"</em> :
+            <br>• Si l'imprimante n'est pas configurée : Cliquez sur <strong>"Initialiser l'imprimante POS-80
+              (Automatique)"</strong>.
+            <br>• Si elle est déjà installée : Un badge vert indique qu'elle est prête. En cas de changement de prise
+            USB, un bouton <strong>"Réinitialiser / Réparer"</strong> réaffecte automatiquement le bon port USB.
+            <br>• Confirmez l'autorisation administrateur Windows (UAC) lorsqu'elle s'affiche.
+          </p>
+        </div>
+
+        <div class="step-item">
+          <h4>Étape 2 bis (Méthode Manuelle Alternative) : Via le script autonome</h4>
+          <p>
+            Faites un <strong>clic droit</strong> sur le fichier <code>installer-xprinter.bat</code> situé dans
+            <code>tools/printer/</code> et choisissez <strong>"Exécuter en tant qu'administrateur"</strong>. Le script
+            vérifie l'état actuel et configure le pilote générique.
+          </p>
+        </div>
+
+        <div class="step-item">
+          <h4>Étape 3 : Test d'impression</h4>
+          <p>
+            Dans la section <em>"Imprimante Thermique"</em> des Paramètres, cliquez sur <strong>"Tester l'impression
+              (Ticket Test)"</strong>. Un ticket test avec le logo du Lycée, les accents français nets et la découpe
+            massicot sort immédiatement.
+          </p>
+        </div>
       </div>
 
-      <div class="step-item">
-        <h4>Configuration du Code Caisse (Multi-Postes Indépendants)</h4>
-        <p>
-          Ouvrez le logiciel LMS, rendez-vous dans la page <strong>Paramètres</strong> $\rightarrow$ section <em>"Imprimante Thermique & Poste de Caisse"</em> :
-          <br>• <strong>Ordinateur Direction</strong> : Sélectionnez <strong><code>Caisse C1</code></strong> (reçus <code>REC-2026-C1-XXXXX</code>).
-          <br>• <strong>Ordinateur Secrétaire / Comptable 1</strong> : Sélectionnez <strong><code>Caisse C2</code></strong> (reçus <code>REC-2026-C2-XXXXX</code>).
-          <br>• <strong>Ordinateur Secrétaire / Comptable 2</strong> : Sélectionnez <strong><code>Caisse C3</code></strong> (reçus <code>REC-2026-C3-XXXXX</code>).
-          <br>• <em>Note PC Développeur / Test :</em> Vous pouvez tester sur n'importe quel code (C1, C2 ou DEV). Ce paramètre est <strong>strictement local à chaque machine</strong> et n'écrase jamais les postes du client lors des synchronisations cloud !
-          <br>Cliquez sur <em>"Enregistrer les Réglages"</em>.
-        </p>
-      </div>
-    </div>
-  </section>
-
-  <!-- SECTION 3: CONFIGURATION DE L'IMPRIMANTE THERMIQUE -->
-<section id="imprimante" class="card">
-    <div class="card-header">
-      <h2 class="card-title">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-        3. Initialisation & Pilote de l'Imprimante Thermique (Xprinter POS-80)
-      </h2>
-    </div>
-
-    <p style="margin-bottom: 16px;">
-      Pour que l'imprimante thermique 80 mm imprime à la vitesse maximale avec le massicot (coupe automatique) et sans caractères chinois sur les accents français, deux méthodes simples sont à votre disposition :
-    </p>
-
-    <div class="alert alert-info">
-      <strong>✨ Nouveauté v1.1.1 (Option intégrée) :</strong> L'administrateur peut désormais initialiser ou réparer la connexion de l'imprimante thermique directement en 1 clic depuis l'application, avec détection automatique de l'état actuel.
-    </div>
-
-    <div class="step-list">
-      <div class="step-item">
-        <h4>Étape 1 : Branchement physique</h4>
-        <p>Branchez le câble USB de l'imprimante sur le PC, insérez le rouleau de papier thermique 80 mm (face thermique vers la tête) et allumez l'imprimante.</p>
-      </div>
-
-      <div class="step-item">
-        <h4>Étape 2 (Méthode Recommandée) : Initialisation en 1 clic depuis le LMS</h4>
-        <p>
-          Connectez-vous en tant qu'<strong>Administrateur</strong>, ouvrez la page <strong>Paramètres</strong> $\rightarrow$ section <em>"Imprimante Thermique"</em> :
-          <br>• Si l'imprimante n'est pas configurée : Cliquez sur <strong>"Initialiser l'imprimante POS-80 (Automatique)"</strong>.
-          <br>• Si elle est déjà installée : Un badge vert indique qu'elle est prête. En cas de changement de prise USB, un bouton <strong>"Réinitialiser / Réparer"</strong> réaffecte automatiquement le bon port USB.
-          <br>• Confirmez l'autorisation administrateur Windows (UAC) lorsqu'elle s'affiche.
-        </p>
-      </div>
-
-      <div class="step-item">
-        <h4>Étape 2 bis (Méthode Manuelle Alternative) : Via le script autonome</h4>
-        <p>
-          Faites un <strong>clic droit</strong> sur le fichier <code>installer-xprinter.bat</code> situé dans <code>tools/printer/</code> et choisissez <strong>"Exécuter en tant qu'administrateur"</strong>. Le script vérifie l'état actuel et configure le pilote générique.
-        </p>
-      </div>
-
-      <div class="step-item">
-        <h4>Étape 3 : Test d'impression</h4>
-        <p>
-          Dans la section <em>"Imprimante Thermique"</em> des Paramètres, cliquez sur <strong>"Tester l'impression (Ticket Test)"</strong>. Un ticket test avec le logo du Lycée, les accents français nets et la découpe massicot sort immédiatement.
-        </p>
-      </div>
-    </div>
-
-    <div class="code-container">
-      <div class="code-header">
-        <span>Script d'installation autonome (installer-xprinter.ps1)</span>
-        <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('psScript').innerText); alert('Script copié !');">Copier</button>
-      </div>
-      <pre id="psScript"># Configuration de l'imprimante POS-80 avec pilote Generique Texte
+      <div class="code-container">
+        <div class="code-header">
+          <span>Script d'installation autonome (installer-xprinter.ps1)</span>
+          <button class="copy-btn"
+            onclick="navigator.clipboard.writeText(document.getElementById('psScript').innerText); alert('Script copié !');">Copier</button>
+        </div>
+        <pre id="psScript"># Configuration de l'imprimante POS-80 avec pilote Generique Texte
 Add-PrinterDriver -Name "Generic / Text Only" -ErrorAction SilentlyContinue
 $port = (Get-CimInstance Win32_PnPEntity | Where-Object { $_.Service -eq "usbprint" }).DeviceID ? "USB001" : "USB001"
 Add-Printer -Name "POS-80" -DriverName "Generic / Text Only" -PortName "USB001" -ErrorAction SilentlyContinue
 Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
-    </div>
-  </section>
-
-  <!-- SECTION 4: STANDARD DES REÇUS, DOUBLE EXEMPLAIRE & DUPLICATAS -->
-<section id="recus" class="card">
-    <div class="card-header">
-      <h2 class="card-title">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-        4. Standard des Reçus, Double Exemplaire & Duplicatas
-      </h2>
-    </div>
-
-    <div class="grid-2">
-      <div>
-        <h3 style="color: var(--primary-darker); margin-bottom: 12px; font-size: 18px;">Règles de Gestion des Reçus :</h3>
-        <ul style="list-style-type: disc; margin-left: 20px; line-height: 1.8; color: var(--text);">
-          <li><strong>Double Exemplaire Automatique</strong> : Chaque encaissement sort 2 tickets découpés automatiquement :
-            <br>1️⃣ <em>Exemplaire Parent / Élève</em> (pour la famille).
-            <br>2️⃣ <em>Exemplaire Établissement / Caisse</em> (à placer dans le tiroir-caisse pour le contrôle du soir).
-          </li>
-          <li><strong>Reçu Groupé Multi-Désignations</strong> : Si un parent paie par exemple l'inscription (145 000 Ar) + la FRAM (15 000 Ar) + l'écolage (40 000 Ar), le logiciel regroupe tout sur <strong>un seul ticket clair de 200 000 Ar</strong>.</li>
-          <li><strong>Sécurité Anti-Fraude</strong> : Si le caissier réimprime un reçu déjà édité, le mot <strong>DUPLICATA N° X</strong> s'affiche en grand avec le nom de l'opérateur et l'heure exacte.</li>
-        </ul>
       </div>
+    </section>
 
-      <!-- VISUAL RECEIPT PREVIEW -->
-      <div>
-        <div class="receipt-mockup">
-          <div class="receipt-center" style="font-weight: 800; font-size: 14px;">LYCÉE PRIVÉ MANJARY SOA</div>
-          <div class="receipt-center" style="font-size: 11px;">Lot H 81 Miadana Alasora</div>
-          <div class="receipt-center" style="font-size: 11px;">Antananarivo, Madagascar</div>
-          <div class="receipt-double-divider"></div>
-          <div class="receipt-center" style="font-weight: 700;">*** REÇU — EXEMPLAIRE PARENT ***</div>
-          <div class="receipt-double-divider"></div>
-          <div class="receipt-row"><span>N° Reçu  :</span><strong>REC-2026-C1-00062</strong></div>
-          <div class="receipt-row"><span>Date     :</span><span>02/09/2026 à 09:30</span></div>
-          <div class="receipt-row"><span>Caissier :</span><span>Administrateur</span></div>
-          <div class="receipt-divider"></div>
-          <div>Élève    : RAZAFY Hery</div>
-          <div class="receipt-row"><span>Matr. : 26-0012</span><span>Classe: Seconde A</span></div>
-          <div class="receipt-divider"></div>
-          <div class="receipt-row"><strong>DÉSIGNATION</strong><strong>MONTANT</strong></div>
-          <div class="receipt-divider"></div>
-          <div class="receipt-row"><span>Droit d'inscription</span><span>145 000 Ar</span></div>
-          <div class="receipt-row"><span>Cotisation FRAM</span><span>15 000 Ar</span></div>
-          <div class="receipt-row"><span>Écolage (2026-09)</span><span>40 000 Ar</span></div>
-          <div class="receipt-divider"></div>
-          <div class="receipt-row"><span>Règlement :</span><span>Espèces</span></div>
-          <div class="receipt-double-divider"></div>
-          <div class="receipt-total">TOTAL ENCAISSÉ : 200 000 Ar</div>
-          <div class="receipt-double-divider"></div>
-          <div class="receipt-center" style="font-size: 10px; margin-top: 10px;">Conservez ce reçu pour tout contrôle.</div>
-          <div style="text-align: right; margin-top: 12px; font-size: 11px;">Cachet & Signature Caisse :</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- SECTION 5: RÉFÉRENTIEL DES MODULES LIVRÉS (CDC BASE, AVENANT 1 & 2) -->
-  <section id="modules-livres" class="card">
-    <div class="card-header">
-      <h2 class="card-title">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
-        5. Référentiel des Fonctionnalités Livrées (CDC de Base, Avenant 1 & Avenant 2)
-      </h2>
-      <span class="badge badge-success">Conforme & Opérationnel</span>
-    </div>
-
-    <p style="margin-bottom: 20px; font-size: 15px;">
-      Ce référentiel détaille de manière rigoureuse et transparente l'ensemble des modules actuellement déployés sur vos postes, en distinguant précisément <strong>le socle contractuel convenu lors des entrevues</strong> et les <strong>innovations et bonus techniques offerts sans surcoût</strong> :
-    </p>
-
-    <!-- SOUS-SECTION 5.1 : CDC DE BASE -->
-    <div style="background: var(--surface-subtle); border-left: 4px solid var(--primary); padding: 18px 22px; border-radius: 10px; margin-bottom: 22px;">
-      <h3 style="font-size: 17px; font-weight: 800; color: var(--primary-darker); margin-bottom: 6px;">
-        5.1 Le Socle Métier Initial (Cahier des Charges de Base Convenu)
-      </h3>
-      <p style="font-size: 13.5px; color: var(--text-muted); line-height: 1.6; margin: 0;">
-        Conformément aux entrevues de cadrage, l'intégralité des besoins fondamentaux de la scolarité et de la trésorerie est en place :
-      </p>
-    </div>
-
-    <table class="manual-table" style="margin-bottom: 28px;">
-      <thead>
-        <tr>
-          <th style="width: 18%;">Module Métier</th>
-          <th style="width: 36%;">Fonctionnalités Attendues (CDC Initial Convenu)</th>
-          <th style="width: 26%;">Bonus & Gestes Techniques Offerts</th>
-          <th style="width: 20%;">Bonnes Pratiques Caissier</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><strong>👨‍🎓 1. Élèves & Fratries</strong></td>
-          <td>
-            • Fiche complète de l'élève (état civil, matricule auto, photo, contacts parents).<br>
-            • Inscription directe (Nouveau) ou Réinscription (Ancien).<br>
-            • <strong>Gestion intégrale de la Fratrie bidirectionnelle</strong> et calcul de la réduction/exonération FRAM pour le 2e enfant (respect strict de la convention initiale).<br>
-            • Auto-provisioning des grilles tarifaires annuelles.
-          </td>
-          <td>
-            <span class="badge badge-success">✨ Offert</span> <strong>Gestion des départs :</strong> Signalement des abandons/départs en cours d'année avec gel comptable.<br>
-            <span class="badge badge-success">✨ Offert</span> <strong>Export modulaire :</strong> Extraction ciblée Excel/CSV multi-colonnes.
-          </td>
-          <td>
-            Vérifier le statut (Nouveau vs Ancien) pour appliquer le barème exact (145 000 Ar vs 115 000 Ar).
-          </td>
-        </tr>
-        <tr>
-          <td><strong>💰 2. Suivi Financier & Caisse</strong></td>
-          <td>
-            • Échéancier de scolarité mois par mois (11 mois, 15 niveaux).<br>
-            • Encaissement express des frais de scolarité, droits, uniformes et bus.<br>
-            • Suivi précis des règlements (Espèces, Chèques, Virement, Mobile Money).<br>
-            • Historique complet des transactions par élève.
-          </td>
-          <td>
-            <span class="badge badge-success">✨ Offert</span> <strong>Reçu Groupé Multi-Sélection :</strong> Impression d'un seul ticket thermique pour plusieurs mois ou rubriques, divisant par deux la consommation de papier.
-          </td>
-          <td>
-            Cocher plusieurs mois sur un seul reçu pour économiser le papier thermique.
-          </td>
-        </tr>
-        <tr>
-          <td><strong>📖 3. Journal de Caisse Général</strong></td>
-          <td>
-            • Vue unifiée de l'ensemble des entrées et sorties de trésorerie de l'établissement.<br>
-            • Filtres par date (Aujourd'hui, Semaine, Mois, Année) et par département (Élève, Bus, École).<br>
-            • Calcul en direct du solde général et indicateurs de recettes/dépenses.
-          </td>
-          <td>
-            <span class="badge badge-success">✨ Offert</span> <strong>Synchronisation Salaires auto :</strong> Intégration immédiate des salaires payés dans les dépenses de caisse.<br>
-            <span class="badge badge-success">✨ Offert</span> <strong>Audit visuel :</strong> Consultation instantanée de la fiche de tirage en 1 clic.
-          </td>
-          <td>
-            Comparer en fin de journée le total général des encaissements avec les billets physiques du tiroir.
-          </td>
-        </tr>
-        <tr>
-          <td><strong>🚌 4. Transport & Cantine</strong></td>
-          <td>
-            • Inscription aux services de bus par axe géographique (Ambodivodava B, Tsilazaina...) et cantine.<br>
-            • <strong>Pointage journalier interactif</strong> et comptabilisation des présences effectives.<br>
-            • Suivi automatique des mensualités et soldes débiteurs.
-          </td>
-          <td>
-            <span class="badge badge-success">✨ Offert</span> <strong>Facturation dynamique :</strong> Prise en compte souple des présences réelles sans forfait rigide imposé.
-          </td>
-          <td>
-            Pointer régulièrement la cantine et le bus pour fiabiliser le décompte mensuel.
-          </td>
-        </tr>
-        <tr>
-          <td><strong>👥 5. Personnel & Salaires</strong></td>
-          <td>
-            • Registre complet des employés (enseignants, administratifs).<br>
-            • Pointage des présences, retards et absences justifiées/injustifiées.<br>
-            • Calcul des cotisations légales malgaches : CNAPS (1%), OSTIE (1%), IRSA.<br>
-            • Édition des fiches de paie officielles en PDF.
-          </td>
-          <td>
-            <span class="badge badge-success">✨ Offert</span> <strong>Début de paie (Exercice AAAA-MM) :</strong> Verrou temporel mensuel évitant la génération d'arriérés fictifs.<br>
-            <span class="badge badge-success">✨ Offert</span> <strong>Gestion des acomptes & déductions libres</strong>.
-          </td>
-          <td>
-            Définir le début d'exercice lors de l'embauche pour cadrer l'historique financier de chaque employé.
-          </td>
-        </tr>
-        <tr>
-          <td><strong>📊 6. Notes & Bulletins</strong></td>
-          <td>
-            • Saisie ergonomique des notes par matière et coefficient.<br>
-            • Barème adapté par cycle : Maternelle, Primaire, Collège, Lycée.<br>
-            • Calcul automatique des moyennes trimestrielles et rangs.<br>
-            • Génération officielle des bulletins scolaires en PDF du Lycée.
-          </td>
-          <td>
-            <span class="badge badge-success">✨ Offert</span> <strong>Types d'examens dynamiques :</strong> Gestion personnalisée des évaluations (journalières, trimestrielles, blanc).
-          </td>
-          <td>
-            Vérifier que les coefficients sont paramétrés avant le tirage final des bulletins.
-          </td>
-        </tr>
-        <tr>
-          <td><strong>📜 7. Documents Officiels</strong></td>
-          <td>
-            • Édition instantanée des certificats de scolarité avec logo du lycée, photo élève et adresse légale <em>Lot H 81 Miadana Alasora</em>.
-          </td>
-          <td>
-            <span class="badge badge-success">✨ Offert</span> Téléchargeable en PDF A4 ou imprimable directement en 1 clic.
-          </td>
-          <td>
-            Délivrer immédiatement les pièces administratives demandées par les parents sans délai.
-          </td>
-        </tr>
-        <tr>
-          <td><strong>📧 8. Bilan Quotidien par Email</strong></td>
-          <td>
-            • Transmission automatique du bilan de caisse journalier à la Directrice (<strong>christineanjarasoa36@gmail.com</strong>) à 18h00 du lundi au samedi.<br>
-            • Document PDF officiel certifié joint (<code>bilan_AAAA-MM-JJ.pdf</code>).
-          </td>
-          <td>
-            <span class="badge badge-success">✨ Offert</span> Bouton d'envoi immédiat du jour pour expédier le bilan à la demande.<br>
-            <span class="badge badge-success">✨ Offert</span> Nettoyage automatique des espaces du mot de passe d'application Google.
-          </td>
-          <td>
-            Laisser le PC principal allumé jusqu'à 18h05 ou déclencher l'envoi manuel avant de fermer.
-          </td>
-        </tr>
-      </tbody>
-    </table>
-
-    <!-- SOUS-SECTION 5.2 : AVENANT N°1 (RBAC) -->
-    <div style="background: var(--surface-subtle); border-left: 4px solid #0284C7; padding: 18px 22px; border-radius: 10px; margin-bottom: 22px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-        <h3 style="font-size: 17px; font-weight: 800; color: #0369A1; margin: 0;">
-          5.2 Avenant N°1 — Sécurisation des Accès & Matrice RBAC
-        </h3>
-        <span class="badge badge-gold">Avenant N°1 Exécuté</span>
-      </div>
-      <p style="font-size: 13.5px; color: var(--text-muted); line-height: 1.6; margin-top: 6px; margin-bottom: 0;">
-        Compartimentage strict des privilèges en 4 rôles opérationnels. La Direction dispose d'un <strong>ACCÈS TOTAL</strong> à tous les leviers métiers (Personnel, Notes, Cantine/Bus, Élèves, Caisse, Rapports) tout en préservant l'infrastructure technique :
-      </p>
-    </div>
-
-    <!-- MATRICE DES DROITS D'ACCÈS RBAC -->
-    <table class="manual-table" style="font-size: 13px; margin-bottom: 20px;">
-      <thead>
-        <tr>
-          <th>Module / Fonctionnalité</th>
-          <th style="text-align: center;">👑 Direction</th>
-          <th style="text-align: center;">📝 Secrétariat</th>
-          <th style="text-align: center;">💼 Comptabilité</th>
-          <th style="text-align: center;">⚙️ Administrateur</th>
-          <th>Périmètre & Justification Métier</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><strong>👥 Salaires & Personnel</strong></td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td style="text-align: center; color: var(--danger);">Aucun</td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td>La Direction gère les contrats, valide les acomptes et supervise la paie.</td>
-        </tr>
-        <tr>
-          <td><strong>📊 Notes & Bulletins</strong></td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td style="text-align: center; color: var(--danger);">Aucun</td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td>La Direction valide, rectifie et vise officiellement les bulletins scolaires.</td>
-        </tr>
-        <tr>
-          <td><strong>🚌 Transport (Bus) & Cantine</strong></td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td style="text-align: center; color: var(--info); font-weight: 600;">Lecture</td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td>Inscriptions directes, modifications et pointage des présences journalières.</td>
-        </tr>
-        <tr>
-          <td><strong>👨‍🎓 Fiches Élèves & Fratries</strong></td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td style="text-align: center; color: var(--info); font-weight: 600;">Lecture</td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td>Inscriptions, réinscriptions, suivi des familles et fratries.</td>
-        </tr>
-        <tr>
-          <td><strong>💰 Encaissements & Caisse 80mm</strong></td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td>Encaissements des frais de scolarité, droits, uniformes et tirage de reçus.</td>
-        </tr>
-        <tr>
-          <td><strong>📖 Journal de Caisse Général</strong></td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td style="text-align: center; color: var(--danger);">Aucun</td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td>Trésorerie consolidée de l'établissement (recettes et dépenses).</td>
-        </tr>
-        <tr>
-          <td><strong>📈 Rapports Financiers & Bilan</strong></td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td style="text-align: center; color: var(--danger);">Aucun</td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td>Suivi des impayés, bilans analytiques et exportations comptables.</td>
-        </tr>
-        <tr>
-          <td><strong>👁️ Journal d'Audit Système</strong></td>
-          <td style="text-align: center; color: var(--info); font-weight: 600;">Lecture (Contrôle)</td>
-          <td style="text-align: center; color: var(--danger);">Aucun</td>
-          <td style="text-align: center; color: var(--danger);">Aucun</td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td>Contrôle interne anti-fraude : traçabilité de qui a encaissé, imprimé ou modifié quoi.</td>
-        </tr>
-        <tr>
-          <td><strong>⚙️ Paramètres Système & BDD</strong></td>
-          <td style="text-align: center; color: var(--danger); font-weight: 700;">Masqué 🔒</td>
-          <td style="text-align: center; color: var(--danger);">Aucun</td>
-          <td style="text-align: center; color: var(--danger);">Aucun</td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td>Réservé IT (ports imprimantes, codes caisses C*, sauvegardes et reset BDD).</td>
-        </tr>
-        <tr>
-          <td><strong>🔑 Comptes Utilisateurs & Rôles</strong></td>
-          <td style="text-align: center; color: var(--danger); font-weight: 700;">Masqué 🔒</td>
-          <td style="text-align: center; color: var(--danger);">Aucun</td>
-          <td style="text-align: center; color: var(--danger);">Aucun</td>
-          <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
-          <td>Gouvernance informatique : création des comptes et attribution des rôles.</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div class="alert alert-info" style="margin-bottom: 28px;">
-      <strong>✨ Bonus Avenant N°1 Offert :</strong> Le <strong>Journal d'Audit Infalsifiable (AuditLogPage)</strong> a été intégré gracieusement pour permettre à la Direction de tracer chaque action (création, modification, impression de reçu) sans aucun risque de contestation.
-    </div>
-
-    <!-- SOUS-SECTION 5.3 : AVENANT N°2 (IMPRESSION POS-80) -->
-    <div style="background: var(--surface-subtle); border-left: 4px solid #16A34A; padding: 18px 22px; border-radius: 10px; margin-bottom: 22px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-        <h3 style="font-size: 17px; font-weight: 800; color: #15803D; margin: 0;">
-          5.3 Avenant N°2 — Matériel d'Encaissement & Impression Thermique 80mm
-        </h3>
-        <span class="badge badge-gold">Avenant N°2 Exécuté</span>
-      </div>
-      <p style="font-size: 13.5px; color: var(--text-muted); line-height: 1.6; margin-top: 6px; margin-bottom: 0;">
-        Intégration du pilote POS-80 pour tickets thermiques 80mm ESC/POS, double tirage automatique (Parent / Caisse) et numérotation séquentielle certifiée par station (<code>C1</code>, <code>C2</code>, <code>C3</code>) :
-      </p>
-    </div>
-
-    <div class="grid-2" style="margin-bottom: 16px;">
-      <div class="advantage-box">
-        <h4>🛡️ Bonus Offert : Régulation Anti-Fraude & Duplicatas Numérotés</h4>
-        <p>
-          Toute réimpression ultérieure d'un reçu porte automatiquement la mention légale infalsifiable <strong>DUPLICATA N° X</strong> avec date, heure et opérateur. Empêche la réutilisation frauduleuse de reçus.
-        </p>
-      </div>
-
-      <div class="advantage-box">
-        <h4>🔌 Bonus Offert : Auto-Détection de Port USB (Conflit Canon/Nicon)</h4>
-        <p>
-          Résout automatiquement en 1 clic les conflits d'imprimantes multiples sous Windows sans nécessiter l'intervention d'un technicien externe.
-        </p>
-      </div>
-
-      <div class="advantage-box">
-        <h4>🛑 Bonus Offert : Purge d'Urgence du Spooler d'Impression</h4>
-        <p>
-          Bouton d'arrêt d'urgence intégré purgeant instantanément la file d'attente Windows en cas de bourrage papier ou de câble débranché.
-        </p>
-      </div>
-
-      <div class="advantage-box">
-        <h4>⚖️ Bonus Offert : Module d'Arbitrage des Doublons Concurrents</h4>
-        <p>
-          Écran dédié de réconciliation permettant d'arbitrer les saisies concurrentes hors-ligne sans risque d'écrasement de données.
-        </p>
-      </div>
-    </div>
-  </section>
-
-  <!-- SECTION 6: SYNTHÈSE DES BONUS REMARQUABLES & VALEUR OFFERTE (SAS DE CONFIANCE) -->
-  <section id="bonus-offerts" class="card" style="border: 2px solid var(--accent); background: linear-gradient(180deg, #FAF7F4 0%, #FFFFFF 100%);">
-    <div class="card-header" style="border-bottom: 2px solid var(--border);">
-      <div>
-        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-          <span class="badge badge-gold">💎 Transparence & Esprit Partenaire</span>
-          <span class="badge badge-success">+1 200 000 Ar de Prestations Offertes</span>
-        </div>
-        <h2 class="card-title" style="color: var(--primary-darker); font-size: 22px;">
-          6. Synthèse des Innovations Offertes & de la Valeur Ajoutée Gratuite
+    <!-- SECTION 4: STANDARD DES REÇUS, DOUBLE EXEMPLAIRE & DUPLICATAS -->
+    <section id="recus" class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          4. Standard des Reçus, Double Exemplaire & Duplicatas
         </h2>
       </div>
-    </div>
 
-    <p style="font-size: 14.5px; color: var(--text); line-height: 1.7; margin-bottom: 20px;">
-      Afin de construire une relation de confiance durable et d'assurer le succès opérationnel immédiat du Lycée Manjary Soa, <strong>de nombreuses fonctionnalités d'envergure et des services d'ingénierie terrain ont déjà été pris en charge gracieusement</strong> à titre de geste commercial :
-    </p>
-
-    <!-- LES 6 GRANDS BONUS LOGICIELS -->
-    <h3 style="font-size: 16px; font-weight: 800; color: var(--primary-darker); margin-bottom: 12px;">
-      🎁 Les 6 Grands Piliers Logiciels Ajoutés en Geste Commercial
-    </h3>
-
-    <div class="grid-3" style="margin-bottom: 24px;">
-      <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 10px; padding: 16px; box-shadow: var(--shadow-sm);">
-        <div style="font-size: 12px; font-weight: 700; color: var(--success); text-transform: uppercase; margin-bottom: 4px;">Protection Juridique</div>
-        <h4 style="font-size: 15px; font-weight: 700; color: var(--primary-darker); margin-bottom: 6px;">1. Tampon Duplicata Anti-Fraude</h4>
-        <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
-          Marquage automatique indélébile <em>DUPLICATA N° X</em> avec horodatage et nom de l'opérateur pour bloquer toute falsification de caisse.
-        </p>
-      </div>
-
-      <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 10px; padding: 16px; box-shadow: var(--shadow-sm);">
-        <div style="font-size: 12px; font-weight: 700; color: var(--success); text-transform: uppercase; margin-bottom: 4px;">Économie Consommables</div>
-        <h4 style="font-size: 15px; font-weight: 700; color: var(--primary-darker); margin-bottom: 6px;">2. Reçu Groupé Multi-Sélection</h4>
-        <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
-          Possibilité d'imprimer plusieurs mois de scolarité sur un unique ticket 80 mm, divisant par deux le coût de papier thermique.
-        </p>
-      </div>
-
-      <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 10px; padding: 16px; box-shadow: var(--shadow-sm);">
-        <div style="font-size: 12px; font-weight: 700; color: var(--success); text-transform: uppercase; margin-bottom: 4px;">Contrôle Interne</div>
-        <h4 style="font-size: 15px; font-weight: 700; color: var(--primary-darker); margin-bottom: 6px;">3. Journal d'Audit Infalsifiable</h4>
-        <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
-          Écran dédié retraçant avec précision toutes les opérations de caisse et de modification pour régler immédiatement tout litige.
-        </p>
-      </div>
-
-      <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 10px; padding: 16px; box-shadow: var(--shadow-sm);">
-        <div style="font-size: 12px; font-weight: 700; color: var(--success); text-transform: uppercase; margin-bottom: 4px;">Régulation RH</div>
-        <h4 style="font-size: 15px; font-weight: 700; color: var(--primary-darker); margin-bottom: 6px;">4. Verrou Temporel Début de Paie</h4>
-        <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
-          Cadrage mensuel (AAAA-MM) empêchant la génération automatique d'arriérés fictifs pour les nouveaux enseignants embauchés.
-        </p>
-      </div>
-
-      <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 10px; padding: 16px; box-shadow: var(--shadow-sm);">
-        <div style="font-size: 12px; font-weight: 700; color: var(--success); text-transform: uppercase; margin-bottom: 4px;">Sérénité Direction</div>
-        <h4 style="font-size: 15px; font-weight: 700; color: var(--primary-darker); margin-bottom: 6px;">5. Bilan Quotidien Automatique 18h</h4>
-        <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
-          Envoi autonome chaque soir du PDF récapitulatif des recettes sur la boîte Gmail de la Direction sans intervention humaine.
-        </p>
-      </div>
-
-      <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 10px; padding: 16px; box-shadow: var(--shadow-sm);">
-        <div style="font-size: 12px; font-weight: 700; color: var(--success); text-transform: uppercase; margin-bottom: 4px;">Maintenance Invisible</div>
-        <h4 style="font-size: 15px; font-weight: 700; color: var(--primary-darker); margin-bottom: 6px;">6. Télémétrie Mouchard Cloud</h4>
-        <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
-          Remontée silencieuse de la santé des postes physiques vers le Cloud Supabase pour anticiper les pannes avant qu'elles ne bloquent la caisse.
-        </p>
-      </div>
-    </div>
-
-    <!-- SERVICES D'INGÉNIERIE MATÉRIELLE & TERRAIN OFFERTS -->
-    <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
-      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-        <span class="badge badge-gold" style="font-size: 12px;">🛠️ Assistance Terrain Offerte</span>
-        <h3 style="font-size: 16px; font-weight: 800; color: var(--primary-darker); margin: 0;">
-          Services d'Ingénierie, Conseil Matériel & Intégration Gratuite
-        </h3>
-      </div>
-      <p style="font-size: 13.5px; color: var(--text-muted); line-height: 1.6; margin-bottom: 14px;">
-        Au-delà du code informatique, nous avons pris en charge sans aucune facturation d'honoraires les aspects matériels et réseau essentiels :
-      </p>
-
-      <div class="grid-3">
-        <div style="background: var(--surface-subtle); border-radius: 8px; padding: 14px;">
-          <h4 style="font-size: 13.5px; font-weight: 700; color: var(--primary); margin-bottom: 6px;">🔍 Sourcing & Audit Imprimantes</h4>
-          <p style="font-size: 12px; color: var(--text-muted); line-height: 1.6; margin: 0;">
-            Recherche sur le marché d'Antananarivo, benchmark technique et sélection de modèles thermiques 80 mm durables pour supprimer les coûts d'encre de l'école.
-          </p>
-        </div>
-        <div style="background: var(--surface-subtle); border-radius: 8px; padding: 14px;">
-          <h4 style="font-size: 13.5px; font-weight: 700; color: var(--primary); margin-bottom: 6px;">🛰️ Conseil Réseau & Starlink</h4>
-          <p style="font-size: 12px; color: var(--text-muted); line-height: 1.6; margin: 0;">
-            Accompagnement à l'installation, dimensionnement du débit et topologie de synchronisation multi-postes pour fiabiliser la liaison satellite.
-          </p>
-        </div>
-        <div style="background: var(--surface-subtle); border-radius: 8px; padding: 14px;">
-          <h4 style="font-size: 13.5px; font-weight: 700; color: var(--primary); margin-bottom: 6px;">💻 Intégration Windows & Spooler</h4>
-          <p style="font-size: 12px; color: var(--text-muted); line-height: 1.6; margin: 0;">
-            Configuration des ports USB virtuels Windows, élimination des conflits pilotes et conception du script de maintenance d'urgence en 1 clic.
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- BILAN DE VALEUR ABSORBÉE -->
-    <div style="background: #F0FDF4; border-left: 4px solid var(--success); padding: 16px 20px; border-radius: 8px;">
-      <div style="font-size: 14.5px; font-weight: 700; color: #166534; margin-bottom: 4px;">
-        🤝 Bilan Partenaire : Plus de 1 200 000 Ar de Valeur Absorbée Gracieusement
-      </div>
-      <p style="font-size: 13.5px; color: #15803D; line-height: 1.6; margin: 0;">
-        Cette valeur ajoutée témoigne de notre volonté d'être bien plus qu'un prestataire : un véritable partenaire technique engagé aux côtés de l'équipe de Direction. C'est sur ce socle d'excellence et de confiance mutuelle que nous vous soumettons ci-après l'Avenant N°3 pour le rapprochement de caisse.
-      </p>
-    </div>
-  </section>
-
-  <!-- SECTION 7: PROPOSITION D'AVENANT N°3 -->
-  <section id="avenant3" class="card" style="border: 2px solid var(--primary); background: #FFFDFB;">
-    <div class="card-header" style="border-bottom: 2px solid var(--primary-light);">
-      <div>
-        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-          <span class="badge badge-gold">💼 Extension Optionnelle Hors Forfait</span>
-          <span class="badge badge-success">Audit & Contrôle Interne</span>
-        </div>
-        <h2 class="card-title" style="color: var(--primary-darker); font-size: 22px;">
-          7. Proposition d'Avenant N°3 — Module de Rapprochement de Caisse, Z de Caisse & Statistiques par Opérateur
-        </h2>
-      </div>
-    </div>
-
-    <p style="margin-bottom: 18px; font-size: 15px;">
-      Cette section formalise la proposition technique et financière relative à la demande récente du lycée concernant le <strong>filtrage des écritures de caisse par compte utilisateur / caissier</strong> et le <strong>suivi du volume de tickets traités</strong>.
-    </p>
-
-    <!-- 1. CONTEXTE TERRAIN -->
-    <div style="background: var(--surface-subtle); border-left: 4px solid var(--primary); padding: 16px 20px; border-radius: 8px; margin-bottom: 20px;">
-      <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin-bottom: 8px;">1. Contexte & Évolution Naturelle du Besoin Terrain</h3>
-      <p style="font-size: 14px; color: var(--text); line-height: 1.7; margin-bottom: 8px;">
-        Au lancement du projet (contrat initial LMS-2026-001 du 03 Février 2026), l'établissement envisageait une gestion financière centralisée sur un poste unique. Avec le déploiement opérationnel multi-postes (Avenant N°1 RBAC et Avenant N°2 Impression Thermique), <strong>deux à trois collaborateurs encaissent désormais simultanément</strong> (Bureau de la Direction sur Poste C1, Secrétariat sur Poste C2, Comptabilité sur Poste C3).
-      </p>
-      <p style="font-size: 14px; color: var(--text); line-height: 1.7;">
-        Cette organisation moderne fait naturellement émerger un besoin nouveau de <strong>contrôle interne et de checking physique de fin de journée</strong> : chaque soir à la clôture, la Direction et chaque caissier souhaitent pointer précisément le contenu du tiroir physique (espèces, chèques) en le comparant aux écritures saisies par ce compte spécifique.
-      </p>
-    </div>
-
-    <!-- 2. JUSTIFICATION CONTRACTUELLE -->
-    <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin-bottom: 10px;">2. Périmètre Contractuel Antérieur vs Nouvelle Demande</h3>
-    <p style="font-size: 13.5px; color: var(--text-muted); margin-bottom: 12px;">
-      Afin de préserver la parfaite clarté de nos engagements mutuels, voici le comparatif factuel entre les prestations déjà livrées et le présent besoin :
-    </p>
-
-    <table class="manual-table" style="margin-bottom: 20px;">
-      <thead>
-        <tr>
-          <th style="width: 28%;">Document Contractuel</th>
-          <th style="width: 42%;">Périmètre Convenu & Réalisé</th>
-          <th style="width: 30%;">Statut Vis-à-Vis de la Demande</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><strong>Contrat Initial LMS-2026-001</strong><br><em>(Pack Hybride 7 000 000 Ar)</em></td>
-          <td>
-            <strong>Journal de Caisse Général de l'Établissement</strong> : centralisation globale des recettes et dépenses (École, Bus), calcul du solde général, filtrage par dates et rubriques.
-          </td>
-          <td><span class="badge" style="background: #FEE2E2; color: #991B1B;">Non inclus</span> (vue globale établissement uniquement).</td>
-        </tr>
-        <tr>
-          <td><strong>Avenant N°1</strong><br><em>(Authentification & RBAC)</em></td>
-          <td>
-            <strong>Sécurisation des Accès</strong> : 4 rôles (Admin, Secrétariat, Comptabilité, Direction), sessions 60 min, permissions d'ouverture des modules (qui peut voir la finance).
-          </td>
-          <td><span class="badge" style="background: #FEE2E2; color: #991B1B;">Non inclus</span> (sécurité d'accès, pas de comptabilité analytique).</td>
-        </tr>
-        <tr>
-          <td><strong>Avenant N°2</strong><br><em>(Impression & Postes POS-80)</em></td>
-          <td>
-            <strong>Matériel & Numérotation Caisse</strong> : impression thermique 80mm ESC/POS, double tirage, préfixes de numéros de reçus isolés par poste (<code>C1</code>, <code>C2</code>) anti-doublon.
-          </td>
-          <td><span class="badge" style="background: #FEE2E2; color: #991B1B;">Non inclus</span> (format ticket, pas de ventilation comptable).</td>
-        </tr>
-        <tr style="background: #FFFBEB;">
-          <td><strong>Avenant N°3 (Proposé)</strong><br><em>(Module Rapprochement & Z de Caisse)</em></td>
-          <td>
-            <strong>Comptabilité Auxiliaire par Caissier</strong> : filtres dynamiques par compte opérateur, calcul des volumes de tickets traités, arrêt de caisse individuel et vérification de tiroir.
-          </td>
-          <td><span class="badge badge-gold">Objet du Présent Avenant</span></td>
-        </tr>
-      </tbody>
-    </table>
-
-    <!-- 3. FONCTIONNALITÉS PROPOSÉES -->
-    <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin-bottom: 12px;">3. Fonctionnalités Détaillées du Module de Rapprochement</h3>
-    <div class="grid-2" style="margin-bottom: 24px;">
-      <div class="advantage-box">
-        <h4>🎯 1. Filtre Dynamique par Opérateur & Code Poste</h4>
-        <p>
-          Ajout d'un sélecteur multi-critères dans le Journal Financier permettant d'isoler en 1 clic :
-          <br>• Tous les encaissements effectués par un collaborateur précis (ex: <em>Secrétaire 1</em>, <em>Comptable</em>).
-          <br>• Ou tous les flux traités sur une station physique déterminée (<em>Poste C1</em>, <em>Poste C2</em>, <em>Poste C3</em>).
-        </p>
-      </div>
-
-      <div class="advantage-box">
-        <h4>📊 2. Statistiques de Volumétrie & Nombre de Tickets</h4>
-        <p>
-          Indicateurs d'activité en temps réel pour chaque caisse :
-          <br>• Nombre total de tickets/paiements traités par jour, semaine, mois et année.
-          <br>• Panier moyen par transaction et répartition horaire de l'affluence au guichet.
-        </p>
-      </div>
-
-      <div class="advantage-box">
-        <h4>💵 3. Récolement & Billetage du Tiroir-Caisse (Pointage)</h4>
-        <p>
-          Ventilation instantanée des encaissements de l'opérateur par mode de règlement :
-          <br>• <strong>Total Espèces</strong> (à confronter directement avec les billets physiques du tiroir).
-          <br>• <strong>Total Chèques</strong> (avec liste des numéros de chèques remis).
-          <br>• <strong>Total Mobile Money / Virement</strong>.
-        </p>
-      </div>
-
-      <div class="advantage-box">
-        <h4>📜 4. Fiche / Ticket « Z de Clôture de Caisse »</h4>
-        <p>
-          Génération en 1 clic en fin de service du récapitulatif de clôture :
-          <br>• Impression automatique sur ticket thermique 80 mm ou export PDF A4 certifié.
-          <br>• Encadré pour visa contradictoire : signature du caissier et émargement de la Direction.
-        </p>
-      </div>
-    </div>
-
-    <!-- 4. TARIFICATION & MODALITÉS -->
-    <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin-bottom: 10px;">4. Devis Forfaitaire & Tarifs Justes et Équilibrés</h3>
-    <p style="font-size: 13.5px; color: var(--text-muted); margin-bottom: 14px;">
-      Compte tenu des fondations techniques déjà solides en place dans le logiciel (Avenant N°1 RBAC et Avenant N°2 Impression), la tarification a été strictement calculée au plus juste du travail d'adaptation restant, dans un esprit de transparence et de partenariat équitable pour les deux parties :
-    </p>
-
-    <div class="grid-2" style="margin-bottom: 24px;">
-      <!-- FORMULE 1 -->
-      <div style="background: #FFFFFF; border: 2px solid var(--border); border-radius: 12px; padding: 22px; display: flex; flex-direction: column; justify-content: space-between;">
+      <div class="grid-2">
         <div>
-          <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--primary-dark); margin-bottom: 6px;">Formule 1 — Extension Opérationnelle</div>
-          <h4 style="font-size: 18px; font-weight: 800; color: var(--primary-darker); margin-bottom: 8px;">Filtres Caissiers & Comptage de Tickets</h4>
-          <div style="font-size: 24px; font-weight: 800; color: var(--primary); margin-bottom: 14px;">300 000 Ar</div>
-          
-          <ul style="font-size: 13.5px; color: var(--text); line-height: 1.8; margin-left: 18px; margin-bottom: 16px;">
-            <li>Sélecteur d'opérateur / caissier dans le Journal Financier.</li>
-            <li>Filtre par code station physique (Poste C1, Poste C2, Poste C3).</li>
-            <li>Compteur dynamique du nombre total de tickets traités (jour/semaine/mois).</li>
-            <li>Sous-total des encaissements par caissier et par mode de règlement.</li>
-            <li>Délai de réalisation : <strong>1 à 2 jours</strong>.</li>
+          <h3 style="color: var(--primary-darker); margin-bottom: 12px; font-size: 18px;">Règles de Gestion des Reçus :
+          </h3>
+          <ul style="list-style-type: disc; margin-left: 20px; line-height: 1.8; color: var(--text);">
+            <li><strong>Double Exemplaire Automatique</strong> : Chaque encaissement sort 2 tickets découpés
+              automatiquement :
+              <br>1️⃣ <em>Exemplaire Parent / Élève</em> (pour la famille).
+              <br>2️⃣ <em>Exemplaire Établissement / Caisse</em> (à placer dans le tiroir-caisse pour le contrôle du
+              soir).
+            </li>
+            <li><strong>Reçu Groupé Multi-Désignations</strong> : Si un parent paie par exemple l'inscription (145 000
+              Ar) + la FRAM (15 000 Ar) + l'écolage (40 000 Ar), le logiciel regroupe tout sur <strong>un seul ticket
+                clair de 200 000 Ar</strong>.</li>
+            <li><strong>Sécurité Anti-Fraude</strong> : Si le caissier réimprime un reçu déjà édité, le mot
+              <strong>DUPLICATA N° X</strong> s'affiche en grand avec le nom de l'opérateur et l'heure exacte.</li>
           </ul>
+        </div>
 
-          <div style="background: #F8FAFC; border-left: 3px solid #64748B; padding: 10px 12px; border-radius: 6px; font-size: 12.5px; color: #334155; margin-top: 10px;">
-            <strong>🎯 Argument Clé (Clarté Quotidienne) :</strong><br>
-            Permet à chaque collaborateur (secrétariat, comptabilité) de connaître instantanément son total du jour et son volume de tickets sans mélanger ses chiffres avec les autres bureaux. Idéal pour un pointage rapide le soir.
+        <!-- VISUAL RECEIPT PREVIEW -->
+        <div>
+          <div class="receipt-mockup">
+            <div class="receipt-center" style="font-weight: 800; font-size: 14px;">LYCÉE PRIVÉ MANJARY SOA</div>
+            <div class="receipt-center" style="font-size: 11px;">Lot H 81 Miadana Alasora</div>
+            <div class="receipt-center" style="font-size: 11px;">Antananarivo, Madagascar</div>
+            <div class="receipt-double-divider"></div>
+            <div class="receipt-center" style="font-weight: 700;">*** REÇU — EXEMPLAIRE PARENT ***</div>
+            <div class="receipt-double-divider"></div>
+            <div class="receipt-row"><span>N° Reçu :</span><strong>REC-2026-C1-00062</strong></div>
+            <div class="receipt-row"><span>Date :</span><span>02/09/2026 à 09:30</span></div>
+            <div class="receipt-row"><span>Caissier :</span><span>Administrateur</span></div>
+            <div class="receipt-divider"></div>
+            <div>Élève : RAZAFY Hery</div>
+            <div class="receipt-row"><span>Matr. : 26-0012</span><span>Classe: Seconde A</span></div>
+            <div class="receipt-divider"></div>
+            <div class="receipt-row"><strong>DÉSIGNATION</strong><strong>MONTANT</strong></div>
+            <div class="receipt-divider"></div>
+            <div class="receipt-row"><span>Droit d'inscription</span><span>145 000 Ar</span></div>
+            <div class="receipt-row"><span>Cotisation FRAM</span><span>15 000 Ar</span></div>
+            <div class="receipt-row"><span>Écolage (2026-09)</span><span>40 000 Ar</span></div>
+            <div class="receipt-divider"></div>
+            <div class="receipt-row"><span>Règlement :</span><span>Espèces</span></div>
+            <div class="receipt-double-divider"></div>
+            <div class="receipt-total">TOTAL ENCAISSÉ : 200 000 Ar</div>
+            <div class="receipt-double-divider"></div>
+            <div class="receipt-center" style="font-size: 10px; margin-top: 10px;">Conservez ce reçu pour tout contrôle.
+            </div>
+            <div style="text-align: right; margin-top: 12px; font-size: 11px;">Cachet & Signature Caisse :</div>
           </div>
         </div>
       </div>
+    </section>
 
-      <!-- FORMULE 2 -->
-      <div style="background: #FFFFFF; border: 2px solid var(--primary); border-radius: 12px; padding: 22px; position: relative; box-shadow: var(--shadow); display: flex; flex-direction: column; justify-content: space-between;">
-        <span style="position: absolute; top: -11px; right: 18px; background: var(--primary); color: #FFF; font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 20px; text-transform: uppercase;">⭐ Recommandé Direction</span>
-        <div>
-          <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--primary-dark); margin-bottom: 6px;">Formule 2 — Contrôle & Sérénité Absolue</div>
-          <h4 style="font-size: 18px; font-weight: 800; color: var(--primary-darker); margin-bottom: 8px;">Clôture Journalière, Billetage & Ticket Z</h4>
-          <div style="font-size: 24px; font-weight: 800; color: var(--primary-darker); margin-bottom: 14px;">600 000 Ar</div>
-          
-          <ul style="font-size: 13.5px; color: var(--text); line-height: 1.8; margin-left: 18px; margin-bottom: 16px;">
-            <li><strong>Tout le contenu de la Formule 1 inclus</strong>.</li>
-            <li><strong>Interface de Billetage Physique</strong> : Saisie guidée des coupures de billets (20 000, 10 000, 5 000, 2 000, 1 000 Ar) et chèques présents dans le tiroir.</li>
-            <li><strong>Calcul Automatique des Écarts</strong> : Détection instantanée des surplus ou manquants de caisse (*Théorique logiciel vs Réel constaté*).</li>
-            <li><strong>Impression du « Ticket Z de Clôture » 80 mm</strong> : Ticket récapitulatif officiel sur imprimante thermique avec visa contradictoire (signature caissier + émargement Direction).</li>
-            <li><strong>Verrouillage Comptable de Clôture</strong> : Gel des écritures validées pour interdire toute altération rétroactive.</li>
-            <li>Délai de réalisation : <strong>3 à 4 jours</strong>.</li>
-          </ul>
-
-          <div style="background: #FEFCE8; border-left: 3px solid var(--warning); padding: 10px 12px; border-radius: 6px; font-size: 12.5px; color: #854D0E; margin-top: 10px;">
-            <strong>🛡️ Argument Clé (Bouclier Anti-Écart & Protection Direction) :</strong><br>
-            Supprime 100% des litiges de caisse. La Directrice n'a plus à recompter des liasses de billets à la main : le système calcule l'écart, verrouille la journée et imprime un ticket officiel scellé faisant foi juridique et comptable.
-          </div>
-        </div>
+    <!-- SECTION 5: RÉFÉRENTIEL DES MODULES LIVRÉS (CDC BASE, AVENANT 1 & 2) -->
+    <section id="modules-livres" class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+          </svg>
+          5. Référentiel des Fonctionnalités Livrées (CDC de Base, Avenant 1 & Avenant 2)
+        </h2>
+        <span class="badge badge-success">Conforme & Opérationnel</span>
       </div>
-    </div>
 
-    <!-- SYNTHESE POUR LE CLIENT -->
-    <div style="background: #F0FDF4; border-left: 4px solid var(--success); padding: 14px 18px; border-radius: 8px; font-size: 13.5px; color: #166534;">
-      <strong>🤝 Synthèse d'Orientation Commerciale :</strong><br>
-      • <strong>La Formule 1 (300 000 Ar)</strong> comble immédiatement le besoin formulé de visibilité sur le nombre de tickets et le tri par caissier.<br>
-      • <strong>La Formule 2 (600 000 Ar)</strong> transforme l'application en véritable système de caisse certifié, offrant à la Direction un contrôle financier infaillible et un gain de temps considérable lors de la fermeture quotidienne.
-    </div>
-  </section>
-
-  <!-- SECTION 8: DÉPANNAGE MATÉRIEL AVANCÉ & FICHES PRATIQUES -->
-  <section id="depannage-materiel" class="card">
-    <div class="card-header">
-      <h2 class="card-title">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
-        8. Dépannage Matériel Avancé & Fiches Pratiques (7.1 à 7.8)
-      </h2>
-    </div>
-
-    <!-- FICHE 7.1 : CONFLIT IMPRIMANTES USB MULTIPLES -->
-    <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
-      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-        <span style="background: var(--info-bg); color: var(--info); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche 7.1</span>
-        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Résolution des Conflits de Ports Imprimante (ex: Nicon/Canon + Xprinter POS-80)</h3>
-      </div>
-      
-      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
-        <strong>Symptôme :</strong> Le câble USB de la Xprinter POS-80 est branché, Windows émet le signal sonore de connexion, le statut indique « Connecté », mais <strong>aucun ticket ne sort</strong> lors du test ou de l'impression.
+      <p style="margin-bottom: 20px; font-size: 15px;">
+        Ce référentiel détaille de manière rigoureuse et transparente l'ensemble des modules actuellement déployés sur
+        vos postes, en distinguant précisément <strong>le socle contractuel convenu lors des entrevues</strong> et les
+        <strong>innovations et bonus techniques offerts sans surcoût</strong> :
       </p>
 
-      <div style="background: var(--surface-subtle); border-left: 4px solid var(--info); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px;">
-        <strong>Explication Technique :</strong> Lorsqu'un PC possède déjà une autre imprimante USB (ex: Canon ou Nicon), celle-ci s'approprie le port virtuel <code>USB001</code>. En branchant la POS-80, Windows lui assigne automatiquement <code>USB002</code> ou <code>USB003</code>. Si le logiciel ou Windows envoie les tickets sur <code>USB001</code>, le flux thermique est envoyé à la mauvaise imprimante ou bloqué dans la file d'attente Windows.
+      <!-- SOUS-SECTION 5.1 : CDC DE BASE -->
+      <div
+        style="background: var(--surface-subtle); border-left: 4px solid var(--primary); padding: 18px 22px; border-radius: 10px; margin-bottom: 22px;">
+        <h3 style="font-size: 17px; font-weight: 800; color: var(--primary-darker); margin-bottom: 6px;">
+          5.1 Le Socle Métier Initial (Cahier des Charges de Base Convenu)
+        </h3>
+        <p style="font-size: 13.5px; color: var(--text-muted); line-height: 1.6; margin: 0;">
+          Conformément aux entrevues de cadrage, l'intégralité des besoins fondamentaux de la scolarité et de la
+          trésorerie est en place :
+        </p>
       </div>
 
-      <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Méthode 1 : Réparation Automatique en 1 Clic (Recommandée)</h4>
-      <ol style="margin-left: 20px; font-size: 13px; color: var(--text); margin-bottom: 16px; line-height: 1.8;">
-        <li>Ouvrez le logiciel LMS et rendez-vous dans <strong>Paramètres</strong> $\rightarrow$ section <strong>Imprimante Thermique POS-80</strong>.</li>
-        <li>Cliquez sur le bouton <strong>« Auto-détecter port USB (Conflit Nicon) »</strong>.</li>
-        <li>Le logiciel scanne tous les ports USB d'impression disponibles, identifie le canal actif de la Xprinter et reconfigure automatiquement Windows sans aucune saisie technique.</li>
-      </ol>
-
-      <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Méthode 2 : Vérification Manuelle sous Windows</h4>
-      <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
-        <li>Ouvrez le <strong>Panneau de configuration</strong> Windows $\rightarrow$ <strong>Périphériques et imprimantes</strong>.</li>
-        <li>Faites un clic droit sur l'imprimante <strong>POS-80</strong> et sélectionnez <strong>Propriétés de l'imprimante</strong>.</li>
-        <li>Rendez-vous dans l'onglet <strong>Ports</strong>.</li>
-        <li>Repérez quel port USB est coché. Si <code>USB001</code> est coché mais ne répond pas, cochez <strong><code>USB002</code></strong> (ou <strong><code>USB003</code></strong>) puis cliquez sur <strong>Appliquer</strong>.</li>
-        <li>Cliquez sur <strong>Imprimer une page de test</strong> : le ticket sortira instantanément.</li>
-      </ol>
-    </div>
-
-    <!-- FICHE 7.2 : PROTOCOLE DÉSINFECTION VIRUS RACCOURCIS USB -->
-    <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: var(--shadow-sm);">
-      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-        <span style="background: var(--danger-bg); color: var(--danger); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche 7.2</span>
-        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Protocole de Désinfection : Virus des Raccourcis USB (PC lent & Clés infectées)</h3>
-      </div>
-      
-      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
-        <strong>Symptômes :</strong> Les dossiers d'une clé USB insérée se transforment en raccourcis (<code>.lnk</code>), le PC 1 ralentit fortement et la mémoire vive (RAM) est saturée par des processus fantômes.
-      </p>
-
-      <div style="background: var(--danger-bg); border-left: 4px solid var(--danger); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #7f1d1d;">
-        <strong>Origine :</strong> Il s'agit du ver Windows <em>Shortcut Worm</em> (exécuté par <code>wscript.exe</code>). Il masque vos vrais documents et lance un script malveillant en boucle, ce qui épuise les ressources du processeur et perturbe les impressions.
-      </div>
-
-      <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Procédure de Nettoyage et Restauration Immédiate :</h4>
-      <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
-        <li>
-          <strong>Arrêter le script parasite en mémoire :</strong><br>
-          Appuyez sur <kbd>Ctrl</kbd> + <kbd>Maj</kbd> + <kbd>Échap</kbd> pour ouvrir le Gestionnaire des tâches. Cherchez <code>wscript.exe</code> ou <em>Windows Based Script Host</em>, faites clic droit puis <strong>Fin de tâche</strong>.<br>
-          <em>Ou en invite de commandes (CMD) :</em> <code>taskkill /f /im wscript.exe</code>
-        </li>
-        <li>
-          <strong>Révéler les vrais fichiers cachés sur la clé USB :</strong><br>
-          Si votre clé USB porte la lettre <code>E:</code>, ouvrez l'Invite de commandes (CMD) et tapez :<br>
-          <code style="background: #1e293b; color: #38bdf8; padding: 4px 8px; border-radius: 4px; font-family: monospace;">attrib -h -r -s /s /d E:\*.*</code><br>
-          Vos vrais dossiers réapparaîtront immédiatement sur la clé USB sans aucune perte.
-        </li>
-        <li>
-          <strong>Supprimer les faux raccourcis :</strong><br>
-          Sur la clé USB, supprimez manuellement tous les fichiers de type « Raccourci » (taille ~1 Ko) portant le nom de vos anciens dossiers.
-        </li>
-        <li>
-          <strong>Désactiver le démarrage automatique du virus :</strong><br>
-          Dans le Gestionnaire des tâches $\rightarrow$ onglet <strong>Démarrage</strong>, désactivez tout élément suspect pointant vers <code>wscript.exe</code> ou un fichier <code>.vbs</code> situé dans <code>AppData\Roaming</code> ou <code>Temp</code>.
-        </li>
-      </ol>
-    </div>
-
-    <!-- FICHE 7.3 : ARRÊT D'URGENCE ET VIDAGE DE FILE D'IMPRESSION -->
-    <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-top: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
-      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-        <span style="background: var(--danger-bg); color: var(--danger); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche 7.3</span>
-        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Arrêt d'Urgence de l'Impression & Vidage de la File Spooler (Nettoyage Express)</h3>
-      </div>
-      
-      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
-        <strong>Symptôme :</strong> L'imprimante s'emballe, fait défiler du papier thermique en continu, ou un ticket corrompu reste coincé dans Windows après un mauvais paramétrage de port ou une coupure électrique. Même en éteignant l'imprimante, le ticket recommence à sortir au rallumage.
-      </p>
-
-      <div style="background: var(--danger-bg); border-left: 4px solid var(--danger); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #7f1d1d;">
-        <strong>Fonction du Bouton d'Urgence :</strong> Le bouton rouge <strong>« Arrêter & Vider la file (Urgence) »</strong> (dans Paramètres $\rightarrow$ Imprimante Thermique) ordonne au Spooler Windows de détruire immédiatement tous les travaux en attente (WMI <code>CancelAllJobs()</code>) et réinitialise l'état de l'imprimante.
-      </div>
-
-      <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Procédure Immédiate :</h4>
-      <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
-        <li>Ouvrez <strong>Paramètres</strong> $\rightarrow$ section <strong>Imprimante Thermique & Poste de Caisse</strong>.</li>
-        <li>Cliquez sur le bouton rouge <strong>« 🛑 Arrêter & Vider la file (Urgence) »</strong>.</li>
-        <li>Confirmez le dialogue de validation. Le logiciel annule instantanément tous les travaux bloqués dans Windows, purge le flux de données brutes ESC/POS et sort l'imprimante du mode hors-ligne.</li>
-        <li><strong>Règle de sécurité :</strong> Tous les tickets non imprimés qui se trouvaient dans la file sont considérés comme annulés et non effectués. Aucun ticket fantôme ne sortira ultérieurement. Vous pouvez relancer vos impressions propres sans aucun risque.</li>
-      </ol>
-    </div>
-
-    <!-- FICHE 7.4 : SIGNAUX DE SYNCHRONISATION & POINT ROUGE -->
-    <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
-      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-        <span style="background: var(--warning-bg); color: var(--warning); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche 7.4</span>
-        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Surveillance de Synchronisation : Comprendre le Point Rouge & Statut Cloud</h3>
-      </div>
-      
-      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
-        <strong>Indicateur Visuel :</strong> Un point rouge clignotant ou un badge orange/rouge dans la barre d'en-tête signale que des écritures locales (nouveaux paiements, inscriptions) sont enregistrées en local mais n'ont pas encore pu être acheminées vers le Cloud Supabase.
-      </p>
-
-      <div style="background: var(--warning-bg); border-left: 4px solid var(--warning); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #92400e;">
-        <strong>Sérénité Totale (Zéro Perte de Données) :</strong> Grâce à l'architecture Local-First du LMS, 100% de vos données sont stockées de façon inaltérable dans la base locale SQLite. Les secrétaires peuvent continuer à encaisser et imprimer des reçus sans interruption, même en coupure totale d'Internet.
-      </div>
-
-      <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Que faire si le voyant rouge persiste avec une connexion Internet active ?</h4>
-      <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
-        <li>Cliquez sur le badge de statut de synchronisation en haut de l'écran ou allez dans <strong>Paramètres</strong>.</li>
-        <li>Cliquez sur <strong>« Réparer / Forcer la Synchronisation »</strong>.</li>
-        <li>Le moteur v1.1.10 réinitialise automatiquement le curseur de synchronisation, nettoie les données selon le schéma Cloud Supabase et renvoie toutes les écritures en attente.</li>
-        <li>Dès que l'envoi est confirmé par le Cloud, le voyant passe instantanément au <strong>vert fixe (« Synchronisé »)</strong>.</li>
-      </ol>
-    </div>
-
-    <!-- FICHE 7.5 : GESTIONNAIRE DE DOUBLONS INTER-CAISSES -->
-    <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
-      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-        <span style="background: var(--info-bg); color: var(--info); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche 7.5</span>
-        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Centre de Contrôle des Doublons : Conflits de Paiement C1 vs C2 & Fiches Élèves</h3>
-      </div>
-      
-      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
-        <strong>Scénario :</strong> La secrétaire sur le Poste 1 a encaissé des écolages. Ne les voyant pas encore sur le Poste 2 en raison d'un délai réseau, l'opératrice du Poste 2 a ré-encaissé les mêmes sommes pour les mêmes élèves, créant des paiements concurrents.
-      </p>
-
-      <div style="background: var(--info-bg); border-left: 4px solid var(--info); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #075985;">
-        <strong>Protection Intégrée (Module Doublons) :</strong> Le logiciel intègre un module intelligent d'arbitrage accessible dans le menu latéral $\rightarrow$ <strong>« Doublons »</strong> (ou dans Paramètres). Il analyse les concordances et propose une résolution guidée sans risque comptable.
-      </div>
-
-      <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Comment arbitrer un doublon en toute sécurité :</h4>
-      <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
-        <li>Ouvrez le <strong>Gestionnaire de Doublons</strong> dans le menu de gauche.</li>
-        <li>L'écran affiche les conflits détectés : même élève, même mois d'écolage, montants identiques ou rapprochés émis sur C1 et C2.</li>
-        <li>Comparez les deux tickets côte à côte (dates, heures, opérateurs, montants).</li>
-        <li>Cliquez sur <strong>« Conserver Reçu C1 »</strong> ou <strong>« Conserver Reçu C2 »</strong> : le reçu doublon est annulé proprement avec trace comptable complète dans <code>settings_history</code>.</li>
-        <li>Si le parent a volontairement payé deux tranches réelles, cliquez sur <strong>« Conserver les deux (Valide) »</strong> pour lever l'alerte.</li>
-      </ol>
-    </div>
-
-    <!-- FICHE 7.6 : AFFECTATION DES POSTES & PLUG & PLAY -->
-    <div style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: var(--shadow-sm);">
-      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-        <span style="background: var(--success-bg); color: var(--success); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche 7.6</span>
-        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Affectation Multi-Postes & Déploiement Réel Plug & Play</h3>
-      </div>
-      
-      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
-        <strong>Organisation Recommandée des Postes de Travail :</strong>
-      </p>
-
-      <table class="manual-table" style="margin-bottom: 16px;">
+      <table class="manual-table" style="margin-bottom: 28px;">
         <thead>
           <tr>
-            <th>Poste Physique</th>
-            <th>Rôle Utilisateur</th>
-            <th>Code Caisse à Régler</th>
-            <th>Format Numérotation Reçus</th>
+            <th style="width: 18%;">Module Métier</th>
+            <th style="width: 36%;">Fonctionnalités Attendues (CDC Initial Convenu)</th>
+            <th style="width: 26%;">Bonus & Gestes Techniques Offerts</th>
+            <th style="width: 20%;">Bonnes Pratiques Caissier</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><strong>Ordinateur 1</strong></td>
-            <td>Bureau de la Direction</td>
-            <td><code>Caisse C1</code></td>
-            <td><code>REC-2026-C1-XXXXX</code></td>
+            <td><strong>👨‍🎓 1. Élèves & Fratries</strong></td>
+            <td>
+              • Fiche complète de l'élève (état civil, matricule auto, photo, contacts parents).<br>
+              • Inscription directe (Nouveau) ou Réinscription (Ancien).<br>
+              • <strong>Gestion intégrale de la Fratrie bidirectionnelle</strong> et calcul de la réduction/exonération
+              FRAM pour le 2e enfant (respect strict de la convention initiale).<br>
+              • Auto-provisioning des grilles tarifaires annuelles.
+            </td>
+            <td>
+              <span class="badge badge-success">✨ Offert</span> <strong>Gestion des départs :</strong> Signalement des
+              abandons/départs en cours d'année avec gel comptable.<br>
+              <span class="badge badge-success">✨ Offert</span> <strong>Export modulaire :</strong> Extraction ciblée
+              Excel/CSV multi-colonnes.
+            </td>
+            <td>
+              Vérifier le statut (Nouveau vs Ancien) pour appliquer le barème exact (145 000 Ar vs 115 000 Ar).
+            </td>
           </tr>
           <tr>
-            <td><strong>Ordinateur 2</strong></td>
-            <td>Secrétaire / Comptable 1</td>
-            <td><code>Caisse C2</code></td>
-            <td><code>REC-2026-C2-XXXXX</code></td>
+            <td><strong>💰 2. Suivi Financier & Caisse</strong></td>
+            <td>
+              • Échéancier de scolarité mois par mois (11 mois, 15 niveaux).<br>
+              • Encaissement express des frais de scolarité, droits, uniformes et bus.<br>
+              • Suivi précis des règlements (Espèces, Chèques, Virement, Mobile Money).<br>
+              • Historique complet des transactions par élève.
+            </td>
+            <td>
+              <span class="badge badge-success">✨ Offert</span> <strong>Reçu Groupé Multi-Sélection :</strong>
+              Impression d'un seul ticket thermique pour plusieurs mois ou rubriques, divisant par deux la consommation
+              de papier.
+            </td>
+            <td>
+              Cocher plusieurs mois sur un seul reçu pour économiser le papier thermique.
+            </td>
           </tr>
           <tr>
-            <td><strong>Ordinateur 3</strong></td>
-            <td>Secrétaire / Comptable 2</td>
-            <td><code>Caisse C3</code></td>
-            <td><code>REC-2026-C3-XXXXX</code></td>
+            <td><strong>📖 3. Journal de Caisse Général</strong></td>
+            <td>
+              • Vue unifiée de l'ensemble des entrées et sorties de trésorerie de l'établissement.<br>
+              • Filtres par date (Aujourd'hui, Semaine, Mois, Année) et par département (Élève, Bus, École).<br>
+              • Calcul en direct du solde général et indicateurs de recettes/dépenses.
+            </td>
+            <td>
+              <span class="badge badge-success">✨ Offert</span> <strong>Synchronisation Salaires auto :</strong>
+              Intégration immédiate des salaires payés dans les dépenses de caisse.<br>
+              <span class="badge badge-success">✨ Offert</span> <strong>Audit visuel :</strong> Consultation instantanée
+              de la fiche de tirage en 1 clic.
+            </td>
+            <td>
+              Comparer en fin de journée le total général des encaissements avec les billets physiques du tiroir.
+            </td>
           </tr>
           <tr>
-            <td><strong>PC Développeur / Test</strong></td>
-            <td>Maintenance & Validation</td>
-            <td><code>C1, C2 ou DEV</code></td>
-            <td>Totalement isolé (paramètre local non synchronisé)</td>
+            <td><strong>🚌 4. Transport & Cantine</strong></td>
+            <td>
+              • Inscription aux services de bus par axe géographique (Ambodivodava B, Tsilazaina...) et cantine.<br>
+              • <strong>Pointage journalier interactif</strong> et comptabilisation des présences effectives.<br>
+              • Suivi automatique des mensualités et soldes débiteurs.
+            </td>
+            <td>
+              <span class="badge badge-success">✨ Offert</span> <strong>Facturation dynamique :</strong> Prise en compte
+              souple des présences réelles sans forfait rigide imposé.
+            </td>
+            <td>
+              Pointer régulièrement la cantine et le bus pour fiabiliser le décompte mensuel.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>👥 5. Personnel & Salaires</strong></td>
+            <td>
+              • Registre complet des employés (enseignants, administratifs).<br>
+              • Pointage des présences, retards et absences justifiées/injustifiées.<br>
+              • Calcul des cotisations légales malgaches : CNAPS (1%), OSTIE (1%), IRSA.<br>
+              • Édition des fiches de paie officielles en PDF.
+            </td>
+            <td>
+              <span class="badge badge-success">✨ Offert</span> <strong>Début de paie (Exercice AAAA-MM) :</strong>
+              Verrou temporel mensuel évitant la génération d'arriérés fictifs.<br>
+              <span class="badge badge-success">✨ Offert</span> <strong>Gestion des acomptes & déductions
+                libres</strong>.
+            </td>
+            <td>
+              Définir le début d'exercice lors de l'embauche pour cadrer l'historique financier de chaque employé.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>📊 6. Notes & Bulletins</strong></td>
+            <td>
+              • Saisie ergonomique des notes par matière et coefficient.<br>
+              • Barème adapté par cycle : Maternelle, Primaire, Collège, Lycée.<br>
+              • Calcul automatique des moyennes trimestrielles et rangs.<br>
+              • Génération officielle des bulletins scolaires en PDF du Lycée.
+            </td>
+            <td>
+              <span class="badge badge-success">✨ Offert</span> <strong>Types d'examens dynamiques :</strong> Gestion
+              personnalisée des évaluations (journalières, trimestrielles, blanc).
+            </td>
+            <td>
+              Vérifier que les coefficients sont paramétrés avant le tirage final des bulletins.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>📜 7. Documents Officiels</strong></td>
+            <td>
+              • Édition instantanée des certificats de scolarité avec logo du lycée, photo élève et adresse légale
+              <em>Lot H 81 Miadana Alasora</em>.
+            </td>
+            <td>
+              <span class="badge badge-success">✨ Offert</span> Téléchargeable en PDF A4 ou imprimable directement en 1
+              clic.
+            </td>
+            <td>
+              Délivrer immédiatement les pièces administratives demandées par les parents sans délai.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>📧 8. Bilan Quotidien par Email</strong></td>
+            <td>
+              • Transmission automatique du bilan de caisse journalier à la Directrice
+              (<strong>christineanjarasoa36@gmail.com</strong>) à 18h00 du lundi au samedi.<br>
+              • Document PDF officiel certifié joint (<code>bilan_AAAA-MM-JJ.pdf</code>).
+            </td>
+            <td>
+              <span class="badge badge-success">✨ Offert</span> Bouton d'envoi immédiat du jour pour expédier le bilan à
+              la demande.<br>
+              <span class="badge badge-success">✨ Offert</span> Nettoyage automatique des espaces du mot de passe
+              d'application Google.
+            </td>
+            <td>
+              Laisser le PC principal allumé jusqu'à 18h05 ou déclencher l'envoi manuel avant de fermer.
+            </td>
           </tr>
         </tbody>
       </table>
 
-      <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Garantie d'Isolation du PC Développeur :</h4>
-      <p style="font-size: 13px; color: var(--text); margin-bottom: 14px; line-height: 1.8;">
-        Le réglage du code de poste (<code>pos_station_code</code>) est classé dans la zone <strong>LOCAL_ONLY_SETTINGS</strong> de chaque machine. Cela garantit que lorsque le développeur teste l'application en mode C1 ou C2, la synchronisation Supabase <strong>n'écrase jamais</strong> les configurations des postes de la Direction ou des Secrétaires chez le client. Chaque PC garde son identité de façon inébranlable.
-      </p>
-
-      <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Plug & Play Réel des Outils Xprinter :</h4>
-      <p style="font-size: 13px; color: var(--text); line-height: 1.8;">
-        Tous les scripts nécessaires (<code>detect-xprinter.ps1</code>, <code>installer-xprinter.ps1</code>, <code>send-raw.ps1</code>) sont empaquetés directement dans l'installateur Windows <strong><code>lms-1.1.10-setup.exe</code></strong>. Vous n'avez plus besoin d'importer ou de copier des fichiers annexes : dès l'installation, le bouton d'auto-détection et le pilote thermique fonctionnent immédiatement sur n'importe quel port USB.
-      </p>
-    </div>
-
-    <!-- FICHE 7.7 : CONFIGURATION SERVICE EMAIL & MOT DE PASSE D'APPLICATION GOOGLE -->
-    <div id="email-bilan" style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
-      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-        <span style="background: var(--success-bg); color: var(--success); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche 7.7</span>
-        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Configuration & Activation du Bilan Quotidien par Email (Google App Password)</h3>
-      </div>
-      
-      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
-        Le LMS dispose d'un service d'automatisation des bilans financiers par email. Chaque soir ouvrable à <strong>18h00</strong> (du lundi au samedi), le système compile les encaissements, décaissements, solde initial et solde final, puis transmet le bilan exécutif avec le document PDF officiel joint (<code>bilan_AAAA-MM-JJ.pdf</code>) au courriel officiel de la Directrice générale (<code>christineanjarasoa36@gmail.com</code>).
-      </p>
-
-      <div style="background: var(--surface-subtle); border-left: 4px solid var(--info); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px;">
-        <strong>Pourquoi un « Mot de passe d'application » Google ?</strong><br>
-        Pour des raisons de sécurité renforcée (validation en deux étapes / 2FA), Google n'autorise plus la saisie du mot de passe habituel de votre compte Google dans les applications tierces. Google génère à la place un <strong>mot de passe d'application dédié de 16 lettres</strong> (ex: <code>abcd efgh ijkl mnop</code>). Ce code est ultra-sécurisé, révocable à tout moment et ne divulgue jamais votre mot de passe principal.
+      <!-- SOUS-SECTION 5.2 : AVENANT N°1 (RBAC) -->
+      <div
+        style="background: var(--surface-subtle); border-left: 4px solid #0284C7; padding: 18px 22px; border-radius: 10px; margin-bottom: 22px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <h3 style="font-size: 17px; font-weight: 800; color: #0369A1; margin: 0;">
+            5.2 Avenant N°1 — Sécurisation des Accès & Matrice RBAC
+          </h3>
+          <span class="badge badge-gold">Avenant N°1 Exécuté</span>
+        </div>
+        <p style="font-size: 13.5px; color: var(--text-muted); line-height: 1.6; margin-top: 6px; margin-bottom: 0;">
+          Compartimentage strict des privilèges en 4 rôles opérationnels. La Direction dispose d'un <strong>ACCÈS
+            TOTAL</strong> à tous les leviers métiers (Personnel, Notes, Cantine/Bus, Élèves, Caisse, Rapports) tout en
+          préservant l'infrastructure technique :
+        </p>
       </div>
 
-      <h4 style="font-size: 15px; font-weight: 700; color: var(--primary-darker); margin-bottom: 12px;">Procédure Pas à Pas d'Activation (1 Minute Chrono) :</h4>
-
-      <ol class="step-list" style="margin-bottom: 20px;">
-        <li class="step-item">
-          <h4>Accéder à la Gestion des Mots de Passe d'Application Google</h4>
-          <p>
-            Connectez-vous sur votre navigateur avec le compte Google expéditeur de l'école (<code>mmanjarysoa@gmail.com</code>).<br>
-            • <strong>Option directe :</strong> Dans LMS, allez dans <strong>Paramètres</strong> ➔ <strong>📧 Service Email</strong> et cliquez sur le lien <strong>« Générer sur Google ↗ »</strong>.<br>
-            • <strong>Option URL :</strong> Rendez-vous sur <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color: var(--info); font-weight: 600;">myaccount.google.com/apppasswords</a>.<br>
-            <em>(Prérequis : La Validation en deux étapes doit être active sur votre compte Google).</em>
-          </p>
-        </li>
-        <li class="step-item">
-          <h4>Créer le Code d'Autorisation de 16 Lettres</h4>
-          <p>
-            Dans le champ <em>« Nom de l'application »</em>, saisissez par exemple <code>LMS Manjary Soa</code> puis cliquez sur le bouton <strong>« Créer »</strong>.<br>
-            Google affiche un encadré contenant votre mot de passe de 16 lettres (ex: <code>abcd efgh ijkl mnop</code>). <strong>Copiez ces 16 lettres</strong>.
-          </p>
-        </li>
-        <li class="step-item">
-          <h4>Coller et Enregistrer dans LMS Manjary Soa</h4>
-          <p>
-            Dans LMS, section <strong>Paramètres</strong> ➔ <strong>📧 Service Email</strong> :<br>
-            • L'adresse Gmail expéditrice est déjà pré-remplie : <code>mmanjarysoa@gmail.com</code>.<br>
-            • L'adresse destinataire de la Directrice est fixée : <code>christineanjarasoa36@gmail.com</code>.<br>
-            • Collez votre code de 16 lettres dans le champ <strong>« Mot de passe d'application Google »</strong> <em>(Le logiciel retire automatiquement tous les espaces)</em>. Vous pouvez cliquer sur l'icône œil 👁️ pour vérifier.<br>
-            • Assurez-vous que <strong>« Activer le service email »</strong> et <strong>« Envoi automatique du bilan journalier à 18h »</strong> sont bien cochés.<br>
-            • Cliquez sur le bouton <strong>« Enregistrer »</strong>.
-          </p>
-        </li>
-        <li class="step-item">
-          <h4>Valider et Tester l'Envoi Immédiat</h4>
-          <p>
-            • Cliquez sur <strong>« Tester la connexion »</strong> : un message vert confirme que la liaison SMTP avec les serveurs Google est 100% fonctionnelle.<br>
-            • Cliquez sur <strong>« Envoyer le rapport du jour maintenant »</strong> : le logiciel génère immédiatement le bilan du jour avec le fichier PDF officiel joint et l'envoie sur la boîte mail de la directrice pour validation !
-          </p>
-        </li>
-      </ol>
-
-      <table class="manual-table">
+      <!-- MATRICE DES DROITS D'ACCÈS RBAC -->
+      <table class="manual-table" style="font-size: 13px; margin-bottom: 20px;">
         <thead>
           <tr>
-            <th>Paramètre</th>
-            <th>Valeur par Défaut dans le Logiciel</th>
-            <th>Rôle & Comportement</th>
+            <th>Module / Fonctionnalité</th>
+            <th style="text-align: center;">👑 Direction</th>
+            <th style="text-align: center;">📝 Secrétariat</th>
+            <th style="text-align: center;">💼 Comptabilité</th>
+            <th style="text-align: center;">⚙️ Administrateur</th>
+            <th>Périmètre & Justification Métier</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><strong>Compte Expéditeur</strong></td>
-            <td><code>mmanjarysoa@gmail.com</code></td>
-            <td>Adresse Gmail officielle d'envoi de l'établissement</td>
+            <td><strong>👥 Salaires & Personnel</strong></td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>La Direction gère les contrats, valide les acomptes et supervise la paie.</td>
           </tr>
           <tr>
-            <td><strong>Courriel Destinataire</strong></td>
-            <td><code>christineanjarasoa36@gmail.com</code></td>
-            <td>Boîte personnelle de la Directrice générale</td>
+            <td><strong>📊 Notes & Bulletins</strong></td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>La Direction valide, rectifie et vise officiellement les bulletins scolaires.</td>
           </tr>
           <tr>
-            <td><strong>Heure d'Envoi Quotidien</strong></td>
-            <td><strong>18h00</strong> (Lundi au Samedi)</td>
-            <td>Envoi automatique en fin de journée (Dimanche exclu)</td>
+            <td><strong>🚌 Transport (Bus) & Cantine</strong></td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--info); font-weight: 600;">Lecture</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>Inscriptions directes, modifications et pointage des présences journalières.</td>
           </tr>
           <tr>
-            <td><strong>Sécurité Anti-Doublon</strong></td>
-            <td>Date du jour horodatée</td>
-            <td>Garantit qu'un même bilan journalier n'est jamais envoyé deux fois</td>
+            <td><strong>👨‍🎓 Fiches Élèves & Fratries</strong></td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--info); font-weight: 600;">Lecture</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>Inscriptions, réinscriptions, suivi des familles et fratries.</td>
           </tr>
           <tr>
-            <td><strong>Pièce Jointe Officielle</strong></td>
-            <td><code>bilan_AAAA-MM-JJ.pdf</code></td>
-            <td>Bilan comptable certifié avec émargements et encadrés de visa Direction</td>
+            <td><strong>💰 Encaissements & Caisse 80mm</strong></td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>Encaissements des frais de scolarité, droits, uniformes et tirage de reçus.</td>
+          </tr>
+          <tr>
+            <td><strong>📖 Journal de Caisse Général</strong></td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>Trésorerie consolidée de l'établissement (recettes et dépenses).</td>
+          </tr>
+          <tr>
+            <td><strong>📈 Rapports Financiers & Bilan</strong></td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>Suivi des impayés, bilans analytiques et exportations comptables.</td>
+          </tr>
+          <tr>
+            <td><strong>👁️ Journal d'Audit Système</strong></td>
+            <td style="text-align: center; color: var(--info); font-weight: 600;">Lecture (Contrôle)</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>Contrôle interne anti-fraude : traçabilité de qui a encaissé, imprimé ou modifié quoi.</td>
+          </tr>
+          <tr>
+            <td><strong>⚙️ Paramètres Système & BDD</strong></td>
+            <td style="text-align: center; color: var(--danger); font-weight: 700;">Masqué 🔒</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>Réservé IT (ports imprimantes, codes caisses C*, sauvegardes et reset BDD).</td>
+          </tr>
+          <tr>
+            <td><strong>🔑 Comptes Utilisateurs & Rôles</strong></td>
+            <td style="text-align: center; color: var(--danger); font-weight: 700;">Masqué 🔒</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--danger);">Aucun</td>
+            <td style="text-align: center; color: var(--success); font-weight: 700;">ACCÈS TOTAL</td>
+            <td>Gouvernance informatique : création des comptes et attribution des rôles.</td>
           </tr>
         </tbody>
       </table>
-    </div>
 
-    <!-- FICHE 7.8 : DÉBUT D'EXERCICE PERSONNEL & GESTION DES SALAIRES IMPAYÉS -->
-    <div id="exercice-personnel" style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-top: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
-      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-        <span style="background: var(--info-bg); color: var(--info); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche 7.8</span>
-        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Début d'Exercice (Personnel & Salaires) : Fonctionnement Mensuel & Questions d'Analyse</h3>
-      </div>
-      
-      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
-        <strong>Contexte :</strong> Dans le module <em>Salaires & Impayés</em>, un bandeau d'alerte jaune signale les employés qui n'ont pas encore de « Début de paie (Exercice) » défini dans leur fiche. Cette fiche détaille l'emplacement du champ, la raison du format mensuel (<code>AAAA-MM</code>) et les questions clés à clarifier avec l'établissement.
-      </p>
-
-      <div style="background: var(--surface-subtle); border-left: 4px solid var(--primary); padding: 14px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px;">
-        <strong>📍 Où se trouve le réglage dans le logiciel ?</strong><br>
-        1. Rendez-vous dans <strong>Personnel</strong> ➔ <strong>Liste du personnel</strong>.<br>
-        2. Cliquez sur l'icône <strong>Modifier (crayon ✏️)</strong> sur la ligne de l'employé concerné.<br>
-        3. Faites défiler la page jusqu'à la section <strong>« Informations professionnelles »</strong> (située juste au-dessus de <em>Rémunération</em>).<br>
-        4. Le champ s'intitule <strong>« Début de paie (Exercice) »</strong> (sélecteur mois/année ex: <code>2025-09</code>) avec l'instruction <em>« Ignorer le passif avant ce mois »</em>.<br>
-        5. Cliquez sur <strong>Enregistrer</strong> en bas de page.
+      <div class="alert alert-info" style="margin-bottom: 28px;">
+        <strong>✨ Bonus Avenant N°1 Offert :</strong> Le <strong>Journal d'Audit Infalsifiable (AuditLogPage)</strong> a
+        été intégré gracieusement pour permettre à la Direction de tracer chaque action (création, modification,
+        impression de reçu) sans aucun risque de contestation.
       </div>
 
-      <h4 style="font-size: 14px; font-weight: 700; color: var(--primary-darker); margin-bottom: 8px;">1. Pourquoi le format mensuel (AAAA-MM) sans mentionner le jour précis ?</h4>
+      <!-- SOUS-SECTION 5.3 : AVENANT N°2 (IMPRESSION POS-80) -->
+      <div
+        style="background: var(--surface-subtle); border-left: 4px solid #16A34A; padding: 18px 22px; border-radius: 10px; margin-bottom: 22px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <h3 style="font-size: 17px; font-weight: 800; color: #15803D; margin: 0;">
+            5.3 Avenant N°2 — Matériel d'Encaissement & Impression Thermique 80mm
+          </h3>
+          <span class="badge badge-gold">Avenant N°2 Exécuté</span>
+        </div>
+        <p style="font-size: 13.5px; color: var(--text-muted); line-height: 1.6; margin-top: 6px; margin-bottom: 0;">
+          Intégration du pilote POS-80 pour tickets thermiques 80mm ESC/POS, double tirage automatique (Parent / Caisse)
+          et numérotation séquentielle certifiée par station (<code>C1</code>, <code>C2</code>, <code>C3</code>) :
+        </p>
+      </div>
+
       <div class="grid-2" style="margin-bottom: 16px;">
-        <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px; font-size: 13px;">
-          <h5 style="color: #0F172A; font-weight: 700; margin-bottom: 6px;">✅ Avantages du Format Mensuel (AAAA-MM)</h5>
-          <ul style="margin-left: 16px; color: #475569; line-height: 1.7;">
-            <li><strong>Unité de compte globale :</strong> En comptabilité scolaire malgache, les salaires et impayés sont calculés par mois civil entier (ex: Salaire de Septembre, Salaire d'Octobre).</li>
-            <li><strong>Verrou anti-faux impayés :</strong> Indiquer <code>2025-09</code> ordonne au logiciel de démarrer l'historique en Septembre 2025 et d'ignorer tout le passé des années antérieures.</li>
-            <li><strong>Aucune ambiguïté de prorata :</strong> Évite de générer par erreur des demi-salaires ou fractions de salaires non souhaitées.</li>
-            <li><strong>La date exacte au jour le jour existe déjà :</strong> C'est le champ <strong>« Date d'embauche »</strong> (<code>AAAA-MM-JJ</code>) réservé au contrat et à l'ancienneté.</li>
-          </ul>
+        <div class="advantage-box">
+          <h4>🛡️ Bonus Offert : Régulation Anti-Fraude & Duplicatas Numérotés</h4>
+          <p>
+            Toute réimpression ultérieure d'un reçu porte automatiquement la mention légale infalsifiable
+            <strong>DUPLICATA N° X</strong> avec date, heure et opérateur. Empêche la réutilisation frauduleuse de
+            reçus.
+          </p>
         </div>
 
-        <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 14px; font-size: 13px;">
-          <h5 style="color: #991B1B; font-weight: 700; margin-bottom: 6px;">⚠️ Risques d'un Format au Jour Précis (AAAA-MM-JJ)</h5>
-          <ul style="margin-left: 16px; color: #7F1D1D; line-height: 1.7;">
-            <li><strong>Problème du prorata automatique :</strong> Si on saisit le <code>15/09/2025</code>, le système doit-il payer un demi-salaire, compter les jours ouvrés ou 15/30e ?</li>
-            <li><strong>Incompatibilité avec les salaires fixes :</strong> Les contrats d'école prévoient un forfait mensuel ; les ajustements de premier mois se font généralement de gré à gré ou via les heures réelles pointées.</li>
-            <li><strong>Lourdeur de saisie :</strong> Oblige le gestionnaire à chercher un jour calendaire précis au lieu de simplement pointer le mois de rentrée.</li>
-          </ul>
+        <div class="advantage-box">
+          <h4>🔌 Bonus Offert : Auto-Détection de Port USB (Conflit Canon/Nicon)</h4>
+          <p>
+            Résout automatiquement en 1 clic les conflits d'imprimantes multiples sous Windows sans nécessiter
+            l'intervention d'un technicien externe.
+          </p>
+        </div>
+
+        <div class="advantage-box">
+          <h4>🛑 Bonus Offert : Purge d'Urgence du Spooler d'Impression</h4>
+          <p>
+            Bouton d'arrêt d'urgence intégré purgeant instantanément la file d'attente Windows en cas de bourrage papier
+            ou de câble débranché.
+          </p>
+        </div>
+
+        <div class="advantage-box">
+          <h4>⚖️ Bonus Offert : Module d'Arbitrage des Doublons Concurrents</h4>
+          <p>
+            Écran dédié de réconciliation permettant d'arbitrer les saisies concurrentes hors-ligne sans risque
+            d'écrasement de données.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 6: SYNTHÈSE DES BONUS REMARQUABLES & VALEUR OFFERTE (SAS DE CONFIANCE) -->
+    <section id="bonus-offerts" class="card"
+      style="border: 2px solid var(--accent); background: linear-gradient(180deg, #FAF7F4 0%, #FFFFFF 100%);">
+      <div class="card-header" style="border-bottom: 2px solid var(--border);">
+        <div>
+          <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+            <span class="badge badge-gold">💎 Transparence & Esprit Partenaire</span>
+            <span class="badge badge-success">+1 200 000 Ar de Prestations Offertes</span>
+          </div>
+          <h2 class="card-title" style="color: var(--primary-darker); font-size: 22px;">
+            6. Synthèse des Innovations Offertes & de la Valeur Ajoutée Gratuite
+          </h2>
         </div>
       </div>
 
-      <h4 style="font-size: 14px; font-weight: 700; color: var(--primary-darker); margin-bottom: 8px;">2. Questions Clés à Clarifier avec l'Établissement (Grille d'Entretien)</h4>
-      <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
-        Pour valider l'adéquation exacte avec les pratiques internes de l'école, voici les questions à soumettre à la Direction ou au Comptable :
+      <p style="font-size: 14.5px; color: var(--text); line-height: 1.7; margin-bottom: 20px;">
+        Afin de construire une relation de confiance durable et d'assurer le succès opérationnel immédiat du Lycée
+        Manjary Soa, <strong>de nombreuses fonctionnalités d'envergure et des services d'ingénierie terrain ont déjà été
+          pris en charge gracieusement</strong> à titre de geste commercial :
       </p>
 
-      <table class="manual-table" style="margin-bottom: 16px;">
+      <!-- LES 6 GRANDS BONUS LOGICIELS -->
+      <h3 style="font-size: 16px; font-weight: 800; color: var(--primary-darker); margin-bottom: 12px;">
+        🎁 Les 6 Grands Piliers Logiciels Ajoutés en Geste Commercial
+      </h3>
+
+      <div class="grid-3" style="margin-bottom: 24px;">
+        <div
+          style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 10px; padding: 16px; box-shadow: var(--shadow-sm);">
+          <div
+            style="font-size: 12px; font-weight: 700; color: var(--success); text-transform: uppercase; margin-bottom: 4px;">
+            Protection Juridique</div>
+          <h4 style="font-size: 15px; font-weight: 700; color: var(--primary-darker); margin-bottom: 6px;">1. Tampon
+            Duplicata Anti-Fraude</h4>
+          <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
+            Marquage automatique indélébile <em>DUPLICATA N° X</em> avec horodatage et nom de l'opérateur pour bloquer
+            toute falsification de caisse.
+          </p>
+        </div>
+
+        <div
+          style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 10px; padding: 16px; box-shadow: var(--shadow-sm);">
+          <div
+            style="font-size: 12px; font-weight: 700; color: var(--success); text-transform: uppercase; margin-bottom: 4px;">
+            Économie Consommables</div>
+          <h4 style="font-size: 15px; font-weight: 700; color: var(--primary-darker); margin-bottom: 6px;">2. Reçu
+            Groupé Multi-Sélection</h4>
+          <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
+            Possibilité d'imprimer plusieurs mois de scolarité sur un unique ticket 80 mm, divisant par deux le coût de
+            papier thermique.
+          </p>
+        </div>
+
+        <div
+          style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 10px; padding: 16px; box-shadow: var(--shadow-sm);">
+          <div
+            style="font-size: 12px; font-weight: 700; color: var(--success); text-transform: uppercase; margin-bottom: 4px;">
+            Contrôle Interne</div>
+          <h4 style="font-size: 15px; font-weight: 700; color: var(--primary-darker); margin-bottom: 6px;">3. Journal
+            d'Audit Infalsifiable</h4>
+          <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
+            Écran dédié retraçant avec précision toutes les opérations de caisse et de modification pour régler
+            immédiatement tout litige.
+          </p>
+        </div>
+
+        <div
+          style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 10px; padding: 16px; box-shadow: var(--shadow-sm);">
+          <div
+            style="font-size: 12px; font-weight: 700; color: var(--success); text-transform: uppercase; margin-bottom: 4px;">
+            Régulation RH</div>
+          <h4 style="font-size: 15px; font-weight: 700; color: var(--primary-darker); margin-bottom: 6px;">4. Verrou
+            Temporel Début de Paie</h4>
+          <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
+            Cadrage mensuel (AAAA-MM) empêchant la génération automatique d'arriérés fictifs pour les nouveaux
+            enseignants embauchés.
+          </p>
+        </div>
+
+        <div
+          style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 10px; padding: 16px; box-shadow: var(--shadow-sm);">
+          <div
+            style="font-size: 12px; font-weight: 700; color: var(--success); text-transform: uppercase; margin-bottom: 4px;">
+            Sérénité Direction</div>
+          <h4 style="font-size: 15px; font-weight: 700; color: var(--primary-darker); margin-bottom: 6px;">5. Bilan
+            Quotidien Automatique 18h</h4>
+          <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
+            Envoi autonome chaque soir du PDF récapitulatif des recettes sur la boîte Gmail de la Direction sans
+            intervention humaine.
+          </p>
+        </div>
+
+        <div
+          style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 10px; padding: 16px; box-shadow: var(--shadow-sm);">
+          <div
+            style="font-size: 12px; font-weight: 700; color: var(--success); text-transform: uppercase; margin-bottom: 4px;">
+            Maintenance Invisible</div>
+          <h4 style="font-size: 15px; font-weight: 700; color: var(--primary-darker); margin-bottom: 6px;">6. Télémétrie
+            Mouchard Cloud</h4>
+          <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
+            Remontée silencieuse de la santé des postes physiques vers le Cloud Supabase pour anticiper les pannes avant
+            qu'elles ne bloquent la caisse.
+          </p>
+        </div>
+      </div>
+
+      <!-- SERVICES D'INGÉNIERIE MATÉRIELLE & TERRAIN OFFERTS -->
+      <div
+        style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span class="badge badge-gold" style="font-size: 12px;">🛠️ Assistance Terrain Offerte</span>
+          <h3 style="font-size: 16px; font-weight: 800; color: var(--primary-darker); margin: 0;">
+            Services d'Ingénierie, Conseil Matériel & Intégration Gratuite
+          </h3>
+        </div>
+        <p style="font-size: 13.5px; color: var(--text-muted); line-height: 1.6; margin-bottom: 14px;">
+          Au-delà du code informatique, nous avons pris en charge sans aucune facturation d'honoraires les aspects
+          matériels et réseau essentiels :
+        </p>
+
+        <div class="grid-3">
+          <div style="background: var(--surface-subtle); border-radius: 8px; padding: 14px;">
+            <h4 style="font-size: 13.5px; font-weight: 700; color: var(--primary); margin-bottom: 6px;">🔍 Sourcing &
+              Audit Imprimantes</h4>
+            <p style="font-size: 12px; color: var(--text-muted); line-height: 1.6; margin: 0;">
+              Recherche sur le marché d'Antananarivo, benchmark technique et sélection de modèles thermiques 80 mm
+              durables pour supprimer les coûts d'encre de l'école.
+            </p>
+          </div>
+          <div style="background: var(--surface-subtle); border-radius: 8px; padding: 14px;">
+            <h4 style="font-size: 13.5px; font-weight: 700; color: var(--primary); margin-bottom: 6px;">🛰️ Conseil
+              Réseau & Starlink</h4>
+            <p style="font-size: 12px; color: var(--text-muted); line-height: 1.6; margin: 0;">
+              Accompagnement à l'installation, dimensionnement du débit et topologie de synchronisation multi-postes
+              pour fiabiliser la liaison satellite.
+            </p>
+          </div>
+          <div style="background: var(--surface-subtle); border-radius: 8px; padding: 14px;">
+            <h4 style="font-size: 13.5px; font-weight: 700; color: var(--primary); margin-bottom: 6px;">💻 Intégration
+              Windows & Spooler</h4>
+            <p style="font-size: 12px; color: var(--text-muted); line-height: 1.6; margin: 0;">
+              Configuration des ports USB virtuels Windows, élimination des conflits pilotes et conception du script de
+              maintenance d'urgence en 1 clic.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- BILAN DE VALEUR ABSORBÉE -->
+      <div style="background: #F0FDF4; border-left: 4px solid var(--success); padding: 16px 20px; border-radius: 8px;">
+        <div style="font-size: 14.5px; font-weight: 700; color: #166534; margin-bottom: 4px;">
+          🤝 Bilan Partenaire : Plus de 1 200 000 Ar de Valeur Absorbée Gracieusement
+        </div>
+        <p style="font-size: 13.5px; color: #15803D; line-height: 1.6; margin: 0;">
+          Cette valeur ajoutée témoigne de notre volonté d'être bien plus qu'un prestataire : un véritable partenaire
+          technique engagé aux côtés de l'équipe de Direction. C'est sur ce socle d'excellence et de confiance mutuelle
+          que nous vous soumettons ci-après l'Avenant N°3 pour le rapprochement de caisse.
+        </p>
+      </div>
+    </section>
+
+    <!-- SECTION 7: PROPOSITION D'AVENANT N°3 -->
+    <section id="avenant3" class="card" style="border: 2px solid var(--primary); background: #FFFDFB;">
+      <div class="card-header" style="border-bottom: 2px solid var(--primary-light);">
+        <div>
+          <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+            <span class="badge badge-gold">💼 Extension Optionnelle Hors Forfait</span>
+            <span class="badge badge-success">Audit & Contrôle Interne</span>
+          </div>
+          <h2 class="card-title" style="color: var(--primary-darker); font-size: 22px;">
+            7. Proposition d'Avenant N°3 — Module de Rapprochement de Caisse, Z de Caisse & Statistiques par Opérateur
+          </h2>
+        </div>
+      </div>
+
+      <p style="margin-bottom: 18px; font-size: 15px;">
+        Cette section formalise la proposition technique et financière relative à la demande récente du lycée concernant
+        le <strong>filtrage des écritures de caisse par compte utilisateur / caissier</strong> et le <strong>suivi du
+          volume de tickets traités</strong>.
+      </p>
+
+      <!-- 1. CONTEXTE TERRAIN -->
+      <div
+        style="background: var(--surface-subtle); border-left: 4px solid var(--primary); padding: 16px 20px; border-radius: 8px; margin-bottom: 20px;">
+        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin-bottom: 8px;">1. Contexte &
+          Évolution Naturelle du Besoin Terrain</h3>
+        <p style="font-size: 14px; color: var(--text); line-height: 1.7; margin-bottom: 8px;">
+          Au lancement du projet (contrat initial LMS-2026-001 du 03 Février 2026), l'établissement envisageait une
+          gestion financière centralisée sur un poste unique. Avec le déploiement opérationnel multi-postes (Avenant N°1
+          RBAC et Avenant N°2 Impression Thermique), <strong>deux à trois collaborateurs encaissent désormais
+            simultanément</strong> (Bureau de la Direction sur Poste C1, Secrétariat sur Poste C2, Comptabilité sur
+          Poste C3).
+        </p>
+        <p style="font-size: 14px; color: var(--text); line-height: 1.7;">
+          Cette organisation moderne fait naturellement émerger un besoin nouveau de <strong>contrôle interne et de
+            checking physique de fin de journée</strong> : chaque soir à la clôture, la Direction et chaque caissier
+          souhaitent pointer précisément le contenu du tiroir physique (espèces, chèques) en le comparant aux écritures
+          saisies par ce compte spécifique.
+        </p>
+      </div>
+
+      <!-- 2. JUSTIFICATION CONTRACTUELLE -->
+      <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin-bottom: 10px;">2. Périmètre
+        Contractuel Antérieur vs Nouvelle Demande</h3>
+      <p style="font-size: 13.5px; color: var(--text-muted); margin-bottom: 12px;">
+        Afin de préserver la parfaite clarté de nos engagements mutuels, voici le comparatif factuel entre les
+        prestations déjà livrées et le présent besoin :
+      </p>
+
+      <table class="manual-table" style="margin-bottom: 20px;">
         <thead>
           <tr>
-            <th style="width: 35%;">Question à poser à l'école</th>
-            <th style="width: 35%;">Options envisagées</th>
-            <th style="width: 30%;">Impact sur le logiciel</th>
+            <th style="width: 28%;">Document Contractuel</th>
+            <th style="width: 42%;">Périmètre Convenu & Réalisé</th>
+            <th style="width: 30%;">Statut Vis-à-Vis de la Demande</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><strong>Q1. Démarrage de l'exercice de paie</strong><br><em>« Votre suivi de paie sur le logiciel démarre-t-il bien au mois civil complet (ex: à partir de Septembre 2025 pour la rentrée) ? »</em></td>
+            <td><strong>Contrat Initial LMS-2026-001</strong><br><em>(Pack Hybride)</em></td>
             <td>
-              • <strong>Option A (Standard) :</strong> Oui, au mois civil complet.<br>
-              • <strong>Option B :</strong> À une date décalée (ex: du 21 au 20 du mois).
+              <strong>Journal de Caisse Général de l'Établissement</strong> : centralisation globale des recettes et
+              dépenses (École, Bus), calcul du solde général, filtrage par dates et rubriques.
             </td>
-            <td>
-              Si Option A (recommandé), le format mensuel <code>AAAA-MM</code> actuel est parfait et 100% suffisant.
-            </td>
+            <td><span class="badge" style="background: #FEE2E2; color: #991B1B;">Non inclus</span> (vue globale
+              établissement uniquement).</td>
           </tr>
           <tr>
-            <td><strong>Q2. Recrutement en cours de mois</strong><br><em>« Si un enseignant ou employé est embauché en milieu de mois (ex: le 12 ou le 18), comment réglez-vous son premier salaire ? »</em></td>
+            <td><strong>Avenant N°1</strong><br><em>(Authentification & RBAC)</em></td>
             <td>
-              • <strong>Option A :</strong> Paiement au forfait convenu ou mois complet.<br>
-              • <strong>Option B :</strong> Saisie des heures réellement faites dans le pointage.<br>
-              • <strong>Option C :</strong> Calcul automatique au prorata temporis exact.
+              <strong>Sécurisation des Accès</strong> : 4 rôles (Admin, Secrétariat, Comptabilité, Direction), sessions
+              60 min, permissions d'ouverture des modules (qui peut voir la finance).
             </td>
-            <td>
-              Si Option B, le module de pointage/absences gère déjà la déduction d'heures sans changer le début d'exercice.
-            </td>
+            <td><span class="badge" style="background: #FEE2E2; color: #991B1B;">Non inclus</span> (sécurité d'accès,
+              pas de comptabilité analytique).</td>
           </tr>
           <tr>
-            <td><strong>Q3. Confort d'utilisation & Action groupée</strong><br><em>« Préférez-vous un bouton direct "Définir l'exercice pour tous" plutôt que d'éditer chaque employé individuellement ? »</em></td>
+            <td><strong>Avenant N°2</strong><br><em>(Impression & Postes POS-80)</em></td>
             <td>
-              • <strong>Bouton 1-clic :</strong> Définit le mois d'exercice pour tous les employés en un clic depuis l'écran Salaires & Impayés.
+              <strong>Matériel & Numérotation Caisse</strong> : impression thermique 80mm ESC/POS, double tirage,
+              préfixes de numéros de reçus isolés par poste (<code>C1</code>, <code>C2</code>) anti-doublon.
             </td>
+            <td><span class="badge" style="background: #FEE2E2; color: #991B1B;">Non inclus</span> (format ticket, pas
+              de ventilation comptable).</td>
+          </tr>
+          <tr style="background: #FFFBEB;">
+            <td><strong>Avenant N°3 (Proposé)</strong><br><em>(Module Rapprochement & Z de Caisse)</em></td>
             <td>
-              Gain de temps immédiat : évite de devoir ouvrir 30 à 50 fiches une par une.
+              <strong>Comptabilité Auxiliaire par Caissier</strong> : filtres dynamiques par compte opérateur, calcul
+              des volumes de tickets traités, arrêt de caisse individuel et vérification de tiroir.
             </td>
+            <td><span class="badge badge-gold">Objet du Présent Avenant</span></td>
           </tr>
         </tbody>
       </table>
 
-      <div style="background: #F0FDF4; border-left: 4px solid var(--success); padding: 12px 16px; border-radius: 6px; font-size: 13px; color: #166534;">
-        <strong>💡 Synthèse & Recommandation Technique :</strong><br>
-        • Conserver le format <strong>mensuel (<code>AAAA-MM</code>)</strong> pour le <em>Début de paie (Exercice)</em> afin de respecter la logique des salaires scolaires et d'éviter les pièges de prorata arbitraires.<br>
-        • Laisser la <strong>Date d'embauche (<code>AAAA-MM-JJ</code>)</strong> précise pour les contrats et la gestion RH administrative.<br>
-        • Déployer le bouton d'action groupée dans <em>Salaires & Impayés</em> pour un paramétrage instantané de rentrée en 1 clic.
+      <!-- 3. FONCTIONNALITÉS PROPOSÉES -->
+      <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin-bottom: 12px;">3.
+        Fonctionnalités Détaillées du Module de Rapprochement</h3>
+      <div class="grid-2" style="margin-bottom: 24px;">
+        <div class="advantage-box">
+          <h4>🎯 1. Filtre Dynamique par Opérateur & Code Poste</h4>
+          <p>
+            Ajout d'un sélecteur multi-critères dans le Journal Financier permettant d'isoler en 1 clic :
+            <br>• Tous les encaissements effectués par un collaborateur précis (ex: <em>Secrétaire 1</em>,
+            <em>Comptable</em>).
+            <br>• Ou tous les flux traités sur une station physique déterminée (<em>Poste C1</em>, <em>Poste C2</em>,
+            <em>Poste C3</em>).
+          </p>
+        </div>
+
+        <div class="advantage-box">
+          <h4>📊 2. Statistiques de Volumétrie & Nombre de Tickets</h4>
+          <p>
+            Indicateurs d'activité en temps réel pour chaque caisse :
+            <br>• Nombre total de tickets/paiements traités par jour, semaine, mois et année.
+            <br>• Panier moyen par transaction et répartition horaire de l'affluence au guichet.
+          </p>
+        </div>
+
+        <div class="advantage-box">
+          <h4>💵 3. Récolement & Billetage du Tiroir-Caisse (Pointage)</h4>
+          <p>
+            Ventilation instantanée des encaissements de l'opérateur par mode de règlement :
+            <br>• <strong>Total Espèces</strong> (à confronter directement avec les billets physiques du tiroir).
+            <br>• <strong>Total Chèques</strong> (avec liste des numéros de chèques remis).
+            <br>• <strong>Total Mobile Money / Virement</strong>.
+          </p>
+        </div>
+
+        <div class="advantage-box">
+          <h4>📜 4. Fiche / Ticket « Z de Clôture de Caisse »</h4>
+          <p>
+            Génération en 1 clic en fin de service du récapitulatif de clôture :
+            <br>• Impression automatique sur ticket thermique 80 mm ou export PDF A4 certifié.
+            <br>• Encadré pour visa contradictoire : signature du caissier et émargement de la Direction.
+          </p>
+        </div>
       </div>
-    </div>
-  </section>
 
-  <!-- SECTION 9: FOIRE AUX QUESTIONS (FAQ) -->
-  <section id="faq" class="card">
-    <div class="card-header">
-      <h2 class="card-title">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-        9. Foire Aux Questions (FAQ) & Bonnes Pratiques Caissiers
-      </h2>
-    </div>
-
-    <div class="advantage-box">
-      <h4>❓ Que faire si l'imprimante ne répond pas ou n'imprime rien ?</h4>
-      <p>
-        1. Vérifiez que l'imprimante est allumée (voyant bleu allumé) et que le câble USB est branché.<br>
-        2. Allez dans <strong>Paramètres</strong> -> <em>"Imprimante Thermique"</em> et cliquez sur <em>"Tester l'impression"</em>.<br>
-        3. Si nécessaire, réexécutez <code>installer-xprinter.bat</code> en mode Administrateur.
+      <!-- 4. TARIFICATION & MODALITÉS -->
+      <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin-bottom: 10px;">4. Devis
+        Forfaitaire & Tarifs Justes et Équilibrés</h3>
+      <p style="font-size: 13.5px; color: var(--text-muted); margin-bottom: 14px;">
+        Compte tenu des fondations techniques déjà solides en place dans le logiciel (Avenant N°1 RBAC et Avenant N°2
+        Impression), la tarification a été strictement calculée au plus juste du travail d'adaptation restant, dans un
+        esprit de transparence et de partenariat équitable pour les deux parties :
       </p>
-    </div>
 
-    <div class="advantage-box">
-      <h4>❓ Que faire si la connexion Internet coupe pendant plusieurs jours ?</h4>
-      <p>
-        <strong>Rien de particulier !</strong> Vous pouvez continuer d'inscrire des élèves, d'enregistrer des paiements et d'imprimer des reçus normalement. Dès que la connexion revient, le logiciel se synchronisera tout seul sans aucune action de votre part.
-      </p>
-    </div>
+      <div class="grid-2" style="margin-bottom: 24px;">
+        <!-- FORMULE 1 -->
+        <div
+          style="background: #FFFFFF; border: 2px solid var(--border); border-radius: 12px; padding: 22px; display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div
+              style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--primary-dark); margin-bottom: 6px;">
+              Formule 1 — Extension Opérationnelle</div>
+            <h4 style="font-size: 18px; font-weight: 800; color: var(--primary-darker); margin-bottom: 8px;">Filtres
+              Caissiers & Comptage de Tickets</h4>
+            <div style="font-size: 24px; font-weight: 800; color: var(--primary); margin-bottom: 14px;">300 000 Ar</div>
 
-    <div class="advantage-box">
-      <h4>❓ Comment un parent peut-il obtenir un duplicata si son reçu est perdu ?</h4>
-      <p>
-        Rendez-vous sur la fiche de l'élève (onglet Finance), repérez le paiement concerné et cliquez sur le bouton <strong>"Ticket"</strong>. Le logiciel sortira automatiquement un <strong>Duplicata Certifié</strong> sans modifier la comptabilité originale.
-      </p>
-    </div>
-  </section>
+            <ul
+              style="font-size: 13.5px; color: var(--text); line-height: 1.8; margin-left: 18px; margin-bottom: 16px;">
+              <li>Sélecteur d'opérateur / caissier dans le Journal Financier.</li>
+              <li>Filtre par code station physique (Poste C1, Poste C2, Poste C3).</li>
+              <li>Compteur dynamique du nombre total de tickets traités (jour/semaine/mois).</li>
+              <li>Sous-total des encaissements par caissier et par mode de règlement.</li>
+              <li>Délai de réalisation : <strong>1 à 2 jours</strong>.</li>
+            </ul>
 
-  <!-- FOOTER -->
-  <footer style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 40px; border-top: 1px solid var(--border); padding-top: 20px;">
-    <strong>LMS Manjary Soa v1.1.11</strong> — Solution Professionnelle Développée pour le Lycée Privé Manjary Soa, Lot H 81 Miadana Alasora, Antananarivo.
-  </footer>
+            <div
+              style="background: #F8FAFC; border-left: 3px solid #64748B; padding: 10px 12px; border-radius: 6px; font-size: 12.5px; color: #334155; margin-top: 10px;">
+              <strong>🎯 Argument Clé (Clarté Quotidienne) :</strong><br>
+              Permet à chaque collaborateur (secrétariat, comptabilité) de connaître instantanément son total du jour et
+              son volume de tickets sans mélanger ses chiffres avec les autres bureaux. Idéal pour un pointage rapide le
+              soir.
+            </div>
+          </div>
+        </div>
 
-</div>
+        <!-- FORMULE 2 -->
+        <div
+          style="background: #FFFFFF; border: 2px solid var(--primary); border-radius: 12px; padding: 22px; position: relative; box-shadow: var(--shadow); display: flex; flex-direction: column; justify-content: space-between;">
+          <span
+            style="position: absolute; top: -11px; right: 18px; background: var(--primary); color: #FFF; font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 20px; text-transform: uppercase;">⭐
+            Recommandé Direction</span>
+          <div>
+            <div
+              style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--primary-dark); margin-bottom: 6px;">
+              Formule 2 — Contrôle & Sérénité Absolue</div>
+            <h4 style="font-size: 18px; font-weight: 800; color: var(--primary-darker); margin-bottom: 8px;">Clôture
+              Journalière, Billetage & Ticket Z</h4>
+            <div style="font-size: 24px; font-weight: 800; color: var(--primary-darker); margin-bottom: 14px;">600 000
+              Ar</div>
+
+            <ul
+              style="font-size: 13.5px; color: var(--text); line-height: 1.8; margin-left: 18px; margin-bottom: 16px;">
+              <li><strong>Tout le contenu de la Formule 1 inclus</strong>.</li>
+              <li><strong>Interface de Billetage Physique</strong> : Saisie guidée des coupures de billets (20 000, 10
+                000, 5 000, 2 000, 1 000 Ar) et chèques présents dans le tiroir.</li>
+              <li><strong>Calcul Automatique des Écarts</strong> : Détection instantanée des surplus ou manquants de
+                caisse (*Théorique logiciel vs Réel constaté*).</li>
+              <li><strong>Impression du « Ticket Z de Clôture » 80 mm</strong> : Ticket récapitulatif officiel sur
+                imprimante thermique avec visa contradictoire (signature caissier + émargement Direction).</li>
+              <li><strong>Verrouillage Comptable de Clôture</strong> : Gel des écritures validées pour interdire toute
+                altération rétroactive.</li>
+              <li>Délai de réalisation : <strong>3 à 4 jours</strong>.</li>
+            </ul>
+
+            <div
+              style="background: #FEFCE8; border-left: 3px solid var(--warning); padding: 10px 12px; border-radius: 6px; font-size: 12.5px; color: #854D0E; margin-top: 10px;">
+              <strong>🛡️ Argument Clé (Bouclier Anti-Écart & Protection Direction) :</strong><br>
+              Supprime 100% des litiges de caisse. La Directrice n'a plus à recompter des liasses de billets à la main :
+              le système calcule l'écart, verrouille la journée et imprime un ticket officiel scellé faisant foi
+              juridique et comptable.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SYNTHESE POUR LE CLIENT -->
+      <div
+        style="background: #F0FDF4; border-left: 4px solid var(--success); padding: 14px 18px; border-radius: 8px; font-size: 13.5px; color: #166534;">
+        <strong>🤝 Synthèse d'Orientation Commerciale :</strong><br>
+        • <strong>La Formule 1 (300 000 Ar)</strong> comble immédiatement le besoin formulé de visibilité sur le nombre
+        de tickets et le tri par caissier.<br>
+        • <strong>La Formule 2 (600 000 Ar)</strong> transforme l'application en véritable système de caisse certifié,
+        offrant à la Direction un contrôle financier infaillible et un gain de temps considérable lors de la fermeture
+        quotidienne.
+      </div>
+    </section>
+
+    <!-- SECTION 8: DÉPANNAGE MATÉRIEL AVANCÉ & FICHES PRATIQUES -->
+    <section id="depannage-materiel" class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path
+              d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z">
+            </path>
+          </svg>
+          8. Dépannage Matériel Avancé & Fiches Pratiques (7.1 à 7.8)
+        </h2>
+      </div>
+
+      <!-- FICHE 7.1 : CONFLIT IMPRIMANTES USB MULTIPLES -->
+      <div
+        style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span
+            style="background: var(--info-bg); color: var(--info); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche
+            7.1</span>
+          <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Résolution des
+            Conflits de Ports Imprimante (ex: Nicon/Canon + Xprinter POS-80)</h3>
+        </div>
+
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
+          <strong>Symptôme :</strong> Le câble USB de la Xprinter POS-80 est branché, Windows émet le signal sonore de
+          connexion, le statut indique « Connecté », mais <strong>aucun ticket ne sort</strong> lors du test ou de
+          l'impression.
+        </p>
+
+        <div
+          style="background: var(--surface-subtle); border-left: 4px solid var(--info); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px;">
+          <strong>Explication Technique :</strong> Lorsqu'un PC possède déjà une autre imprimante USB (ex: Canon ou
+          Nicon), celle-ci s'approprie le port virtuel <code>USB001</code>. En branchant la POS-80, Windows lui assigne
+          automatiquement <code>USB002</code> ou <code>USB003</code>. Si le logiciel ou Windows envoie les tickets sur
+          <code>USB001</code>, le flux thermique est envoyé à la mauvaise imprimante ou bloqué dans la file d'attente
+          Windows.
+        </div>
+
+        <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Méthode 1 : Réparation
+          Automatique en 1 Clic (Recommandée)</h4>
+        <ol style="margin-left: 20px; font-size: 13px; color: var(--text); margin-bottom: 16px; line-height: 1.8;">
+          <li>Ouvrez le logiciel LMS et rendez-vous dans <strong>Paramètres</strong> $\rightarrow$ section
+            <strong>Imprimante Thermique POS-80</strong>.</li>
+          <li>Cliquez sur le bouton <strong>« Auto-détecter port USB (Conflit Nicon) »</strong>.</li>
+          <li>Le logiciel scanne tous les ports USB d'impression disponibles, identifie le canal actif de la Xprinter et
+            reconfigure automatiquement Windows sans aucune saisie technique.</li>
+        </ol>
+
+        <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Méthode 2 : Vérification
+          Manuelle sous Windows</h4>
+        <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
+          <li>Ouvrez le <strong>Panneau de configuration</strong> Windows $\rightarrow$ <strong>Périphériques et
+              imprimantes</strong>.</li>
+          <li>Faites un clic droit sur l'imprimante <strong>POS-80</strong> et sélectionnez <strong>Propriétés de
+              l'imprimante</strong>.</li>
+          <li>Rendez-vous dans l'onglet <strong>Ports</strong>.</li>
+          <li>Repérez quel port USB est coché. Si <code>USB001</code> est coché mais ne répond pas, cochez
+            <strong><code>USB002</code></strong> (ou <strong><code>USB003</code></strong>) puis cliquez sur
+            <strong>Appliquer</strong>.</li>
+          <li>Cliquez sur <strong>Imprimer une page de test</strong> : le ticket sortira instantanément.</li>
+        </ol>
+      </div>
+
+      <!-- FICHE 7.2 : PROTOCOLE DÉSINFECTION VIRUS RACCOURCIS USB -->
+      <div
+        style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span
+            style="background: var(--danger-bg); color: var(--danger); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche
+            7.2</span>
+          <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Protocole de
+            Désinfection : Virus des Raccourcis USB (PC lent & Clés infectées)</h3>
+        </div>
+
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
+          <strong>Symptômes :</strong> Les dossiers d'une clé USB insérée se transforment en raccourcis
+          (<code>.lnk</code>), le PC 1 ralentit fortement et la mémoire vive (RAM) est saturée par des processus
+          fantômes.
+        </p>
+
+        <div
+          style="background: var(--danger-bg); border-left: 4px solid var(--danger); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #7f1d1d;">
+          <strong>Origine :</strong> Il s'agit du ver Windows <em>Shortcut Worm</em> (exécuté par
+          <code>wscript.exe</code>). Il masque vos vrais documents et lance un script malveillant en boucle, ce qui
+          épuise les ressources du processeur et perturbe les impressions.
+        </div>
+
+        <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Procédure de Nettoyage et
+          Restauration Immédiate :</h4>
+        <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
+          <li>
+            <strong>Arrêter le script parasite en mémoire :</strong><br>
+            Appuyez sur <kbd>Ctrl</kbd> + <kbd>Maj</kbd> + <kbd>Échap</kbd> pour ouvrir le Gestionnaire des tâches.
+            Cherchez <code>wscript.exe</code> ou <em>Windows Based Script Host</em>, faites clic droit puis <strong>Fin
+              de tâche</strong>.<br>
+            <em>Ou en invite de commandes (CMD) :</em> <code>taskkill /f /im wscript.exe</code>
+          </li>
+          <li>
+            <strong>Révéler les vrais fichiers cachés sur la clé USB :</strong><br>
+            Si votre clé USB porte la lettre <code>E:</code>, ouvrez l'Invite de commandes (CMD) et tapez :<br>
+            <code
+              style="background: #1e293b; color: #38bdf8; padding: 4px 8px; border-radius: 4px; font-family: monospace;">attrib -h -r -s /s /d E:\*.*</code><br>
+            Vos vrais dossiers réapparaîtront immédiatement sur la clé USB sans aucune perte.
+          </li>
+          <li>
+            <strong>Supprimer les faux raccourcis :</strong><br>
+            Sur la clé USB, supprimez manuellement tous les fichiers de type « Raccourci » (taille ~1 Ko) portant le nom
+            de vos anciens dossiers.
+          </li>
+          <li>
+            <strong>Désactiver le démarrage automatique du virus :</strong><br>
+            Dans le Gestionnaire des tâches $\rightarrow$ onglet <strong>Démarrage</strong>, désactivez tout élément
+            suspect pointant vers <code>wscript.exe</code> ou un fichier <code>.vbs</code> situé dans
+            <code>AppData\Roaming</code> ou <code>Temp</code>.
+          </li>
+        </ol>
+      </div>
+
+      <!-- FICHE 7.3 : ARRÊT D'URGENCE ET VIDAGE DE FILE D'IMPRESSION -->
+      <div
+        style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-top: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span
+            style="background: var(--danger-bg); color: var(--danger); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche
+            7.3</span>
+          <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Arrêt d'Urgence de
+            l'Impression & Vidage de la File Spooler (Nettoyage Express)</h3>
+        </div>
+
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
+          <strong>Symptôme :</strong> L'imprimante s'emballe, fait défiler du papier thermique en continu, ou un ticket
+          corrompu reste coincé dans Windows après un mauvais paramétrage de port ou une coupure électrique. Même en
+          éteignant l'imprimante, le ticket recommence à sortir au rallumage.
+        </p>
+
+        <div
+          style="background: var(--danger-bg); border-left: 4px solid var(--danger); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #7f1d1d;">
+          <strong>Fonction du Bouton d'Urgence :</strong> Le bouton rouge <strong>« Arrêter & Vider la file (Urgence)
+            »</strong> (dans Paramètres $\rightarrow$ Imprimante Thermique) ordonne au Spooler Windows de détruire
+          immédiatement tous les travaux en attente (WMI <code>CancelAllJobs()</code>) et réinitialise l'état de
+          l'imprimante.
+        </div>
+
+        <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Procédure Immédiate :
+        </h4>
+        <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
+          <li>Ouvrez <strong>Paramètres</strong> $\rightarrow$ section <strong>Imprimante Thermique & Poste de
+              Caisse</strong>.</li>
+          <li>Cliquez sur le bouton rouge <strong>« 🛑 Arrêter & Vider la file (Urgence) »</strong>.</li>
+          <li>Confirmez le dialogue de validation. Le logiciel annule instantanément tous les travaux bloqués dans
+            Windows, purge le flux de données brutes ESC/POS et sort l'imprimante du mode hors-ligne.</li>
+          <li><strong>Règle de sécurité :</strong> Tous les tickets non imprimés qui se trouvaient dans la file sont
+            considérés comme annulés et non effectués. Aucun ticket fantôme ne sortira ultérieurement. Vous pouvez
+            relancer vos impressions propres sans aucun risque.</li>
+        </ol>
+      </div>
+
+      <!-- FICHE 7.4 : SIGNAUX DE SYNCHRONISATION & POINT ROUGE -->
+      <div
+        style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span
+            style="background: var(--warning-bg); color: var(--warning); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche
+            7.4</span>
+          <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Surveillance de
+            Synchronisation : Comprendre le Point Rouge & Statut Cloud</h3>
+        </div>
+
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
+          <strong>Indicateur Visuel :</strong> Un point rouge clignotant ou un badge orange/rouge dans la barre
+          d'en-tête signale que des écritures locales (nouveaux paiements, inscriptions) sont enregistrées en local mais
+          n'ont pas encore pu être acheminées vers le Cloud Supabase.
+        </p>
+
+        <div
+          style="background: var(--warning-bg); border-left: 4px solid var(--warning); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #92400e;">
+          <strong>Sérénité Totale (Zéro Perte de Données) :</strong> Grâce à l'architecture Local-First du LMS, 100% de
+          vos données sont stockées de façon inaltérable dans la base locale SQLite. Les secrétaires peuvent continuer à
+          encaisser et imprimer des reçus sans interruption, même en coupure totale d'Internet.
+        </div>
+
+        <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Que faire si le voyant
+          rouge persiste avec une connexion Internet active ?</h4>
+        <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
+          <li>Cliquez sur le badge de statut de synchronisation en haut de l'écran ou allez dans
+            <strong>Paramètres</strong>.</li>
+          <li>Cliquez sur <strong>« Réparer / Forcer la Synchronisation »</strong>.</li>
+          <li>Le moteur v1.1.10 réinitialise automatiquement le curseur de synchronisation, nettoie les données selon le
+            schéma Cloud Supabase et renvoie toutes les écritures en attente.</li>
+          <li>Dès que l'envoi est confirmé par le Cloud, le voyant passe instantanément au <strong>vert fixe («
+              Synchronisé »)</strong>.</li>
+        </ol>
+      </div>
+
+      <!-- FICHE 7.5 : GESTIONNAIRE DE DOUBLONS INTER-CAISSES -->
+      <div
+        style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span
+            style="background: var(--info-bg); color: var(--info); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche
+            7.5</span>
+          <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Centre de Contrôle des
+            Doublons : Conflits de Paiement C1 vs C2 & Fiches Élèves</h3>
+        </div>
+
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
+          <strong>Scénario :</strong> La secrétaire sur le Poste 1 a encaissé des écolages. Ne les voyant pas encore sur
+          le Poste 2 en raison d'un délai réseau, l'opératrice du Poste 2 a ré-encaissé les mêmes sommes pour les mêmes
+          élèves, créant des paiements concurrents.
+        </p>
+
+        <div
+          style="background: var(--info-bg); border-left: 4px solid var(--info); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #075985;">
+          <strong>Protection Intégrée (Module Doublons) :</strong> Le logiciel intègre un module intelligent d'arbitrage
+          accessible dans le menu latéral $\rightarrow$ <strong>« Doublons »</strong> (ou dans Paramètres). Il analyse
+          les concordances et propose une résolution guidée sans risque comptable.
+        </div>
+
+        <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Comment arbitrer un
+          doublon en toute sécurité :</h4>
+        <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
+          <li>Ouvrez le <strong>Gestionnaire de Doublons</strong> dans le menu de gauche.</li>
+          <li>L'écran affiche les conflits détectés : même élève, même mois d'écolage, montants identiques ou rapprochés
+            émis sur C1 et C2.</li>
+          <li>Comparez les deux tickets côte à côte (dates, heures, opérateurs, montants).</li>
+          <li>Cliquez sur <strong>« Conserver Reçu C1 »</strong> ou <strong>« Conserver Reçu C2 »</strong> : le reçu
+            doublon est annulé proprement avec trace comptable complète dans <code>settings_history</code>.</li>
+          <li>Si le parent a volontairement payé deux tranches réelles, cliquez sur <strong>« Conserver les deux
+              (Valide) »</strong> pour lever l'alerte.</li>
+        </ol>
+      </div>
+
+      <!-- FICHE 7.6 : AFFECTATION DES POSTES & PLUG & PLAY -->
+      <div
+        style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span
+            style="background: var(--success-bg); color: var(--success); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche
+            7.6</span>
+          <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Affectation
+            Multi-Postes & Déploiement Réel Plug & Play</h3>
+        </div>
+
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
+          <strong>Organisation Recommandée des Postes de Travail :</strong>
+        </p>
+
+        <table class="manual-table" style="margin-bottom: 16px;">
+          <thead>
+            <tr>
+              <th>Poste Physique</th>
+              <th>Rôle Utilisateur</th>
+              <th>Code Caisse à Régler</th>
+              <th>Format Numérotation Reçus</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Ordinateur 1</strong></td>
+              <td>Bureau de la Direction</td>
+              <td><code>Caisse C1</code></td>
+              <td><code>REC-2026-C1-XXXXX</code></td>
+            </tr>
+            <tr>
+              <td><strong>Ordinateur 2</strong></td>
+              <td>Secrétaire / Comptable 1</td>
+              <td><code>Caisse C2</code></td>
+              <td><code>REC-2026-C2-XXXXX</code></td>
+            </tr>
+            <tr>
+              <td><strong>Ordinateur 3</strong></td>
+              <td>Secrétaire / Comptable 2</td>
+              <td><code>Caisse C3</code></td>
+              <td><code>REC-2026-C3-XXXXX</code></td>
+            </tr>
+            <tr>
+              <td><strong>PC Développeur / Test</strong></td>
+              <td>Maintenance & Validation</td>
+              <td><code>C1, C2 ou DEV</code></td>
+              <td>Totalement isolé (paramètre local non synchronisé)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Garantie d'Isolation du
+          PC Développeur :</h4>
+        <p style="font-size: 13px; color: var(--text); margin-bottom: 14px; line-height: 1.8;">
+          Le réglage du code de poste (<code>pos_station_code</code>) est classé dans la zone
+          <strong>LOCAL_ONLY_SETTINGS</strong> de chaque machine. Cela garantit que lorsque le développeur teste
+          l'application en mode C1 ou C2, la synchronisation Supabase <strong>n'écrase jamais</strong> les
+          configurations des postes de la Direction ou des Secrétaires chez le client. Chaque PC garde son identité de
+          façon inébranlable.
+        </p>
+
+        <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Plug & Play Réel des
+          Outils Xprinter :</h4>
+        <p style="font-size: 13px; color: var(--text); line-height: 1.8;">
+          Tous les scripts nécessaires (<code>detect-xprinter.ps1</code>, <code>installer-xprinter.ps1</code>,
+          <code>send-raw.ps1</code>) sont empaquetés directement dans l'installateur Windows
+          <strong><code>lms-1.1.10-setup.exe</code></strong>. Vous n'avez plus besoin d'importer ou de copier des
+          fichiers annexes : dès l'installation, le bouton d'auto-détection et le pilote thermique fonctionnent
+          immédiatement sur n'importe quel port USB.
+        </p>
+      </div>
+
+      <!-- FICHE 7.7 : CONFIGURATION SERVICE EMAIL & MOT DE PASSE D'APPLICATION GOOGLE -->
+      <div id="email-bilan"
+        style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span
+            style="background: var(--success-bg); color: var(--success); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche
+            7.7</span>
+          <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Configuration &
+            Activation du Bilan Quotidien par Email (Google App Password)</h3>
+        </div>
+
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
+          Le LMS dispose d'un service d'automatisation des bilans financiers par email. Chaque soir ouvrable à
+          <strong>18h00</strong> (du lundi au samedi), le système compile les encaissements, décaissements, solde
+          initial et solde final, puis transmet le bilan exécutif avec le document PDF officiel joint
+          (<code>bilan_AAAA-MM-JJ.pdf</code>) au courriel officiel de la Directrice générale
+          (<code>christineanjarasoa36@gmail.com</code>).
+        </p>
+
+        <div
+          style="background: var(--surface-subtle); border-left: 4px solid var(--info); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px;">
+          <strong>Pourquoi un « Mot de passe d'application » Google ?</strong><br>
+          Pour des raisons de sécurité renforcée (validation en deux étapes / 2FA), Google n'autorise plus la saisie du
+          mot de passe habituel de votre compte Google dans les applications tierces. Google génère à la place un
+          <strong>mot de passe d'application dédié de 16 lettres</strong> (ex: <code>abcd efgh ijkl mnop</code>). Ce
+          code est ultra-sécurisé, révocable à tout moment et ne divulgue jamais votre mot de passe principal.
+        </div>
+
+        <h4 style="font-size: 15px; font-weight: 700; color: var(--primary-darker); margin-bottom: 12px;">Procédure Pas
+          à Pas d'Activation (1 Minute Chrono) :</h4>
+
+        <ol class="step-list" style="margin-bottom: 20px;">
+          <li class="step-item">
+            <h4>Accéder à la Gestion des Mots de Passe d'Application Google</h4>
+            <p>
+              Connectez-vous sur votre navigateur avec le compte Google expéditeur de l'école
+              (<code>mmanjarysoa@gmail.com</code>).<br>
+              • <strong>Option directe :</strong> Dans LMS, allez dans <strong>Paramètres</strong> ➔ <strong>📧 Service
+                Email</strong> et cliquez sur le lien <strong>« Générer sur Google ↗ »</strong>.<br>
+              • <strong>Option URL :</strong> Rendez-vous sur <a href="https://myaccount.google.com/apppasswords"
+                target="_blank" style="color: var(--info); font-weight: 600;">myaccount.google.com/apppasswords</a>.<br>
+              <em>(Prérequis : La Validation en deux étapes doit être active sur votre compte Google).</em>
+            </p>
+          </li>
+          <li class="step-item">
+            <h4>Créer le Code d'Autorisation de 16 Lettres</h4>
+            <p>
+              Dans le champ <em>« Nom de l'application »</em>, saisissez par exemple <code>LMS Manjary Soa</code> puis
+              cliquez sur le bouton <strong>« Créer »</strong>.<br>
+              Google affiche un encadré contenant votre mot de passe de 16 lettres (ex:
+              <code>abcd efgh ijkl mnop</code>). <strong>Copiez ces 16 lettres</strong>.
+            </p>
+          </li>
+          <li class="step-item">
+            <h4>Coller et Enregistrer dans LMS Manjary Soa</h4>
+            <p>
+              Dans LMS, section <strong>Paramètres</strong> ➔ <strong>📧 Service Email</strong> :<br>
+              • L'adresse Gmail expéditrice est déjà pré-remplie : <code>mmanjarysoa@gmail.com</code>.<br>
+              • L'adresse destinataire de la Directrice est fixée : <code>christineanjarasoa36@gmail.com</code>.<br>
+              • Collez votre code de 16 lettres dans le champ <strong>« Mot de passe d'application Google »</strong>
+              <em>(Le logiciel retire automatiquement tous les espaces)</em>. Vous pouvez cliquer sur l'icône œil 👁️
+              pour vérifier.<br>
+              • Assurez-vous que <strong>« Activer le service email »</strong> et <strong>« Envoi automatique du bilan
+                journalier à 18h »</strong> sont bien cochés.<br>
+              • Cliquez sur le bouton <strong>« Enregistrer »</strong>.
+            </p>
+          </li>
+          <li class="step-item">
+            <h4>Valider et Tester l'Envoi Immédiat</h4>
+            <p>
+              • Cliquez sur <strong>« Tester la connexion »</strong> : un message vert confirme que la liaison SMTP avec
+              les serveurs Google est 100% fonctionnelle.<br>
+              • Cliquez sur <strong>« Envoyer le rapport du jour maintenant »</strong> : le logiciel génère
+              immédiatement le bilan du jour avec le fichier PDF officiel joint et l'envoie sur la boîte mail de la
+              directrice pour validation !
+            </p>
+          </li>
+        </ol>
+
+        <table class="manual-table">
+          <thead>
+            <tr>
+              <th>Paramètre</th>
+              <th>Valeur par Défaut dans le Logiciel</th>
+              <th>Rôle & Comportement</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Compte Expéditeur</strong></td>
+              <td><code>mmanjarysoa@gmail.com</code></td>
+              <td>Adresse Gmail officielle d'envoi de l'établissement</td>
+            </tr>
+            <tr>
+              <td><strong>Courriel Destinataire</strong></td>
+              <td><code>christineanjarasoa36@gmail.com</code></td>
+              <td>Boîte personnelle de la Directrice générale</td>
+            </tr>
+            <tr>
+              <td><strong>Heure d'Envoi Quotidien</strong></td>
+              <td><strong>18h00</strong> (Lundi au Samedi)</td>
+              <td>Envoi automatique en fin de journée (Dimanche exclu)</td>
+            </tr>
+            <tr>
+              <td><strong>Sécurité Anti-Doublon</strong></td>
+              <td>Date du jour horodatée</td>
+              <td>Garantit qu'un même bilan journalier n'est jamais envoyé deux fois</td>
+            </tr>
+            <tr>
+              <td><strong>Pièce Jointe Officielle</strong></td>
+              <td><code>bilan_AAAA-MM-JJ.pdf</code></td>
+              <td>Bilan comptable certifié avec émargements et encadrés de visa Direction</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- FICHE 7.8 : DÉBUT D'EXERCICE PERSONNEL & GESTION DES SALAIRES IMPAYÉS -->
+      <div id="exercice-personnel"
+        style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-top: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span
+            style="background: var(--info-bg); color: var(--info); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche
+            7.8</span>
+          <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Début d'Exercice
+            (Personnel & Salaires) : Fonctionnement Mensuel & Questions d'Analyse</h3>
+        </div>
+
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px;">
+          <strong>Contexte :</strong> Dans le module <em>Salaires & Impayés</em>, un bandeau d'alerte jaune signale les
+          employés qui n'ont pas encore de « Début de paie (Exercice) » défini dans leur fiche. Cette fiche détaille
+          l'emplacement du champ, la raison du format mensuel (<code>AAAA-MM</code>) et les questions clés à clarifier
+          avec l'établissement.
+        </p>
+
+        <div
+          style="background: var(--surface-subtle); border-left: 4px solid var(--primary); padding: 14px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px;">
+          <strong>📍 Où se trouve le réglage dans le logiciel ?</strong><br>
+          1. Rendez-vous dans <strong>Personnel</strong> ➔ <strong>Liste du personnel</strong>.<br>
+          2. Cliquez sur l'icône <strong>Modifier (crayon ✏️)</strong> sur la ligne de l'employé concerné.<br>
+          3. Faites défiler la page jusqu'à la section <strong>« Informations professionnelles »</strong> (située juste
+          au-dessus de <em>Rémunération</em>).<br>
+          4. Le champ s'intitule <strong>« Début de paie (Exercice) »</strong> (sélecteur mois/année ex:
+          <code>2025-09</code>) avec l'instruction <em>« Ignorer le passif avant ce mois »</em>.<br>
+          5. Cliquez sur <strong>Enregistrer</strong> en bas de page.
+        </div>
+
+        <h4 style="font-size: 14px; font-weight: 700; color: var(--primary-darker); margin-bottom: 8px;">1. Pourquoi le
+          format mensuel (AAAA-MM) sans mentionner le jour précis ?</h4>
+        <div class="grid-2" style="margin-bottom: 16px;">
+          <div
+            style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px; font-size: 13px;">
+            <h5 style="color: #0F172A; font-weight: 700; margin-bottom: 6px;">✅ Avantages du Format Mensuel (AAAA-MM)
+            </h5>
+            <ul style="margin-left: 16px; color: #475569; line-height: 1.7;">
+              <li><strong>Unité de compte globale :</strong> En comptabilité scolaire malgache, les salaires et impayés
+                sont calculés par mois civil entier (ex: Salaire de Septembre, Salaire d'Octobre).</li>
+              <li><strong>Verrou anti-faux impayés :</strong> Indiquer <code>2025-09</code> ordonne au logiciel de
+                démarrer l'historique en Septembre 2025 et d'ignorer tout le passé des années antérieures.</li>
+              <li><strong>Aucune ambiguïté de prorata :</strong> Évite de générer par erreur des demi-salaires ou
+                fractions de salaires non souhaitées.</li>
+              <li><strong>La date exacte au jour le jour existe déjà :</strong> C'est le champ <strong>« Date d'embauche
+                  »</strong> (<code>AAAA-MM-JJ</code>) réservé au contrat et à l'ancienneté.</li>
+            </ul>
+          </div>
+
+          <div
+            style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 14px; font-size: 13px;">
+            <h5 style="color: #991B1B; font-weight: 700; margin-bottom: 6px;">⚠️ Risques d'un Format au Jour Précis
+              (AAAA-MM-JJ)</h5>
+            <ul style="margin-left: 16px; color: #7F1D1D; line-height: 1.7;">
+              <li><strong>Problème du prorata automatique :</strong> Si on saisit le <code>15/09/2025</code>, le système
+                doit-il payer un demi-salaire, compter les jours ouvrés ou 15/30e ?</li>
+              <li><strong>Incompatibilité avec les salaires fixes :</strong> Les contrats d'école prévoient un forfait
+                mensuel ; les ajustements de premier mois se font généralement de gré à gré ou via les heures réelles
+                pointées.</li>
+              <li><strong>Lourdeur de saisie :</strong> Oblige le gestionnaire à chercher un jour calendaire précis au
+                lieu de simplement pointer le mois de rentrée.</li>
+            </ul>
+          </div>
+        </div>
+
+        <h4 style="font-size: 14px; font-weight: 700; color: var(--primary-darker); margin-bottom: 8px;">2. Questions
+          Clés à Clarifier avec l'Établissement (Grille d'Entretien)</h4>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+          Pour valider l'adéquation exacte avec les pratiques internes de l'école, voici les questions à soumettre à la
+          Direction ou au Comptable :
+        </p>
+
+        <table class="manual-table" style="margin-bottom: 16px;">
+          <thead>
+            <tr>
+              <th style="width: 35%;">Question à poser à l'école</th>
+              <th style="width: 35%;">Options envisagées</th>
+              <th style="width: 30%;">Impact sur le logiciel</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Q1. Démarrage de l'exercice de paie</strong><br><em>« Votre suivi de paie sur le logiciel
+                  démarre-t-il bien au mois civil complet (ex: à partir de Septembre 2025 pour la rentrée) ? »</em></td>
+              <td>
+                • <strong>Option A (Standard) :</strong> Oui, au mois civil complet.<br>
+                • <strong>Option B :</strong> À une date décalée (ex: du 21 au 20 du mois).
+              </td>
+              <td>
+                Si Option A (recommandé), le format mensuel <code>AAAA-MM</code> actuel est parfait et 100% suffisant.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Q2. Recrutement en cours de mois</strong><br><em>« Si un enseignant ou employé est embauché en
+                  milieu de mois (ex: le 12 ou le 18), comment réglez-vous son premier salaire ? »</em></td>
+              <td>
+                • <strong>Option A :</strong> Paiement au forfait convenu ou mois complet.<br>
+                • <strong>Option B :</strong> Saisie des heures réellement faites dans le pointage.<br>
+                • <strong>Option C :</strong> Calcul automatique au prorata temporis exact.
+              </td>
+              <td>
+                Si Option B, le module de pointage/absences gère déjà la déduction d'heures sans changer le début
+                d'exercice.
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Q3. Confort d'utilisation & Action groupée</strong><br><em>« Préférez-vous un bouton direct
+                  "Définir l'exercice pour tous" plutôt que d'éditer chaque employé individuellement ? »</em></td>
+              <td>
+                • <strong>Bouton 1-clic :</strong> Définit le mois d'exercice pour tous les employés en un clic depuis
+                l'écran Salaires & Impayés.
+              </td>
+              <td>
+                Gain de temps immédiat : évite de devoir ouvrir 30 à 50 fiches une par une.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div
+          style="background: #F0FDF4; border-left: 4px solid var(--success); padding: 12px 16px; border-radius: 6px; font-size: 13px; color: #166534;">
+          <strong>💡 Synthèse & Recommandation Technique :</strong><br>
+          • Conserver le format <strong>mensuel (<code>AAAA-MM</code>)</strong> pour le <em>Début de paie
+            (Exercice)</em> afin de respecter la logique des salaires scolaires et d'éviter les pièges de prorata
+          arbitraires.<br>
+          • Laisser la <strong>Date d'embauche (<code>AAAA-MM-JJ</code>)</strong> précise pour les contrats et la
+          gestion RH administrative.<br>
+          • Déployer le bouton d'action groupée dans <em>Salaires & Impayés</em> pour un paramétrage instantané de
+          rentrée en 1 clic.
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 9: FOIRE AUX QUESTIONS (FAQ) -->
+    <section id="faq" class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          9. Foire Aux Questions (FAQ) & Bonnes Pratiques Caissiers
+        </h2>
+      </div>
+
+      <div class="advantage-box">
+        <h4>❓ Que faire si l'imprimante ne répond pas ou n'imprime rien ?</h4>
+        <p>
+          1. Vérifiez que l'imprimante est allumée (voyant bleu allumé) et que le câble USB est branché.<br>
+          2. Allez dans <strong>Paramètres</strong> -> <em>"Imprimante Thermique"</em> et cliquez sur <em>"Tester
+            l'impression"</em>.<br>
+          3. Si nécessaire, réexécutez <code>installer-xprinter.bat</code> en mode Administrateur.
+        </p>
+      </div>
+
+      <div class="advantage-box">
+        <h4>❓ Que faire si la connexion Internet coupe pendant plusieurs jours ?</h4>
+        <p>
+          <strong>Rien de particulier !</strong> Vous pouvez continuer d'inscrire des élèves, d'enregistrer des
+          paiements et d'imprimer des reçus normalement. Dès que la connexion revient, le logiciel se synchronisera tout
+          seul sans aucune action de votre part.
+        </p>
+      </div>
+
+      <div class="advantage-box">
+        <h4>❓ Comment un parent peut-il obtenir un duplicata si son reçu est perdu ?</h4>
+        <p>
+          Rendez-vous sur la fiche de l'élève (onglet Finance), repérez le paiement concerné et cliquez sur le bouton
+          <strong>"Ticket"</strong>. Le logiciel sortira automatiquement un <strong>Duplicata Certifié</strong> sans
+          modifier la comptabilité originale.
+        </p>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer
+      style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 40px; border-top: 1px solid var(--border); padding-top: 20px;">
+      <strong>LMS Manjary Soa v1.1.11</strong> — Solution Professionnelle Développée pour le Lycée Privé Manjary Soa,
+      Lot H 81 Miadana Alasora, Antananarivo.
+    </footer>
+
+  </div>
 
 </body>
+
 </html>
