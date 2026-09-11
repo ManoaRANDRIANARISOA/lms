@@ -334,6 +334,7 @@ export default function StudentForm({
     setIsSubmitting(true)
     try {
       const payload = { ...data }
+      delete payload.student_status
       payload.siblings = selectedSiblings.map((s) => s.id)
 
       let success = false
@@ -349,9 +350,6 @@ export default function StudentForm({
           const targetYear = initialFees?.school_year || useAppStore.getState().currentYear
           await window.api.student.rectifyEnrollmentType(initialData.id, targetYear, enrollmentType)
         }
-
-        // Pass student_status in payload to maintain coherence
-        payload.student_status = enrollmentType === 'enrollment' ? 'Inscrit' : 'Ancien'
 
         success = await updateStudent(initialData.id, payload)
 

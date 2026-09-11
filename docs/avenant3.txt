@@ -1,0 +1,83 @@
+Niveau 1 : La demande formulée par le client
+(Filtre par caissier + Total des tickets traités/jour/semaine)	• Ajouter une condition SQL WHERE created_by = ? dans la requête.
+• Ajouter une liste déroulante "Caissier" dans le filtre.
+• Afficher une carte récapitulative : « Nombre de tickets : 38 | Total espèces : X | Total chèques : Y ».
+
+
+Niveau 2 : Un VRAI module de Rapprochement / Z de Caisse
+(Comptabilité de caisse stricte comme en grande surface)	• Formulaire de saisie du billetage (comptage des billets physiques dans le tiroir le soir).
+• Calcul automatique des écarts (Théorique logiciel vs Réel physique constaté).
+• Verrouillage de la journée (empêcher la modification d'un reçu après clôture).
+• Impression d'un Ticket Récapitulatif Z officiel sur l'imprimante thermique 80 mm avec double signature.
+
+
+
+
+
+
+
+
+
+Formule 1 : Extension Opérationnelle (350 000 Ar)
+Filtres Caissiers & Comptage de Tickets	• Sélecteur d'opérateur dans le Journal de Caisse.
+• Nombre total de tickets/paiements traités par période.
+• Total encaissé ventilé par mode (Espèces, Chèque, MVola) pour chaque caissier.	« Chacun son rôle, chacun ses chiffres. »
+Actuellement, les encaissements du secrétariat, de la comptabilité et de la direction sont mélangés dans un seul journal. Avec ce filtre, chaque caissier clique sur son nom en fin de journée et sait exactement :
+1. Combien de tickets il a remis aux parents.
+2. Combien d'espèces exactes il doit remettre.
+➡️ Fini les calculatrices et les discussions entre collègues pour savoir qui a pris quoi.
+
+
+Formule 2 : Contrôle & Sérénité Absolue (650 000 Ar)
+Billetage, Calcul d'Écart & Ticket Z thermique	• Billetage assisté : Le caissier saisit le nombre de billets physiques dans son tiroir (combien de coupures de 20 000, 10 000, 5 000, 2 000, 1 000 Ar).
+• Calcul automatique d'écart : Comparaison instantanée entre le tiroir physique et les tickets émis.
+• Impression du « Ticket Z » 80 mm : Récapitulatif officiel de fin de journée avec double signature.
+• Verrouillage comptable : La journée est scellée, interdisant toute modification rétroactive de reçu.	« Le bouclier anti-fraude et l'assurance zéro litige pour la Directrice. »
+La Directrice n'a plus à faire confiance aveuglément ni à recompter manuellement des liasses le soir :
+1. Le caissier remplit son billetage.
+2. Le logiciel calcule l'écart : vert si c'est exact, ou alerte immédiate en cas de manquant.
+3. L'imprimante 80 mm sort le Ticket Z officiel de clôture scellé, signé par le caissier et visé par la Direction.
+4. La caisse est verrouillée : impossible d'annuler ou de modifier un paiement en douce le lendemain.
+➡️ Gain de temps quotidien de 1h30 pour la Direction et protection juridique totale.
+
+
+
+
+
+Étape 1 : Valoriser le partenariat et tout ce qui a déjà été offert (L'Ancrage)
+« Bonjour Madame la Directrice / Monsieur le Directeur,
+Le logiciel fonctionne aujourd'hui de manière très fluide : le multi-postes est déployé, l'impression des tickets 80 mm est opérationnelle et la synchronisation sécurisée est en place.
+Comme vous l'avez constaté, pour que tout soit parfait, nous ne nous sommes pas limités au code : nous vous avons accompagné sur le conseil et l'installation réseau, sur le choix et l'approvisionnement des imprimantes thermiques pour vous faire économiser l'encre, et sur la sécurisation anti-fraude des duplicatas. Tout cela, nous vous l'avons offert avec plaisir dans le cadre de notre garantie et de notre relation de confiance. »
+
+
+Étape 2 : Introduire le besoin nouveau de caisse (La Transition)
+« Lors de nos derniers échanges, vous avez formulé un souhait très légitime : maintenant que vous avez deux ou trois personnes qui encaissent en même temps (le secrétariat, la comptabilité, vous-même), vous souhaitez filtrer le journal par caisse, savoir exactement combien de tickets chaque personne a sortis dans sa journée ou sa semaine, et faire le pointage de chaque tiroir.
+C'est une excellente pratique de gestion. Techniquement, le contrat initial prévoyait une caisse unique globale d'école. La gestion de caisses auxiliaires séparées par opérateur est donc une extension hors contrat. Pour vous répondre au plus juste, nous avons calibré deux formules : »
+
+Étape 3 : Pitcher la Formule 1 (300 000 Ar) — L'Opérationnel
+*« La première formule, c'est l'Extension Opérationnelle à 300 000 Ar.
+Elle répond exactement à votre demande immédiate : dans le journal financier, un simple clic sur le nom de l'opérateur (par exemple le Secrétariat) isole instantanément ses encaissements.
+Vous avez en direct :
+
+Le nombre total de tickets traités dans la journée ou la semaine.
+Son total d'encaissements ventilé : tant en espèces, tant en chèque, tant en MVola.
+C'est très simple, ça évite que les secrétaires mélangent leurs comptes avec les vôtres, et pour 300 000 Ar, c'est livré et opérationnel en 48 heures. »*
+Étape 4 : Pitcher la Formule 2 (600 000 Ar) — La Sécurité & le Z de Caisse (Pour la Directrice)
+*« La seconde formule, à 600 000 Ar, va beaucoup plus loin et c'est celle que je vous recommande pour votre tranquillité d'esprit : c'est le Rapprochement Intégral avec Ticket Z.
+Aujourd'hui, en fin de journée, vous devez recompter les liasses de billets à la main pour vérifier s'il ne manque pas d'argent dans le tiroir, ce qui est chronophage et source de stress.
+Avec cette formule :
+
+Le caissier clique sur "Clôture de caisse" et saisit son billetage : combien de billets de 20 000, de 10 000, de 5 000 Ar...
+Le logiciel compare automatiquement le tiroir physique avec les tickets délivrés et calcule l'écart instantanément : vert si la caisse est exacte, alerte rouge s'il y a un manquant.
+L'imprimante thermique sort alors un Ticket Z officiel de Clôture avec le récapitulatif scellé, signé par le caissier et visé par vous.
+Dès que le Z est imprimé, la journée est verrouillée : personne ne peut annuler ou modifier un ticket en douce.
+C'est le système utilisé dans les banques et les supermarchés. Pour 600 000 Ar, vous gagnez 1h30 chaque soir et vous supprimez 100% des risques d'erreur ou de litige. »*
+Étape 5 : Répondre aux éventuelles objections avec fermeté et tact
+Si le client dit : « Mais c'est juste un petit filtre, vous pouvez pas nous l'offrir ? »
+
+« Je comprends tout à fait votre sentiment. Cependant, vous avez vu tout ce que nous avons déjà pris en charge gracieusement sans vous demander un seul Ariary : les conseils Starlink, les tests et l'installation physique des imprimantes, la purge d'urgence du Spooler, la gestion des doublons hors-ligne... Cela représente déjà plus de 800 000 Ar de services offerts.
+300 000 Ar est un forfait extrêmement doux pour adapter la base de données, l'interface et fiabiliser les calculs multi-postes. C'est le prix juste pour que le travail soit fait dans les règles de l'art. »
+
+Si le client hésite entre la Formule 1 et la 2 :
+
+« Si votre priorité est simplement que chaque secrétaire voie ses propres encaissements, la Formule 1 à 300 000 Ar suffit amplement. Si votre enjeu est d'avoir une preuve papier irréfutable chaque soir pour le Conseil d'Administration et ne plus jamais avoir de doute sur le contenu des tiroirs, la Formule 2 à 600 000 Ar est l'investissement idéal. »

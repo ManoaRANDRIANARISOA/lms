@@ -41,8 +41,7 @@ export class StudentRepository {
     'email',
     'is_personnel_child',
     'parent_personnel_id',
-    'departure_date',
-    'student_status'
+    'departure_date'
   ]
 
   private static translateError(error: unknown): string {
@@ -1027,7 +1026,7 @@ export class StudentRepository {
 
       return { success: true }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error)
+      const message = this.translateError(error)
       console.error('[StudentRepository.update] Update error:', error)
       return { success: false, error: message }
     }
@@ -1439,7 +1438,6 @@ export class StudentRepository {
         .replace(/['"]/g, '')
         .trim()
       const isReenrollment = newType === 'reenrollment' ? 1 : 0
-      const newStatus = newType === 'enrollment' ? 'Nouveau' : 'Ancien'
       const paymentDesc = newType === 'enrollment' ? "Droits d'inscription" : 'Droits de réinscription'
       const cashCategory = newType === 'enrollment' ? 'inscription' : 'réinscription'
       const cashDescPrefix =
@@ -1448,13 +1446,7 @@ export class StudentRepository {
           : 'Paiement Droits de réinscription'
 
       const transaction = db.transaction(() => {
-        // 1. Update students table
-        db.prepare(
-          `UPDATE students SET student_status = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending' WHERE id = ?`
-        ).run(newStatus, studentId)
-        addToSyncQueue('students', studentId, 'update', { id: studentId, student_status: newStatus })
-
-        // 2. Update student_fees for this school year (with sanitized year comparison)
+        // 1. Update student_fees for this school year (with sanitized year comparison)
         let fee = db
           .prepare(
             `SELECT id FROM student_fees WHERE student_id = ? AND REPLACE(REPLACE(school_year, '"', ''), '''', '') = ?`
