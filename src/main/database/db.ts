@@ -145,7 +145,8 @@ const runMigrations = (): void => {
     '040_heal_finance_prices_settings.sql',
     '041_add_print_tracking_to_cash_journal.sql',
     '042_fix_student_bus_cash_department.sql',
-    '043_merge_duplicate_users_and_update_admin.sql'
+    '043_merge_duplicate_users_and_update_admin.sql',
+    '044_add_cash_closures.sql'
   ]
   migrations.forEach(applyMigration)
 }
@@ -194,7 +195,8 @@ ensureTableColumns('students', [
   'email',
   'gender',
   'is_personnel_child',
-  'parent_personnel_id'
+  'parent_personnel_id',
+  'departure_date'
 ])
 
 ensureTableColumns('student_fees', [

@@ -325,7 +325,11 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
         const now = new Date()
         const localDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
         const authUser = useAuthStore.getState().user
-        const cashierOperator = authUser?.full_name || authUser?.username || 'Administrateur'
+        const cashierOperator = authUser?.username || authUser?.full_name || ''
+        if (!cashierOperator) {
+          toast.error('Session opérateur introuvable. Veuillez vous reconnecter.')
+          return
+        }
 
         const paymentData = {
           student_id: studentId,

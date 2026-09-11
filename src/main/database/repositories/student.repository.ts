@@ -5,6 +5,7 @@ import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
 import { LoggerService } from '../../services/logger.service'
+import { PaymentRepository } from './payment.repository'
 
 export class StudentRepository {
   private static feeFields = [
@@ -1110,7 +1111,8 @@ export class StudentRepository {
     targetYear: string,
     initialPaymentDroit?: number,
     initialPaymentFram?: number,
-    isNewStudentOverride?: boolean
+    isNewStudentOverride?: boolean,
+    cashierName?: string
   ): { success: boolean; error?: string } {
     const student = db.prepare('SELECT * FROM students WHERE id = ?').get(id) as
       | Record<string, unknown>
@@ -1190,19 +1192,21 @@ export class StudentRepository {
       })
 
       const currentDate = new Date().toISOString().split('T')[0]
+      const cashierUser = cashierName || 'Administrateur'
 
       // Create Fram Payment Record if > 0
       if (initialPaymentFram && initialPaymentFram > 0) {
         const paymentId = uuidv4()
         const desc = 'Cotisation FRAM'
+        const receiptNumber = PaymentRepository.generateReceiptNumber(targetYear)
 
         db.prepare(
           `
             INSERT INTO student_payments (
-                id, student_id, amount, payment_date, payment_type, payment_method, description, school_year
-            ) VALUES (?, ?, ?, ?, 'fram', 'cash', ?, ?)
+                id, student_id, amount, payment_date, payment_type, payment_method, description, school_year, receipt_number, created_by, print_count
+            ) VALUES (?, ?, ?, ?, 'fram', 'cash', ?, ?, ?, ?, 0)
           `
-        ).run(paymentId, id, initialPaymentFram, currentDate, desc, targetYear)
+        ).run(paymentId, id, initialPaymentFram, currentDate, desc, targetYear, receiptNumber, cashierUser)
 
         addToSyncQueue('student_payments', paymentId, 'create', {
           id: paymentId,
@@ -1212,7 +1216,9 @@ export class StudentRepository {
           payment_type: 'fram',
           payment_method: 'cash',
           description: desc,
-          school_year: targetYear
+          school_year: targetYear,
+          receipt_number: receiptNumber,
+          created_by: cashierUser
         })
 
         // Add to cash_journal
@@ -1220,10 +1226,11 @@ export class StudentRepository {
         const cashDesc = `Paiement ${desc} — ${student.last_name} ${student.first_name}`
         db.prepare(
           `
-          INSERT INTO cash_journal (id, transaction_date, type, department, category, amount, description, payment_method, related_student_id)
-          VALUES (?, ?, 'income', 'eleve', 'divers', ?, ?, 'cash', ?)
+          INSERT INTO cash_journal (
+            id, transaction_date, type, department, category, amount, description, payment_method, related_student_id, related_payment_id, receipt_number, created_by
+          ) VALUES (?, ?, 'income', 'eleve', 'divers', ?, ?, 'cash', ?, ?, ?, ?)
         `
-        ).run(cashId, currentDate, initialPaymentFram, cashDesc, id)
+        ).run(cashId, currentDate, initialPaymentFram, cashDesc, id, paymentId, receiptNumber, cashierUser)
 
         addToSyncQueue('cash_journal', cashId, 'create', {
           id: cashId,
@@ -1234,7 +1241,10 @@ export class StudentRepository {
           amount: initialPaymentFram,
           description: cashDesc,
           payment_method: 'cash',
-          related_student_id: id
+          related_student_id: id,
+          related_payment_id: paymentId,
+          receipt_number: receiptNumber,
+          created_by: cashierUser
         })
       }
 
@@ -1243,14 +1253,15 @@ export class StudentRepository {
         const paymentId = uuidv4()
         const paymentType = isNewStudent ? 'enrollment' : 'reenrollment'
         const desc = isNewStudent ? "Droits d'inscription" : 'Droits de réinscription'
+        const receiptNumber = PaymentRepository.generateReceiptNumber(targetYear)
 
         db.prepare(
           `
             INSERT INTO student_payments (
-                id, student_id, amount, payment_date, payment_type, payment_method, description, school_year
-            ) VALUES (?, ?, ?, ?, ?, 'cash', ?, ?)
+                id, student_id, amount, payment_date, payment_type, payment_method, description, school_year, receipt_number, created_by, print_count
+            ) VALUES (?, ?, ?, ?, ?, 'cash', ?, ?, ?, ?, 0)
           `
-        ).run(paymentId, id, initialPaymentDroit, currentDate, paymentType, desc, targetYear)
+        ).run(paymentId, id, initialPaymentDroit, currentDate, paymentType, desc, targetYear, receiptNumber, cashierUser)
 
         addToSyncQueue('student_payments', paymentId, 'create', {
           id: paymentId,
@@ -1260,7 +1271,9 @@ export class StudentRepository {
           payment_type: paymentType,
           payment_method: 'cash',
           description: desc,
-          school_year: targetYear
+          school_year: targetYear,
+          receipt_number: receiptNumber,
+          created_by: cashierUser
         })
 
         // Add to cash_journal
@@ -1269,10 +1282,11 @@ export class StudentRepository {
         const cashCategory = isNewStudent ? 'inscription' : 'réinscription'
         db.prepare(
           `
-          INSERT INTO cash_journal (id, transaction_date, type, department, category, amount, description, payment_method, related_student_id)
-          VALUES (?, ?, 'income', 'eleve', ?, ?, ?, 'cash', ?)
+          INSERT INTO cash_journal (
+            id, transaction_date, type, department, category, amount, description, payment_method, related_student_id, related_payment_id, receipt_number, created_by
+          ) VALUES (?, ?, 'income', 'eleve', ?, ?, ?, 'cash', ?, ?, ?, ?)
         `
-        ).run(cashId, currentDate, cashCategory, initialPaymentDroit, cashDesc, id)
+        ).run(cashId, currentDate, cashCategory, initialPaymentDroit, cashDesc, id, paymentId, receiptNumber, cashierUser)
 
         addToSyncQueue('cash_journal', cashId, 'create', {
           id: cashId,
@@ -1283,7 +1297,10 @@ export class StudentRepository {
           amount: initialPaymentDroit,
           description: cashDesc,
           payment_method: 'cash',
-          related_student_id: id
+          related_student_id: id,
+          related_payment_id: paymentId,
+          receipt_number: receiptNumber,
+          created_by: cashierUser
         })
       }
     })

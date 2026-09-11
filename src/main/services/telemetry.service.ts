@@ -26,6 +26,33 @@ export interface WorkstationTelemetryReport {
   timestamp: string
 }
 
+export function isNetworkOrOfflineError(error: any): boolean {
+  if (!error) return false
+  const msg = (
+    typeof error === 'string'
+      ? error
+      : `${error.message || ''} ${error.code || ''} ${error.details || ''}`
+  ).toLowerCase()
+
+  return (
+    msg.includes('enotfound') ||
+    msg.includes('econnreset') ||
+    msg.includes('etimedout') ||
+    msg.includes('econnrefused') ||
+    msg.includes('network') ||
+    msg.includes('fetch failed') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('timeout') ||
+    msg.includes('délai d’attente') ||
+    msg.includes('délai d\'attente') ||
+    msg.includes('offline') ||
+    msg.includes('hors ligne') ||
+    msg.includes('hors-ligne') ||
+    msg.includes('socket hang up') ||
+    msg.includes('supabase non configuré')
+  )
+}
+
 export class TelemetryService {
   /**
    * Retrieves the current station code (e.g. 'C1', 'C2') or fallback to hostname
@@ -63,6 +90,12 @@ export class TelemetryService {
   ): Promise<boolean> {
     const extraDetails = extra ? { ...(typeof details === 'object' ? details : { details }), ...extra } : details
 
+    // SAFEGUARD: Do not spam cloud telemetry with normal offline network disconnections
+    if (isNetworkOrOfflineError(message) || isNetworkOrOfflineError(details) || isNetworkOrOfflineError(extra)) {
+      LoggerService.log('info', context, `[Hors-ligne] ${message}`, extraDetails)
+      return false
+    }
+
     // 1. Log locally to SQLite app_logs (persisted with resolved = 0)
     LoggerService.log('error', context, message, extraDetails)
 
@@ -97,11 +130,22 @@ export class TelemetryService {
       let sentCount = 0
 
       for (const row of rows) {
+        // Ignore info/debug logs and network disconnects from cloud station_error telemetry
+        if (row.level !== 'error') {
+          db.prepare('UPDATE app_logs SET resolved = 1 WHERE id = ?').run(row.id)
+          continue
+        }
+
         let parsedDetails: any = null
         try {
           parsedDetails = row.details ? JSON.parse(row.details) : null
         } catch {
           parsedDetails = row.details
+        }
+
+        if (isNetworkOrOfflineError(row.message) || isNetworkOrOfflineError(parsedDetails)) {
+          db.prepare('UPDATE app_logs SET resolved = 1 WHERE id = ?').run(row.id)
+          continue
         }
 
         const payload: WorkstationTelemetryReport = {
@@ -125,6 +169,10 @@ export class TelemetryService {
           db.prepare('UPDATE app_logs SET resolved = 1 WHERE id = ?').run(row.id)
           sentCount++
         } else {
+          // If transmission fails due to network, stop loop without error spam
+          if (isNetworkOrOfflineError(error.message)) {
+            return { success: false, count: sentCount }
+          }
           console.warn('Could not transmit queued telemetry to Supabase:', error.message)
           return { success: false, count: sentCount }
         }
@@ -132,7 +180,9 @@ export class TelemetryService {
 
       return { success: true, count: sentCount }
     } catch (err) {
-      console.warn('Telemetry flush exception:', err)
+      if (!isNetworkOrOfflineError(err)) {
+        console.warn('Telemetry flush exception:', err)
+      }
       return { success: false, count: 0 }
     }
   }
@@ -146,6 +196,9 @@ export class TelemetryService {
     errorMessage: string,
     pendingCount: number
   ): Promise<boolean> {
+    if (isNetworkOrOfflineError(errorMessage)) {
+      return false
+    }
     return this.reportError(
       'sync_blockage',
       `Blocage d'envoi cloud sur ${tableName} (ID: ${recordId}) : ${errorMessage}`,

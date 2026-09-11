@@ -5,7 +5,7 @@ import path from 'path'
 import * as fs from 'fs'
 import { app, BrowserWindow } from 'electron'
 import { LoggerService } from './logger.service'
-import { TelemetryService } from './telemetry.service'
+import { TelemetryService, isNetworkOrOfflineError } from './telemetry.service'
 
 const isDev = !app.isPackaged
 const envPath = isDev ? path.join(process.cwd(), '.env') : path.join(process.resourcesPath, '.env')
@@ -88,7 +88,8 @@ const SYNCABLE_TABLES = new Set([
   'bus_attendance',
   'canteen_attendance',
   'assessments',
-  'settings'
+  'settings',
+  'cash_closures'
 ])
 
 export const LOCAL_ONLY_SETTINGS = new Set([
@@ -483,8 +484,34 @@ function sanitizeRowPayload(tableName: string, action: string, rawData: any, rec
     delete payload.last_printed_at
     delete payload.last_printed_by
   }
+  // UUID foreign key fields that must be null instead of empty string "" to satisfy Postgres uuid syntax
+  const uuidFields = [
+    'parent_personnel_id',
+    'related_student_id',
+    'related_personnel_id',
+    'related_payment_id',
+    'student_id',
+    'personnel_id',
+    'subject_id',
+    'event_id',
+    'parent_id'
+  ]
+  for (const field of uuidFields) {
+    if (payload[field] === '' || payload[field] === 'null' || payload[field] === undefined) {
+      payload[field] = null
+    }
+  }
+
   if (tableName === 'student_fees') {
     delete payload.is_reenrollment
+    if (!payload.school_year || typeof payload.school_year !== 'string' || !payload.school_year.trim()) {
+      try {
+        const currentYearRow = db.prepare("SELECT value FROM settings WHERE key = 'current_school_year'").get() as any
+        payload.school_year = currentYearRow?.value || '2026-2027'
+      } catch {
+        payload.school_year = '2026-2027'
+      }
+    }
   }
   if (tableName === 'personnel') {
     delete payload.payroll_start_date
@@ -514,6 +541,9 @@ function sanitizeRowPayload(tableName: string, action: string, rawData: any, rec
     Object.keys(payload).forEach((k) => payload[k] === undefined && delete payload[k])
     if (!payload.guardian_contact) payload.guardian_contact = ''
     if (!payload.enrollment_date) payload.enrollment_date = new Date().toISOString().split('T')[0]
+    if (payload.parent_personnel_id === '' || payload.parent_personnel_id === 'null') {
+      payload.parent_personnel_id = null
+    }
     payload.updated_at = new Date().toISOString()
   }
 
@@ -888,27 +918,38 @@ async function pushLocalChanges() {
       } catch (error: any) {
         sessionFailedTables.add(item.table_name)
         const errMsg = error?.message || 'Erreur inconnue Supabase'
-        LoggerService.log(
-          'error',
-          'sync',
-          `Échec envoi (${item.table_name} ID: ${item.record_id}) : ${errMsg}`,
-          error
-        )
+        const isOffline = isNetworkOrOfflineError(error) || isNetworkOrOfflineError(errMsg)
 
-        // Automatically report to cloud telemetry ("mouchard")
-        TelemetryService.reportSyncBlockage(
-          item.table_name,
-          item.record_id,
-          errMsg,
-          totalItemsCount
-        ).catch(() => {})
+        if (isOffline) {
+          LoggerService.log(
+            'warn',
+            'sync',
+            `Poste hors-ligne lors de l'envoi (${item.table_name}) : reprise automatique dès reconnexion`
+          )
+          break
+        } else {
+          LoggerService.log(
+            'error',
+            'sync',
+            `Échec envoi (${item.table_name} ID: ${item.record_id}) : ${errMsg}`,
+            error
+          )
 
-        // Keep status as error so it remains visible in the Sync modal and can be quarantined/retried
-        db.prepare(
-          `UPDATE sync_queue
-           SET status = 'error', error_message = ?
-           WHERE id = ?`
-        ).run(errMsg, item.id)
+          // Automatically report to cloud telemetry ("mouchard")
+          TelemetryService.reportSyncBlockage(
+            item.table_name,
+            item.record_id,
+            errMsg,
+            totalItemsCount
+          ).catch(() => {})
+
+          // Keep status as error so it remains visible in the Sync modal and can be quarantined/retried
+          db.prepare(
+            `UPDATE sync_queue
+             SET status = 'error', error_message = ?
+             WHERE id = ?`
+          ).run(errMsg, item.id)
+        }
       }
     }
   }
@@ -988,6 +1029,16 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
           .range(from, to)
 
         if (error) {
+          if (error.code === 'PGRST205') {
+            console.warn(`[Sync] Table non encore disponible sur Supabase : ${table} (PGRST205).`)
+            fetchMore = false
+            break
+          }
+          if (isNetworkOrOfflineError(error)) {
+            LoggerService.log('warn', 'sync', `Récupération en attente de connexion réseau sur ${table}`)
+            fetchMore = false
+            break
+          }
           LoggerService.log('error', 'sync', `Erreur de récupération sur ${table}`, error)
           hasPullErrors = true
           fetchMore = false
@@ -1043,6 +1094,17 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
 
           if (table === 'cash_journal' && !recordToSave.department) {
             recordToSave.department = 'eleve'
+          }
+
+          // Protect print status from regression (cloud pull must never reset local impressions)
+          if (table === 'student_payments' || table === 'cash_journal') {
+            recordToSave.print_count = Math.max(Number(local?.print_count || 0), Number(recordToSave.print_count || 0))
+            if (!recordToSave.last_printed_at && local?.last_printed_at) {
+              recordToSave.last_printed_at = local.last_printed_at
+            }
+            if (!recordToSave.last_printed_by && local?.last_printed_by) {
+              recordToSave.last_printed_by = local.last_printed_by
+            }
           }
 
           // Safe conflict resolution for unique constraints

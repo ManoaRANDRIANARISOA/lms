@@ -1,5 +1,12 @@
 import { create } from 'zustand'
-import type { CashJournalEntry, CashJournalFilters } from '@shared/types'
+import type {
+  CashJournalEntry,
+  CashJournalFilters,
+  CashierDailySummary,
+  CashClosure,
+  CashClosureInput,
+  TicketZData
+} from '@shared/types'
 import { handleStoreError } from '@/lib/store-utils'
 
 interface CashJournalState {
@@ -7,6 +14,9 @@ interface CashJournalState {
   dailyBalance: { total_income: number; total_expense: number; balance: number } | null
   monthlyBalance: { total_income: number; total_expense: number; balance: number } | null
   totalBalance: { total_income: number; total_expense: number; balance: number }
+  cashiers: string[]
+  dailySummary: CashierDailySummary | null
+  currentClosure: CashClosure | null
   loading: boolean
   error: string | null
 
@@ -22,6 +32,19 @@ interface CashJournalState {
   fetchDailyBalance: (date: string) => Promise<void>
   fetchMonthlyBalance: (year: number, month: number) => Promise<void>
   fetchTotalBalance: () => Promise<void>
+
+  // Avenant N°3 actions
+  fetchCashiers: () => Promise<void>
+  fetchCashierDailySummary: (
+    date: string,
+    cashier?: string,
+    stationCode?: string
+  ) => Promise<CashierDailySummary | null>
+  fetchClosure: (date: string, cashier?: string) => Promise<CashClosure | null>
+  createClosure: (
+    input: CashClosureInput
+  ) => Promise<{ success: boolean; id?: string; error?: string }>
+  printTicketZ: (data: TicketZData, copies?: number) => Promise<{ success: boolean; error?: string }>
 }
 
 export const useCashJournalStore = create<CashJournalState>((set) => ({
@@ -29,6 +52,9 @@ export const useCashJournalStore = create<CashJournalState>((set) => ({
   dailyBalance: null,
   monthlyBalance: null,
   totalBalance: { total_income: 0, total_expense: 0, balance: 0 },
+  cashiers: [],
+  dailySummary: null,
+  currentClosure: null,
   loading: false,
   error: null,
 
@@ -106,6 +132,77 @@ export const useCashJournalStore = create<CashJournalState>((set) => ({
       }
     } catch {
       // Silently fail
+    }
+  },
+
+  // --------------------------------------------
+  // Avenant N°3 implementation
+  // --------------------------------------------
+
+  fetchCashiers: async () => {
+    try {
+      const result = await window.api.cashJournal.getDistinctCashiers()
+      if (result.success && result.cashiers) {
+        set({ cashiers: result.cashiers })
+      }
+    } catch {
+      // Silently fail
+    }
+  },
+
+  fetchCashierDailySummary: async (date: string, cashier?: string, stationCode?: string) => {
+    try {
+      const result = await window.api.cashJournal.getCashierDailySummary(date, cashier, stationCode)
+      if (result.success && result.summary) {
+        set({ dailySummary: result.summary })
+        return result.summary
+      }
+      return null
+    } catch {
+      return null
+    }
+  },
+
+  fetchClosure: async (date: string, cashier?: string) => {
+    try {
+      const result = await window.api.cashJournal.getClosure(date, cashier)
+      if (result.success) {
+        set({ currentClosure: result.closure || null })
+        return result.closure || null
+      }
+      return null
+    } catch {
+      return null
+    }
+  },
+
+  createClosure: async (input: CashClosureInput) => {
+    try {
+      const result = await window.api.cashJournal.createClosure(input)
+      if (result.success) {
+        // Refresh current closure
+        const updated = await window.api.cashJournal.getClosure(
+          input.closure_date,
+          input.cashier_username
+        )
+        if (updated.success) {
+          set({ currentClosure: updated.closure || null })
+        }
+      }
+      return result
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erreur de clôture'
+      return { success: false, error: message }
+    }
+  },
+
+  printTicketZ: async (data: TicketZData, copies?: number) => {
+    try {
+      const result = await window.api.cashJournal.printTicketZ(data, copies)
+      return result
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erreur d'impression Ticket Z"
+      return { success: false, error: message }
     }
   }
 }))

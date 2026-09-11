@@ -2,6 +2,7 @@ import db from '../db'
 import { v4 as uuidv4 } from 'uuid'
 import { addToSyncQueue } from '../../services/sync.service'
 import { StudentRepository } from './student.repository'
+import { PaymentRepository } from './payment.repository'
 
 export interface ParentEvent {
   id: string
@@ -186,8 +187,9 @@ export class EventRepository {
     eventId: string,
     studentId: string,
     amount: number,
-    paymentMethod: string = 'cash'
-  ) {
+    paymentMethod: string = 'cash',
+    cashierName?: string
+  ): { success: boolean; error?: string } {
     const transaction = db.transaction(() => {
       // 1. Get or Create Event Payment Record
       let paymentRecord = db
@@ -243,12 +245,14 @@ export class EventRepository {
       // 3. Record in General Ledger (Student Payments)
       const ledgerId = uuidv4()
       const schoolYear = StudentRepository.getCurrentSchoolYear()
+      const receiptNumber = PaymentRepository.generateReceiptNumber(schoolYear)
+      const cashierUser = cashierName || 'Administrateur'
 
       db.prepare(
         `
         INSERT INTO student_payments (
-            id, student_id, payment_date, amount, payment_type, description, payment_method, school_year
-        ) VALUES (?, ?, ?, ?, 'event', ?, ?, ?)
+            id, student_id, payment_date, amount, payment_type, description, payment_method, school_year, receipt_number, created_by, print_count
+        ) VALUES (?, ?, ?, ?, 'event', ?, ?, ?, ?, ?, 0)
       `
       ).run(
         ledgerId,
@@ -257,7 +261,9 @@ export class EventRepository {
         amount,
         `Paiement événement: ${eventId}`,
         paymentMethod,
-        schoolYear
+        schoolYear,
+        receiptNumber,
+        cashierUser
       )
 
       addToSyncQueue('student_payments', ledgerId, 'create', {
@@ -268,7 +274,9 @@ export class EventRepository {
         payment_type: 'event',
         description: `Paiement événement: ${eventId}`,
         payment_method: paymentMethod,
-        school_year: schoolYear
+        school_year: schoolYear,
+        receipt_number: receiptNumber,
+        created_by: cashierUser
       })
 
       // 4. Create cash_journal entry
@@ -287,10 +295,11 @@ export class EventRepository {
       const cashId = uuidv4()
       db.prepare(
         `
-        INSERT INTO cash_journal (id, transaction_date, type, department, category, amount, description, payment_method, related_student_id)
-        VALUES (?, ?, 'income', 'eleve', 'événement', ?, ?, ?, ?)
+        INSERT INTO cash_journal (
+          id, transaction_date, type, department, category, amount, description, payment_method, related_student_id, related_payment_id, receipt_number, created_by
+        ) VALUES (?, ?, 'income', 'eleve', 'événement', ?, ?, ?, ?, ?, ?, ?)
       `
-      ).run(cashId, paymentDate, amount, cashDescription, paymentMethod, studentId)
+      ).run(cashId, paymentDate, amount, cashDescription, paymentMethod, studentId, ledgerId, receiptNumber, cashierUser)
 
       addToSyncQueue('cash_journal', cashId, 'create', {
         id: cashId,
@@ -301,7 +310,10 @@ export class EventRepository {
         amount: amount,
         description: cashDescription,
         payment_method: paymentMethod,
-        related_student_id: studentId
+        related_student_id: studentId,
+        related_payment_id: ledgerId,
+        receipt_number: receiptNumber,
+        created_by: cashierUser
       })
     })
 

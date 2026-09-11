@@ -363,7 +363,7 @@ export class PaymentRepository {
       .trim()
 
     const receiptNumber = payment.receipt_number || this.generateReceiptNumber(cleanSchoolYear)
-    const cashierUser = payment.created_by || 'Administrateur'
+    const cashierUser = payment.created_by || null
 
     const stmt = db.prepare(`
       INSERT INTO student_payments (

@@ -26,12 +26,18 @@ import {
   Percent,
   Trash2,
   Printer,
-  Eye
+  Eye,
+  Lock,
+  UserCheck,
+  Receipt,
+  ShieldCheck,
+  AlertTriangle
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAppStore } from '@/store/useAppStore'
 import type { CashJournalEntry } from '@shared/types'
 import ReceiptDetailModal from '@/components/finance/ReceiptDetailModal'
+import CashClosureModal from '@/components/finance/CashClosureModal'
 
 // --------------------------------------------
 // Detailed Continuous Timeline Chart
@@ -229,12 +235,18 @@ export default function FinanceJournal() {
     monthlyBalance,
     totalBalance,
     loading,
+    cashiers,
+    dailySummary,
+    currentClosure,
     fetchEntries,
     createEntry,
     deleteEntry,
     fetchDailyBalance,
     fetchMonthlyBalance,
-    fetchTotalBalance
+    fetchTotalBalance,
+    fetchCashiers,
+    fetchCashierDailySummary,
+    fetchClosure
   } = useCashJournalStore()
   const { canWrite } = usePermissions()
   const { currentYear, stationCode } = useAppStore()
@@ -242,6 +254,7 @@ export default function FinanceJournal() {
 
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
   const [showForm, setShowForm] = useState(false)
+  const [isClosureModalOpen, setIsClosureModalOpen] = useState(false)
   const [presetFilter, setPresetFilter] = useState('Tous')
   const [activeDatePreset, setActiveDatePreset] = useState<string | null>(null)
   const [trendData, setTrendData] = useState<{ date: string; total: number }[]>([])
@@ -275,12 +288,35 @@ export default function FinanceJournal() {
     type: 'all',
     category: 'all',
     department: 'all',
-    search: ''
+    search: '',
+    createdBy: 'all',
+    stationCode: 'all'
   })
 
   // ── Data ──
   useEffect(() => {
-    fetchEntries({ ...filters, schoolYear: currentYear })
+    fetchCashiers()
+  }, [])
+
+  useEffect(() => {
+    const activeFilters = {
+      ...filters,
+      schoolYear: currentYear,
+      createdBy: filters.createdBy !== 'all' ? filters.createdBy : undefined,
+      stationCode: filters.stationCode !== 'all' ? filters.stationCode : undefined
+    }
+    fetchEntries(activeFilters)
+
+    const targetDate = filters.startDate || today
+    fetchCashierDailySummary(
+      targetDate,
+      filters.createdBy !== 'all' ? filters.createdBy : undefined,
+      filters.stationCode !== 'all' ? filters.stationCode : undefined
+    )
+    fetchClosure(
+      targetDate,
+      filters.createdBy !== 'all' ? filters.createdBy : undefined
+    )
   }, [filters, currentYear])
 
   useEffect(() => {
@@ -542,15 +578,29 @@ export default function FinanceJournal() {
     <div className="w-full space-y-4">
       <ReadOnlyBanner resource="cash_journal" />
 
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Journal Financier</h1>
-        <div className="flex gap-2">
+      <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Journal Financier</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Grand livre des encaissements, décaissements, pointage caissier & Ticket Z
+          </p>
+        </div>
+        <div className="flex gap-2 flex-wrap items-center">
           {canWrite('cash_journal') && !showForm && (
             <Button onClick={() => setShowForm(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Nouvelle entrée
             </Button>
           )}
+          <Button
+            variant="outline"
+            className="border-amber-600/60 text-amber-900 bg-amber-50/50 hover:bg-amber-100 hover:text-amber-950 font-medium shadow-sm flex items-center gap-1.5"
+            onClick={() => setIsClosureModalOpen(true)}
+            title="Clôture journalière de caisse, récolement physique du billetage et impression Ticket Z 80mm"
+          >
+            <Lock className="w-4 h-4 text-amber-700" />
+            <span>Clôture de Caisse (Ticket Z)</span>
+          </Button>
           <Button
             variant="outline"
             onClick={async () => {
@@ -874,9 +924,9 @@ export default function FinanceJournal() {
           </div>
         </div>
 
-        {/* Ligne 2 : Type, Catégorie, Reset */}
+        {/* Ligne 2 : Type, Catégorie, Caissier, Station, Reset */}
         <div className="flex flex-wrap gap-4 items-end pt-2 border-t border-gray-100">
-          <div className="flex-1 min-w-[150px]">
+          <div className="flex-1 min-w-[130px]">
             <Label className="text-xs text-gray-500">Type</Label>
             <select
               className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm mt-1"
@@ -888,7 +938,7 @@ export default function FinanceJournal() {
               <option value="expense">Dépenses</option>
             </select>
           </div>
-          <div className="flex-1 min-w-[200px]">
+          <div className="flex-1 min-w-[180px]">
             <Label className="text-xs text-gray-500">Catégorie</Label>
             <select
               className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm mt-1"
@@ -929,6 +979,43 @@ export default function FinanceJournal() {
               </optgroup>
             </select>
           </div>
+
+          {/* Filtre Caissier / Opérateur (Avenant N°3) */}
+          <div className="flex-1 min-w-[160px]">
+            <Label className="text-xs text-gray-500 flex items-center gap-1">
+              <UserCheck className="w-3.5 h-3.5 text-primary" />
+              <span>Opérateur / Caissier</span>
+            </Label>
+            <select
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm mt-1 font-medium"
+              value={filters.createdBy || 'all'}
+              onChange={(e) => setFilters((p) => ({ ...p, createdBy: e.target.value }))}
+            >
+              <option value="all">Tous les caissiers</option>
+              {cashiers.map((c) => (
+                <option key={c} value={c}>
+                  👤 {c}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtre Station de Caisse (Avenant N°3) */}
+          <div className="w-[120px]">
+            <Label className="text-xs text-gray-500">Station</Label>
+            <select
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm mt-1"
+              value={filters.stationCode || 'all'}
+              onChange={(e) => setFilters((p) => ({ ...p, stationCode: e.target.value }))}
+            >
+              <option value="all">Toutes</option>
+              <option value="C1">Station C1</option>
+              <option value="C2">Station C2</option>
+              <option value="C3">Station C3</option>
+              <option value="C4">Station C4</option>
+            </select>
+          </div>
+
           <Button
             variant="outline"
             className="h-9 whitespace-nowrap"
@@ -939,7 +1026,9 @@ export default function FinanceJournal() {
                 type: 'all',
                 category: 'all',
                 department: 'all',
-                search: ''
+                search: '',
+                createdBy: 'all',
+                stationCode: 'all'
               })
               setPresetFilter('Tous')
               setActiveDatePreset(null)
@@ -947,6 +1036,110 @@ export default function FinanceJournal() {
           >
             Réinitialiser
           </Button>
+        </div>
+      </div>
+
+      {/* ── Avenant N°3 : Pointage de Caisse & Volumétrie par Opérateur ── */}
+      <div className="bg-gradient-to-r from-amber-50/70 via-stone-50 to-amber-50/40 border border-amber-200/80 rounded-xl p-4 shadow-sm mb-4">
+        <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-amber-200/50">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-amber-100/80 text-amber-800 rounded-lg shadow-xs">
+              <Receipt className="w-5 h-5 text-amber-800" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                <span>Pointage & Journal de Caisse Opérateur</span>
+                <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                  {filters.createdBy !== 'all' ? `Caissier : ${filters.createdBy}` : 'Tous caissiers'}
+                  {filters.stationCode !== 'all' ? ` • Station : ${filters.stationCode}` : ''}
+                  {` • ${filters.startDate ? `du ${new Date(filters.startDate).toLocaleDateString('fr-FR')}` : "Aujourd'hui"}`}
+                </span>
+              </h3>
+              <p className="text-xs text-gray-500">
+                Volumétrie des encaissements par mode de règlement et état de récolement comptable
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {currentClosure ? (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-semibold rounded-lg border border-emerald-300 shadow-xs">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  Caisse Clôturée (Ticket Z N° {currentClosure.id.slice(0, 8).toUpperCase()})
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs border-emerald-600 text-emerald-800 hover:bg-emerald-50 flex items-center gap-1 shadow-xs"
+                  onClick={() => setIsClosureModalOpen(true)}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Détails Clôture / Réimprimer</span>
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100/90 text-amber-900 text-xs font-semibold rounded-lg border border-amber-300">
+                  <AlertTriangle className="w-4 h-4 text-amber-700" />
+                  Caisse Ouverte (Non clôturée)
+                </span>
+                <Button
+                  size="sm"
+                  className="h-8 text-xs bg-amber-700 hover:bg-amber-800 text-white flex items-center gap-1.5 shadow-sm"
+                  onClick={() => setIsClosureModalOpen(true)}
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Billetage & Ticket Z</span>
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Grille des indicateurs de pointage */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-3">
+          <div className="bg-white/90 p-3 rounded-lg border border-amber-100/80 shadow-2xs">
+            <span className="text-[11px] font-medium text-gray-500 block">Tickets Traités</span>
+            <span className="text-xl font-bold text-gray-900 mt-0.5 block">
+              {dailySummary ? dailySummary.total_tickets : enriched.filter((e) => e.type === 'income').length}
+            </span>
+          </div>
+
+          <div className="bg-white/90 p-3 rounded-lg border border-amber-100/80 shadow-2xs">
+            <span className="text-[11px] font-medium text-gray-500 block">Espèces (Cash)</span>
+            <span className="text-sm sm:text-base font-bold text-emerald-700 mt-0.5 block truncate" title={formatMGA(dailySummary ? dailySummary.expected_cash : 0)}>
+              {formatMGA(dailySummary ? dailySummary.expected_cash : enriched.filter((e) => e.type === 'income' && e.payment_method === 'cash').reduce((s, e) => s + (Number(e.amount) || 0), 0))}
+            </span>
+          </div>
+
+          <div className="bg-white/90 p-3 rounded-lg border border-amber-100/80 shadow-2xs">
+            <span className="text-[11px] font-medium text-gray-500 block">Chèques</span>
+            <span className="text-sm sm:text-base font-bold text-blue-700 mt-0.5 block truncate" title={formatMGA(dailySummary ? dailySummary.expected_check : 0)}>
+              {formatMGA(dailySummary ? dailySummary.expected_check : enriched.filter((e) => e.type === 'income' && e.payment_method === 'check').reduce((s, e) => s + (Number(e.amount) || 0), 0))}
+            </span>
+          </div>
+
+          <div className="bg-white/90 p-3 rounded-lg border border-amber-100/80 shadow-2xs">
+            <span className="text-[11px] font-medium text-gray-500 block">MVola / Mobile</span>
+            <span className="text-sm sm:text-base font-bold text-amber-700 mt-0.5 block truncate" title={formatMGA(dailySummary ? dailySummary.expected_mobile : 0)}>
+              {formatMGA(dailySummary ? dailySummary.expected_mobile : enriched.filter((e) => e.type === 'income' && (e.payment_method === 'mobile_money' || e.payment_method === 'mvola')).reduce((s, e) => s + (Number(e.amount) || 0), 0))}
+            </span>
+          </div>
+
+          <div className="bg-white/90 p-3 rounded-lg border border-amber-100/80 shadow-2xs">
+            <span className="text-[11px] font-medium text-gray-500 block">Virements</span>
+            <span className="text-sm sm:text-base font-bold text-indigo-700 mt-0.5 block truncate" title={formatMGA(dailySummary ? dailySummary.expected_transfer : 0)}>
+              {formatMGA(dailySummary ? dailySummary.expected_transfer : enriched.filter((e) => e.type === 'income' && e.payment_method === 'transfer').reduce((s, e) => s + (Number(e.amount) || 0), 0))}
+            </span>
+          </div>
+
+          <div className="bg-white/90 p-3 rounded-lg border border-amber-200 shadow-2xs bg-amber-50/50">
+            <span className="text-[11px] font-semibold text-amber-900 block">Total Encaissé</span>
+            <span className="text-sm sm:text-base font-bold text-primary mt-0.5 block truncate" title={formatMGA(dailySummary ? dailySummary.expected_total : summary.totalIncome)}>
+              {formatMGA(dailySummary ? dailySummary.expected_total : summary.totalIncome)}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -1126,6 +1319,14 @@ export default function FinanceJournal() {
                           {entry.payment_method && (
                             <span className="text-[10px] text-gray-400 capitalize">
                               • {entry.payment_method === 'cash' ? 'espèces' : entry.payment_method}
+                            </span>
+                          )}
+                          {entry.created_by && (
+                            <span
+                              className="text-[10px] bg-slate-100 text-slate-700 font-medium px-1.5 py-0.2 rounded border border-slate-200"
+                              title={`Encaissé / Saisi par l'opérateur ${entry.created_by}`}
+                            >
+                              👤 {entry.created_by}
                             </span>
                           )}
                         </div>
@@ -1417,7 +1618,40 @@ export default function FinanceJournal() {
         studentNumber={selectedJournalPayment ? selectedJournalPayment.studentNumber : ''}
         className={selectedJournalPayment ? selectedJournalPayment.className : ''}
         onPrintSuccess={() => {
-          fetchEntries({ ...filters, schoolYear: currentYear })
+          fetchEntries({
+            ...filters,
+            schoolYear: currentYear,
+            createdBy: filters.createdBy !== 'all' ? filters.createdBy : undefined,
+            stationCode: filters.stationCode !== 'all' ? filters.stationCode : undefined
+          })
+        }}
+      />
+
+      {/* Module de Billetage & Ticket Z (Avenant N°3) */}
+      <CashClosureModal
+        isOpen={isClosureModalOpen}
+        onClose={() => setIsClosureModalOpen(false)}
+        selectedDate={filters.startDate || today}
+        selectedCashier={filters.createdBy !== 'all' ? filters.createdBy : undefined}
+        stationCode={filters.stationCode !== 'all' ? filters.stationCode : activeStation}
+        onClosureSuccess={() => {
+          const activeFilters = {
+            ...filters,
+            schoolYear: currentYear,
+            createdBy: filters.createdBy !== 'all' ? filters.createdBy : undefined,
+            stationCode: filters.stationCode !== 'all' ? filters.stationCode : undefined
+          }
+          fetchEntries(activeFilters)
+          const targetDate = filters.startDate || today
+          fetchCashierDailySummary(
+            targetDate,
+            filters.createdBy !== 'all' ? filters.createdBy : undefined,
+            filters.stationCode !== 'all' ? filters.stationCode : undefined
+          )
+          fetchClosure(
+            targetDate,
+            filters.createdBy !== 'all' ? filters.createdBy : undefined
+          )
         }}
       />
     </div>

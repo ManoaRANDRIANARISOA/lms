@@ -212,6 +212,8 @@ export interface CashJournalFilters {
   category?: string
   search?: string
   schoolYear?: string
+  createdBy?: string
+  stationCode?: string
 }
 
 export interface FeeRecord {
@@ -468,4 +470,95 @@ export interface ClassSubjectInput {
   subject_id: string
   coefficient?: number
   position?: number
+}
+
+// --------------------------------------------
+// Avenant N°3 — Rapprochement & Z de Caisse
+// --------------------------------------------
+
+export interface CashBilletageBreakdown {
+  b20000: number
+  b10000: number
+  b5000: number
+  b2000: number
+  b1000: number
+  checks_total?: number
+}
+
+export interface CashierDailySummary {
+  date: string
+  cashier: string
+  station_code: string
+  total_tickets: number
+  expected_cash: number
+  expected_check: number
+  expected_mobile: number
+  expected_transfer: number
+  expected_total: number
+  average_basket: number
+  first_receipt?: string
+  last_receipt?: string
+  checks: Array<{
+    amount: number
+    description?: string
+    student_name?: string
+    receipt_number?: string
+  }>
+}
+
+export interface CashClosure {
+  id: string
+  closure_date: string
+  closure_datetime: string
+  cashier_username: string
+  station_code: string
+  total_tickets: number
+  expected_cash: number
+  expected_check: number
+  expected_mobile: number
+  expected_transfer: number
+  expected_total: number
+  counted_cash: number
+  counted_breakdown: string
+  cash_difference: number
+  status: 'closed' | 'locked' | 'discrepancy'
+  notes?: string
+  is_locked: number
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CashClosureInput {
+  closure_date: string
+  cashier_username: string
+  station_code: string
+  total_tickets: number
+  expected_cash: number
+  expected_check: number
+  expected_mobile: number
+  expected_transfer: number
+  expected_total: number
+  counted_cash: number
+  counted_breakdown: CashBilletageBreakdown
+  cash_difference: number
+  notes?: string
+}
+
+export interface TicketZData {
+  closure_date: string
+  closure_datetime?: string
+  cashier: string
+  station_code: string
+  total_tickets: number
+  first_receipt?: string
+  last_receipt?: string
+  expected_cash: number
+  expected_check: number
+  expected_mobile: number
+  expected_transfer: number
+  expected_total: number
+  counted_cash: number
+  breakdown: CashBilletageBreakdown
+  cash_difference: number
+  notes?: string
 }

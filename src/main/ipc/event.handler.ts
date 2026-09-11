@@ -133,7 +133,8 @@ export function registerEventHandlers(): void {
     if (!canWrite('events')) {
       return { success: false, error: 'Accès refusé: écriture événements' }
     }
-    const result = EventRepository.recordPayment(eventId, studentId, amount, paymentMethod)
+    const cashierName = getCurrentUser()?.username || 'Administrateur'
+    const result = EventRepository.recordPayment(eventId, studentId, amount, paymentMethod, cashierName)
     if (result.success) {
       logAction(
         getCurrentUser()?.id || null,

@@ -103,7 +103,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     try {
       const token = get().token
       await window.api.auth.logout(token || undefined)
-    } catch (e) {
+    } catch {
       // Ignore logout errors
     }
     localStorage.removeItem('session_token')
@@ -158,7 +158,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           })
         }
       }
-    } catch (error) {
+    } catch {
       localStorage.removeItem('session_token')
       set({
         token: null,

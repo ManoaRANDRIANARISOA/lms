@@ -140,13 +140,15 @@ export function registerStudentHandlers(): void {
       if (!canWrite('students')) {
         return { success: false, error: 'Accès refusé: réinscription élève' }
       }
+      const cashierName = getCurrentUser()?.username || 'Administrateur'
       const result = StudentRepository.reEnroll(
         id,
         newClass,
         targetYear,
         initialPaymentDroit,
         initialPaymentFram,
-        isNewStudent
+        isNewStudent,
+        cashierName
       )
       if (result.success) {
         logAction(

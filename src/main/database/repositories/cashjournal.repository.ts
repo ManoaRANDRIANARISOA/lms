@@ -28,15 +28,12 @@ export interface CashJournalEntry {
   updated_at?: string
 }
 
-export interface CashJournalFilters {
-  startDate?: string
-  endDate?: string
-  type?: string
-  department?: string
-  category?: string
-  search?: string
-  schoolYear?: string
-}
+import type {
+  CashJournalFilters,
+  CashierDailySummary,
+  CashClosure,
+  CashClosureInput
+} from '../../../shared/types'
 
 export class CashJournalRepository {
   static create(entry: Omit<CashJournalEntry, 'id' | 'created_at' | 'updated_at'>) {
@@ -62,13 +59,13 @@ export class CashJournalRepository {
         entry.payment_method || 'cash',
         entry.related_student_id || null,
         entry.related_personnel_id || null,
-        (entry as any).created_by || 'Administrateur'
+        (entry as any).created_by || null
       )
 
       addToSyncQueue('cash_journal', id, 'create', {
         ...entry,
         id,
-        created_by: (entry as any).created_by || 'Administrateur'
+        created_by: (entry as any).created_by || null
       })
       return { success: true, id }
     } catch (error: unknown) {
@@ -89,7 +86,7 @@ export class CashJournalRepository {
           COALESCE(cj.print_count, sp.print_count, 0) as print_count,
           COALESCE(cj.last_printed_at, sp.last_printed_at) as last_printed_at,
           COALESCE(cj.last_printed_by, sp.last_printed_by) as last_printed_by,
-          COALESCE(cj.created_by, sp.created_by, 'Administrateur') as created_by,
+          COALESCE(NULLIF(cj.created_by, ''), NULLIF(sp.created_by, '')) as created_by,
           COALESCE(
             CASE WHEN s.departure_date IS NOT NULL THEN 'Quitté le ' || strftime('%d/%m/%Y', s.departure_date) ELSE NULL END,
             (SELECT class_name FROM student_fees sf
@@ -122,7 +119,7 @@ export class CashJournalRepository {
           COALESCE(cj.print_count, sp.print_count, 0) as print_count,
           COALESCE(cj.last_printed_at, sp.last_printed_at) as last_printed_at,
           COALESCE(cj.last_printed_by, sp.last_printed_by) as last_printed_by,
-          COALESCE(cj.created_by, sp.created_by, 'Administrateur') as created_by,
+          COALESCE(NULLIF(cj.created_by, ''), NULLIF(sp.created_by, '')) as created_by,
           COALESCE(
             CASE WHEN s.departure_date IS NOT NULL THEN 'Quitté le ' || strftime('%d/%m/%Y', s.departure_date) ELSE NULL END,
             NULLIF(s.class, 'Classe non spécifiée'),
@@ -178,6 +175,14 @@ export class CashJournalRepository {
         query += ` AND cj.category IN (${cats.map(() => '?').join(',')})`
         params.push(...cats)
       }
+    }
+    if (filters.createdBy && filters.createdBy !== 'all') {
+      query += ' AND COALESCE(cj.created_by, sp.created_by, "Administrateur") = ?'
+      params.push(filters.createdBy)
+    }
+    if (filters.stationCode && filters.stationCode !== 'all') {
+      query += ' AND (COALESCE(cj.receipt_number, sp.receipt_number) LIKE ?)'
+      params.push(`%-${filters.stationCode}-%`)
     }
     if (filters.search) {
       query +=
@@ -339,5 +344,245 @@ export class CashJournalRepository {
       .get() as { total_income: number; total_expense: number; balance: number }
 
     return result
+  }
+
+  // --------------------------------------------
+  // Avenant N°3 — Rapprochement & Z de Caisse
+  // --------------------------------------------
+
+  /**
+   * Retrieves list of all distinct operators/cashiers who recorded transactions
+   */
+  static getDistinctCashiers(): string[] {
+    try {
+      const rows = db
+        .prepare(
+          `
+        SELECT DISTINCT cashier FROM (
+          SELECT created_by as cashier FROM cash_journal WHERE created_by IS NOT NULL AND created_by != '' AND deleted = 0
+          UNION
+          SELECT created_by as cashier FROM student_payments WHERE created_by IS NOT NULL AND created_by != '' AND deleted = 0
+          UNION
+          SELECT username as cashier FROM users WHERE active = 1 AND deleted = 0
+        )
+        ORDER BY cashier ASC
+      `
+        )
+        .all() as { cashier: string }[]
+
+      return rows.map((r) => r.cashier).filter(Boolean)
+    } catch {
+      return ['Administrateur']
+    }
+  }
+
+  /**
+   * Calculates real-time cashier daily statistics & checks breakdown for reconciliation
+   */
+  static getCashierDailySummary(
+    date: string,
+    cashier?: string,
+    stationCode?: string
+  ): CashierDailySummary {
+    let whereClause = "WHERE cj.deleted = 0 AND date(cj.transaction_date) = ? AND cj.type = 'income'"
+    const params: (string | number)[] = [date]
+
+    if (cashier && cashier !== 'all') {
+      whereClause += ' AND COALESCE(cj.created_by, sp.created_by, "Administrateur") = ?'
+      params.push(cashier)
+    }
+
+    if (stationCode && stationCode !== 'all') {
+      whereClause += ' AND (COALESCE(cj.receipt_number, sp.receipt_number) LIKE ?)'
+      params.push(`%-${stationCode}-%`)
+    }
+
+    const rows = db
+      .prepare(
+        `
+      SELECT 
+        cj.*,
+        COALESCE(cj.receipt_number, sp.receipt_number) as receipt_num,
+        COALESCE(cj.payment_method, sp.payment_method, 'cash') as method,
+        s.first_name,
+        s.last_name
+      FROM cash_journal cj
+      LEFT JOIN students s ON cj.related_student_id = s.id
+      LEFT JOIN student_payments sp ON (
+        (cj.related_payment_id IS NOT NULL AND sp.id = cj.related_payment_id)
+        OR (cj.related_payment_id IS NULL AND cj.related_student_id IS NOT NULL AND sp.student_id = cj.related_student_id AND sp.payment_date = cj.transaction_date AND sp.amount = cj.amount AND sp.deleted = 0)
+      )
+      ${whereClause}
+      ORDER BY cj.created_at ASC
+    `
+      )
+      .all(...params) as any[]
+
+    let expectedCash = 0
+    let expectedCheck = 0
+    let expectedMobile = 0
+    let expectedTransfer = 0
+    let expectedTotal = 0
+    const receiptNumbers: string[] = []
+    const checks: Array<{
+      amount: number
+      description?: string
+      student_name?: string
+      receipt_number?: string
+    }> = []
+
+    for (const r of rows) {
+      const amt = Number(r.amount) || 0
+      expectedTotal += amt
+      const m = (r.method || 'cash').toLowerCase()
+      if (m === 'check' || m === 'cheque') {
+        expectedCheck += amt
+        checks.push({
+          amount: amt,
+          description: r.description,
+          student_name: r.first_name ? `${r.last_name} ${r.first_name}` : undefined,
+          receipt_number: r.receipt_num
+        })
+      } else if (
+        m === 'mobile_money' ||
+        m === 'mvola' ||
+        m === 'orange_money' ||
+        m === 'airtel_money'
+      ) {
+        expectedMobile += amt
+      } else if (m === 'transfer' || m === 'virement') {
+        expectedTransfer += amt
+      } else {
+        expectedCash += amt
+      }
+
+      if (r.receipt_num) {
+        receiptNumbers.push(r.receipt_num)
+      }
+    }
+
+    const totalTickets = rows.length
+    const averageBasket = totalTickets > 0 ? Math.round(expectedTotal / totalTickets) : 0
+    const sortedReceipts = [...receiptNumbers].sort()
+
+    return {
+      date,
+      cashier: cashier || 'all',
+      station_code: stationCode || 'C1',
+      total_tickets: totalTickets,
+      expected_cash: expectedCash,
+      expected_check: expectedCheck,
+      expected_mobile: expectedMobile,
+      expected_transfer: expectedTransfer,
+      expected_total: expectedTotal,
+      average_basket: averageBasket,
+      first_receipt: sortedReceipts.length > 0 ? sortedReceipts[0] : undefined,
+      last_receipt:
+        sortedReceipts.length > 0 ? sortedReceipts[sortedReceipts.length - 1] : undefined,
+      checks
+    }
+  }
+
+  /**
+   * Persists a cash closure record with billetage and accounting lock
+   */
+  static createClosure(input: CashClosureInput): {
+    success: boolean
+    id?: string
+    error?: string
+  } {
+    const id = uuidv4()
+    try {
+      const breakdownStr = JSON.stringify(input.counted_breakdown)
+      const status = input.cash_difference === 0 ? 'closed' : 'discrepancy'
+
+      db.prepare(
+        `
+        INSERT INTO cash_closures (
+          id, closure_date, closure_datetime, cashier_username, station_code,
+          total_tickets, expected_cash, expected_check, expected_mobile, expected_transfer, expected_total,
+          counted_cash, counted_breakdown, cash_difference, status, notes, is_locked
+        ) VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      `
+      ).run(
+        id,
+        input.closure_date,
+        input.cashier_username,
+        input.station_code,
+        input.total_tickets,
+        input.expected_cash,
+        input.expected_check,
+        input.expected_mobile,
+        input.expected_transfer,
+        input.expected_total,
+        input.counted_cash,
+        breakdownStr,
+        input.cash_difference,
+        status,
+        input.notes || null
+      )
+
+      addToSyncQueue('cash_closures', id, 'create', {
+        id,
+        closure_date: input.closure_date,
+        cashier_username: input.cashier_username,
+        station_code: input.station_code,
+        total_tickets: input.total_tickets,
+        expected_cash: input.expected_cash,
+        expected_check: input.expected_check,
+        expected_mobile: input.expected_mobile,
+        expected_transfer: input.expected_transfer,
+        expected_total: input.expected_total,
+        counted_cash: input.counted_cash,
+        counted_breakdown: breakdownStr,
+        cash_difference: input.cash_difference,
+        status,
+        notes: input.notes || null,
+        is_locked: 1
+      })
+
+      return { success: true, id }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return { success: false, error: msg }
+    }
+  }
+
+  /**
+   * Retrieves closure record for a specific date and cashier
+   */
+  static getClosure(date: string, cashier?: string): CashClosure | null {
+    try {
+      let query = 'SELECT * FROM cash_closures WHERE closure_date = ?'
+      const params: string[] = [date]
+      if (cashier && cashier !== 'all') {
+        query += ' AND cashier_username = ?'
+        params.push(cashier)
+      }
+      query += ' ORDER BY closure_datetime DESC LIMIT 1'
+      const row = db.prepare(query).get(...params) as CashClosure | undefined
+      return row || null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Lists past cash closures
+   */
+  static listClosures(schoolYear?: string): CashClosure[] {
+    try {
+      let query = 'SELECT * FROM cash_closures'
+      const params: string[] = []
+      if (schoolYear) {
+        const [startYear] = schoolYear.split('-')
+        query += ' WHERE closure_date >= ?'
+        params.push(`${startYear}-08-01`)
+      }
+      query += ' ORDER BY closure_date DESC, closure_datetime DESC'
+      return db.prepare(query).all(...params) as CashClosure[]
+    } catch {
+      return []
+    }
   }
 }

@@ -18,6 +18,7 @@ import fs from 'fs'
 import { spawn } from 'child_process'
 import { SettingsRepository } from '../database/repositories/settings.repository'
 import { normalizeStationCode } from '../database/repositories/payment.repository'
+import type { TicketZData } from '../../shared/types'
 
 export interface ReceiptItem {
   label: string
@@ -1151,6 +1152,165 @@ if ($res) { Write-Output "SUCCESS" } else { Write-Output "FAILED" }
         resolve({ success: false, error: err.message })
       })
     })
+  }
+
+  // --------------------------------------------------------------------------
+  // Avenant N°3 — Impression Ticket Z de Clôture (80 mm ESC/POS)
+  // --------------------------------------------------------------------------
+
+  /**
+   * Generates ESC/POS byte buffer for Official Clôture de Caisse (Ticket Z - Avenant N°3)
+   */
+  static generateTicketZEscPos(data: TicketZData): Buffer {
+    const buffers: Buffer[] = []
+
+    // 1. Initialize printer: ESC @ (Initialize)
+    buffers.push(Buffer.from([0x1b, 0x40]))
+
+    // 2. DISABLE Chinese/Kanji mode: FS . (0x1C, 0x2E) - CRITICAL for Xprinter POS-80
+    buffers.push(Buffer.from([0x1c, 0x2e]))
+
+    // 3. Set character code table: ESC t 16 (Windows-1252 / WPC1252)
+    buffers.push(Buffer.from([0x1b, 0x74, 0x10]))
+
+    // 4. Print Logo if available (Centered)
+    const logoBytes = this.generateLogoEscPos(192)
+    if (logoBytes) {
+      buffers.push(logoBytes)
+    }
+
+    // 5. Header: School Name (Centered, Double Height, Bold)
+    const schoolName =
+      (SettingsRepository.get('school_name') as string) || 'LYCÉE PRIVÉ MANJARY SOA'
+    buffers.push(Buffer.from([0x1b, 0x61, 0x01])) // Center
+    buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
+    buffers.push(Buffer.from([0x1d, 0x21, 0x01])) // Double height
+    buffers.push(this.encodeText(`${schoolName.toUpperCase()}\n`))
+
+    buffers.push(Buffer.from([0x1d, 0x21, 0x00])) // Normal size
+    buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
+    buffers.push(this.encodeText('Lot H 81 Miadana Alasora\n'))
+    buffers.push(this.encodeText('Antananarivo, Madagascar\n'))
+    buffers.push(this.encodeText(this.separatorLine('=')))
+
+    // Titre Officiel Ticket Z
+    buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
+    buffers.push(Buffer.from([0x1d, 0x21, 0x01])) // Double height
+    buffers.push(this.encodeText('*** TICKET Z — CLÔTURE DE CAISSE ***\n'))
+    buffers.push(Buffer.from([0x1d, 0x21, 0x00])) // Normal size
+    buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
+    buffers.push(this.encodeText(this.separatorLine('=')))
+
+    // Métadonnées Clôture
+    buffers.push(Buffer.from([0x1b, 0x61, 0x00])) // Left align
+    const now = new Date()
+    const timeFormatted = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    buffers.push(this.encodeText(this.formatLine(`Date Clôture : ${data.closure_date}`, `Heure: ${timeFormatted}`)))
+    buffers.push(this.encodeText(this.formatLine(`Opérateur    : ${data.cashier}`, `Poste: ${data.station_code}`)))
+    if (data.first_receipt && data.last_receipt) {
+      buffers.push(this.encodeText(this.formatLine(`Reçus émis   : Du ${data.first_receipt}`, '')))
+      buffers.push(this.encodeText(this.formatLine(`             : Au ${data.last_receipt}`, '')))
+    }
+    buffers.push(this.encodeText(this.formatLine(`Total Tickets: ${data.total_tickets}`, '')))
+    buffers.push(this.encodeText(this.separatorLine('-')))
+
+    // Section 1: Ventilation Théorique Logiciel
+    buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
+    buffers.push(this.encodeText(this.formatLine('VENTILATION THÉORIQUE LOGICIEL', 'MONTANT')))
+    buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
+    buffers.push(this.encodeText(this.separatorLine('-')))
+
+    const fmt = (n: number) => `${Number(n || 0).toLocaleString('fr-FR').replace(/\s/g, ' ')} Ar`
+
+    buffers.push(this.encodeText(this.formatLine('  Espèces encaissées', fmt(data.expected_cash))))
+    buffers.push(this.encodeText(this.formatLine('  Chèques remis', fmt(data.expected_check))))
+    buffers.push(this.encodeText(this.formatLine('  Mobile Money (MVola/...)', fmt(data.expected_mobile))))
+    if (data.expected_transfer > 0) {
+      buffers.push(this.encodeText(this.formatLine('  Virements bancaires', fmt(data.expected_transfer))))
+    }
+    buffers.push(this.encodeText(this.separatorLine('-')))
+    buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
+    buffers.push(this.encodeText(this.formatLine('TOTAL THÉORIQUE CAISSE', fmt(data.expected_total))))
+    buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
+    buffers.push(this.encodeText(this.separatorLine('=')))
+
+    // Section 2: Billetage Physique Constaté (Tiroir)
+    buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
+    buffers.push(this.encodeText(this.formatLine('BILLETAGE PHYSIQUE DU TIROIR', 'TOTAL')))
+    buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
+    buffers.push(this.encodeText(this.separatorLine('-')))
+
+    const bd = data.breakdown || { b20000: 0, b10000: 0, b5000: 0, b2000: 0, b1000: 0 }
+    if (bd.b20000 > 0) buffers.push(this.encodeText(this.formatLine(`  20 000 Ar x ${bd.b20000}`, fmt(bd.b20000 * 20000))))
+    if (bd.b10000 > 0) buffers.push(this.encodeText(this.formatLine(`  10 000 Ar x ${bd.b10000}`, fmt(bd.b10000 * 10000))))
+    if (bd.b5000 > 0)  buffers.push(this.encodeText(this.formatLine(`   5 000 Ar x ${bd.b5000}`, fmt(bd.b5000 * 5000))))
+    if (bd.b2000 > 0)  buffers.push(this.encodeText(this.formatLine(`   2 000 Ar x ${bd.b2000}`, fmt(bd.b2000 * 2000))))
+    if (bd.b1000 > 0)  buffers.push(this.encodeText(this.formatLine(`   1 000 Ar x ${bd.b1000}`, fmt(bd.b1000 * 1000))))
+    buffers.push(this.encodeText(this.separatorLine('-')))
+    buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
+    buffers.push(this.encodeText(this.formatLine('TOTAL ESPÈCES CONSTATÉ', fmt(data.counted_cash))))
+    buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
+    buffers.push(this.encodeText(this.separatorLine('=')))
+
+    // Section 3: Rapprochement & Écart
+    buffers.push(Buffer.from([0x1b, 0x61, 0x01])) // Center
+    const diff = data.cash_difference || 0
+    if (diff === 0) {
+      buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
+      buffers.push(this.encodeText('*** RAPPROCHEMENT : EXACT (0 Ar d\'écart) ***\n'))
+      buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
+    } else if (diff < 0) {
+      buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
+      buffers.push(this.encodeText(`*** ALERTE : MANQUANT DE ${fmt(Math.abs(diff))} ***\n`))
+      buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
+    } else {
+      buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
+      buffers.push(this.encodeText(`*** NOTIFICATION : SURPLUS DE ${fmt(diff)} ***\n`))
+      buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
+    }
+    buffers.push(this.encodeText(this.separatorLine('=')))
+
+    // Remarque / Notes
+    if (data.notes) {
+      buffers.push(Buffer.from([0x1b, 0x61, 0x00])) // Left align
+      buffers.push(this.encodeText(`Note / Justificatif : ${data.notes}\n`))
+      buffers.push(this.encodeText(this.separatorLine('-')))
+    }
+
+    // Visa Contradictoire (Double Signature)
+    buffers.push(Buffer.from([0x1b, 0x61, 0x00])) // Left
+    buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
+    buffers.push(this.encodeText('VISA CONTRADICTOIRE & ATTESTATION DE CLÔTURE :\n\n'))
+    buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
+    buffers.push(this.encodeText('Signature Caissier :        Visa & Émargement Direction :\n\n\n'))
+    buffers.push(this.encodeText('......................      ............................\n'))
+    buffers.push(this.encodeText(this.separatorLine('-')))
+    buffers.push(Buffer.from([0x1b, 0x61, 0x01])) // Center
+    buffers.push(this.encodeText('Document officiel scellé — Ne pas jeter\n'))
+
+    // Auto-cutter: Feed 4 lines past printhead + Safe Partial Cut
+    buffers.push(Buffer.from([0x1b, 0x64, 0x04]))
+    buffers.push(Buffer.from([0x1d, 0x56, 0x01]))
+
+    return Buffer.concat(buffers)
+  }
+
+  static async printTicketZ(
+    data: TicketZData,
+    copies = 1
+  ): Promise<{ success: boolean; error?: string }> {
+    const printerName = this.getPrinterName()
+    try {
+      const zBuffer = this.generateTicketZEscPos(data)
+      for (let i = 0; i < copies; i++) {
+        const res = await this.sendBytesToPrinter(printerName, zBuffer, 'Ticket Z Cloture')
+        if (!res.success) return res
+      }
+      return { success: true }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return { success: false, error: msg }
+    }
   }
 }
 

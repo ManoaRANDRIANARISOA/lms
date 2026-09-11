@@ -28,10 +28,16 @@ export function registerPaymentHandlers(): void {
       return { success: false, error: 'Accès refusé: écriture paiements' }
     }
     const user = getCurrentUser()
-    const operatorName = user?.full_name || user?.username || 'Administrateur'
+    const operatorName = payment.created_by || user?.username || user?.full_name
+    if (!operatorName) {
+      return {
+        success: false,
+        error: 'Session invalide ou expirée : veuillez vous reconnecter pour enregistrer un paiement.'
+      }
+    }
     const paymentToCreate = {
       ...payment,
-      created_by: payment.created_by || operatorName
+      created_by: operatorName
     }
     const result = PaymentRepository.create(paymentToCreate)
     if (result.success && result.id) {

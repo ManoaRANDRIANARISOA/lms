@@ -264,7 +264,18 @@ const api = {
       ipcRenderer.invoke('cashjournal:getMonthlyBalance', year, month),
     getBalanceSummary: (startDate: string, endDate: string) =>
       ipcRenderer.invoke('cashjournal:getBalanceSummary', startDate, endDate),
-    getTotalBalance: () => ipcRenderer.invoke('cashjournal:getTotalBalance')
+    getTotalBalance: () => ipcRenderer.invoke('cashjournal:getTotalBalance'),
+    getDistinctCashiers: () => ipcRenderer.invoke('cashjournal:getDistinctCashiers'),
+    getCashierDailySummary: (date: string, cashier?: string, stationCode?: string) =>
+      ipcRenderer.invoke('cashjournal:getCashierDailySummary', date, cashier, stationCode),
+    createClosure: (input: Record<string, unknown>) =>
+      ipcRenderer.invoke('cashjournal:createClosure', input),
+    getClosure: (date: string, cashier?: string) =>
+      ipcRenderer.invoke('cashjournal:getClosure', date, cashier),
+    listClosures: (schoolYear?: string) =>
+      ipcRenderer.invoke('cashjournal:listClosures', schoolYear),
+    printTicketZ: (data: Record<string, unknown>, copies?: number) =>
+      ipcRenderer.invoke('cashjournal:printTicketZ', data, copies)
   },
 
   // --------------------------------------------

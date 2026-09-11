@@ -28,7 +28,11 @@ import type {
   ClassSubjectInput,
   SchoolConfig,
   CashJournalEntry,
-  CashJournalFilters
+  CashJournalFilters,
+  CashierDailySummary,
+  CashClosure,
+  CashClosureInput,
+  TicketZData
 } from '../../shared/types'
 
 // --------------------------------------------
@@ -531,6 +535,26 @@ interface APIType {
       balance?: { total_income: number; total_expense: number; balance: number }
       error?: string
     }>
+    getDistinctCashiers: () => Promise<{ success: boolean; cashiers?: string[]; error?: string }>
+    getCashierDailySummary: (
+      date: string,
+      cashier?: string,
+      stationCode?: string
+    ) => Promise<{ success: boolean; summary?: CashierDailySummary; error?: string }>
+    createClosure: (
+      input: CashClosureInput
+    ) => Promise<{ success: boolean; id?: string; error?: string }>
+    getClosure: (
+      date: string,
+      cashier?: string
+    ) => Promise<{ success: boolean; closure?: CashClosure | null; error?: string }>
+    listClosures: (
+      schoolYear?: string
+    ) => Promise<{ success: boolean; closures?: CashClosure[]; error?: string }>
+    printTicketZ: (
+      data: TicketZData,
+      copies?: number
+    ) => Promise<{ success: boolean; error?: string }>
   }
   report: {
     monthlyFinance: (

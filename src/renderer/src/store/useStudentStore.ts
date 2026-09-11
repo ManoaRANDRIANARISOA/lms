@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { FeeRecord, Payment } from '@shared/types'
 import { handleStoreError } from '@/lib/store-utils'
+import { useAuthStore } from './useAuthStore'
 
 export interface Student {
   id: string
@@ -122,6 +123,8 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
           | undefined
         if (initialAmount && initialAmount > 0) {
           try {
+            const authUser = useAuthStore.getState().user
+            const operatorUser = authUser?.username || authUser?.full_name || undefined
             await window.api.payment.create({
               student_id: result.id || (result as { student?: { id: string } }).student?.id || '',
               amount: initialAmount,
@@ -136,7 +139,8 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
                   | 'other') || 'enrollment',
               payment_method: 'cash',
               payment_date: new Date().toISOString().split('T')[0],
-              description: "Paiement initial à l'inscription (Droits, etc.)"
+              description: "Paiement initial à l'inscription (Droits, etc.)",
+              created_by: operatorUser
             })
           } catch (paymentErr) {
             console.error('Failed to record initial payment:', paymentErr)
