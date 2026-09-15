@@ -605,17 +605,30 @@ export default function FinanceJournal() {
             variant="outline"
             onClick={async () => {
               const bal = dailyBalance || { total_income: 0, total_expense: 0, balance: 0 }
+              const targetDate = filters.startDate || today
               const r = await window.api.pdf.generateDailyReport({
-                date: today,
+                date: targetDate,
                 total_income: bal.total_income,
                 total_expense: bal.total_expense,
                 balance: bal.balance,
+                station_code: filters.stationCode !== 'all' ? filters.stationCode : activeStation,
+                cashier: filters.createdBy !== 'all' ? filters.createdBy : undefined,
                 entries: enriched.map((e) => ({
                   type: e.type,
                   department: e.department,
                   category: e.category,
                   amount: e.amount,
-                  description: e.description
+                  description: e.description,
+                  receipt_number: (e as any).receipt_number,
+                  beneficiary: e.last_name ? `${e.last_name} ${e.first_name || ''}`.trim() : undefined,
+                  payment_method: e.payment_method,
+                  created_by: (e as any).created_by,
+                  time: e.created_at
+                    ? new Date(e.created_at).toLocaleTimeString('fr-FR', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })
+                    : undefined
                 }))
               })
               if (r.success && r.filePath) await window.api.pdf.openFile(r.filePath)

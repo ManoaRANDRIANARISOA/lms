@@ -57,6 +57,18 @@ function sanitizeFilename(name: string): string {
     .substring(0, 100)
 }
 
+function formatMoney(val: number, withSign = false): string {
+  const n = Math.round(val || 0)
+  const absStr = Math.abs(n)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  if (withSign) {
+    const sign = n > 0 ? '+' : n < 0 ? '-' : ''
+    return `${sign}${absStr} Ar`
+  }
+  return `${n < 0 ? '-' : ''}${absStr} Ar`
+}
+
 export class PdfService {
   /**
    * Generate a payment receipt (A5 format)
@@ -332,9 +344,6 @@ export class PdfService {
   }
 
   /**
-   * Generate a daily cash report
-   */
-  /**
    * Generate a daily cash report (Official standard PDF)
    */
   static generateDailyReport(reportData: {
@@ -344,6 +353,8 @@ export class PdfService {
     balance: number
     opening_balance?: number
     closing_balance?: number
+    station_code?: string
+    cashier?: string
     entries: Array<{
       type: string
       department: string
@@ -370,66 +381,84 @@ export class PdfService {
         `RAPPORT DE CAISSE JOURNALIER\n${formattedDate.toUpperCase()}`
       )
 
-      // Summary Box
-      doc.setFillColor(245, 247, 250)
-      doc.rect(20, y, 170, 26, 'F')
-      doc.setDrawColor(200, 210, 220)
-      doc.rect(20, y, 170, 26, 'S')
-
-      doc.setFontSize(9)
+      // Context Strip: Station, Cashier & Generation Time
+      doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
-      doc.setTextColor(80, 90, 100)
+      doc.setTextColor(100, 116, 139)
+      const stationLabel =
+        reportData.station_code && reportData.station_code !== 'all'
+          ? `Caisse / Poste : Station ${reportData.station_code}`
+          : 'Caisse : Toutes les stations'
+      const cashierLabel =
+        reportData.cashier && reportData.cashier !== 'all'
+          ? `Opérateur : ${reportData.cashier}`
+          : 'Opérateur : Tous les caissiers'
+      const now = new Date()
+      const editionLabel = `Édité le ${now.toLocaleDateString('fr-FR')} à ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+
+      doc.text(stationLabel, 20, y)
+      doc.text(cashierLabel, 105, y, { align: 'center' })
+      doc.text(editionLabel, 190, y, { align: 'right' })
+      y += 4
+
+      // Summary Box (Width 170mm, from x=20 to x=190)
+      doc.setFillColor(245, 247, 250)
+      doc.rect(20, y, 170, 24, 'F')
+      doc.setDrawColor(200, 210, 220)
+      doc.rect(20, y, 170, 24, 'S')
 
       const hasBalances = reportData.opening_balance !== undefined
       if (hasBalances) {
-        doc.text('Solde Initial', 25, y + 8)
-        doc.text('Recettes (+)', 60, y + 8)
-        doc.text('Dépenses (-)', 95, y + 8)
-        doc.text('Solde Net', 130, y + 8)
-        doc.text('Solde Final', 162, y + 8)
+        // 5 columns of 34mm each (Centers: 37, 71, 105, 139, 173)
+        doc.setFontSize(8.5)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(80, 90, 100)
+        doc.text('Solde Initial', 37, y + 7, { align: 'center' })
+        doc.text('Recettes (+)', 71, y + 7, { align: 'center' })
+        doc.text('Dépenses (-)', 105, y + 7, { align: 'center' })
+        doc.text('Solde Net', 139, y + 7, { align: 'center' })
+        doc.text('Solde Final', 173, y + 7, { align: 'center' })
 
-        doc.setFontSize(10)
+        doc.setFontSize(8.5)
         doc.setFont('helvetica', 'bold')
+
         doc.setTextColor(30, 41, 59)
-        doc.text(`${(reportData.opening_balance || 0).toLocaleString('fr-FR')} Ar`, 25, y + 18)
+        doc.text(formatMoney(reportData.opening_balance || 0), 37, y + 17, { align: 'center' })
 
         doc.setTextColor(22, 101, 52) // Green
-        doc.text(`+${reportData.total_income.toLocaleString('fr-FR')} Ar`, 60, y + 18)
+        doc.text(formatMoney(reportData.total_income, true), 71, y + 17, { align: 'center' })
 
         doc.setTextColor(185, 28, 28) // Red
-        doc.text(`-${reportData.total_expense.toLocaleString('fr-FR')} Ar`, 95, y + 18)
+        doc.text(formatMoney(-reportData.total_expense, true), 105, y + 17, { align: 'center' })
 
         doc.setTextColor(30, 64, 175) // Blue
-        doc.text(
-          `${reportData.balance >= 0 ? '+' : ''}${reportData.balance.toLocaleString('fr-FR')} Ar`,
-          130,
-          y + 18
-        )
+        doc.text(formatMoney(reportData.balance, true), 139, y + 17, { align: 'center' })
 
         doc.setTextColor(15, 23, 42) // Dark
-        doc.text(`${(reportData.closing_balance || 0).toLocaleString('fr-FR')} Ar`, 162, y + 18)
+        doc.text(formatMoney(reportData.closing_balance || 0), 173, y + 17, { align: 'center' })
       } else {
-        doc.text('Total Recettes', 30, y + 8)
-        doc.text('Total Dépenses', 85, y + 8)
-        doc.text('Solde Net Journalier', 140, y + 8)
+        // 3 columns of ~56.6mm each (Centers: 48.3, 105, 161.7)
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(80, 90, 100)
+        doc.text('Total Recettes', 48.3, y + 7, { align: 'center' })
+        doc.text('Total Dépenses', 105, y + 7, { align: 'center' })
+        doc.text('Solde Net Journalier', 161.7, y + 7, { align: 'center' })
 
-        doc.setFontSize(11)
+        doc.setFontSize(9.5)
         doc.setFont('helvetica', 'bold')
+
         doc.setTextColor(22, 101, 52)
-        doc.text(`+${reportData.total_income.toLocaleString('fr-FR')} Ar`, 30, y + 18)
+        doc.text(formatMoney(reportData.total_income, true), 48.3, y + 17, { align: 'center' })
 
         doc.setTextColor(185, 28, 28)
-        doc.text(`-${reportData.total_expense.toLocaleString('fr-FR')} Ar`, 85, y + 18)
+        doc.text(formatMoney(-reportData.total_expense, true), 105, y + 17, { align: 'center' })
 
         doc.setTextColor(30, 64, 175)
-        doc.text(
-          `${reportData.balance >= 0 ? '+' : ''}${reportData.balance.toLocaleString('fr-FR')} Ar`,
-          140,
-          y + 18
-        )
+        doc.text(formatMoney(reportData.balance, true), 161.7, y + 17, { align: 'center' })
       }
 
-      y += 34
+      y += 31
 
       // Detail Table Header
       doc.setFontSize(10)
@@ -508,10 +537,10 @@ export class PdfService {
           doc.setFont('helvetica', 'bold')
           if (isIncome) {
             doc.setTextColor(22, 101, 52)
-            doc.text(`+${entry.amount.toLocaleString('fr-FR')} Ar`, 188, y + 2, { align: 'right' })
+            doc.text(formatMoney(entry.amount, true), 188, y + 2, { align: 'right' })
           } else {
             doc.setTextColor(185, 28, 28)
-            doc.text(`-${entry.amount.toLocaleString('fr-FR')} Ar`, 188, y + 2, { align: 'right' })
+            doc.text(formatMoney(-entry.amount, true), 188, y + 2, { align: 'right' })
           }
           doc.setFont('helvetica', 'normal')
 
@@ -709,22 +738,22 @@ export class PdfService {
       doc.text('Éléments de salaire :', 20, y)
       y += 8
       doc.setFont('helvetica', 'normal')
-      doc.text(`Salaire brut : ${salaryCalc.gross_salary.toLocaleString()} Ar`, 25, y)
+      doc.text(`Salaire brut : ${formatMoney(salaryCalc.gross_salary)}`, 25, y)
       y += 7
-      doc.text(`CNAPS : -${salaryCalc.cnaps.toLocaleString()} Ar`, 25, y)
+      doc.text(`CNAPS : -${formatMoney(salaryCalc.cnaps)}`, 25, y)
       y += 7
-      doc.text(`OSTIE : -${salaryCalc.ostie.toLocaleString()} Ar`, 25, y)
+      doc.text(`OSTIE : -${formatMoney(salaryCalc.ostie)}`, 25, y)
       y += 7
-      doc.text(`IRSA : -${salaryCalc.irsa.toLocaleString()} Ar`, 25, y)
+      doc.text(`IRSA : -${formatMoney(salaryCalc.irsa)}`, 25, y)
       y += 7
 
       doc.line(20, y, 100, y)
       y += 7
       doc.setFont('helvetica', 'bold')
-      doc.text(`Total déductions : -${salaryCalc.total_deductions.toLocaleString()} Ar`, 25, y)
+      doc.text(`Total déductions : -${formatMoney(salaryCalc.total_deductions)}`, 25, y)
       y += 10
       doc.setFontSize(13)
-      doc.text(`Salaire net : ${salaryCalc.net_salary.toLocaleString()} Ar`, 20, y)
+      doc.text(`Salaire net : ${formatMoney(salaryCalc.net_salary)}`, 20, y)
 
       addFooter(doc, 1)
 

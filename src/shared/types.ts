@@ -61,6 +61,9 @@ export interface AuthState {
 export interface AuditLog {
   id: number
   user_id: string | null
+  username?: string | null
+  user_full_name?: string | null
+  user_role?: string | null
   action: string
   table_name: string | null
   record_id: string | null
@@ -228,6 +231,7 @@ export interface FeeRecord {
 
   bus_subscribed: boolean
   bus_route?: string
+  bus_monthly_fee?: number
 
   canteen_subscribed: boolean
   canteen_days_per_week: number
@@ -482,6 +486,9 @@ export interface CashBilletageBreakdown {
   b5000: number
   b2000: number
   b1000: number
+  b500?: number
+  b200?: number
+  b100?: number
   checks_total?: number
 }
 

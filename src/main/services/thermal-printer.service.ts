@@ -1240,12 +1240,15 @@ if ($res) { Write-Output "SUCCESS" } else { Write-Output "FAILED" }
     buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
     buffers.push(this.encodeText(this.separatorLine('-')))
 
-    const bd = data.breakdown || { b20000: 0, b10000: 0, b5000: 0, b2000: 0, b1000: 0 }
-    if (bd.b20000 > 0) buffers.push(this.encodeText(this.formatLine(`  20 000 Ar x ${bd.b20000}`, fmt(bd.b20000 * 20000))))
-    if (bd.b10000 > 0) buffers.push(this.encodeText(this.formatLine(`  10 000 Ar x ${bd.b10000}`, fmt(bd.b10000 * 10000))))
-    if (bd.b5000 > 0)  buffers.push(this.encodeText(this.formatLine(`   5 000 Ar x ${bd.b5000}`, fmt(bd.b5000 * 5000))))
-    if (bd.b2000 > 0)  buffers.push(this.encodeText(this.formatLine(`   2 000 Ar x ${bd.b2000}`, fmt(bd.b2000 * 2000))))
-    if (bd.b1000 > 0)  buffers.push(this.encodeText(this.formatLine(`   1 000 Ar x ${bd.b1000}`, fmt(bd.b1000 * 1000))))
+    const bd = data.breakdown || { b20000: 0, b10000: 0, b5000: 0, b2000: 0, b1000: 0, b500: 0, b200: 0, b100: 0 }
+    if (bd.b20000 && bd.b20000 > 0) buffers.push(this.encodeText(this.formatLine(`  20 000 Ar x ${bd.b20000}`, fmt(bd.b20000 * 20000))))
+    if (bd.b10000 && bd.b10000 > 0) buffers.push(this.encodeText(this.formatLine(`  10 000 Ar x ${bd.b10000}`, fmt(bd.b10000 * 10000))))
+    if (bd.b5000 && bd.b5000 > 0)   buffers.push(this.encodeText(this.formatLine(`   5 000 Ar x ${bd.b5000}`, fmt(bd.b5000 * 5000))))
+    if (bd.b2000 && bd.b2000 > 0)   buffers.push(this.encodeText(this.formatLine(`   2 000 Ar x ${bd.b2000}`, fmt(bd.b2000 * 2000))))
+    if (bd.b1000 && bd.b1000 > 0)   buffers.push(this.encodeText(this.formatLine(`   1 000 Ar x ${bd.b1000}`, fmt(bd.b1000 * 1000))))
+    if (bd.b500 && bd.b500 > 0)     buffers.push(this.encodeText(this.formatLine(`     500 Ar x ${bd.b500}`, fmt(bd.b500 * 500))))
+    if (bd.b200 && bd.b200 > 0)     buffers.push(this.encodeText(this.formatLine(`     200 Ar x ${bd.b200}`, fmt(bd.b200 * 200))))
+    if (bd.b100 && bd.b100 > 0)     buffers.push(this.encodeText(this.formatLine(`     100 Ar x ${bd.b100}`, fmt(bd.b100 * 100))))
     buffers.push(this.encodeText(this.separatorLine('-')))
     buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
     buffers.push(this.encodeText(this.formatLine('TOTAL ESPÈCES CONSTATÉ', fmt(data.counted_cash))))

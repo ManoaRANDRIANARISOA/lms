@@ -177,7 +177,7 @@ export class CashJournalRepository {
       }
     }
     if (filters.createdBy && filters.createdBy !== 'all') {
-      query += ' AND COALESCE(cj.created_by, sp.created_by, "Administrateur") = ?'
+      query += ' AND COALESCE(cj.created_by, sp.created_by, "admin") = ?'
       params.push(filters.createdBy)
     }
     if (filters.stationCode && filters.stationCode !== 'all') {
@@ -351,28 +351,19 @@ export class CashJournalRepository {
   // --------------------------------------------
 
   /**
-   * Retrieves list of all distinct operators/cashiers who recorded transactions
+   * Retrieves list of all distinct operators/cashiers from canonical active users
    */
   static getDistinctCashiers(): string[] {
     try {
       const rows = db
         .prepare(
-          `
-        SELECT DISTINCT cashier FROM (
-          SELECT created_by as cashier FROM cash_journal WHERE created_by IS NOT NULL AND created_by != '' AND deleted = 0
-          UNION
-          SELECT created_by as cashier FROM student_payments WHERE created_by IS NOT NULL AND created_by != '' AND deleted = 0
-          UNION
-          SELECT username as cashier FROM users WHERE active = 1 AND deleted = 0
-        )
-        ORDER BY cashier ASC
-      `
+          `SELECT username as cashier FROM users WHERE active = 1 AND deleted = 0 ORDER BY username ASC`
         )
         .all() as { cashier: string }[]
 
       return rows.map((r) => r.cashier).filter(Boolean)
     } catch {
-      return ['Administrateur']
+      return ['admin']
     }
   }
 
@@ -388,7 +379,7 @@ export class CashJournalRepository {
     const params: (string | number)[] = [date]
 
     if (cashier && cashier !== 'all') {
-      whereClause += ' AND COALESCE(cj.created_by, sp.created_by, "Administrateur") = ?'
+      whereClause += ' AND COALESCE(cj.created_by, sp.created_by, "admin") = ?'
       params.push(cashier)
     }
 

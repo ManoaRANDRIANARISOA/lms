@@ -691,12 +691,21 @@ interface APIType {
       total_income: number
       total_expense: number
       balance: number
+      opening_balance?: number
+      closing_balance?: number
+      station_code?: string
+      cashier?: string
       entries: Array<{
         type: string
         department: string
         category: string
         amount: number
         description?: string
+        receipt_number?: string
+        beneficiary?: string
+        payment_method?: string
+        created_by?: string
+        time?: string
       }>
     }) => Promise<{ success: boolean; filePath?: string; error?: string }>
     openFile: (filePath: string) => Promise<{ success: boolean; error?: string }>
@@ -782,7 +791,7 @@ interface APIType {
       lastSyncTime: string | null
       error?: string
     }>
-    start: (forceFullSync?: boolean) => Promise<{ success: boolean; error?: string; reason?: string }>
+    start: (forceFullSync?: boolean) => Promise<{ success: boolean; partial?: boolean; error?: string; reason?: string }>
     getErrors: () => Promise<{
       success: boolean
       errors: Array<{
@@ -917,6 +926,7 @@ interface APIType {
       error?: string
     }>
     reportError: (context: string, message: string, details?: any) => Promise<boolean>
+    clearStationErrors: () => Promise<{ success: boolean; error?: string }>
   }
 }
 

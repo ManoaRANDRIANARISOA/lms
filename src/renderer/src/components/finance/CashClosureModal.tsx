@@ -70,6 +70,9 @@ export default function CashClosureModal({
   const [b5000, setB5000] = useState<number>(0)
   const [b2000, setB2000] = useState<number>(0)
   const [b1000, setB1000] = useState<number>(0)
+  const [b500, setB500] = useState<number>(0)
+  const [b200, setB200] = useState<number>(0)
+  const [b100, setB100] = useState<number>(0)
   const [notes, setNotes] = useState<string>('')
 
   const activeCashier = useMemo(() => {
@@ -100,6 +103,9 @@ export default function CashClosureModal({
           setB5000(bd.b5000 || 0)
           setB2000(bd.b2000 || 0)
           setB1000(bd.b1000 || 0)
+          setB500(bd.b500 || 0)
+          setB200(bd.b200 || 0)
+          setB100(bd.b100 || 0)
         } catch {}
         setNotes(closure.notes || '')
       } else {
@@ -109,6 +115,9 @@ export default function CashClosureModal({
         setB5000(0)
         setB2000(0)
         setB1000(0)
+        setB500(0)
+        setB200(0)
+        setB100(0)
         setNotes('')
       }
       setLoading(false)
@@ -119,16 +128,19 @@ export default function CashClosureModal({
     }
   }, [isOpen, selectedDate, activeCashier, stationCode, fetchCashierDailySummary, fetchClosure])
 
-  // Total physique espèces calculé
+  // Total physique espèces calculé (8 coupures en Ariary)
   const totalCountedCash = useMemo(() => {
     return (
       (Number(b20000) || 0) * 20000 +
       (Number(b10000) || 0) * 10000 +
       (Number(b5000) || 0) * 5000 +
       (Number(b2000) || 0) * 2000 +
-      (Number(b1000) || 0) * 1000
+      (Number(b1000) || 0) * 1000 +
+      (Number(b500) || 0) * 500 +
+      (Number(b200) || 0) * 200 +
+      (Number(b100) || 0) * 100
     )
-  }, [b20000, b10000, b5000, b2000, b1000])
+  }, [b20000, b10000, b5000, b2000, b1000, b500, b200, b100])
 
   // Écart calculé (Constaté - Théorique)
   const cashDifference = useMemo(() => {
@@ -143,9 +155,12 @@ export default function CashClosureModal({
       b10000: Number(b10000) || 0,
       b5000: Number(b5000) || 0,
       b2000: Number(b2000) || 0,
-      b1000: Number(b1000) || 0
+      b1000: Number(b1000) || 0,
+      b500: Number(b500) || 0,
+      b200: Number(b200) || 0,
+      b100: Number(b100) || 0
     }),
-    [b20000, b10000, b5000, b2000, b1000]
+    [b20000, b10000, b5000, b2000, b1000, b500, b200, b100]
   )
 
   const isLocked = Boolean(existingClosure?.is_locked)
@@ -348,7 +363,7 @@ export default function CashClosureModal({
             </span>
           </h4>
 
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
               <Label className="text-[11px] font-bold text-gray-700">20 000 Ar</Label>
               <Input
@@ -426,6 +441,54 @@ export default function CashClosureModal({
               />
               <div className="text-[10px] text-gray-500 text-center mt-0.5">
                 = {formatMGA(b1000 * 1000)}
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-[11px] font-bold text-gray-700">500 Ar</Label>
+              <Input
+                type="number"
+                min="0"
+                value={b500 || ''}
+                onChange={(e) => setB500(Math.max(0, parseInt(e.target.value) || 0))}
+                disabled={isLocked}
+                placeholder="0"
+                className="mt-1 h-9 font-bold text-center bg-white"
+              />
+              <div className="text-[10px] text-gray-500 text-center mt-0.5">
+                = {formatMGA(b500 * 500)}
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-[11px] font-bold text-gray-700">200 Ar</Label>
+              <Input
+                type="number"
+                min="0"
+                value={b200 || ''}
+                onChange={(e) => setB200(Math.max(0, parseInt(e.target.value) || 0))}
+                disabled={isLocked}
+                placeholder="0"
+                className="mt-1 h-9 font-bold text-center bg-white"
+              />
+              <div className="text-[10px] text-gray-500 text-center mt-0.5">
+                = {formatMGA(b200 * 200)}
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-[11px] font-bold text-gray-700">100 Ar</Label>
+              <Input
+                type="number"
+                min="0"
+                value={b100 || ''}
+                onChange={(e) => setB100(Math.max(0, parseInt(e.target.value) || 0))}
+                disabled={isLocked}
+                placeholder="0"
+                className="mt-1 h-9 font-bold text-center bg-white"
+              />
+              <div className="text-[10px] text-gray-500 text-center mt-0.5">
+                = {formatMGA(b100 * 100)}
               </div>
             </div>
           </div>
