@@ -28,11 +28,20 @@ export interface WorkstationTelemetryReport {
 
 export function isNetworkOrOfflineError(error: any): boolean {
   if (!error) return false
-  const msg = (
-    typeof error === 'string'
-      ? error
-      : `${error.message || ''} ${error.code || ''} ${error.details || ''}`
-  ).toLowerCase()
+  let msg = ''
+  if (typeof error === 'string') {
+    msg = error
+  } else {
+    try {
+      const causeMsg = error?.cause ? (error.cause.message || String(error.cause)) : ''
+      const detailsMsg = typeof error?.details === 'object' ? JSON.stringify(error.details) : (error?.details || '')
+      msg = `${error?.message || ''} ${error?.code || ''} ${detailsMsg} ${causeMsg} ${JSON.stringify(error)}`
+    } catch {
+      msg = `${error?.message || ''} ${error?.code || ''} ${error?.details || ''}`
+    }
+  }
+
+  msg = msg.toLowerCase()
 
   return (
     msg.includes('enotfound') ||
@@ -210,7 +219,7 @@ export class TelemetryService {
   /**
    * Fetches remote error telemetry for Superadmin dashboard
    */
-  static async fetchWorkstationTelemetry(limit = 50): Promise<{
+  static async fetchWorkstationTelemetry(limit = 250): Promise<{
     success: boolean
     reports?: Array<{
       id: number
@@ -224,12 +233,13 @@ export class TelemetryService {
       error_details?: string
       timestamp: string
     }>
+    totalCount?: number
     error?: string
   }> {
     try {
-      const { data, error } = await supabase
+      const { data, count, error } = await supabase
         .from('audit_logs')
-        .select('*')
+        .select('*', { count: 'exact' })
         .eq('table_name', 'telemetry')
         .order('timestamp', { ascending: false })
         .limit(limit)
@@ -260,7 +270,7 @@ export class TelemetryService {
         }
       })
 
-      return { success: true, reports }
+      return { success: true, reports, totalCount: count ?? reports.length }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       return { success: false, error: msg }

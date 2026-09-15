@@ -480,7 +480,9 @@
         break-after: avoid;
       }
 
-      h2, h3, h4 {
+      h2,
+      h3,
+      h4 {
         page-break-after: avoid;
         break-after: avoid;
       }
@@ -519,7 +521,7 @@
     <!-- HERO SECTION -->
     <header class="hero">
       <div class="hero-badges">
-        <span class="badge badge-gold">✨ Version 1.1.11 Officielle</span>
+        <span class="badge badge-gold">✨ Version 1.2.1 Officielle</span>
         <span class="badge badge-gold">⚡ Local-First & 100% Offline-Proof</span>
         <span class="badge badge-gold">🖨️ Ticket Thermique 80mm ESC/POS</span>
       </div>
@@ -534,17 +536,76 @@
     <nav class="nav-bar">
       <a href="#avantages" class="nav-btn">⭐ 1. Normes & Avantages</a>
       <a href="#installation" class="nav-btn">💻 2. Déploiement & Postes</a>
-      <a href="#imprimante" class="nav-btn">🖨️ 3. Imprimante POS-80</a>
-      <a href="#recus" class="nav-btn">🧾 4. Reçus & Duplicatas</a>
-      <a href="#modules-livres" class="nav-btn">📚 5. Modules Livrés (CDC & Av. 1-2)</a>
+      <a href="#imprimante" class="nav-btn">🖨️ 3. Imprimante POS-80 (Av. 2)</a>
+      <a href="#recus" class="nav-btn">🧾 4. Reçus C1/C2 (Av. 2)</a>
+      <a href="#modules-livres" class="nav-btn">📚 5. CDC Initial & Avenants 1-2</a>
       <a href="#bonus-offerts" class="nav-btn"
         style="background: rgba(206, 171, 147, 0.25); color: var(--primary-darker); font-weight: 700;">💎 6. Bonus &
         Valeur Offerte</a>
-      <a href="#avenant3" class="nav-btn" style="background: var(--primary-darker); color: #FFF;">💼 7. Avenant N°3
-        (Extension Caisse)</a>
-      <a href="#depannage-materiel" class="nav-btn">🛠️ 8. Dépannage & Fiches Pratiques</a>
+      <a href="#avenant3" class="nav-btn" style="background: var(--primary-darker); color: #FFF;">💼 7. Guide Avenant
+        N°3 (Caisse & Billetage)</a>
+      <a href="#depannage-materiel" class="nav-btn">🛠️ 8. Dépannage (Fiches 8.1 à 8.8)</a>
       <a href="#faq" class="nav-btn">❓ 9. FAQ Caissiers</a>
     </nav>
+
+    <!-- SOMMAIRE RAPIDE DES AVENANTS -->
+    <div
+      style="background: linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%); border: 2px solid var(--primary); border-radius: 12px; padding: 18px 22px; margin-bottom: 25px; box-shadow: var(--shadow-sm);">
+      <div
+        style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+        <h3
+          style="font-size: 16px; font-weight: 800; color: var(--primary-darker); margin: 0; display: flex; align-items: center; gap: 8px;">
+          <span>📍</span> Répertoire Direct des Avenants : Où regarder dans ce manuel ?
+        </h3>
+        <span class="badge badge-gold" style="font-size: 11px;">Index des Avenants</span>
+      </div>
+      <p style="font-size: 13.5px; color: var(--text-muted); margin-bottom: 14px; line-height: 1.6;">
+        Pour retrouver immédiatement le guide d'utilisation et le paramétrage correspondant à chaque avenant :
+      </p>
+      <div class="grid-3" style="gap: 14px;">
+        <a href="#avenant1"
+          style="text-decoration: none; color: inherit; background: #FFFFFF; border: 1px solid var(--border); border-radius: 8px; padding: 14px; display: block; transition: all 0.2s;">
+          <div
+            style="font-size: 12px; font-weight: 700; color: #B45309; text-transform: uppercase; margin-bottom: 4px;">
+            Avenant N°1</div>
+          <div style="font-size: 14px; font-weight: 800; color: var(--primary-darker); margin-bottom: 6px;">Sécurisation
+            des Accès & Rôles RBAC</div>
+          <p style="font-size: 12.5px; color: var(--text-muted); margin: 0; line-height: 1.5;">
+            4 rôles (Admin, Secrétariat, Comptabilité, Direction), sessions sécurisées et traçabilité.
+          </p>
+          <div style="margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--primary);">👉 Voir Section 5.2 ➔
+          </div>
+        </a>
+
+        <a href="#avenant2"
+          style="text-decoration: none; color: inherit; background: #FFFFFF; border: 1px solid var(--border); border-radius: 8px; padding: 14px; display: block; transition: all 0.2s;">
+          <div
+            style="font-size: 12px; font-weight: 700; color: #15803D; text-transform: uppercase; margin-bottom: 4px;">
+            Avenant N°2</div>
+          <div style="font-size: 14px; font-weight: 800; color: var(--primary-darker); margin-bottom: 6px;">Impression
+            POS-80 & Reçus par Poste</div>
+          <p style="font-size: 12.5px; color: var(--text-muted); margin: 0; line-height: 1.5;">
+            Reçus thermiques 80 mm, préfixes de caisse isolés (C1, C2), anti-doublon et duplicatas.
+          </p>
+          <div style="margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--primary);">👉 Voir Section 3, 4 &
+            5.3 ➔</div>
+        </a>
+
+        <a href="#avenant3"
+          style="text-decoration: none; color: inherit; background: #FFFFFF; border: 2px solid var(--primary); border-radius: 8px; padding: 14px; display: block; transition: all 0.2s; background: #FFFDFB;">
+          <div
+            style="font-size: 12px; font-weight: 700; color: var(--primary-dark); text-transform: uppercase; margin-bottom: 4px;">
+            Avenant N°3 (Version 1.2)</div>
+          <div style="font-size: 14px; font-weight: 800; color: var(--primary-darker); margin-bottom: 6px;">
+            Rapprochement, Billetage & Ticket Z</div>
+          <p style="font-size: 12.5px; color: var(--text-muted); margin: 0; line-height: 1.5;">
+            Clôture journalière avec billets 20 000 à 100 Ar, Ticket Z thermique, filtres caissier et export PDF.
+          </p>
+          <div style="margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--primary);">👉 Voir Section 7 ➔
+          </div>
+        </a>
+      </div>
+    </div>
 
     <!-- SECTION 1: AVANTAGES & NORMES D'INDUSTRIE -->
     <section id="avantages" class="card">
@@ -617,9 +678,9 @@
 
       <div class="step-list">
         <div class="step-item">
-          <h4>Téléchargement de l'Installateur Officiel (Setup v1.1.11)</h4>
+          <h4>Téléchargement de l'Installateur Officiel (Setup v1.2.1)</h4>
           <p>
-            Copiez le fichier d'installation <strong><code>lms-1.1.11-setup.exe</code></strong> (disponible sur la clé
+            Copiez le fichier d'installation <strong><code>lms-1.2.1-setup.exe</code></strong> (disponible sur la clé
             USB ou dans le dossier <code>dist/</code>) sur l'ordinateur du client.
           </p>
         </div>
@@ -627,7 +688,7 @@
         <div class="step-item">
           <h4>Exécution de l'Installation Windows</h4>
           <p>
-            Double-cliquez sur <code>lms-1.1.11-setup.exe</code>. L'assistant d'installation NSIS configure
+            Double-cliquez sur <code>lms-1.2.1-setup.exe</code>. L'assistant d'installation NSIS configure
             automatiquement l'application, crée le raccourci sur le Bureau et initialise l'environnement sécurisé sans
             nécessiter d'accès internet pour l'installation locale.
           </p>
@@ -636,7 +697,7 @@
         <div class="step-item">
           <h4>Configuration du Code Caisse (Multi-Postes Indépendants)</h4>
           <p>
-            Ouvrez le logiciel LMS, rendez-vous dans la page <strong>Paramètres</strong> $\rightarrow$ section
+            Ouvrez le logiciel LMS, rendez-vous dans la page <strong>Paramètres</strong> ➔ section
             <em>"Imprimante Thermique & Poste de Caisse"</em> :
             <br>• <strong>Ordinateur Direction</strong> : Sélectionnez <strong><code>Caisse C1</code></strong> (reçus
             <code>REC-2026-C1-XXXXX</code>).
@@ -688,7 +749,7 @@
           <h4>Étape 2 (Méthode Recommandée) : Initialisation en 1 clic depuis le LMS</h4>
           <p>
             Connectez-vous en tant qu'<strong>Administrateur</strong>, ouvrez la page <strong>Paramètres</strong>
-            $\rightarrow$ section <em>"Imprimante Thermique"</em> :
+            ➔ section <em>"Imprimante Thermique"</em> :
             <br>• Si l'imprimante n'est pas configurée : Cliquez sur <strong>"Initialiser l'imprimante POS-80
               (Automatique)"</strong>.
             <br>• Si elle est déjà installée : Un badge vert indique qu'elle est prête. En cas de changement de prise
@@ -760,7 +821,8 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
               Ar) + la FRAM (15 000 Ar) + l'écolage (40 000 Ar), le logiciel regroupe tout sur <strong>un seul ticket
                 clair de 200 000 Ar</strong>.</li>
             <li><strong>Sécurité Anti-Fraude</strong> : Si le caissier réimprime un reçu déjà édité, le mot
-              <strong>DUPLICATA N° X</strong> s'affiche en grand avec le nom de l'opérateur et l'heure exacte.</li>
+              <strong>DUPLICATA N° X</strong> s'affiche en grand avec le nom de l'opérateur et l'heure exacte.
+            </li>
           </ul>
         </div>
 
@@ -976,7 +1038,7 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
       </table>
 
       <!-- SOUS-SECTION 5.2 : AVENANT N°1 (RBAC) -->
-      <div
+      <div id="avenant1"
         style="background: var(--surface-subtle); border-left: 4px solid #0284C7; padding: 18px 22px; border-radius: 10px; margin-bottom: 22px;">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
           <h3 style="font-size: 17px; font-weight: 800; color: #0369A1; margin: 0;">
@@ -1094,7 +1156,7 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
       </div>
 
       <!-- SOUS-SECTION 5.3 : AVENANT N°2 (IMPRESSION POS-80) -->
-      <div
+      <div id="avenant2"
         style="background: var(--surface-subtle); border-left: 4px solid #16A34A; padding: 18px 22px; border-radius: 10px; margin-bottom: 22px;">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
           <h3 style="font-size: 17px; font-weight: 800; color: #15803D; margin: 0;">
@@ -1113,16 +1175,15 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
           <h4>🛡️ Bonus Offert : Régulation Anti-Fraude & Duplicatas Numérotés</h4>
           <p>
             Toute réimpression ultérieure d'un reçu porte automatiquement la mention légale infalsifiable
-            <strong>DUPLICATA N° X</strong> avec date, heure et opérateur. Empêche la réutilisation frauduleuse de
-            reçus.
+            <strong>« DUPLICATA N°X »</strong> pour interdire l'émission de reçus parallèles ou frauduleux.
           </p>
         </div>
 
         <div class="advantage-box">
-          <h4>🔌 Bonus Offert : Auto-Détection de Port USB (Conflit Canon/Nicon)</h4>
+          <h4>🔌 Bonus Offert : Détection Automatique de Port USB (Conflits Nicon/Canon)</h4>
           <p>
-            Résout automatiquement en 1 clic les conflits d'imprimantes multiples sous Windows sans nécessiter
-            l'intervention d'un technicien externe.
+            Script d'auto-réparation en 1 clic reconfigurant instantanément Windows en cas d'assignation sur le mauvais
+            port USB.
           </p>
         </div>
 
@@ -1141,6 +1202,25 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
             d'écrasement de données.
           </p>
         </div>
+      </div>
+
+      <!-- SOUS-SECTION 5.4 : AVENANT N°3 (RAPPROCHEMENT, BILLETAGE & TICKET Z) -->
+      <div
+        style="background: #FFFDFB; border-left: 4px solid var(--primary); padding: 18px 22px; border-radius: 10px; margin-top: 18px; border: 1px solid var(--border); border-left: 4px solid var(--primary);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <h3 style="font-size: 17px; font-weight: 800; color: var(--primary-darker); margin: 0;">
+            5.4 Avenant N°3 — Rapprochement de Caisse, Billetage 20 000 à 100 Ar & Ticket Z
+          </h3>
+          <span class="badge badge-gold">Avenant N°3 Intégré en v1.2</span>
+        </div>
+        <p style="font-size: 13.5px; color: var(--text-muted); line-height: 1.6; margin-top: 6px; margin-bottom: 12px;">
+          Clôture journalière avec comptage physique de l'argent liquide, calcul automatique des écarts, impression
+          directe du Ticket Z thermique sur la POS-80 et export du PV de clôture PDF A4.
+        </p>
+        <a href="#avenant3"
+          style="display: inline-flex; align-items: center; gap: 6px; background: var(--primary); color: #FFF; font-weight: 700; font-size: 13px; padding: 8px 16px; border-radius: 6px; text-decoration: none;">
+          📖 Consulter le Guide d'Utilisation Complet de l'Avenant N°3 (Section 7) ➔
+        </a>
       </div>
     </section>
 
@@ -1300,239 +1380,285 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
         <p style="font-size: 13.5px; color: #15803D; line-height: 1.6; margin: 0;">
           Cette valeur ajoutée témoigne de notre volonté d'être bien plus qu'un prestataire : un véritable partenaire
           technique engagé aux côtés de l'équipe de Direction. C'est sur ce socle d'excellence et de confiance mutuelle
-          que nous vous soumettons ci-après l'Avenant N°3 pour le rapprochement de caisse.
+          que la Version 1.2 intègre l'ensemble des modules d'encaissement, de rapprochement de caisse et de
+          synchronisation résiliente détaillés ci-après.
         </p>
       </div>
     </section>
 
-    <!-- SECTION 7: PROPOSITION D'AVENANT N°3 -->
+    <!-- SECTION 7: NOUVELLES FONCTIONNALITÉS VERSION 1.2 (AVENANT N°3 INTÉGRÉ) -->
     <section id="avenant3" class="card" style="border: 2px solid var(--primary); background: #FFFDFB;">
       <div class="card-header" style="border-bottom: 2px solid var(--primary-light);">
         <div>
           <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-            <span class="badge badge-gold">💼 Extension Optionnelle Hors Forfait</span>
-            <span class="badge badge-success">Audit & Contrôle Interne</span>
+            <span class="badge badge-gold">⭐ Version 1.2 Déployée</span>
+            <span class="badge badge-success">Avenant N°3 Intégré & Opérationnel</span>
           </div>
           <h2 class="card-title" style="color: var(--primary-darker); font-size: 22px;">
-            7. Proposition d'Avenant N°3 — Module de Rapprochement de Caisse, Z de Caisse & Statistiques par Opérateur
+            7. Guide d'Utilisation des Nouvelles Fonctionnalités (Version 1.2 — Avenant N°3 Intégré)
           </h2>
         </div>
       </div>
 
       <p style="margin-bottom: 18px; font-size: 15px;">
-        Cette section formalise la proposition technique et financière relative à la demande récente du lycée concernant
-        le <strong>filtrage des écritures de caisse par compte utilisateur / caissier</strong> et le <strong>suivi du
-          volume de tickets traités</strong>.
+        La <strong>Version 1.2</strong> du logiciel LMS intègre l'ensemble des modules de l'<strong>Avenant
+          N°3</strong>, ainsi que des perfectionnements majeurs pour le travail quotidien multi-postes (Direction,
+        Secrétariat, Comptabilité). Ce guide détaille le fonctionnement pas-à-pas de chaque nouvel outil.
       </p>
 
-      <!-- 1. CONTEXTE TERRAIN -->
+      <!-- 7.1 FILTRE PAR CAISSIER & STATION -->
       <div
-        style="background: var(--surface-subtle); border-left: 4px solid var(--primary); padding: 16px 20px; border-radius: 8px; margin-bottom: 20px;">
-        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin-bottom: 8px;">1. Contexte &
-          Évolution Naturelle du Besoin Terrain</h3>
-        <p style="font-size: 14px; color: var(--text); line-height: 1.7; margin-bottom: 8px;">
-          Au lancement du projet (contrat initial LMS-2026-001 du 03 Février 2026), l'établissement envisageait une
-          gestion financière centralisée sur un poste unique. Avec le déploiement opérationnel multi-postes (Avenant N°1
-          RBAC et Avenant N°2 Impression Thermique), <strong>deux à trois collaborateurs encaissent désormais
-            simultanément</strong> (Bureau de la Direction sur Poste C1, Secrétariat sur Poste C2, Comptabilité sur
-          Poste C3).
-        </p>
-        <p style="font-size: 14px; color: var(--text); line-height: 1.7;">
-          Cette organisation moderne fait naturellement émerger un besoin nouveau de <strong>contrôle interne et de
-            checking physique de fin de journée</strong> : chaque soir à la clôture, la Direction et chaque caissier
-          souhaitent pointer précisément le contenu du tiroir physique (espèces, chèques) en le comparant aux écritures
-          saisies par ce compte spécifique.
-        </p>
-      </div>
-
-      <!-- 2. JUSTIFICATION CONTRACTUELLE -->
-      <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin-bottom: 10px;">2. Périmètre
-        Contractuel Antérieur vs Nouvelle Demande</h3>
-      <p style="font-size: 13.5px; color: var(--text-muted); margin-bottom: 12px;">
-        Afin de préserver la parfaite clarté de nos engagements mutuels, voici le comparatif factuel entre les
-        prestations déjà livrées et le présent besoin :
-      </p>
-
-      <table class="manual-table" style="margin-bottom: 20px;">
-        <thead>
-          <tr>
-            <th style="width: 28%;">Document Contractuel</th>
-            <th style="width: 42%;">Périmètre Convenu & Réalisé</th>
-            <th style="width: 30%;">Statut Vis-à-Vis de la Demande</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>Contrat Initial LMS-2026-001</strong><br><em>(Pack Hybride)</em></td>
-            <td>
-              <strong>Journal de Caisse Général de l'Établissement</strong> : centralisation globale des recettes et
-              dépenses (École, Bus), calcul du solde général, filtrage par dates et rubriques.
-            </td>
-            <td><span class="badge" style="background: #FEE2E2; color: #991B1B;">Non inclus</span> (vue globale
-              établissement uniquement).</td>
-          </tr>
-          <tr>
-            <td><strong>Avenant N°1</strong><br><em>(Authentification & RBAC)</em></td>
-            <td>
-              <strong>Sécurisation des Accès</strong> : 4 rôles (Admin, Secrétariat, Comptabilité, Direction), sessions
-              60 min, permissions d'ouverture des modules (qui peut voir la finance).
-            </td>
-            <td><span class="badge" style="background: #FEE2E2; color: #991B1B;">Non inclus</span> (sécurité d'accès,
-              pas de comptabilité analytique).</td>
-          </tr>
-          <tr>
-            <td><strong>Avenant N°2</strong><br><em>(Impression & Postes POS-80)</em></td>
-            <td>
-              <strong>Matériel & Numérotation Caisse</strong> : impression thermique 80mm ESC/POS, double tirage,
-              préfixes de numéros de reçus isolés par poste (<code>C1</code>, <code>C2</code>) anti-doublon.
-            </td>
-            <td><span class="badge" style="background: #FEE2E2; color: #991B1B;">Non inclus</span> (format ticket, pas
-              de ventilation comptable).</td>
-          </tr>
-          <tr style="background: #FFFBEB;">
-            <td><strong>Avenant N°3 (Proposé)</strong><br><em>(Module Rapprochement & Z de Caisse)</em></td>
-            <td>
-              <strong>Comptabilité Auxiliaire par Caissier</strong> : filtres dynamiques par compte opérateur, calcul
-              des volumes de tickets traités, arrêt de caisse individuel et vérification de tiroir.
-            </td>
-            <td><span class="badge badge-gold">Objet du Présent Avenant</span></td>
-          </tr>
-        </tbody>
-      </table>
-
-      <!-- 3. FONCTIONNALITÉS PROPOSÉES -->
-      <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin-bottom: 12px;">3.
-        Fonctionnalités Détaillées du Module de Rapprochement</h3>
-      <div class="grid-2" style="margin-bottom: 24px;">
-        <div class="advantage-box">
-          <h4>🎯 1. Filtre Dynamique par Opérateur & Code Poste</h4>
-          <p>
-            Ajout d'un sélecteur multi-critères dans le Journal Financier permettant d'isoler en 1 clic :
-            <br>• Tous les encaissements effectués par un collaborateur précis (ex: <em>Secrétaire 1</em>,
-            <em>Comptable</em>).
-            <br>• Ou tous les flux traités sur une station physique déterminée (<em>Poste C1</em>, <em>Poste C2</em>,
-            <em>Poste C3</em>).
-          </p>
-        </div>
-
-        <div class="advantage-box">
-          <h4>📊 2. Statistiques de Volumétrie & Nombre de Tickets</h4>
-          <p>
-            Indicateurs d'activité en temps réel pour chaque caisse :
-            <br>• Nombre total de tickets/paiements traités par jour, semaine, mois et année.
-            <br>• Panier moyen par transaction et répartition horaire de l'affluence au guichet.
-          </p>
-        </div>
-
-        <div class="advantage-box">
-          <h4>💵 3. Récolement & Billetage du Tiroir-Caisse (Pointage)</h4>
-          <p>
-            Ventilation instantanée des encaissements de l'opérateur par mode de règlement :
-            <br>• <strong>Total Espèces</strong> (à confronter directement avec les billets physiques du tiroir).
-            <br>• <strong>Total Chèques</strong> (avec liste des numéros de chèques remis).
-            <br>• <strong>Total Mobile Money / Virement</strong>.
-          </p>
-        </div>
-
-        <div class="advantage-box">
-          <h4>📜 4. Fiche / Ticket « Z de Clôture de Caisse »</h4>
-          <p>
-            Génération en 1 clic en fin de service du récapitulatif de clôture :
-            <br>• Impression automatique sur ticket thermique 80 mm ou export PDF A4 certifié.
-            <br>• Encadré pour visa contradictoire : signature du caissier et émargement de la Direction.
-          </p>
-        </div>
-      </div>
-
-      <!-- 4. TARIFICATION & MODALITÉS -->
-      <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin-bottom: 10px;">4. Devis
-        Forfaitaire & Tarifs Justes et Équilibrés</h3>
-      <p style="font-size: 13.5px; color: var(--text-muted); margin-bottom: 14px;">
-        Compte tenu des fondations techniques déjà solides en place dans le logiciel (Avenant N°1 RBAC et Avenant N°2
-        Impression), la tarification a été strictement calculée au plus juste du travail d'adaptation restant, dans un
-        esprit de transparence et de partenariat équitable pour les deux parties :
-      </p>
-
-      <div class="grid-2" style="margin-bottom: 24px;">
-        <!-- FORMULE 1 -->
-        <div
-          style="background: #FFFFFF; border: 2px solid var(--border); border-radius: 12px; padding: 22px; display: flex; flex-direction: column; justify-content: space-between;">
-          <div>
-            <div
-              style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--primary-dark); margin-bottom: 6px;">
-              Formule 1 — Extension Opérationnelle</div>
-            <h4 style="font-size: 18px; font-weight: 800; color: var(--primary-darker); margin-bottom: 8px;">Filtres
-              Caissiers & Comptage de Tickets</h4>
-            <div style="font-size: 24px; font-weight: 800; color: var(--primary); margin-bottom: 14px;">300 000 Ar</div>
-
-            <ul
-              style="font-size: 13.5px; color: var(--text); line-height: 1.8; margin-left: 18px; margin-bottom: 16px;">
-              <li>Sélecteur d'opérateur / caissier dans le Journal Financier.</li>
-              <li>Filtre par code station physique (Poste C1, Poste C2, Poste C3).</li>
-              <li>Compteur dynamique du nombre total de tickets traités (jour/semaine/mois).</li>
-              <li>Sous-total des encaissements par caissier et par mode de règlement.</li>
-              <li>Délai de réalisation : <strong>1 à 2 jours</strong>.</li>
-            </ul>
-
-            <div
-              style="background: #F8FAFC; border-left: 3px solid #64748B; padding: 10px 12px; border-radius: 6px; font-size: 12.5px; color: #334155; margin-top: 10px;">
-              <strong>🎯 Argument Clé (Clarté Quotidienne) :</strong><br>
-              Permet à chaque collaborateur (secrétariat, comptabilité) de connaître instantanément son total du jour et
-              son volume de tickets sans mélanger ses chiffres avec les autres bureaux. Idéal pour un pointage rapide le
-              soir.
-            </div>
-          </div>
-        </div>
-
-        <!-- FORMULE 2 -->
-        <div
-          style="background: #FFFFFF; border: 2px solid var(--primary); border-radius: 12px; padding: 22px; position: relative; box-shadow: var(--shadow); display: flex; flex-direction: column; justify-content: space-between;">
+        style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
           <span
-            style="position: absolute; top: -11px; right: 18px; background: var(--primary); color: #FFF; font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 20px; text-transform: uppercase;">⭐
-            Recommandé Direction</span>
-          <div>
-            <div
-              style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--primary-dark); margin-bottom: 6px;">
-              Formule 2 — Contrôle & Sérénité Absolue</div>
-            <h4 style="font-size: 18px; font-weight: 800; color: var(--primary-darker); margin-bottom: 8px;">Clôture
-              Journalière, Billetage & Ticket Z</h4>
-            <div style="font-size: 24px; font-weight: 800; color: var(--primary-darker); margin-bottom: 14px;">600 000
-              Ar</div>
+            style="background: var(--primary-light); color: var(--primary-darker); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Module
+            7.1</span>
+          <h3 style="font-size: 17px; font-weight: 700; color: var(--primary-darker); margin: 0;">Journal Financier :
+            Filtrage par Opérateur & Code Poste</h3>
+        </div>
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 12px;">
+          Permet d'isoler instantanément les opérations enregistrées par un collaborateur précis ou sur une station
+          physique déterminée (Poste C1, Poste C2).
+        </p>
+        <div
+          style="background: var(--surface-subtle); padding: 14px; border-radius: 8px; font-size: 13.5px; line-height: 1.7; margin-bottom: 12px;">
+          <strong>Comment l'utiliser :</strong>
+          <ol style="margin-left: 20px; margin-top: 6px;">
+            <li>Rendez-vous dans le menu <strong>Finances</strong> ➔ onglet <strong>Journal de caisse</strong>.</li>
+            <li>Dans la barre de filtres supérieurs, utilisez le sélecteur <strong>« Caissier / Opérateur »</strong>
+              pour choisir un utilisateur (ex: <em>aina-secretaire</em>, <em>dinah-compta</em> ou <em>admin</em>).</li>
+            <li>Sélectionnez la période voulue (Aujourd'hui, Cette semaine, Ce mois).</li>
+            <li>Le tableau met à jour instantanément les <strong>sous-totaux d'encaissements</strong> et affiche le
+              <strong>nombre exact de tickets traités</strong> par ce compte.</li>
+          </ol>
+        </div>
+      </div>
 
-            <ul
-              style="font-size: 13.5px; color: var(--text); line-height: 1.8; margin-left: 18px; margin-bottom: 16px;">
-              <li><strong>Tout le contenu de la Formule 1 inclus</strong>.</li>
-              <li><strong>Interface de Billetage Physique</strong> : Saisie guidée des coupures de billets (20 000, 10
-                000, 5 000, 2 000, 1 000 Ar) et chèques présents dans le tiroir.</li>
-              <li><strong>Calcul Automatique des Écarts</strong> : Détection instantanée des surplus ou manquants de
-                caisse (*Théorique logiciel vs Réel constaté*).</li>
-              <li><strong>Impression du « Ticket Z de Clôture » 80 mm</strong> : Ticket récapitulatif officiel sur
-                imprimante thermique avec visa contradictoire (signature caissier + émargement Direction).</li>
-              <li><strong>Verrouillage Comptable de Clôture</strong> : Gel des écritures validées pour interdire toute
-                altération rétroactive.</li>
-              <li>Délai de réalisation : <strong>3 à 4 jours</strong>.</li>
+      <!-- 7.2 BILLETAGE COMPLET ET CLÔTURE DE CAISSE -->
+      <div
+        style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span
+            style="background: #FEF3C7; color: #92400E; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Module
+            7.2</span>
+          <h3 style="font-size: 17px; font-weight: 700; color: var(--primary-darker); margin: 0;">Clôture Journalière
+            avec Billetage Physique Complet (20 000 Ar à 100 Ar)</h3>
+        </div>
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 12px;">
+          Le module de clôture permet de compter physiquement l'argent présent dans le tiroir-caisse chaque soir et de
+          calculer immédiatement les éventuels écarts de caisse (excédent ou manquant).
+        </p>
+        <div
+          style="background: var(--surface-subtle); padding: 14px; border-radius: 8px; font-size: 13.5px; line-height: 1.7; margin-bottom: 12px;">
+          <strong>Procédure de clôture quotidienne :</strong>
+          <ol style="margin-left: 20px; margin-top: 6px;">
+            <li>Dans le <strong>Journal de caisse</strong>, cliquez sur le bouton <strong>« Clôturer la caisse
+                »</strong>.</li>
+            <li>La fenêtre de saisie du billetage s'ouvre avec la grille complète de toutes les coupures officielles en
+              Ariary :
+              <br>• <strong>20 000 Ar</strong>, <strong>10 000 Ar</strong>, <strong>5 000 Ar</strong>, <strong>2 000
+                Ar</strong>, <strong>1 000 Ar</strong>, <strong>500 Ar</strong>, <strong>200 Ar</strong>, <strong>100
+                Ar</strong>.
+            </li>
+            <li>Indiquez la <strong>quantité</strong> de chaque billet compté dans le tiroir : le total espèces se
+              calcule automatiquement en temps réel.</li>
+            <li>Saisissez également les montants perçus par chèque ou mobile money le cas échéant.</li>
+            <li>Le logiciel compare automatiquement le <strong>Total Réel Constaté</strong> avec le <strong>Solde
+                Théorique Enregistré</strong> et affiche clairement l'écart en vert (parfait équilibre) ou en rouge
+              (écart à justifier).</li>
+            <li>Cliquez sur <strong>« Valider la Clôture & Imprimer le Ticket Z »</strong>.</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- 7.3 IMPRESSION DU TICKET Z -->
+      <div
+        style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span
+            style="background: #DCFCE7; color: #166534; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Module
+            7.3</span>
+          <h3 style="font-size: 17px; font-weight: 700; color: #15803D; margin: 0;">Impression Thermique 80 mm du «
+            Ticket Z de Caisse »</h3>
+        </div>
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 12px;">
+          Dès la validation de la clôture, l'imprimante thermique Xprinter POS-80 édite automatiquement le
+          <strong>Ticket Z officiel</strong> servant de pièce comptable justificative.
+        </p>
+        <div class="grid-2" style="margin-top: 10px; font-size: 13.5px;">
+          <div style="background: #F8FAFC; padding: 14px; border-radius: 8px; border-left: 3px solid #64748B;">
+            <strong>Contenu du Ticket Z imprimé :</strong>
+            <ul style="margin-left: 18px; margin-top: 6px; line-height: 1.6;">
+              <li>En-tête officielle : Lycée Manjary Soa & date/heure exacte.</li>
+              <li>Identifiant de la station (ex: Poste C1) et nom du caissier.</li>
+              <li>Ventilation par mode de règlement (Espèces, Chèque, etc.).</li>
+              <li>Détail complet du billetage (nombre de billets par valeur).</li>
+              <li>Montant théorique, montant constaté et écart de caisse.</li>
             </ul>
-
-            <div
-              style="background: #FEFCE8; border-left: 3px solid var(--warning); padding: 10px 12px; border-radius: 6px; font-size: 12.5px; color: #854D0E; margin-top: 10px;">
-              <strong>🛡️ Argument Clé (Bouclier Anti-Écart & Protection Direction) :</strong><br>
-              Supprime 100% des litiges de caisse. La Directrice n'a plus à recompter des liasses de billets à la main :
-              le système calcule l'écart, verrouille la journée et imprime un ticket officiel scellé faisant foi
-              juridique et comptable.
-            </div>
+          </div>
+          <div style="background: #F0FDF4; padding: 14px; border-radius: 8px; border-left: 3px solid #16A34A;">
+            <strong>Visa Contradictoire Sécurisé :</strong>
+            <p style="margin-top: 6px; line-height: 1.6;">
+              Le bas du Ticket Z comporte deux encadrés d'émargement :
+              <br>• <strong>Signature du Caissier</strong> (attestant de l'exactitude du décompte physique).
+              <br>• <strong>Visa de la Direction</strong> (validant la remise des fonds).
+              <br>Ce document est agrafé au récapitulatif bancaire ou conservé dans le classeur de caisse.
+            </p>
           </div>
         </div>
       </div>
 
-      <!-- SYNTHESE POUR LE CLIENT -->
+      <!-- 7.4 EXPORT PDF HAUTE FIDÉLITÉ -->
       <div
-        style="background: #F0FDF4; border-left: 4px solid var(--success); padding: 14px 18px; border-radius: 8px; font-size: 13.5px; color: #166534;">
-        <strong>🤝 Synthèse d'Orientation Commerciale :</strong><br>
-        • <strong>La Formule 1 (300 000 Ar)</strong> comble immédiatement le besoin formulé de visibilité sur le nombre
-        de tickets et le tri par caissier.<br>
-        • <strong>La Formule 2 (600 000 Ar)</strong> transforme l'application en véritable système de caisse certifié,
-        offrant à la Direction un contrôle financier infaillible et un gain de temps considérable lors de la fermeture
-        quotidienne.
+        style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span
+            style="background: #E0E7FF; color: #3730A3; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Module
+            7.4</span>
+          <h3 style="font-size: 17px; font-weight: 700; color: var(--primary-darker); margin: 0;">Export PDF Haute
+            Fidélité du Journal Financier</h3>
+        </div>
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 10px;">
+          Un nouveau moteur d'export PDF conforme aux normes comptables a été intégré dans le Journal Financier :
+        </p>
+        <ul style="font-size: 13.5px; color: var(--text); line-height: 1.8; margin-left: 20px;">
+          <li>Mise en page optimisée en <strong>5 colonnes nettes</strong> : Date, Réf / Reçu, Libellé & Élève,
+            Opérateur/Poste, Montant.</li>
+          <li>En-tête enrichi indiquant l'opérateur sélectionné, la station et l'intervalle de date.</li>
+          <li>Formatage monétaire compact (espacement des milliers clair) et totalisation générale certifiée.</li>
+        </ul>
+      </div>
+
+      <!-- 7.5 TARIFS BUS DÉROGATOIRES -->
+      <div
+        style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span
+            style="background: #F3E8FF; color: #6B21A8; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Module
+            7.5</span>
+          <h3 style="font-size: 17px; font-weight: 700; color: var(--primary-darker); margin: 0;">Tarifs de Transport
+            Scolaire (Bus) Dérogatoires et Personnalisés</h3>
+        </div>
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 12px;">
+          Permet d'appliquer un tarif mensuel de bus spécifique pour certains élèves bénéficiant d'une réduction
+          spéciale accordée par la Direction, sans modifier le tarif général de la ligne.
+        </p>
+        <div
+          style="background: var(--surface-subtle); padding: 14px; border-radius: 8px; font-size: 13.5px; line-height: 1.7;">
+          <strong>Comment configurer un tarif dérogatoire :</strong>
+          <ol style="margin-left: 20px; margin-top: 6px;">
+            <li>Ouvrez la fiche de l'élève concerné et cliquez sur <strong>« Modifier »</strong>.</li>
+            <li>Dans la section <strong>Transport Scolaire</strong>, cochez la ligne de bus habituelle.</li>
+            <li>Activez l'option <strong>« Tarif de bus personnalisé / dérogatoire »</strong> et renseignez le montant
+              mensuel convenu en Ariary.</li>
+            <li>Enregistrez : tous les futurs appels d'écolage et reçus de transport appliqueront automatiquement ce
+              tarif préférentiel.</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- 7.6 SÉCURISATION ANTI-DOUBLON -->
+      <div
+        style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span
+            style="background: #FEE2E2; color: #991B1B; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Module
+            7.6</span>
+          <h3 style="font-size: 17px; font-weight: 700; color: var(--primary-darker); margin: 0;">Sécurisation
+            Anti-Doublon d'Écolage & Protection des Versements Partiels</h3>
+        </div>
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 10px;">
+          Pour éliminer tout risque d'erreur de saisie au guichet :
+        </p>
+        <ul style="font-size: 13.5px; color: var(--text); line-height: 1.8; margin-left: 20px;">
+          <li><strong>Blocage préventif des doublons :</strong> Si un mois d'écolage est déjà intégralement payé, le
+            logiciel bloque immédiatement toute tentative de second encaissement sur le même mois.</li>
+          <li><strong>Protection des acomptes :</strong> Les paiements fractionnés (versements en deux ou trois fois
+            pour un même mois) sont parfaitement autorisés et calculent automatiquement le solde restant dû.</li>
+          <li><strong>Priorité aux reçus imprimés :</strong> Lors de la synchronisation cloud, les enregistrements munis
+            d'un reçu papier imprimé sont prioritaires pour éviter toute réécriture intempestive.</li>
+        </ul>
+      </div>
+
+      <!-- 7.7 AUDIT LOGS ENRICHIS -->
+      <div
+        style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span
+            style="background: #CCFBF1; color: #115E59; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Module
+            7.7</span>
+          <h3 style="font-size: 17px; font-weight: 700; color: var(--primary-darker); margin: 0;">Journaux d'Audit
+            Infalsifiables avec Noms & Rôles des Opérateurs</h3>
+        </div>
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 10px;">
+          Accessible aux profils <strong>Direction</strong> et <strong>Administrateur</strong> :
+        </p>
+        <ul style="font-size: 13.5px; color: var(--text); line-height: 1.8; margin-left: 20px;">
+          <li>Chaque entrée du journal d'audit affiche désormais le <strong>nom complet</strong> de l'opérateur, son
+            <strong>identifiant</strong> et son <strong>badge de rôle</strong> (Direction, Comptabilité, etc.).</li>
+          <li>Un filtre dédié permet d'afficher l'historique complet d'un utilisateur particulier pour vérifier
+            l'ensemble de ses interventions.</li>
+          <li>L'accès au journal d'audit est strictement restreint afin de protéger la confidentialité des opérations.
+          </li>
+        </ul>
+      </div>
+
+      <!-- 7.8 MONITEUR DES POSTES & TELEMETRIE -->
+      <div
+        style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span
+            style="background: #E0E7FF; color: #3730A3; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Module
+            7.8</span>
+          <h3 style="font-size: 17px; font-weight: 700; color: var(--primary-darker); margin: 0;">Moniteur des Postes &
+            Télémétrie Cloud (« Mouchard Supabase »)</h3>
+        </div>
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 12px;">
+          Situé dans <strong>Paramètres</strong> ➔ onglet <strong>Moniteur des Postes</strong>, cet outil permet à
+          l'administrateur de surveiller l'état de synchronisation de toutes les machines de l'école (Poste C1, Poste
+          C2).
+        </p>
+        <ul style="font-size: 13.5px; color: var(--text); line-height: 1.8; margin-left: 20px; margin-bottom: 12px;">
+          <li><strong>Surveillance multi-postes :</strong> Visualisation en temps réel des erreurs ou blocages de
+            synchronisation rencontrés sur chaque machine.</li>
+          <li><strong>Sélecteur de limite dynamique :</strong> Permet d'afficher 50, 100, 250, 500, 1000 ou
+            l'intégralité des alertes sans plafonnement fixe.</li>
+          <li><strong>Bouton « Purger alertes cloud » :</strong> Permet d'effacer les anciens journaux de connexion
+            résolus afin de conserver une vue claire sur les seuls incidents actifs.</li>
+          <li><strong>Exportation .txt :</strong> Téléchargement en 1 clic d'un rapport complet pour analyse technique.
+          </li>
+        </ul>
+      </div>
+
+      <!-- 7.9 AUTHENTIFICATION DYNAMIQUE & MULTI-POSTES -->
+      <div
+        style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span
+            style="background: #FEF3C7; color: #92400E; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Module
+            7.9</span>
+          <h3 style="font-size: 17px; font-weight: 700; color: var(--primary-darker); margin: 0;">Authentification
+            Dynamique & Résilience Multi-Postes (PC1 & PC2)</h3>
+        </div>
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 12px;">
+          Résout définitivement les problématiques de connexion lors de la création d'un utilisateur sur un poste et de
+          sa première ouverture sur un autre poste.
+        </p>
+        <div
+          style="background: #F0FDF4; border-left: 4px solid var(--success); padding: 14px; border-radius: 8px; font-size: 13.5px; line-height: 1.7;">
+          <strong>Fonctionnement automatique :</strong>
+          <ul style="margin-left: 18px; margin-top: 6px;">
+            <li><strong>Récupération à la volée :</strong> Lorsqu'un utilisateur tente de se connecter sur le Poste PC2
+              alors que son compte a été créé sur le PC1, le logiciel interroge automatiquement Supabase en arrière-plan
+              pour valider le mot de passe et synchroniser immédiatement le compte en local.</li>
+            <li><strong>Fonctionnement 100% Hors-Ligne conservé :</strong> Dès que le compte s'est connecté une première
+              fois, ses identifiants sont sauvegardés localement de manière sécurisée. Les connexions futures
+              fonctionneront même en cas de coupure totale d'Internet.</li>
+            <li><strong>Témoin de connexion sur l'écran d'accueil :</strong> Un badge indique en permanence l'état
+              réseau (<em>« Connecté Cloud »</em> ou <em>« Mode Hors-Ligne »</em>) et un bouton permet de forcer la
+              synchronisation manuelle des comptes à tout instant.</li>
+          </ul>
+        </div>
       </div>
     </section>
 
@@ -1545,17 +1671,17 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
               d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z">
             </path>
           </svg>
-          8. Dépannage Matériel Avancé & Fiches Pratiques (7.1 à 7.8)
+          8. Dépannage Matériel Avancé & Fiches Pratiques (Fiches 8.1 à 8.8)
         </h2>
       </div>
 
-      <!-- FICHE 7.1 : CONFLIT IMPRIMANTES USB MULTIPLES -->
+      <!-- FICHE 8.1 : CONFLIT IMPRIMANTES USB MULTIPLES -->
       <div
         style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
           <span
             style="background: var(--info-bg); color: var(--info); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche
-            7.1</span>
+            8.1</span>
           <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Résolution des
             Conflits de Ports Imprimante (ex: Nicon/Canon + Xprinter POS-80)</h3>
         </div>
@@ -1578,8 +1704,9 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
         <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Méthode 1 : Réparation
           Automatique en 1 Clic (Recommandée)</h4>
         <ol style="margin-left: 20px; font-size: 13px; color: var(--text); margin-bottom: 16px; line-height: 1.8;">
-          <li>Ouvrez le logiciel LMS et rendez-vous dans <strong>Paramètres</strong> $\rightarrow$ section
-            <strong>Imprimante Thermique POS-80</strong>.</li>
+          <li>Ouvrez le logiciel LMS et rendez-vous dans <strong>Paramètres</strong> ➔ section
+            <strong>Imprimante Thermique POS-80</strong>.
+          </li>
           <li>Cliquez sur le bouton <strong>« Auto-détecter port USB (Conflit Nicon) »</strong>.</li>
           <li>Le logiciel scanne tous les ports USB d'impression disponibles, identifie le canal actif de la Xprinter et
             reconfigure automatiquement Windows sans aucune saisie technique.</li>
@@ -1588,25 +1715,26 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
         <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Méthode 2 : Vérification
           Manuelle sous Windows</h4>
         <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
-          <li>Ouvrez le <strong>Panneau de configuration</strong> Windows $\rightarrow$ <strong>Périphériques et
+          <li>Ouvrez le <strong>Panneau de configuration</strong> Windows ➔ <strong>Périphériques et
               imprimantes</strong>.</li>
           <li>Faites un clic droit sur l'imprimante <strong>POS-80</strong> et sélectionnez <strong>Propriétés de
               l'imprimante</strong>.</li>
           <li>Rendez-vous dans l'onglet <strong>Ports</strong>.</li>
           <li>Repérez quel port USB est coché. Si <code>USB001</code> est coché mais ne répond pas, cochez
             <strong><code>USB002</code></strong> (ou <strong><code>USB003</code></strong>) puis cliquez sur
-            <strong>Appliquer</strong>.</li>
+            <strong>Appliquer</strong>.
+          </li>
           <li>Cliquez sur <strong>Imprimer une page de test</strong> : le ticket sortira instantanément.</li>
         </ol>
       </div>
 
-      <!-- FICHE 7.2 : PROTOCOLE DÉSINFECTION VIRUS RACCOURCIS USB -->
+      <!-- FICHE 8.2 : PROTOCOLE DÉSINFECTION VIRUS RACCOURCIS USB -->
       <div
         style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: var(--shadow-sm);">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
           <span
             style="background: var(--danger-bg); color: var(--danger); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche
-            7.2</span>
+            8.2</span>
           <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Protocole de
             Désinfection : Virus des Raccourcis USB (PC lent & Clés infectées)</h3>
         </div>
@@ -1648,20 +1776,20 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
           </li>
           <li>
             <strong>Désactiver le démarrage automatique du virus :</strong><br>
-            Dans le Gestionnaire des tâches $\rightarrow$ onglet <strong>Démarrage</strong>, désactivez tout élément
+            Dans le Gestionnaire des tâches ➔ onglet <strong>Démarrage</strong>, désactivez tout élément
             suspect pointant vers <code>wscript.exe</code> ou un fichier <code>.vbs</code> situé dans
             <code>AppData\Roaming</code> ou <code>Temp</code>.
           </li>
         </ol>
       </div>
 
-      <!-- FICHE 7.3 : ARRÊT D'URGENCE ET VIDAGE DE FILE D'IMPRESSION -->
+      <!-- FICHE 8.3 : ARRÊT D'URGENCE ET VIDAGE DE FILE D'IMPRESSION -->
       <div
         style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-top: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
           <span
             style="background: var(--danger-bg); color: var(--danger); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche
-            7.3</span>
+            8.3</span>
           <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Arrêt d'Urgence de
             l'Impression & Vidage de la File Spooler (Nettoyage Express)</h3>
         </div>
@@ -1675,7 +1803,7 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
         <div
           style="background: var(--danger-bg); border-left: 4px solid var(--danger); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #7f1d1d;">
           <strong>Fonction du Bouton d'Urgence :</strong> Le bouton rouge <strong>« Arrêter & Vider la file (Urgence)
-            »</strong> (dans Paramètres $\rightarrow$ Imprimante Thermique) ordonne au Spooler Windows de détruire
+            »</strong> (dans Paramètres ➔ Imprimante Thermique) ordonne au Spooler Windows de détruire
           immédiatement tous les travaux en attente (WMI <code>CancelAllJobs()</code>) et réinitialise l'état de
           l'imprimante.
         </div>
@@ -1683,7 +1811,7 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
         <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Procédure Immédiate :
         </h4>
         <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
-          <li>Ouvrez <strong>Paramètres</strong> $\rightarrow$ section <strong>Imprimante Thermique & Poste de
+          <li>Ouvrez <strong>Paramètres</strong> ➔ section <strong>Imprimante Thermique & Poste de
               Caisse</strong>.</li>
           <li>Cliquez sur le bouton rouge <strong>« 🛑 Arrêter & Vider la file (Urgence) »</strong>.</li>
           <li>Confirmez le dialogue de validation. Le logiciel annule instantanément tous les travaux bloqués dans
@@ -1694,13 +1822,13 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
         </ol>
       </div>
 
-      <!-- FICHE 7.4 : SIGNAUX DE SYNCHRONISATION & POINT ROUGE -->
+      <!-- FICHE 8.4 : SIGNAUX DE SYNCHRONISATION & POINT ROUGE -->
       <div
         style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
           <span
             style="background: var(--warning-bg); color: var(--warning); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche
-            7.4</span>
+            8.4</span>
           <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Surveillance de
             Synchronisation : Comprendre le Point Rouge & Statut Cloud</h3>
         </div>
@@ -1722,7 +1850,8 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
           rouge persiste avec une connexion Internet active ?</h4>
         <ol style="margin-left: 20px; font-size: 13px; color: var(--text); line-height: 1.8;">
           <li>Cliquez sur le badge de statut de synchronisation en haut de l'écran ou allez dans
-            <strong>Paramètres</strong>.</li>
+            <strong>Paramètres</strong>.
+          </li>
           <li>Cliquez sur <strong>« Réparer / Forcer la Synchronisation »</strong>.</li>
           <li>Le moteur v1.1.10 réinitialise automatiquement le curseur de synchronisation, nettoie les données selon le
             schéma Cloud Supabase et renvoie toutes les écritures en attente.</li>
@@ -1731,13 +1860,13 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
         </ol>
       </div>
 
-      <!-- FICHE 7.5 : GESTIONNAIRE DE DOUBLONS INTER-CAISSES -->
+      <!-- FICHE 8.5 : GESTIONNAIRE DE DOUBLONS INTER-CAISSES -->
       <div
         style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
           <span
             style="background: var(--info-bg); color: var(--info); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche
-            7.5</span>
+            8.5</span>
           <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Centre de Contrôle des
             Doublons : Conflits de Paiement C1 vs C2 & Fiches Élèves</h3>
         </div>
@@ -1751,7 +1880,7 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
         <div
           style="background: var(--info-bg); border-left: 4px solid var(--info); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #075985;">
           <strong>Protection Intégrée (Module Doublons) :</strong> Le logiciel intègre un module intelligent d'arbitrage
-          accessible dans le menu latéral $\rightarrow$ <strong>« Doublons »</strong> (ou dans Paramètres). Il analyse
+          accessible dans le menu latéral ➔ <strong>« Doublons »</strong> (ou dans Paramètres). Il analyse
           les concordances et propose une résolution guidée sans risque comptable.
         </div>
 
@@ -1769,13 +1898,13 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
         </ol>
       </div>
 
-      <!-- FICHE 7.6 : AFFECTATION DES POSTES & PLUG & PLAY -->
+      <!-- FICHE 8.6 : AFFECTATION DES POSTES & PLUG & PLAY -->
       <div
         style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: var(--shadow-sm);">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
           <span
             style="background: var(--success-bg); color: var(--success); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche
-            7.6</span>
+            8.6</span>
           <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Affectation
             Multi-Postes & Déploiement Réel Plug & Play</h3>
         </div>
@@ -1836,19 +1965,19 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
         <p style="font-size: 13px; color: var(--text); line-height: 1.8;">
           Tous les scripts nécessaires (<code>detect-xprinter.ps1</code>, <code>installer-xprinter.ps1</code>,
           <code>send-raw.ps1</code>) sont empaquetés directement dans l'installateur Windows
-          <strong><code>lms-1.1.10-setup.exe</code></strong>. Vous n'avez plus besoin d'importer ou de copier des
+          <strong><code>lms-1.2.1-setup.exe</code></strong>. Vous n'avez plus besoin d'importer ou de copier des
           fichiers annexes : dès l'installation, le bouton d'auto-détection et le pilote thermique fonctionnent
           immédiatement sur n'importe quel port USB.
         </p>
       </div>
 
-      <!-- FICHE 7.7 : CONFIGURATION SERVICE EMAIL & MOT DE PASSE D'APPLICATION GOOGLE -->
+      <!-- FICHE 8.7 : CONFIGURATION SERVICE EMAIL & MOT DE PASSE D'APPLICATION GOOGLE -->
       <div id="email-bilan"
         style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
           <span
             style="background: var(--success-bg); color: var(--success); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche
-            7.7</span>
+            8.7</span>
           <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Configuration &
             Activation du Bilan Quotidien par Email (Google App Password)</h3>
         </div>
@@ -1959,13 +2088,13 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
         </table>
       </div>
 
-      <!-- FICHE 7.8 : DÉBUT D'EXERCICE PERSONNEL & GESTION DES SALAIRES IMPAYÉS -->
+      <!-- FICHE 8.8 : DÉBUT D'EXERCICE PERSONNEL & GESTION DES SALAIRES IMPAYÉS -->
       <div id="exercice-personnel"
         style="background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-top: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
           <span
             style="background: var(--info-bg); color: var(--info); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Fiche
-            7.8</span>
+            8.8</span>
           <h3 style="font-size: 16px; font-weight: 700; color: var(--primary-darker); margin: 0;">Début d'Exercice
             (Personnel & Salaires) : Fonctionnement Mensuel & Questions d'Analyse</h3>
         </div>
@@ -2137,7 +2266,7 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
     <!-- FOOTER -->
     <footer
       style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 40px; border-top: 1px solid var(--border); padding-top: 20px;">
-      <strong>LMS Manjary Soa v1.1.11</strong> — Solution Professionnelle Développée pour le Lycée Privé Manjary Soa,
+      <strong>LMS Manjary Soa v1.2.1</strong> — Solution Professionnelle Développée pour le Lycée Privé Manjary Soa,
       Lot H 81 Miadana Alasora, Antananarivo.
     </footer>
 

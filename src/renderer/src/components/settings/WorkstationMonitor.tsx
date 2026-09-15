@@ -32,17 +32,21 @@ export const WorkstationMonitor: React.FC = () => {
   const [reports, setReports] = useState<TelemetryReportItem[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedStation, setSelectedStation] = useState<string>('ALL')
+  const [limit, setLimit] = useState<number>(250)
+  const [totalCloudCount, setTotalCloudCount] = useState<number>(0)
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [isSendingTest, setIsSendingTest] = useState(false)
   const [isClearingCloud, setIsClearingCloud] = useState(false)
 
-  const fetchTelemetry = async () => {
+  const fetchTelemetry = async (customLimit?: number) => {
     if (!window.api?.telemetry?.fetchStationErrors) return
+    const fetchLimit = customLimit ?? limit
     setLoading(true)
     try {
-      const res = await window.api.telemetry.fetchStationErrors(100)
+      const res = await window.api.telemetry.fetchStationErrors(fetchLimit)
       if (res.success && res.reports) {
         setReports(res.reports)
+        setTotalCloudCount((res as any).totalCount ?? res.reports.length)
       } else if (res.error) {
         toast.error(`Erreur télémétrie : ${res.error}`)
       }
@@ -226,7 +230,7 @@ export const WorkstationMonitor: React.FC = () => {
           <Button
             variant="default"
             size="sm"
-            onClick={fetchTelemetry}
+            onClick={() => fetchTelemetry()}
             disabled={loading}
             className="text-xs bg-slate-900 hover:bg-slate-800 text-white"
           >
@@ -236,44 +240,72 @@ export const WorkstationMonitor: React.FC = () => {
         </div>
       </div>
 
-      {/* Workstation Filters / Pills */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs font-medium text-gray-500 mr-1 flex items-center gap-1">
-          <Laptop className="w-3.5 h-3.5" /> Filtrer par poste :
-        </span>
-        <button
-          onClick={() => setSelectedStation('ALL')}
-          className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
-            selectedStation === 'ALL'
-              ? 'bg-slate-900 text-white'
-              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-          }`}
-        >
-          Tous ({reports.length})
-        </button>
-        {stationsList.map((st) => {
-          const count = reports.filter((r) => r.station === st).length
-          return (
-            <button
-              key={st}
-              onClick={() => setSelectedStation(st)}
-              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 ${
-                selectedStation === st
-                  ? 'bg-indigo-700 text-white'
-                  : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100 border border-indigo-100'
-              }`}
-            >
-              <span>Poste {st}</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                  selectedStation === st ? 'bg-indigo-900 text-indigo-100' : 'bg-indigo-200 text-indigo-900'
+      {/* Workstation Filters & Limit Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-medium text-gray-500 mr-1 flex items-center gap-1">
+            <Laptop className="w-3.5 h-3.5" /> Filtrer par poste :
+          </span>
+          <button
+            onClick={() => setSelectedStation('ALL')}
+            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+              selectedStation === 'ALL'
+                ? 'bg-slate-900 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            Tous ({reports.length})
+          </button>
+          {stationsList.map((st) => {
+            const count = reports.filter((r) => r.station === st).length
+            return (
+              <button
+                key={st}
+                onClick={() => setSelectedStation(st)}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+                  selectedStation === st
+                    ? 'bg-indigo-700 text-white'
+                    : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100 border border-indigo-100'
                 }`}
               >
-                {count}
-              </span>
-            </button>
-          )
-        })}
+                <span>Poste {st}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    selectedStation === st ? 'bg-indigo-900 text-indigo-100' : 'bg-indigo-200 text-indigo-900'
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-gray-500 font-medium">Limite :</span>
+          <select
+            value={limit}
+            onChange={(e) => {
+              const newLimit = Number(e.target.value)
+              setLimit(newLimit)
+              fetchTelemetry(newLimit)
+            }}
+            className="px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            <option value={50}>50 incidents</option>
+            <option value={100}>100 incidents</option>
+            <option value={250}>250 incidents</option>
+            <option value={500}>500 incidents</option>
+            <option value={1000}>1 000 incidents</option>
+            <option value={5000}>Tout (jusqu'à 5000)</option>
+          </select>
+
+          {totalCloudCount > 0 && (
+            <span className="text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+              {filteredReports.length} affiché(s) sur {totalCloudCount} au total
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Reports Feed */}
