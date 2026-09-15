@@ -146,7 +146,10 @@ const runMigrations = (): void => {
     '041_add_print_tracking_to_cash_journal.sql',
     '042_fix_student_bus_cash_department.sql',
     '043_merge_duplicate_users_and_update_admin.sql',
-    '044_add_cash_closures.sql'
+    '044_add_cash_closures.sql',
+    '045_backfill_missing_receipt_numbers.sql',
+    '046_sync_queue_resilience.sql',
+    '047_normalize_cashier_usernames.sql'
   ]
   migrations.forEach(applyMigration)
 }
@@ -202,6 +205,7 @@ ensureTableColumns('students', [
 ensureTableColumns('student_fees', [
   'bus_subscribed',
   'bus_route',
+  'bus_monthly_fee',
   'canteen_subscribed',
   'canteen_days_per_week',
   'canteen_days',
@@ -221,6 +225,7 @@ ensureTableColumns('cash_journal', [
   'receipt_number',
   'created_by'
 ])
+ensureTableColumns('sync_queue', ['updated_at'])
 
 // SCHEMA HEALING: Ensure personnel sub-tables have soft-delete columns
 // (Migration 007 was previously malformed as a single-line comment on some DBs.)
