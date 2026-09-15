@@ -95,6 +95,23 @@ function addEmailLog(log: EmailLog): void {
   }
 }
 
+export function translateEmailError(raw: string): string {
+  if (
+    raw.includes('535') ||
+    raw.includes('BadCredentials') ||
+    raw.includes('Username and Password not accepted')
+  ) {
+    return 'Identifiants Google non reconnus (Erreur 535) : Vérifiez que vous avez bien généré un "Mot de passe d\'application" Google de 16 lettres (sur myaccount.google.com/apppasswords) et non votre mot de passe habituel. (Remarque : la validation en 2 étapes doit être activée sur votre compte Google).'
+  }
+  if (raw.includes('ENOTFOUND') || raw.includes('EAI_AGAIN')) {
+    return 'Serveurs Google inaccessibles (ENOTFOUND) : Vérifiez la connexion Internet du poste ou vos paramètres DNS.'
+  }
+  if (raw.includes('ETIMEDOUT') || raw.includes('ECONNREFUSED')) {
+    return 'Délai de connexion dépassé vers le serveur Google SMTP (Port 465/587 bloqué par votre réseau ou connexion trop lente).'
+  }
+  return raw
+}
+
 export class EmailService {
   static configure(config: EmailConfig): { success: boolean; error?: string } {
     try {
@@ -153,20 +170,7 @@ export class EmailService {
       return { success: true }
     } catch (error: unknown) {
       const raw = error instanceof Error ? error.message : String(error)
-      let message = raw
-      if (
-        raw.includes('535') ||
-        raw.includes('BadCredentials') ||
-        raw.includes('Username and Password not accepted')
-      ) {
-        message =
-          'Identifiants Google non reconnus (Erreur 535) : Vérifiez que vous avez bien généré un "Mot de passe d\'application" Google de 16 lettres (sur myaccount.google.com/apppasswords) et non votre mot de passe habituel. (Remarque : la validation en 2 étapes doit être activée sur votre compte Google).'
-      } else if (raw.includes('ENOTFOUND') || raw.includes('EAI_AGAIN')) {
-        message = 'Serveurs Google inaccessibles : Vérifiez votre connexion Internet.'
-      } else if (raw.includes('ETIMEDOUT') || raw.includes('ECONNREFUSED')) {
-        message =
-          'Délai de connexion dépassé vers le serveur Google SMTP (Port 465/587 bloqué par votre réseau ou connexion trop lente).'
-      }
+      const message = translateEmailError(raw)
 
       addEmailLog({
         sent_at: new Date().toISOString(),
@@ -209,7 +213,8 @@ export class EmailService {
       addEmailLog({ sent_at: new Date().toISOString(), recipient: to, subject, success: true })
       return { success: true }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Envoi échoué'
+      const raw = error instanceof Error ? error.message : String(error)
+      const message = translateEmailError(raw)
       addEmailLog({
         sent_at: new Date().toISOString(),
         recipient: to,

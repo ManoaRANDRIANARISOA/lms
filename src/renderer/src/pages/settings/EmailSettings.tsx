@@ -177,17 +177,6 @@ export default function EmailSettings() {
     <div className="space-y-6">
       <ReadOnlyBanner resource="settings" />
 
-      {message && (
-        <div
-          className={cn(
-            'p-4 rounded-md',
-            message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-          )}
-        >
-          {message.text}
-        </div>
-      )}
-
       {/* Status */}
       <div className="p-4 bg-white rounded-lg border shadow-sm">
         <h3 className="text-lg font-semibold mb-2">État du service</h3>
@@ -370,24 +359,38 @@ export default function EmailSettings() {
         {logs.length === 0 ? (
           <p className="text-sm text-gray-400">Aucun envoi enregistré.</p>
         ) : (
-          <div className="space-y-2 max-h-64 overflow-y-auto">
+          <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
             {logs.map((log, i) => (
-              <div key={i} className="flex items-center gap-3 text-sm p-2 bg-gray-50 rounded">
-                {log.success ? (
-                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-                ) : (
-                  <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+              <div key={i} className="p-3 bg-gray-50 border rounded-lg text-sm flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {log.success ? (
+                      <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                    )}
+                    <span className="font-medium text-foreground truncate">{log.subject}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {new Date(log.sent_at).toLocaleDateString('fr-FR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric'
+                    })}{' '}
+                    {new Date(log.sent_at).toLocaleTimeString('fr-FR', {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground flex items-center gap-2">
+                  <span>Destinataire : <strong className="text-foreground">{log.recipient}</strong></span>
+                </div>
+                {log.error && (
+                  <div className="mt-1 p-2.5 bg-red-50 border border-red-200 rounded text-xs text-red-700 break-words leading-relaxed font-normal">
+                    {log.error}
+                  </div>
                 )}
-                <span className="text-gray-500 text-xs">
-                  {new Date(log.sent_at).toLocaleDateString('fr-FR')}{' '}
-                  {new Date(log.sent_at).toLocaleTimeString('fr-FR', {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </span>
-                <span className="flex-1 truncate">{log.subject}</span>
-                <span className="text-gray-400 text-xs">{log.recipient}</span>
-                {log.error && <span className="text-red-500 text-xs">{log.error}</span>}
               </div>
             ))}
           </div>
