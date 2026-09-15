@@ -132,6 +132,11 @@ export const useSyncStore = create<SyncState>((set, get) => ({
             ? 'Récupération complète effectuée avec succès !'
             : 'Synchronisation cloud terminée avec succès !'
         )
+      } else if (result && result.partial) {
+        window.dispatchEvent(new CustomEvent('app:sync-completed'))
+        toast.warning(
+          result.error || 'Synchronisation partielle : des éléments sont encore en attente.'
+        )
       } else {
         toast.error(
           `Échec de synchronisation : ${result?.error || 'Erreur inconnue'}`

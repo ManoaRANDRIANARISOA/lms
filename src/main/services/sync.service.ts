@@ -215,13 +215,14 @@ export function getSyncQueueErrors(limit = 100) {
   try {
     return db
       .prepare(
-        `SELECT id, table_name, record_id, action, status, error_message, created_at, updated_at
+        `SELECT id, table_name, record_id, action, status, error_message, created_at, COALESCE(updated_at, created_at) as updated_at
          FROM sync_queue
          WHERE status IN ('error', 'skipped', 'quarantined')
-         ORDER BY updated_at DESC LIMIT ?`
+         ORDER BY id DESC LIMIT ?`
       )
       .all(limit)
-  } catch {
+  } catch (err) {
+    console.error('getSyncQueueErrors error:', err)
     return []
   }
 }
@@ -234,7 +235,7 @@ export function retrySyncErrors(): { changes: number } {
     const res = db
       .prepare(
         `UPDATE sync_queue
-         SET status = 'pending', error_message = NULL
+         SET status = 'pending', error_message = NULL, updated_at = CURRENT_TIMESTAMP
          WHERE status IN ('error', 'skipped', 'quarantined')`
       )
       .run()
@@ -400,7 +401,33 @@ export async function syncWithCloud(forceFullSync: boolean = false) {
     // PULL: Get remote changes from cloud
     await pullRemoteChanges(forceFullSync)
 
+    // Flush any pending error/sync telemetry to Supabase audit_logs
+    await TelemetryService.flushPendingLogs().catch(() => {})
+
     const finalStatus = getSyncQueueStatus()
+    const hasUnsyncedItems = finalStatus.pendingCount > 0 || finalStatus.errorCount > 0
+
+    if (hasUnsyncedItems) {
+      broadcastProgress({
+        phase: 'error',
+        current: 100,
+        total: 100,
+        percent: 100,
+        message: `Synchronisation partielle : ${finalStatus.pendingCount} en attente, ${finalStatus.errorCount} anomalie(s)`,
+        lastSync: finalStatus.lastSyncTime || new Date().toISOString(),
+        pendingCount: finalStatus.pendingCount,
+        errorCount: finalStatus.errorCount
+      })
+
+      return {
+        success: false,
+        partial: true,
+        pendingCount: finalStatus.pendingCount,
+        errorCount: finalStatus.errorCount,
+        error: `${finalStatus.pendingCount} modification(s) en attente, ${finalStatus.errorCount} anomalie(s) non synchronisée(s).`
+      }
+    }
+
     broadcastProgress({
       phase: 'success',
       current: 100,
@@ -408,13 +435,15 @@ export async function syncWithCloud(forceFullSync: boolean = false) {
       percent: 100,
       message: 'Synchronisation terminée avec succès',
       lastSync: finalStatus.lastSyncTime || new Date().toISOString(),
-      pendingCount: finalStatus.pendingCount,
-      errorCount: finalStatus.errorCount
+      pendingCount: 0,
+      errorCount: 0
     })
 
     return { success: true }
   } catch (error: any) {
     console.error('Sync error:', error)
+    // Flush telemetry on fatal exception as well
+    await TelemetryService.flushPendingLogs().catch(() => {})
     const finalStatus = getSyncQueueStatus()
     broadcastProgress({
       phase: 'error',
@@ -478,13 +507,10 @@ function sanitizeRowPayload(tableName: string, action: string, rawData: any, rec
   // Keep all of them in payload for multi-workstation print synchronization
 
   if (tableName === 'cash_journal') {
-    // cash_journal on Supabase has related_payment_id, receipt_number, created_by.
-    // It does NOT have print_count directly (print_count is tracked on student_payments).
-    delete payload.print_count
-    delete payload.last_printed_at
-    delete payload.last_printed_by
+    // cash_journal on Supabase tracks related_payment_id, receipt_number, created_by, print_count, last_printed_at, last_printed_by
   }
   // UUID foreign key fields that must be null instead of empty string "" to satisfy Postgres uuid syntax
+  // ONLY format if the column exists on the record to prevent injecting alien columns into tables
   const uuidFields = [
     'parent_personnel_id',
     'related_student_id',
@@ -497,8 +523,10 @@ function sanitizeRowPayload(tableName: string, action: string, rawData: any, rec
     'parent_id'
   ]
   for (const field of uuidFields) {
-    if (payload[field] === '' || payload[field] === 'null' || payload[field] === undefined) {
-      payload[field] = null
+    if (Object.prototype.hasOwnProperty.call(payload, field)) {
+      if (payload[field] === '' || payload[field] === 'null' || payload[field] === undefined) {
+        payload[field] = null
+      }
     }
   }
 
@@ -529,22 +557,58 @@ function sanitizeRowPayload(tableName: string, action: string, rawData: any, rec
     'payment_date',
     'attendance_date',
     'advance_date',
-    'repayment_date'
+    'repayment_date',
+    'transaction_date'
   ]
   for (const field of dateFields) {
-    if (payload[field] === '') {
+    if (Object.prototype.hasOwnProperty.call(payload, field) && payload[field] === '') {
       payload[field] = null
     }
   }
 
   if (tableName === 'students') {
-    Object.keys(payload).forEach((k) => payload[k] === undefined && delete payload[k])
     if (!payload.guardian_contact) payload.guardian_contact = ''
     if (!payload.enrollment_date) payload.enrollment_date = new Date().toISOString().split('T')[0]
     if (payload.parent_personnel_id === '' || payload.parent_personnel_id === 'null') {
       payload.parent_personnel_id = null
     }
-    payload.updated_at = new Date().toISOString()
+  }
+
+  // Remove any undefined keys across all tables to avoid malformed PostgREST payloads
+  for (const k of Object.keys(payload)) {
+    if (payload[k] === undefined) {
+      delete payload[k]
+    }
+  }
+
+  // Ensure updated_at is always stamped on push for all tables tracking it.
+  // This guarantees that other workstations pull the changes immediately via .gt('updated_at', lastSync).
+  const nowIso = new Date().toISOString()
+  if (
+    tableName === 'students' ||
+    tableName === 'student_payments' ||
+    tableName === 'student_fees' ||
+    tableName === 'cash_journal' ||
+    tableName === 'personnel' ||
+    tableName === 'grades' ||
+    tableName === 'parent_events' ||
+    tableName === 'event_payments' ||
+    tableName === 'time_tracking' ||
+    tableName === 'daily_attendance' ||
+    tableName === 'users' ||
+    tableName === 'cash_closures' ||
+    'updated_at' in payload
+  ) {
+    payload.updated_at = nowIso
+    try {
+      if (payload.id) {
+        db.prepare(`UPDATE ${tableName} SET updated_at = ? WHERE id = ?`).run(nowIso, payload.id)
+      } else if (tableName === 'settings' && payload.key) {
+        db.prepare(`UPDATE settings SET updated_at = ? WHERE key = ?`).run(nowIso, payload.key)
+      }
+    } catch {
+      // Harmless if table/column does not exist in local schema
+    }
   }
 
   // Convert boolean fields
@@ -916,7 +980,6 @@ async function pushLocalChanges() {
           pendingCount: Math.max(0, totalItemsCount - processedCount)
         })
       } catch (error: any) {
-        sessionFailedTables.add(item.table_name)
         const errMsg = error?.message || 'Erreur inconnue Supabase'
         const isOffline = isNetworkOrOfflineError(error) || isNetworkOrOfflineError(errMsg)
 
@@ -928,6 +991,18 @@ async function pushLocalChanges() {
           )
           break
         } else {
+          // Distinguish systemic table/schema failure from isolated row failure
+          const isTableSchemaErr =
+            error?.code === 'PGRST204' ||
+            error?.code === 'PGRST200' ||
+            error?.code === '42P01' ||
+            errMsg.includes('relation') ||
+            errMsg.includes('schema cache')
+
+          if (isTableSchemaErr) {
+            sessionFailedTables.add(item.table_name)
+          }
+
           LoggerService.log(
             'error',
             'sync',
@@ -946,13 +1021,16 @@ async function pushLocalChanges() {
           // Keep status as error so it remains visible in the Sync modal and can be quarantined/retried
           db.prepare(
             `UPDATE sync_queue
-             SET status = 'error', error_message = ?
+             SET status = 'error', error_message = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?`
           ).run(errMsg, item.id)
         }
       }
     }
   }
+
+  // Flush any pending telemetry to Supabase audit_logs
+  await TelemetryService.flushPendingLogs().catch(() => {})
 }
 
 /**
@@ -992,7 +1070,8 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
     'parent_events',
     'event_payments',
     'bus_attendance',
-    'canteen_attendance'
+    'canteen_attendance',
+    'cash_closures'
   ]
 
   db.pragma('foreign_keys = OFF')
@@ -1096,14 +1175,26 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
             recordToSave.department = 'eleve'
           }
 
-          // Protect print status from regression (cloud pull must never reset local impressions)
+          // Protect receipt_number & print status from regression (cloud pull must never reset local impressions or erase receipt numbers)
           if (table === 'student_payments' || table === 'cash_journal') {
+            if (!recordToSave.receipt_number && local?.receipt_number) {
+              recordToSave.receipt_number = local.receipt_number
+            }
             recordToSave.print_count = Math.max(Number(local?.print_count || 0), Number(recordToSave.print_count || 0))
             if (!recordToSave.last_printed_at && local?.last_printed_at) {
               recordToSave.last_printed_at = local.last_printed_at
             }
             if (!recordToSave.last_printed_by && local?.last_printed_by) {
               recordToSave.last_printed_by = local.last_printed_by
+            }
+
+            // If local workstation has a verified receipt number but remote cloud has NULL, schedule cloud healing
+            if (local?.receipt_number && !record.receipt_number) {
+              addToSyncQueue(table, local.id, 'update', {
+                id: local.id,
+                receipt_number: local.receipt_number,
+                updated_at: new Date().toISOString()
+              })
             }
           }
 

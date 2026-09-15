@@ -112,6 +112,13 @@ export function registerSyncHandlers(): void {
   })
 
   // --------------------------------------------
+  // CLEAR REMOTE TELEMETRY LOGS (SUPERADMIN PURGE)
+  // --------------------------------------------
+  ipcMain.handle('telemetry:clearStationErrors', async () => {
+    return TelemetryService.clearCloudTelemetry()
+  })
+
+  // --------------------------------------------
   // REPORT MANUAL ERROR / TEST PROBE
   // --------------------------------------------
   ipcMain.handle('telemetry:reportError', async (_, context: string, message: string, details?: any) => {

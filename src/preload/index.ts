@@ -412,6 +412,7 @@ const api = {
   // --------------------------------------------
   telemetry: {
     fetchStationErrors: (limit?: number) => ipcRenderer.invoke('telemetry:fetchStationErrors', limit),
+    clearStationErrors: () => ipcRenderer.invoke('telemetry:clearStationErrors'),
     reportError: (context: string, message: string, details?: any) =>
       ipcRenderer.invoke('telemetry:reportError', context, message, details)
   },

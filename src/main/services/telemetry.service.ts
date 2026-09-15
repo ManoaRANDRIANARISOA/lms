@@ -266,4 +266,24 @@ export class TelemetryService {
       return { success: false, error: msg }
     }
   }
+
+  /**
+   * Purges all remote telemetry error logs from Supabase audit_logs
+   */
+  static async clearCloudTelemetry(): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { error } = await supabase
+        .from('audit_logs')
+        .delete()
+        .eq('table_name', 'telemetry')
+
+      if (error) {
+        return { success: false, error: error.message }
+      }
+      return { success: true }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return { success: false, error: msg }
+    }
+  }
 }

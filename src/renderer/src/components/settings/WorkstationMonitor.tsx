@@ -34,6 +34,7 @@ export const WorkstationMonitor: React.FC = () => {
   const [selectedStation, setSelectedStation] = useState<string>('ALL')
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [isSendingTest, setIsSendingTest] = useState(false)
+  const [isClearingCloud, setIsClearingCloud] = useState(false)
 
   const fetchTelemetry = async () => {
     if (!window.api?.telemetry?.fetchStationErrors) return
@@ -51,6 +52,36 @@ export const WorkstationMonitor: React.FC = () => {
       toast.error(`Échec de récupération télémétrie : ${msg}`)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleClearCloudTelemetry = async () => {
+    if (
+      !confirm(
+        'Purger la télémétrie Cloud Supabase :\n\n' +
+        'Cette action va effacer définitivement toutes les alertes et journaux d\'incidents synchronisés sur Supabase pour tous les postes.\n\n' +
+        'Voulez-vous continuer ?'
+      )
+    ) {
+      return
+    }
+
+    setIsClearingCloud(true)
+    try {
+      if (window.api?.telemetry?.clearStationErrors) {
+        const res = await window.api.telemetry.clearStationErrors()
+        if (res.success) {
+          toast.success('Télémétrie Cloud purgée avec succès.')
+          await fetchTelemetry()
+        } else {
+          toast.error(`Échec de purge cloud : ${res.error || 'Erreur inconnue'}`)
+        }
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      toast.error(`Erreur : ${msg}`)
+    } finally {
+      setIsClearingCloud(false)
     }
   }
 
@@ -160,6 +191,17 @@ export const WorkstationMonitor: React.FC = () => {
           >
             <Trash2 className="w-3.5 h-3.5 mr-1 text-red-500" />
             Vider logs locaux
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleClearCloudTelemetry}
+            disabled={isClearingCloud || reports.length === 0}
+            className="text-xs text-rose-700 hover:text-rose-800 hover:bg-rose-50 border-rose-200"
+            title="Purger définitivement toutes les alertes d'erreurs stockées sur Supabase"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1 text-rose-600" />
+            {isClearingCloud ? 'Purge...' : 'Purger alertes cloud'}
           </Button>
           <Button
             variant="outline"
