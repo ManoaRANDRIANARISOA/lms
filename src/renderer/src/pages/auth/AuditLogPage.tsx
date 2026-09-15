@@ -59,8 +59,24 @@ export default function AuditLogPage(): React.JSX.Element {
 
   // Filters
   const [actionFilter, setActionFilter] = useState('')
+  const [userFilter, setUserFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [users, setUsers] = useState<Array<{ id: string; username: string; full_name?: string | null; role?: string | null }>>([])
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const res = await window.api.auth.listUsers()
+        if (res.success && res.users) {
+          setUsers(res.users)
+        }
+      } catch (e) {
+        if (import.meta.env.DEV) console.error('Failed to load users for audit filter:', e)
+      }
+    }
+    loadUsers()
+  }, [])
 
   // --------------------------------------------
   // Fetch Logs
@@ -73,6 +89,7 @@ export default function AuditLogPage(): React.JSX.Element {
         offset: page * pageSize
       }
       if (actionFilter) filters.action = actionFilter
+      if (userFilter) filters.user_id = userFilter
       if (dateFrom) filters.startDate = dateFrom
       if (dateTo) filters.endDate = dateTo
 
@@ -128,6 +145,22 @@ export default function AuditLogPage(): React.JSX.Element {
           </div>
 
           <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Utilisateur</label>
+            <select
+              value={userFilter}
+              onChange={(e) => setUserFilter(e.target.value)}
+              className="px-3 py-2 border rounded-md bg-background text-sm"
+            >
+              <option value="">Tous les utilisateurs</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.full_name ? `${u.full_name} (${u.username})` : u.username}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Du</label>
             <input
               type="date"
@@ -171,8 +204,9 @@ export default function AuditLogPage(): React.JSX.Element {
               <thead className="bg-muted/50">
                 <tr>
                   <th className="text-left px-4 py-3 text-sm font-medium">Date/Heure</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium">Utilisateur</th>
                   <th className="text-left px-4 py-3 text-sm font-medium">Action</th>
-                  <th className="text-left px-4 py-3 text-sm font-medium">Table</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium">Module / Table</th>
                   <th className="text-left px-4 py-3 text-sm font-medium">Enregistrement</th>
                   <th className="text-left px-4 py-3 text-sm font-medium">Détails</th>
                 </tr>
@@ -190,6 +224,29 @@ export default function AuditLogPage(): React.JSX.Element {
                         second: '2-digit'
                       })}
                     </td>
+                    <td className="px-4 py-3 text-sm">
+                      {log.user_full_name || log.username ? (
+                        <div className="flex flex-col">
+                          <span className="font-medium text-foreground">
+                            {log.user_full_name || log.username}
+                          </span>
+                          <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                            <span>@{log.username || 'user'}</span>
+                            {log.user_role && (
+                              <span className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-muted uppercase tracking-wider font-semibold">
+                                {log.user_role}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      ) : log.user_id ? (
+                        <span className="font-mono text-xs text-muted-foreground" title={log.user_id}>
+                          {log.user_id.substring(0, 8)}...
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">Système</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ACTION_COLORS[log.action] || 'bg-gray-100 text-gray-800'}`}
@@ -198,7 +255,15 @@ export default function AuditLogPage(): React.JSX.Element {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm">{log.table_name || '—'}</td>
-                    <td className="px-4 py-3 text-sm font-mono text-xs">{log.record_id || '—'}</td>
+                    <td className="px-4 py-3 text-sm font-mono text-xs" title={log.record_id || ''}>
+                      {log.record_id ? (
+                        <span>
+                          {log.record_id.length > 18 ? `${log.record_id.substring(0, 15)}...` : log.record_id}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground max-w-xs truncate">
                       {log.new_value ? (
                         <span title={log.new_value}>

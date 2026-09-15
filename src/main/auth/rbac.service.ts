@@ -124,7 +124,7 @@ const PERMISSION_MATRIX: Record<Role, Record<Resource, AccessLevel>> = {
     reports: 'full',
     settings: 'none',
     users: 'none',
-    audit: 'read',
+    audit: 'none',
     events: 'full'
   }
 }

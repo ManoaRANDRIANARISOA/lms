@@ -21,6 +21,9 @@ import db from '../database/db'
 export interface AuditLog {
   id: number
   user_id: string | null
+  username?: string | null
+  user_full_name?: string | null
+  user_role?: string | null
   action: string
   table_name: string | null
   record_id: string | null
@@ -115,28 +118,29 @@ export function logLogout(userId: string | null): void {
   logAction(userId, 'logout', 'users', userId)
 }
 
-function buildAuditFilterWhere(filters: AuditLogFilters): { where: string; params: unknown[] } {
+function buildAuditFilterWhere(filters: AuditLogFilters, tablePrefix = ''): { where: string; params: unknown[] } {
+  const p = tablePrefix ? `${tablePrefix}.` : ''
   const conditions: string[] = []
   const params: unknown[] = []
 
   if (filters.user_id) {
-    conditions.push('user_id = ?')
+    conditions.push(`${p}user_id = ?`)
     params.push(filters.user_id)
   }
   if (filters.action) {
-    conditions.push('action = ?')
+    conditions.push(`${p}action = ?`)
     params.push(filters.action)
   }
   if (filters.table_name) {
-    conditions.push('table_name = ?')
+    conditions.push(`${p}table_name = ?`)
     params.push(filters.table_name)
   }
   if (filters.startDate) {
-    conditions.push('timestamp >= ?')
+    conditions.push(`${p}timestamp >= ?`)
     params.push(filters.startDate)
   }
   if (filters.endDate) {
-    conditions.push('timestamp <= ?')
+    conditions.push(`${p}timestamp <= ?`)
     params.push(filters.endDate)
   }
 
@@ -145,16 +149,33 @@ function buildAuditFilterWhere(filters: AuditLogFilters): { where: string; param
 }
 
 /**
- * Query audit logs with filters.
+ * Query audit logs with filters and user details joined.
  *
  * @param filters - Filter criteria
  * @returns Array of audit log entries
  */
 export function getAuditLogs(filters: AuditLogFilters = {}): AuditLog[] {
   try {
-    const { where, params } = buildAuditFilterWhere(filters)
+    const { where, params } = buildAuditFilterWhere(filters, 'a')
 
-    let query = 'SELECT * FROM audit_logs' + where + ' ORDER BY timestamp DESC'
+    let query = `
+      SELECT 
+        a.id,
+        a.user_id,
+        a.action,
+        a.table_name,
+        a.record_id,
+        a.old_value,
+        a.new_value,
+        a.timestamp,
+        u.username,
+        u.full_name as user_full_name,
+        u.role as user_role
+      FROM audit_logs a
+      LEFT JOIN users u ON a.user_id = u.id
+      ${where}
+      ORDER BY a.timestamp DESC
+    `
 
     const limit = filters.limit || 100
     const offset = filters.offset || 0
@@ -173,9 +194,9 @@ export function getAuditLogs(filters: AuditLogFilters = {}): AuditLog[] {
  */
 export function getAuditLogCount(filters: AuditLogFilters = {}): number {
   try {
-    const { where, params } = buildAuditFilterWhere(filters)
+    const { where, params } = buildAuditFilterWhere(filters, 'a')
 
-    const query = 'SELECT COUNT(*) as count FROM audit_logs' + where
+    const query = 'SELECT COUNT(*) as count FROM audit_logs a' + where
 
     const result = db.prepare(query).get(...params) as { count: number }
     return result.count

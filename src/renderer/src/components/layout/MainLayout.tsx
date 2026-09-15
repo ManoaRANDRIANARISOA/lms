@@ -105,7 +105,7 @@ export default function MainLayout(): React.JSX.Element {
             <Route
               path="/finance/config"
               element={
-                <ProtectedRoute resource="settings">
+                <ProtectedRoute resource="payments">
                   <FinanceConfig />
                 </ProtectedRoute>
               }
