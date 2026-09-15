@@ -52,6 +52,7 @@ const studentSchema = z.object({
   // Services & Fees
   bus_subscribed: z.boolean().optional(),
   bus_route: z.string().optional(),
+  bus_monthly_fee: z.number().optional(),
   canteen_subscribed: z.boolean().optional(),
   canteen_days_per_week: z
     .number()
@@ -172,6 +173,7 @@ export default function StudentForm({
 
       bus_subscribed: false,
       bus_route: '',
+      bus_monthly_fee: 0,
       canteen_subscribed: false,
       canteen_days_per_week: 0,
       uniform_items_purchased: [],
@@ -220,6 +222,7 @@ export default function StudentForm({
 
         bus_subscribed: false,
         bus_route: '',
+        bus_monthly_fee: 0,
         canteen_subscribed: false,
         canteen_days_per_week: 0,
         canteen_days: [],
@@ -235,6 +238,7 @@ export default function StudentForm({
       if (initialFees) {
         formData.bus_subscribed = Boolean(initialFees.bus_subscribed)
         formData.bus_route = initialFees.bus_route || ''
+        formData.bus_monthly_fee = Number(initialFees.bus_monthly_fee || 0)
         formData.canteen_subscribed = Boolean(initialFees.canteen_subscribed)
         formData.canteen_days_per_week = initialFees.canteen_days_per_week || 0
         formData.canteen_days = Array.isArray(initialFees.canteen_days)
@@ -1000,22 +1004,38 @@ export default function StudentForm({
                   </div>
 
                   {form.watch('bus_subscribed') && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Ligne de Bus</label>
-                      <select
-                        {...form.register('bus_route')}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <option value="">Sélectionner une zone</option>
-                        {availableBusRoutes.map((route) => (
-                          <option key={route} value={route}>
-                            {route} ({prices.bus[route]?.toLocaleString()} Ar)
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-gray-500">
-                        Note: Sélectionnez la zone correspondant à l'arrêt de l'élève.
-                      </p>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Ligne de Bus</label>
+                        <select
+                          {...form.register('bus_route')}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <option value="">Sélectionner une zone</option>
+                          {availableBusRoutes.map((route) => (
+                            <option key={route} value={route}>
+                              {route} ({prices.bus[route]?.toLocaleString()} Ar)
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-gray-500">
+                          Note: Sélectionnez la zone correspondant à l'arrêt de l'élève.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">
+                          Tarif mensuel spécifique / Réduction accordée (Ar)
+                        </label>
+                        <Input
+                          type="number"
+                          placeholder="0 (Tarif standard de la zone)"
+                          {...form.register('bus_monthly_fee', { valueAsNumber: true })}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Optionnel : permet d'accorder une réduction ou un tarif sur-mesure pour cet élève. Laisser à 0 pour appliquer automatiquement le tarif normal de la zone sélectionnée.
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>

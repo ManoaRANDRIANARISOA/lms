@@ -362,6 +362,49 @@ export class PaymentRepository {
       .replace(/['"]/g, '')
       .trim()
 
+    // SAFEGUARD: Prevent accidental duplicate payment of an already fully paid tuition month
+    if (payment.payment_type === 'tuition' && payment.month) {
+      const existing = db
+        .prepare(
+          `SELECT COALESCE(SUM(amount), 0) as total_paid 
+           FROM student_payments 
+           WHERE student_id = ? 
+             AND payment_type = 'tuition' 
+             AND month = ? 
+             AND school_year = ? 
+             AND deleted = 0`
+        )
+        .get(payment.student_id, payment.month, cleanSchoolYear) as { total_paid: number } | undefined
+
+      const totalPaid = Number(existing?.total_paid || 0)
+
+      // Fetch student's tuition fee
+      const feeRow = db
+        .prepare(`SELECT monthly_tuition FROM student_fees WHERE student_id = ? AND school_year = ? AND deleted = 0`)
+        .get(payment.student_id, cleanSchoolYear) as { monthly_tuition: number | null } | undefined
+
+      let expectedMonthlyFee = Number(feeRow?.monthly_tuition || 0)
+      if (expectedMonthlyFee <= 0) {
+        const studentRow = db.prepare(`SELECT class FROM students WHERE id = ?`).get(payment.student_id) as { class: string } | undefined
+        if (studentRow?.class) {
+          try {
+            const pricesSetting = db.prepare("SELECT value FROM settings WHERE key = 'finance_prices'").get() as { value: string } | undefined
+            if (pricesSetting?.value) {
+              const prices = JSON.parse(pricesSetting.value)
+              expectedMonthlyFee = Number(prices.tuition?.[studentRow.class] || 0)
+            }
+          } catch {}
+        }
+      }
+
+      if (expectedMonthlyFee > 0 && totalPaid >= expectedMonthlyFee) {
+        return {
+          success: false,
+          error: `Le mois d'écolage ${payment.month} est déjà intégralement réglé (${totalPaid.toLocaleString()} Ar / ${expectedMonthlyFee.toLocaleString()} Ar) pour cet élève.`
+        }
+      }
+    }
+
     const receiptNumber = payment.receipt_number || this.generateReceiptNumber(cleanSchoolYear)
     const cashierUser = payment.created_by || null
 

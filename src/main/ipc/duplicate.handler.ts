@@ -307,6 +307,29 @@ export function registerDuplicateHandlers(): void {
         const payments = db.prepare(query).all(...params) as any[]
 
         if (payments.length > 1) {
+          // Safeguard: Check if this is a legitimate installment payment (e.g. 25 000 + 25 000 Ar = 50 000 Ar)
+          if (d.payment_type === 'tuition') {
+            let expectedMonthlyFee = 0
+            const feeRow = db
+              .prepare(`SELECT monthly_tuition FROM student_fees WHERE student_id = ? AND (school_year = ? OR ? IS NULL) AND deleted = 0`)
+              .get(d.student_id, d.school_year, d.school_year) as { monthly_tuition: number | null } | undefined
+            expectedMonthlyFee = Number(feeRow?.monthly_tuition || 0)
+            if (expectedMonthlyFee <= 0 && student.class_name) {
+              try {
+                const pricesSetting = db.prepare("SELECT value FROM settings WHERE key = 'finance_prices'").get() as { value: string } | undefined
+                if (pricesSetting?.value) {
+                  const prices = JSON.parse(pricesSetting.value)
+                  expectedMonthlyFee = Number(prices.tuition?.[student.class_name] || 0)
+                }
+              } catch {}
+            }
+            const totalSum = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+            if (expectedMonthlyFee > 0 && totalSum <= expectedMonthlyFee) {
+              // Legitimate installment payment! Do not flag as a duplicate collision.
+              continue
+            }
+          }
+
           const records = payments.map((p) => {
             let station = 'Inconnue'
             if (p.receipt_number) {
@@ -462,6 +485,7 @@ export function registerDuplicateHandlers(): void {
           sp.created_at,
           sp.receipt_number,
           sp.created_by,
+          sp.print_count,
           s.first_name,
           s.last_name,
           s.class as class_name
@@ -500,7 +524,57 @@ export function registerDuplicateHandlers(): void {
 
       const autoTx = db.transaction(() => {
         for (const list of collidingGroups) {
-          // Earliest payment is kept as the legitimate original
+          const sample = list[0]
+
+          // SAFEGUARD 1: Never auto-delete uniform, event or supplies sales (pupils can legitimately buy multiple items over time)
+          if (
+            sample.payment_type !== 'tuition' &&
+            sample.payment_type !== 'bus' &&
+            sample.payment_type !== 'canteen' &&
+            sample.payment_type !== 'enrollment' &&
+            sample.payment_type !== 'reenrollment'
+          ) {
+            continue
+          }
+
+          // SAFEGUARD 2: For tuition, protect partial installments (e.g. 25 000 + 25 000 Ar = 50 000 Ar)
+          if (sample.payment_type === 'tuition') {
+            let expectedMonthlyFee = 0
+            const feeRow = db
+              .prepare(`SELECT monthly_tuition FROM student_fees WHERE student_id = ? AND (school_year = ? OR ? IS NULL) AND deleted = 0`)
+              .get(sample.student_id, sample.school_year, sample.school_year) as { monthly_tuition: number | null } | undefined
+            expectedMonthlyFee = Number(feeRow?.monthly_tuition || 0)
+            if (expectedMonthlyFee <= 0 && sample.class_name) {
+              try {
+                const pricesSetting = db.prepare("SELECT value FROM settings WHERE key = 'finance_prices'").get() as { value: string } | undefined
+                if (pricesSetting?.value) {
+                  const prices = JSON.parse(pricesSetting.value)
+                  expectedMonthlyFee = Number(prices.tuition?.[sample.class_name] || 0)
+                }
+              } catch {}
+            }
+
+            const totalAmount = list.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+            if (expectedMonthlyFee > 0 && totalAmount <= expectedMonthlyFee) {
+              // Legitimate installment payments: DO NOT touch!
+              continue
+            }
+          }
+
+          // Sort candidates:
+          // 1. Highest print_count (proof of receipt handed to parent)
+          // 2. Has valid non-null receipt_number
+          // 3. Earliest payment_date / created_at
+          list.sort((a, b) => {
+            const printDiff = (b.print_count || 0) - (a.print_count || 0)
+            if (printDiff !== 0) return printDiff
+            const hasReceiptA = a.receipt_number ? 1 : 0
+            const hasReceiptB = b.receipt_number ? 1 : 0
+            if (hasReceiptB !== hasReceiptA) return hasReceiptB - hasReceiptA
+            return new Date(a.created_at || a.payment_date).getTime() - new Date(b.created_at || b.payment_date).getTime()
+          })
+
+          // Best authenticated payment is kept as legitimate original
           const keep = list[0]
           const duplicates = list.slice(1)
 

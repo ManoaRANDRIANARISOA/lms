@@ -600,7 +600,9 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                               <p className="text-sm font-medium">Bus Scolaire</p>
                               <p className="text-xs text-gray-500">
                                 {displayedFees.bus_subscribed
-                                  ? displayedFees.bus_route || 'Zone non définie'
+                                  ? displayedFees.bus_monthly_fee && Number(displayedFees.bus_monthly_fee) > 0
+                                    ? `${displayedFees.bus_route || 'Zone'} (Tarif spécial: ${Number(displayedFees.bus_monthly_fee).toLocaleString()} Ar)`
+                                    : displayedFees.bus_route || 'Zone non définie'
                                   : 'Non inscrit'}
                               </p>
                             </div>

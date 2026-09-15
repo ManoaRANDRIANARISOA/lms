@@ -86,6 +86,9 @@ const getTuitionCost = (
 
 const getBusCost = (record: FeeRecord | undefined | null, prices: FinancePrices | null) => {
   if (!record?.bus_subscribed || !record?.bus_route) return 0
+  if (record.bus_monthly_fee && Number(record.bus_monthly_fee) > 0) {
+    return Number(record.bus_monthly_fee)
+  }
   return prices?.bus?.[record.bus_route] || 0
 }
 
