@@ -31,6 +31,7 @@ import type {
   ClassSubject,
   CashJournalEntry,
   CashJournalFilters,
+  CashierOption,
   CashierDailySummary,
   CashClosure,
   CashClosureInput,
@@ -528,7 +529,7 @@ interface APIType {
       balance?: { total_income: number; total_expense: number; balance: number }
       error?: string
     }>
-    getDistinctCashiers: () => Promise<{ success: boolean; cashiers?: string[]; error?: string }>
+    getDistinctCashiers: () => Promise<{ success: boolean; cashiers?: CashierOption[]; error?: string }>
     getCashierDailySummary: (
       date: string,
       cashier?: string,
@@ -605,12 +606,24 @@ interface APIType {
   email: {
     configure: (config: {
       enabled: boolean
-      gmail_address: string
-      gmail_app_password: string
+      provider?: 'brevo' | 'gmail'
+      smtp_host?: string
+      smtp_port?: number
+      smtp_user?: string
+      smtp_key?: string
+      sender_name?: string
+      sender_email?: string
+      gmail_address?: string
+      gmail_app_password?: string
       recipient_email: string
       auto_send_daily: boolean
     }) => Promise<{ success: boolean; error?: string }>
     testConnection: (credentials?: {
+      provider?: 'brevo' | 'gmail'
+      smtp_host?: string
+      smtp_port?: number
+      smtp_user?: string
+      smtp_key?: string
       gmail_address?: string
       gmail_app_password?: string
     }) => Promise<{ success: boolean; error?: string }>
@@ -624,6 +637,7 @@ interface APIType {
       configured?: boolean
       enabled?: boolean
       auto_send?: boolean
+      provider?: string
       error?: string
     }>
     getLogs: () => Promise<{

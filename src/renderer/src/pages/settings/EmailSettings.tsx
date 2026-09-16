@@ -10,6 +10,13 @@ import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 
 interface EmailConfigState {
   enabled: boolean
+  provider: 'brevo' | 'gmail'
+  smtp_host?: string
+  smtp_port?: number
+  smtp_user?: string
+  smtp_key?: string
+  sender_name?: string
+  sender_email?: string
   gmail_address: string
   gmail_app_password: string
   recipient_email: string
@@ -28,6 +35,13 @@ export default function EmailSettings() {
   const { canWrite } = usePermissions()
   const [config, setConfig] = useState<EmailConfigState>({
     enabled: true,
+    provider: 'brevo',
+    smtp_host: 'smtp-relay.brevo.com',
+    smtp_port: 587,
+    smtp_user: '',
+    smtp_key: '',
+    sender_name: 'Lycée Manjary Soa',
+    sender_email: '',
     gmail_address: 'mmanjarysoa@gmail.com',
     gmail_app_password: '',
     recipient_email: 'christineanjarasoa36@gmail.com',
@@ -58,6 +72,13 @@ export default function EmailSettings() {
             : 'christineanjarasoa36@gmail.com'
         setConfig({
           enabled: loaded.enabled !== undefined ? loaded.enabled : true,
+          provider: loaded.provider || 'brevo',
+          smtp_host: loaded.smtp_host || 'smtp-relay.brevo.com',
+          smtp_port: loaded.smtp_port || 587,
+          smtp_user: loaded.smtp_user || '',
+          smtp_key: loaded.smtp_key || '',
+          sender_name: loaded.sender_name || 'Lycée Manjary Soa',
+          sender_email: loaded.sender_email || '',
           gmail_address: loaded.gmail_address || 'mmanjarysoa@gmail.com',
           gmail_app_password: loaded.gmail_app_password || '',
           recipient_email: recipient,
@@ -120,22 +141,35 @@ export default function EmailSettings() {
   const testConnection = async () => {
     setTesting(true)
     setMessage(null)
-    const toastId = toast.loading('Vérification de la liaison SMTP avec Google...')
+    const providerLabel = config.provider === 'brevo' ? 'Brevo' : 'Google'
+    const toastId = toast.loading(`Vérification de la liaison SMTP avec ${providerLabel}...`)
     try {
-      const result = await window.api.email.testConnection({
-        gmail_address: config.gmail_address,
-        gmail_app_password: config.gmail_app_password
-      })
+      const payload =
+        config.provider === 'brevo'
+          ? {
+              provider: 'brevo' as const,
+              smtp_host: config.smtp_host || 'smtp-relay.brevo.com',
+              smtp_port: config.smtp_port || 587,
+              smtp_user: config.smtp_user,
+              smtp_key: config.smtp_key
+            }
+          : {
+              provider: 'gmail' as const,
+              gmail_address: config.gmail_address,
+              gmail_app_password: config.gmail_app_password
+            }
+
+      const result = await window.api.email.testConnection(payload)
       if (result.success) {
-        toast.success('Connexion SMTP Google réussie ! Vos identifiants sont 100% opérationnels.', { id: toastId, duration: 6000 })
-        setMessage({ text: 'Connexion SMTP Google réussie avec succès', type: 'success' })
+        toast.success(`Connexion SMTP ${providerLabel} réussie ! Vos identifiants sont 100% opérationnels.`, { id: toastId, duration: 6000 })
+        setMessage({ text: `Connexion SMTP ${providerLabel} réussie avec succès`, type: 'success' })
       } else {
         toast.error(`Échec du test : ${result.error || 'Connexion échouée'}`, { id: toastId, duration: 10000 })
         setMessage({ text: result.error || 'Connexion échouée', type: 'error' })
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erreur de test'
-      toast.error(`Erreur inattendue : ${msg}`, { id: toastId, duration: 8000 })
+      toast.error(`Erreur : ${msg}`, { id: toastId, duration: 8000 })
       setMessage({ text: 'Erreur de test', type: 'error' })
     } finally {
       setTesting(false)
@@ -210,7 +244,7 @@ export default function EmailSettings() {
 
       {/* Config form */}
       <div className="p-4 bg-white rounded-lg border shadow-sm">
-        <h3 className="text-lg font-semibold mb-4">Configuration SMTP Gmail</h3>
+        <h3 className="text-lg font-semibold mb-4">Configuration du service email</h3>
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <input
@@ -222,58 +256,184 @@ export default function EmailSettings() {
             />
             <Label htmlFor="email-enabled">Activer le service email</Label>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label>Adresse Gmail</Label>
-              <Input
-                type="email"
-                value={config.gmail_address}
-                onChange={(e) => setConfig((p) => ({ ...p, gmail_address: e.target.value }))}
-                placeholder="exemple@gmail.com"
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <div className="flex items-center justify-between">
-                <Label>Mot de passe d'application Google (16 lettres)</Label>
-                <a
-                  href="https://myaccount.google.com/apppasswords"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 font-medium underline"
-                  title="Ouvrir la page de création Google"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  Générer sur Google
-                </a>
-              </div>
-              <div className="relative mt-1">
-                <Input
-                  type={showPassword ? 'text' : 'password'}
-                  value={config.gmail_app_password}
-                  onChange={(e) =>
-                    setConfig((p) => ({
-                      ...p,
-                      gmail_app_password: e.target.value.replace(/\s+/g, '')
-                    }))
-                  }
-                  placeholder="ex: abcd efgh ijkl mnop"
-                  className="pr-10 font-mono tracking-wider"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Généré dans Compte Google → Sécurité → Validation en 2 étapes → Mots de passe d'application. Les espaces sont retirés automatiquement.
-              </p>
+
+          <div>
+            <Label className="mb-2 block">Fournisseur d'envoi d'e-mails</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => setConfig((p) => ({ ...p, provider: 'brevo' }))}
+                className={cn(
+                  'p-3 rounded-lg border text-left transition-all flex flex-col gap-1',
+                  config.provider === 'brevo'
+                    ? 'border-blue-600 bg-blue-50/50 ring-1 ring-blue-600'
+                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                )}
+              >
+                <div className="font-semibold text-sm flex items-center justify-between">
+                  <span>Brevo (anciennement Sendinblue)</span>
+                  {config.provider === 'brevo' && <CheckCircle className="w-4 h-4 text-blue-600" />}
+                </div>
+                <span className="text-xs text-gray-500">Recommandé, fiable et gratuit jusqu'à 300 emails/jour (SMTP pro)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setConfig((p) => ({ ...p, provider: 'gmail' }))}
+                className={cn(
+                  'p-3 rounded-lg border text-left transition-all flex flex-col gap-1',
+                  config.provider === 'gmail'
+                    ? 'border-blue-600 bg-blue-50/50 ring-1 ring-blue-600'
+                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                )}
+              >
+                <div className="font-semibold text-sm flex items-center justify-between">
+                  <span>Gmail (SMTP direct)</span>
+                  {config.provider === 'gmail' && <CheckCircle className="w-4 h-4 text-blue-600" />}
+                </div>
+                <span className="text-xs text-gray-500">Utilise votre compte Google via mot de passe d'application</span>
+              </button>
             </div>
           </div>
+
+          {config.provider === 'brevo' ? (
+            <div className="space-y-4 pt-2 border-t">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3.5 text-xs text-amber-800 space-y-1.5">
+                <div className="font-semibold flex items-center gap-1.5 text-amber-900">
+                  <ExternalLink className="w-4 h-4" />
+                  Guide rapide configuration Brevo :
+                </div>
+                <ol className="list-decimal pl-4 space-y-1">
+                  <li>Créez un compte gratuit sur <a href="https://www.brevo.com" target="_blank" rel="noreferrer" className="underline font-medium text-blue-600">brevo.com</a>.</li>
+                  <li>Allez dans <strong>SMTP & API</strong> puis l'onglet <strong>SMTP</strong> pour récupérer votre clé SMTP.</li>
+                  <li>Renseignez ci-dessous votre email d'expédition validé sur Brevo et votre clé SMTP.</li>
+                </ol>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Nom de l'expéditeur</Label>
+                  <Input
+                    type="text"
+                    value={config.sender_name}
+                    onChange={(e) => setConfig((p) => ({ ...p, sender_name: e.target.value }))}
+                    placeholder="Lycée Manjary Soa"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Email de l'expéditeur (validé sur Brevo)</Label>
+                  <Input
+                    type="email"
+                    value={config.sender_email}
+                    onChange={(e) => setConfig((p) => ({ ...p, sender_email: e.target.value }))}
+                    placeholder="contact@ecole.mg"
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Clé SMTP Brevo (xsmtpsib-...)</Label>
+                    <a
+                      href="https://app.brevo.com/settings/keys/smtp"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 font-medium underline"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      Obtenir sur Brevo
+                    </a>
+                  </div>
+                  <div className="relative mt-1">
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      value={config.smtp_key}
+                      onChange={(e) => setConfig((p) => ({ ...p, smtp_key: e.target.value.trim() }))}
+                      placeholder="xsmtpsib-..."
+                      className="pr-10 font-mono tracking-wider"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <Label>Port SMTP</Label>
+                  <Input
+                    type="number"
+                    value={config.smtp_port}
+                    onChange={(e) => setConfig((p) => ({ ...p, smtp_port: parseInt(e.target.value) || 587 }))}
+                    placeholder="587"
+                    className="mt-1 font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 pt-2 border-t">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Adresse Gmail</Label>
+                  <Input
+                    type="email"
+                    value={config.gmail_address}
+                    onChange={(e) => setConfig((p) => ({ ...p, gmail_address: e.target.value }))}
+                    placeholder="exemple@gmail.com"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <Label>Mot de passe d'application Google (16 lettres)</Label>
+                    <a
+                      href="https://myaccount.google.com/apppasswords"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 font-medium underline"
+                      title="Ouvrir la page de création Google"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      Générer sur Google
+                    </a>
+                  </div>
+                  <div className="relative mt-1">
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      value={config.gmail_app_password}
+                      onChange={(e) =>
+                        setConfig((p) => ({
+                          ...p,
+                          gmail_app_password: e.target.value.replace(/\s+/g, '')
+                        }))
+                      }
+                      placeholder="ex: abcd efgh ijkl mnop"
+                      className="pr-10 font-mono tracking-wider"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Généré dans Compte Google → Sécurité → Validation en 2 étapes → Mots de passe d'application. Les espaces sont retirés automatiquement.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div>
             <Label>Email du destinataire (Directeur)</Label>
             <Input
@@ -324,7 +484,10 @@ export default function EmailSettings() {
                 <Button
                   variant="outline"
                   onClick={testConnection}
-                  disabled={testing || !config.gmail_address}
+                  disabled={
+                    testing ||
+                    (config.provider === 'brevo' ? !config.smtp_key : !config.gmail_address)
+                  }
                 >
                   {testing ? 'Test en cours...' : 'Tester la connexion'}
                 </Button>

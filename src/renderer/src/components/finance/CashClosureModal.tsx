@@ -55,14 +55,33 @@ export default function CashClosureModal({
     fetchCashierDailySummary,
     createClosure,
     fetchClosure,
-    printTicketZ
+    printTicketZ,
+    cashiers,
+    fetchCashiers
   } = useCashJournalStore()
+
+  const isSupervisor = user?.role === 'admin' || user?.role === 'direction'
 
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [printing, setPrinting] = useState(false)
   const [summary, setSummary] = useState<CashierDailySummary | null>(null)
   const [existingClosure, setExistingClosure] = useState<CashClosure | null>(null)
+
+  // Paramètres sélectionnables pour la Direction et l'Admin
+  const [modalStation, setModalStation] = useState<string>(stationCode || 'all')
+  const [modalCashier, setModalCashier] = useState<string>(selectedCashier || 'all')
+  const [isConsolidated, setIsConsolidated] = useState<boolean>(false)
+
+  // Synchronisation lors de l'ouverture du modal
+  useEffect(() => {
+    if (isOpen) {
+      setModalStation(stationCode || 'all')
+      setModalCashier(selectedCashier || 'all')
+      setIsConsolidated(false)
+      fetchCashiers()
+    }
+  }, [isOpen, stationCode, selectedCashier])
 
   // Saisie du Billetage
   const [b20000, setB20000] = useState<number>(0)
@@ -76,20 +95,31 @@ export default function CashClosureModal({
   const [notes, setNotes] = useState<string>('')
 
   const activeCashier = useMemo(() => {
+    if (isConsolidated) return 'all'
+    if (isSupervisor) return modalCashier
     if (selectedCashier && selectedCashier !== 'all') return selectedCashier
     return user?.username || 'Administrateur'
-  }, [selectedCashier, user])
+  }, [isConsolidated, isSupervisor, modalCashier, selectedCashier, user])
 
-  // Chargement des données à l'ouverture
+  const effectiveStation = useMemo(() => {
+    if (isConsolidated) return 'all'
+    if (isSupervisor) return modalStation
+    return stationCode || 'C1'
+  }, [isConsolidated, isSupervisor, modalStation, stationCode])
+
+  // Chargement des données à l'ouverture ou au changement des filtres
   useEffect(() => {
     if (!isOpen) return
 
     let isMounted = true
     setLoading(true)
 
+    const qCashier = activeCashier !== 'all' ? activeCashier : undefined
+    const qStation = effectiveStation !== 'all' ? effectiveStation : undefined
+
     Promise.all([
-      fetchCashierDailySummary(selectedDate, activeCashier, stationCode),
-      fetchClosure(selectedDate, activeCashier)
+      fetchCashierDailySummary(selectedDate, qCashier, qStation),
+      fetchClosure(selectedDate, qCashier)
     ]).then(([sum, closure]) => {
       if (!isMounted) return
       setSummary(sum)
@@ -126,7 +156,7 @@ export default function CashClosureModal({
     return () => {
       isMounted = false
     }
-  }, [isOpen, selectedDate, activeCashier, stationCode, fetchCashierDailySummary, fetchClosure])
+  }, [isOpen, selectedDate, activeCashier, effectiveStation, fetchCashierDailySummary, fetchClosure])
 
   // Total physique espèces calculé (8 coupures en Ariary)
   const totalCountedCash = useMemo(() => {
@@ -172,8 +202,8 @@ export default function CashClosureModal({
 
     const input = {
       closure_date: selectedDate,
-      cashier_username: activeCashier,
-      station_code: stationCode,
+      cashier_username: activeCashier === 'all' ? (user?.username || 'admin') : activeCashier,
+      station_code: effectiveStation === 'all' ? 'CONSOLIDÉ' : effectiveStation,
       total_tickets: summary.total_tickets,
       expected_cash: summary.expected_cash,
       expected_check: summary.expected_check,
@@ -209,8 +239,8 @@ export default function CashClosureModal({
 
     const zData: TicketZData = {
       closure_date: selectedDate,
-      cashier: activeCashier,
-      station_code: stationCode,
+      cashier: activeCashier === 'all' ? 'Bilan Consolidé' : activeCashier,
+      station_code: effectiveStation === 'all' ? 'Toutes stations' : effectiveStation,
       total_tickets: summary.total_tickets,
       first_receipt: summary.first_receipt,
       last_receipt: summary.last_receipt,
@@ -273,6 +303,80 @@ export default function CashClosureModal({
       }
     >
       <div className="space-y-6 text-sm">
+        {/* Barre de sélection Direction / Admin */}
+        {isSupervisor && (
+          <div className="p-3.5 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5 text-indigo-600" />
+                Mode de Consultation (Direction / Admin)
+              </span>
+              <div className="flex rounded-lg border border-indigo-300 p-0.5 bg-white">
+                <button
+                  type="button"
+                  onClick={() => setIsConsolidated(false)}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                    !isConsolidated
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-indigo-700 hover:bg-indigo-50'
+                  }`}
+                >
+                  Par Caisse / Opérateur
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsConsolidated(true)
+                    setModalStation('all')
+                    setModalCashier('all')
+                  }}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                    isConsolidated
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-indigo-700 hover:bg-indigo-50'
+                  }`}
+                >
+                  Bilan Consolidé (Tous les postes)
+                </button>
+              </div>
+            </div>
+
+            {!isConsolidated && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-indigo-100">
+                <div>
+                  <label className="text-xs font-medium text-indigo-950 block mb-1">Poste / Station :</label>
+                  <select
+                    value={modalStation}
+                    onChange={(e) => setModalStation(e.target.value)}
+                    className="h-9 w-full text-xs rounded-md border border-indigo-200 bg-white px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-gray-800"
+                  >
+                    <option value="all">Toutes les stations</option>
+                    <option value="C1">Station C1</option>
+                    <option value="C2">Station C2</option>
+                    <option value="C3">Station C3</option>
+                    <option value="C4">Station C4</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-indigo-950 block mb-1">Opérateur / Caissier :</label>
+                  <select
+                    value={modalCashier}
+                    onChange={(e) => setModalCashier(e.target.value)}
+                    className="h-9 w-full text-xs rounded-md border border-indigo-200 bg-white px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-gray-800"
+                  >
+                    <option value="all">Tous les caissiers</option>
+                    {cashiers.map((c) => (
+                      <option key={c.username} value={c.username}>
+                        {c.displayName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* En-tête / Badge Statut */}
         <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-gray-50 rounded-xl border border-gray-200">
           <div>
@@ -281,10 +385,19 @@ export default function CashClosureModal({
             </div>
             <div className="text-base font-bold text-gray-900 mt-0.5">
               Journée du {selectedDate} — Opérateur :{' '}
-              <span className="text-primary font-extrabold">{activeCashier}</span>
+              <span className="text-primary font-extrabold">
+                {isConsolidated || activeCashier === 'all'
+                  ? 'Tous les caissiers (Consolidé)'
+                  : activeCashier}
+              </span>
             </div>
             <div className="text-xs text-gray-600 mt-0.5">
-              Station : <span className="font-semibold">{stationCode}</span>
+              Station :{' '}
+              <span className="font-semibold">
+                {isConsolidated || effectiveStation === 'all'
+                  ? 'Toutes les stations'
+                  : `Station ${effectiveStation}`}
+              </span>
               {summary?.first_receipt && summary?.last_receipt && (
                 <span className="ml-2 text-gray-500">
                   (Reçus : {summary.first_receipt} à {summary.last_receipt})

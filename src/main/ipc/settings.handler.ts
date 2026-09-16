@@ -88,8 +88,13 @@ export function registerSettingsHandlers(): void {
   // --------------------------------------------
   ipcMain.handle('settings:set', async (_, key: string, value: unknown) => {
     // Local workstation hardware settings (pos_station_code, printer_name, printer_copies)
-    // are specific to this physical PC and must be configurable without global admin permissions
-    if (!LOCAL_ONLY_SETTINGS.has(key) && !canWrite('settings')) {
+    // are specific to this physical PC and must be configurable without global admin permissions.
+    // Financial pricing ('finance_prices') is authorized for Direction in addition to Admin.
+    const user = getCurrentUser()
+    const isDirection = user?.role === 'direction'
+    const isAllowedForDirection = key === 'finance_prices' && isDirection
+
+    if (!LOCAL_ONLY_SETTINGS.has(key) && !canWrite('settings') && !isAllowedForDirection) {
       return { success: false, error: 'Accès refusé: modification paramètres' }
     }
 
@@ -118,7 +123,9 @@ export function registerSettingsHandlers(): void {
   // RENAME BUS ROUTE (and cascade to student_fees)
   // --------------------------------------------
   ipcMain.handle('settings:renameBusRoute', async (_, oldRoute: string, newRoute: string) => {
-    if (!canWrite('settings')) {
+    const user = getCurrentUser()
+    const isDirection = user?.role === 'direction'
+    if (!canWrite('settings') && !isDirection) {
       return { success: false, error: 'Accès refusé: modification paramètres' }
     }
     if (!oldRoute || !newRoute || oldRoute.trim() === newRoute.trim()) {

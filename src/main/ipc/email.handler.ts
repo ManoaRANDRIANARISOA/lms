@@ -34,7 +34,18 @@ export function registerEmailHandlers(): void {
 
   ipcMain.handle(
     'email:testConnection',
-    async (_, credentials?: { gmail_address?: string; gmail_app_password?: string }) => {
+    async (
+      _,
+      credentials?: {
+        provider?: 'brevo' | 'gmail'
+        smtp_host?: string
+        smtp_port?: number
+        smtp_user?: string
+        smtp_key?: string
+        gmail_address?: string
+        gmail_app_password?: string
+      }
+    ) => {
       if (!canRead('settings')) {
         return { success: false, error: 'Accès refusé' }
       }

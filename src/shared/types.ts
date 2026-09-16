@@ -492,6 +492,13 @@ export interface CashBilletageBreakdown {
   checks_total?: number
 }
 
+export interface CashierOption {
+  username: string
+  fullName: string
+  displayName: string
+  role?: string
+}
+
 export interface CashierDailySummary {
   date: string
   cashier: string

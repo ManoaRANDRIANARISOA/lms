@@ -14,8 +14,15 @@ import { CashJournalRepository } from '../database/repositories/cashjournal.repo
 import { SettingsRepository } from '../database/repositories/settings.repository'
 import { PdfService } from './pdf.service'
 
-interface EmailConfig {
+export interface EmailConfig {
   enabled: boolean
+  provider?: 'brevo' | 'gmail'
+  smtp_host?: string
+  smtp_port?: number
+  smtp_user?: string
+  smtp_key?: string
+  sender_name?: string
+  sender_email?: string
   gmail_address: string
   gmail_app_password: string
   recipient_email: string
@@ -56,6 +63,13 @@ function getConfig(): EmailConfig | null {
 function saveConfig(config: EmailConfig): void {
   const cleaned: EmailConfig = {
     ...config,
+    provider: config.provider || 'brevo',
+    smtp_host: config.smtp_host ? config.smtp_host.trim() : 'smtp-relay.brevo.com',
+    smtp_port: Number(config.smtp_port) || 587,
+    smtp_user: config.smtp_user ? config.smtp_user.trim() : '',
+    smtp_key: config.smtp_key ? config.smtp_key.trim() : '',
+    sender_name: config.sender_name ? config.sender_name.trim() : 'Lycée Manjary Soa',
+    sender_email: config.sender_email ? config.sender_email.trim() : '',
     gmail_address: config.gmail_address ? config.gmail_address.trim() : '',
     gmail_app_password: config.gmail_app_password ? config.gmail_app_password.replace(/\s+/g, '') : '',
     recipient_email: config.recipient_email ? config.recipient_email.trim() : 'christineanjarasoa36@gmail.com'
@@ -64,6 +78,22 @@ function saveConfig(config: EmailConfig): void {
 }
 
 function initTransporter(config: EmailConfig): boolean {
+  if (config.provider === 'brevo') {
+    const user = config.smtp_user?.trim() || config.sender_email?.trim() || config.gmail_address?.trim()
+    const pass = config.smtp_key?.trim() || config.gmail_app_password?.replace(/\s+/g, '')
+    if (!user || !pass) return false
+    transporter = nodemailer.createTransport({
+      host: config.smtp_host?.trim() || 'smtp-relay.brevo.com',
+      port: Number(config.smtp_port) || 587,
+      secure: false, // TLS via STARTTLS on 587
+      auth: {
+        user,
+        pass
+      }
+    })
+    return true
+  }
+
   const user = config.gmail_address?.trim()
   const pass = config.gmail_app_password?.replace(/\s+/g, '')
   if (!user || !pass) return false
@@ -99,15 +129,16 @@ export function translateEmailError(raw: string): string {
   if (
     raw.includes('535') ||
     raw.includes('BadCredentials') ||
-    raw.includes('Username and Password not accepted')
+    raw.includes('Username and Password not accepted') ||
+    raw.includes('Authentication failed')
   ) {
-    return 'Identifiants Google non reconnus (Erreur 535) : Vérifiez que vous avez bien généré un "Mot de passe d\'application" Google de 16 lettres (sur myaccount.google.com/apppasswords) et non votre mot de passe habituel. (Remarque : la validation en 2 étapes doit être activée sur votre compte Google).'
+    return "Identifiants SMTP non reconnus (Erreur 535) : Vérifiez votre identifiant de connexion et votre mot de passe d'application Gmail ou clé SMTP Brevo."
   }
   if (raw.includes('ENOTFOUND') || raw.includes('EAI_AGAIN')) {
-    return 'Serveurs Google inaccessibles (ENOTFOUND) : Vérifiez la connexion Internet du poste ou vos paramètres DNS.'
+    return 'Serveurs SMTP inaccessibles (ENOTFOUND) : Vérifiez la connexion Internet du poste ou vos paramètres DNS.'
   }
   if (raw.includes('ETIMEDOUT') || raw.includes('ECONNREFUSED')) {
-    return 'Délai de connexion dépassé vers le serveur Google SMTP (Port 465/587 bloqué par votre réseau ou connexion trop lente).'
+    return 'Délai de connexion dépassé vers le serveur SMTP (Port 587/465 bloqué par votre réseau ou connexion trop lente).'
   }
   return raw
 }
@@ -116,7 +147,7 @@ export class EmailService {
   static configure(config: EmailConfig): { success: boolean; error?: string } {
     try {
       saveConfig(config)
-      if (config.enabled && config.gmail_address && config.gmail_app_password) {
+      if (config.enabled) {
         initTransporter(config)
       } else {
         transporter = null
@@ -128,12 +159,17 @@ export class EmailService {
     }
   }
 
-  static getStatus(): { configured: boolean; enabled: boolean; auto_send: boolean } {
+  static getStatus(): { configured: boolean; enabled: boolean; auto_send: boolean; provider?: string } {
     const config = getConfig()
+    const isConfigured =
+      config?.provider === 'gmail'
+        ? !!(config?.gmail_address && config?.gmail_app_password)
+        : !!((config?.smtp_user || config?.gmail_address) && (config?.smtp_key || config?.gmail_app_password))
     return {
-      configured: !!(config?.gmail_address && config?.gmail_app_password),
+      configured: isConfigured,
       enabled: config?.enabled || false,
-      auto_send: config?.auto_send_daily || false
+      auto_send: config?.auto_send_daily || false,
+      provider: config?.provider || 'brevo'
     }
   }
 
@@ -149,10 +185,61 @@ export class EmailService {
   }
 
   static async testConnection(credentials?: {
+    provider?: 'brevo' | 'gmail'
+    smtp_host?: string
+    smtp_port?: number
+    smtp_user?: string
+    smtp_key?: string
     gmail_address?: string
     gmail_app_password?: string
   }): Promise<{ success: boolean; error?: string }> {
     const config = getConfig()
+    const provider = credentials?.provider || config?.provider || 'brevo'
+
+    if (provider === 'brevo') {
+      const user =
+        credentials?.smtp_user?.trim() ||
+        config?.smtp_user?.trim() ||
+        credentials?.gmail_address?.trim() ||
+        config?.gmail_address?.trim()
+      const pass =
+        credentials?.smtp_key?.trim() ||
+        config?.smtp_key?.trim() ||
+        credentials?.gmail_app_password?.replace(/\s+/g, '') ||
+        config?.gmail_app_password?.replace(/\s+/g, '')
+      const host = credentials?.smtp_host?.trim() || config?.smtp_host?.trim() || 'smtp-relay.brevo.com'
+      const port = Number(credentials?.smtp_port || config?.smtp_port || 587)
+
+      if (!user || !pass) {
+        return {
+          success: false,
+          error: 'Configuration Brevo incomplète : identifiant de connexion (Login) ou clé SMTP manquante.'
+        }
+      }
+
+      try {
+        const testTransporter = nodemailer.createTransport({
+          host,
+          port,
+          secure: false,
+          auth: { user, pass }
+        })
+        await testTransporter.verify()
+        return { success: true }
+      } catch (error: unknown) {
+        const raw = error instanceof Error ? error.message : String(error)
+        const message = translateEmailError(raw)
+        addEmailLog({
+          sent_at: new Date().toISOString(),
+          recipient: user,
+          subject: 'Test de connexion Brevo SMTP',
+          success: false,
+          error: message
+        })
+        return { success: false, error: message }
+      }
+    }
+
     const user = credentials?.gmail_address?.trim() || config?.gmail_address?.trim()
     const pass = credentials?.gmail_app_password?.replace(/\s+/g, '') || config?.gmail_app_password?.replace(/\s+/g, '')
     if (!user || !pass) {
@@ -175,7 +262,7 @@ export class EmailService {
       addEmailLog({
         sent_at: new Date().toISOString(),
         recipient: user,
-        subject: 'Test de connexion SMTP',
+        subject: 'Test de connexion Gmail SMTP',
         success: false,
         error: message
       })
@@ -200,8 +287,14 @@ export class EmailService {
       }
     }
     try {
+      const senderName = config!.sender_name || 'Lycée Manjary Soa'
+      const senderAddress =
+        config!.provider === 'brevo'
+          ? (config!.sender_email || config!.smtp_user || config!.gmail_address)
+          : config!.gmail_address
+
       const mailOptions: nodemailer.SendMailOptions = {
-        from: config!.gmail_address,
+        from: `"${senderName}" <${senderAddress}>`,
         to,
         subject,
         html: body

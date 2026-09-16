@@ -317,7 +317,11 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
       }
 
       let result: any
-      if (formData.payment_type === 'event' && formData.item) {
+      if (formData.payment_type === 'event') {
+        if (!formData.item) {
+          toast.error('Veuillez sélectionner un événement valide.')
+          return
+        }
         result = await window.api.event.recordPayment(
           formData.item,
           studentId,
@@ -723,7 +727,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
       icon: PartyPopper,
       color: 'text-red-600',
       bg: 'bg-red-50',
-      enabled: true,
+      enabled: Boolean(events && events.length > 0),
       status: 'any',
       isOneTime: false
     },
@@ -1011,7 +1015,9 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
               </span>
             )}
             {!service.enabled && (
-              <span className="text-[10px] text-gray-400 mt-1">Non souscrit</span>
+              <span className="text-[10px] text-gray-400 mt-1">
+                {service.id === 'event' ? 'Aucun événement' : 'Non souscrit'}
+              </span>
             )}
           </div>
         ))}
@@ -1130,7 +1136,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
               <option value="bus">Transport (Bus)</option>
               <option value="canteen">Cantine</option>
               <option value="uniform">Uniforme</option>
-              <option value="event">Événement</option>
+              {events && events.length > 0 && <option value="event">Événement</option>}
               <option value="other">Autre</option>
             </select>
           </div>

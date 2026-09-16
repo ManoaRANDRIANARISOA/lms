@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type {
   CashJournalEntry,
   CashJournalFilters,
+  CashierOption,
   CashierDailySummary,
   CashClosure,
   CashClosureInput,
@@ -14,7 +15,7 @@ interface CashJournalState {
   dailyBalance: { total_income: number; total_expense: number; balance: number } | null
   monthlyBalance: { total_income: number; total_expense: number; balance: number } | null
   totalBalance: { total_income: number; total_expense: number; balance: number }
-  cashiers: string[]
+  cashiers: CashierOption[]
   dailySummary: CashierDailySummary | null
   currentClosure: CashClosure | null
   loading: boolean
@@ -65,7 +66,7 @@ export const useCashJournalStore = create<CashJournalState>((set) => ({
       if (result.success) {
         set({ entries: result.entries || [], loading: false })
       } else {
-        set({ error: result.error || 'Erreur de chargement', loading: false })
+        set({ entries: [], error: result.error || 'Erreur de chargement', loading: false })
       }
     } catch (error: unknown) {
       handleStoreError(error, set, 'Fetch entries')

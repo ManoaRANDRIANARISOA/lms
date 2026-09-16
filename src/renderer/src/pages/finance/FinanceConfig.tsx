@@ -14,7 +14,7 @@ import { toast } from 'sonner'
 export default function FinanceConfig() {
   const { prices: storedPrices, fetchPrices, savePrices, loading: storeLoading } = useFinanceStore()
   const { classes: settingsClasses } = useClasses()
-  const { canWrite } = usePermissions()
+  const { canWrite, role } = usePermissions()
   const [prices, setPrices] = useState<FinancePrices>(defaultPrices)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -278,7 +278,7 @@ export default function FinanceConfig() {
     })
   }
 
-  const canEditFinance = canWrite('settings')
+  const canEditFinance = canWrite('settings') || role === 'direction'
 
   if (loading) return <div className="p-4">Chargement...</div>
 

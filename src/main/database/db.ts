@@ -17,6 +17,9 @@ if (!fs.existsSync(dbDir)) {
 // Explicitly type db to avoid export errors
 const db: Database.Database = new Database(dbPath, { verbose: undefined })
 db.pragma('journal_mode = WAL')
+db.pragma('synchronous = NORMAL')
+db.pragma('cache_size = -64000') // 64 MB cache
+db.pragma('temp_store = MEMORY')
 
 // Migration runner
 const runMigrations = (): void => {
@@ -225,7 +228,7 @@ ensureTableColumns('cash_journal', [
   'receipt_number',
   'created_by'
 ])
-ensureTableColumns('sync_queue', ['updated_at'])
+ensureTableColumns('sync_queue', ['updated_at', 'retry_count'])
 
 // SCHEMA HEALING: Ensure personnel sub-tables have soft-delete columns
 // (Migration 007 was previously malformed as a single-line comment on some DBs.)

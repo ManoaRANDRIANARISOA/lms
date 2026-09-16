@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, protocol } from 'electron'
+import { app, shell, BrowserWindow, protocol, nativeTheme } from 'electron'
 import path, { join } from 'path'
 import fs from 'fs'
 
@@ -73,6 +73,9 @@ function createWindow(): void {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  // Enforce light theme mode for Chromium native controls (select popups, menus)
+  nativeTheme.themeSource = 'light'
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.lycee.manjary')
 

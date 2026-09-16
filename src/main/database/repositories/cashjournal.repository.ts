@@ -32,8 +32,69 @@ import type {
   CashJournalFilters,
   CashierDailySummary,
   CashClosure,
-  CashClosureInput
+  CashClosureInput,
+  CashierOption
 } from '../../../shared/types'
+
+/**
+ * Resolves all identity aliases for an operator/cashier
+ * (e.g. username 'admin' <-> 'Administrateur', 'aina-secretaire' <-> 'Nyaina Randrianarisoa')
+ */
+export function getCashierAliases(cashierIdentifier: string): string[] {
+  if (!cashierIdentifier || cashierIdentifier === 'all') return []
+  const rawTrimmed = cashierIdentifier.trim()
+  const lower = rawTrimmed.toLowerCase()
+  const aliases = new Set<string>([rawTrimmed])
+
+  if (lower === 'admin' || lower === 'administrateur') {
+    aliases.add('admin')
+    aliases.add('Administrateur')
+  }
+
+  // Cross-reference canonical users table
+  try {
+    const user = db
+      .prepare(
+        `SELECT username, full_name FROM users 
+         WHERE LOWER(TRIM(username)) = LOWER(TRIM(?)) OR LOWER(TRIM(full_name)) = LOWER(TRIM(?))`
+      )
+      .get(rawTrimmed, rawTrimmed) as
+      | { username?: string; full_name?: string }
+      | undefined
+
+    if (user) {
+      if (user.username && user.username.trim()) aliases.add(user.username.trim())
+      if (user.full_name && user.full_name.trim()) aliases.add(user.full_name.trim())
+    }
+  } catch {
+    // ignore
+  }
+
+  // Historical / merged account resolution
+  if (lower.includes('dinah')) {
+    aliases.add('dinah')
+    aliases.add('dinah-secretaire')
+    aliases.add('rakotoarivony dinah')
+    aliases.add('RAkotoarivony Dinah Archelle')
+    aliases.add('dinah-compta')
+  } else if (lower.includes('aina') || lower.includes('nyaina')) {
+    aliases.add('aina-secretaire')
+    aliases.add('aina-compta')
+    aliases.add('aina-secetaire')
+    aliases.add('Nyaina Randrianarisoa')
+    aliases.add('Nyaina')
+  } else if (lower.includes('anjara') || lower.includes('razafinteseheno') || lower.includes('directrice')) {
+    aliases.add('Anjara')
+    aliases.add('Razafinteseheno')
+    aliases.add('Directrice')
+    aliases.add('R')
+  } else if (lower.includes('econome')) {
+    aliases.add('Econome')
+    aliases.add('econome')
+  }
+
+  return Array.from(aliases).map((a) => a.trim()).filter(Boolean)
+}
 
 export class CashJournalRepository {
   static create(entry: Omit<CashJournalEntry, 'id' | 'created_at' | 'updated_at'>) {
@@ -155,9 +216,9 @@ export class CashJournalRepository {
     }
     if (filters.department && filters.department !== 'all') {
       if (filters.department === 'eleve') {
-        query += ' AND (cj.department = "eleve" OR (cj.department = "bus" AND cj.related_student_id IS NOT NULL))'
+        query += " AND (cj.department = 'eleve' OR (cj.department = 'bus' AND cj.related_student_id IS NOT NULL))"
       } else if (filters.department === 'bus') {
-        query += ' AND cj.department = "bus" AND cj.related_student_id IS NULL'
+        query += " AND cj.department = 'bus' AND cj.related_student_id IS NULL"
       } else {
         query += ' AND cj.department = ?'
         params.push(filters.department)
@@ -168,21 +229,36 @@ export class CashJournalRepository {
         .split(',')
         .map((c) => c.trim())
         .filter((c) => c)
-      if (cats.length === 1) {
-        query += ' AND cj.category = ?'
-        params.push(cats[0])
-      } else if (cats.length > 1) {
-        query += ` AND cj.category IN (${cats.map(() => '?').join(',')})`
-        params.push(...cats)
+      if (cats.length > 0) {
+        const allVariants: string[] = []
+        for (const cat of cats) {
+          allVariants.push(cat)
+          const unaccented = cat.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          if (unaccented !== cat) allVariants.push(unaccented)
+          if (cat.toLowerCase() === 'ecolage') allVariants.push('écolage')
+          if (cat.toLowerCase() === 'reinscription') allVariants.push('réinscription')
+          if (cat.toLowerCase() === 'evenement') allVariants.push('événement')
+        }
+        const uniqueVariants = Array.from(new Set(allVariants))
+        query += ` AND LOWER(cj.category) IN (${uniqueVariants.map(() => 'LOWER(?)').join(',')})`
+        params.push(...uniqueVariants)
       }
     }
     if (filters.createdBy && filters.createdBy !== 'all') {
-      query += ' AND COALESCE(cj.created_by, sp.created_by, "admin") = ?'
-      params.push(filters.createdBy)
+      const aliases = getCashierAliases(filters.createdBy)
+      if (aliases.length > 0) {
+        query += ` AND TRIM(LOWER(COALESCE(NULLIF(cj.created_by, ''), NULLIF(sp.created_by, ''), 'admin'))) IN (${aliases.map(() => 'TRIM(LOWER(?))').join(',')})`
+        params.push(...aliases)
+      }
     }
     if (filters.stationCode && filters.stationCode !== 'all') {
-      query += ' AND (COALESCE(cj.receipt_number, sp.receipt_number) LIKE ?)'
-      params.push(`%-${filters.stationCode}-%`)
+      if (filters.stationCode.toUpperCase() === 'C1') {
+        query += " AND (COALESCE(cj.receipt_number, sp.receipt_number) LIKE ? OR (COALESCE(cj.receipt_number, sp.receipt_number) LIKE 'REC-%' AND COALESCE(cj.receipt_number, sp.receipt_number) NOT LIKE 'REC-%-%-%'))"
+        params.push(`%-C1-%`)
+      } else {
+        query += ' AND (COALESCE(cj.receipt_number, sp.receipt_number) LIKE ?)'
+        params.push(`%-${filters.stationCode}-%`)
+      }
     }
     if (filters.search) {
       query +=
@@ -352,18 +428,46 @@ export class CashJournalRepository {
 
   /**
    * Retrieves list of all distinct operators/cashiers from canonical active users
+   * perfectly matching the user management directory.
    */
-  static getDistinctCashiers(): string[] {
+  static getDistinctCashiers(): CashierOption[] {
     try {
-      const rows = db
+      const users = db
         .prepare(
-          `SELECT username as cashier FROM users WHERE active = 1 AND deleted = 0 ORDER BY username ASC`
+          `SELECT username, full_name, role FROM users WHERE active = 1 AND deleted = 0 ORDER BY 
+            CASE role 
+              WHEN 'admin' THEN 1 
+              WHEN 'direction' THEN 2 
+              WHEN 'accounting' THEN 3 
+              WHEN 'secretariat' THEN 4 
+              ELSE 5 
+            END, username ASC`
         )
-        .all() as { cashier: string }[]
+        .all() as { username: string; full_name?: string; role?: string }[]
 
-      return rows.map((r) => r.cashier).filter(Boolean)
+      return users.map((u) => {
+        const cleanFull = u.full_name ? u.full_name.trim() : ''
+        const cleanUser = u.username.trim()
+        const displayName =
+          cleanFull && cleanFull.toLowerCase() !== cleanUser.toLowerCase()
+            ? `${cleanFull} (${cleanUser})`
+            : cleanUser
+        return {
+          username: cleanUser,
+          fullName: cleanFull,
+          role: u.role || 'user',
+          displayName
+        }
+      })
     } catch {
-      return ['admin']
+      return [
+        {
+          username: 'admin',
+          fullName: 'Administrateur',
+          role: 'admin',
+          displayName: 'Administrateur (admin)'
+        }
+      ]
     }
   }
 
@@ -379,13 +483,21 @@ export class CashJournalRepository {
     const params: (string | number)[] = [date]
 
     if (cashier && cashier !== 'all') {
-      whereClause += ' AND COALESCE(cj.created_by, sp.created_by, "admin") = ?'
-      params.push(cashier)
+      const aliases = getCashierAliases(cashier)
+      if (aliases.length > 0) {
+        whereClause += ` AND TRIM(LOWER(COALESCE(NULLIF(cj.created_by, ''), NULLIF(sp.created_by, ''), 'admin'))) IN (${aliases.map(() => 'TRIM(LOWER(?))').join(',')})`
+        params.push(...aliases)
+      }
     }
 
     if (stationCode && stationCode !== 'all') {
-      whereClause += ' AND (COALESCE(cj.receipt_number, sp.receipt_number) LIKE ?)'
-      params.push(`%-${stationCode}-%`)
+      if (stationCode.toUpperCase() === 'C1') {
+        whereClause += " AND (COALESCE(cj.receipt_number, sp.receipt_number) LIKE ? OR (COALESCE(cj.receipt_number, sp.receipt_number) LIKE 'REC-%' AND COALESCE(cj.receipt_number, sp.receipt_number) NOT LIKE 'REC-%-%-%'))"
+        params.push(`%-C1-%`)
+      } else {
+        whereClause += ' AND (COALESCE(cj.receipt_number, sp.receipt_number) LIKE ?)'
+        params.push(`%-${stationCode}-%`)
+      }
     }
 
     const rows = db
@@ -547,8 +659,11 @@ export class CashJournalRepository {
       let query = 'SELECT * FROM cash_closures WHERE closure_date = ?'
       const params: string[] = [date]
       if (cashier && cashier !== 'all') {
-        query += ' AND cashier_username = ?'
-        params.push(cashier)
+        const aliases = getCashierAliases(cashier)
+        if (aliases.length > 0) {
+          query += ` AND TRIM(LOWER(cashier_username)) IN (${aliases.map(() => 'TRIM(LOWER(?))').join(',')})`
+          params.push(...aliases)
+        }
       }
       query += ' ORDER BY closure_datetime DESC LIMIT 1'
       const row = db.prepare(query).get(...params) as CashClosure | undefined

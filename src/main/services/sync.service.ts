@@ -840,6 +840,7 @@ async function pushLocalChanges() {
         continue
       }
 
+      let payload: any = null
       try {
         let rawData: any = {}
         try {
@@ -848,7 +849,7 @@ async function pushLocalChanges() {
           rawData = {}
         }
 
-        const payload = sanitizeRowPayload(item.table_name, item.action, rawData, item.record_id)
+        payload = sanitizeRowPayload(item.table_name, item.action, rawData, item.record_id)
 
         // Skip workstation-specific local settings from cloud push
         if (item.table_name === 'settings' && LOCAL_ONLY_SETTINGS.has(payload.key || item.record_id)) {
@@ -934,6 +935,11 @@ async function pushLocalChanges() {
               .from(item.table_name)
               .upsert(payload, { onConflict: 'student_id,subject_id,school_year,term' })
             upsertError = error
+          } else if (item.table_name === 'student_fees') {
+            const { error } = await supabase
+              .from('student_fees')
+              .upsert(payload, { onConflict: 'student_id,school_year' })
+            upsertError = error
           } else {
             const { error } = await supabase.from(item.table_name).upsert(payload)
             upsertError = error
@@ -990,41 +996,129 @@ async function pushLocalChanges() {
             `Poste hors-ligne lors de l'envoi (${item.table_name}) : reprise automatique dès reconnexion`
           )
           break
-        } else {
-          // Distinguish systemic table/schema failure from isolated row failure
-          const isTableSchemaErr =
-            error?.code === 'PGRST204' ||
-            error?.code === 'PGRST200' ||
-            error?.code === '42P01' ||
-            errMsg.includes('relation') ||
-            errMsg.includes('schema cache')
+        }
 
-          if (isTableSchemaErr) {
-            sessionFailedTables.add(item.table_name)
+        // ── AUTO-HEALING ATTEMPTS ──
+        let autoHealed = false
+
+        // 1. Auto-heal: Column missing in remote schema cache (PGRST204)
+        const missingColMatch = errMsg.match(/Could not find the '(\w+)' column of/i)
+        if (missingColMatch && missingColMatch[1] && payload && payload[missingColMatch[1]] !== undefined) {
+          const badCol = missingColMatch[1]
+          console.warn(`[Auto-healing sync] Column '${badCol}' missing in remote '${item.table_name}'. Stripping and retrying.`)
+          delete payload[badCol]
+          const { error: retryErr } = await supabase.from(item.table_name).upsert(payload)
+          if (!retryErr) {
+            autoHealed = true
           }
+        }
 
-          LoggerService.log(
-            'error',
-            'sync',
-            `Échec envoi (${item.table_name} ID: ${item.record_id}) : ${errMsg}`,
-            error
-          )
+        // 2. Auto-heal: Duplicate unique constraint on student_fees (23505)
+        if (!autoHealed && error?.code === '23505' && item.table_name === 'student_fees') {
+          try {
+            const { data: cloudRow } = await supabase
+              .from('student_fees')
+              .select('id')
+              .eq('student_id', payload.student_id)
+              .eq('school_year', payload.school_year)
+              .maybeSingle()
+            if (cloudRow?.id) {
+              const updatePayload = { ...payload, id: cloudRow.id }
+              const { error: updErr } = await supabase
+                .from('student_fees')
+                .update(updatePayload)
+                .eq('id', cloudRow.id)
+              if (!updErr) {
+                autoHealed = true
+              }
+            }
+          } catch (feeHealErr) {
+            console.warn('[Auto-healing sync] student_fees resolution failed:', feeHealErr)
+          }
+        }
 
-          // Automatically report to cloud telemetry ("mouchard")
-          TelemetryService.reportSyncBlockage(
-            item.table_name,
-            item.record_id,
-            errMsg,
-            totalItemsCount
-          ).catch(() => {})
+        // 3. Auto-heal: Foreign key violation missing parent student (23503)
+        if (!autoHealed && error?.code === '23503' && (item.table_name === 'student_payments' || item.table_name === 'cash_journal')) {
+          try {
+            const studentId = item.table_name === 'student_payments' ? payload.student_id : payload.related_student_id
+            if (studentId) {
+              const localStudent = db.prepare('SELECT * FROM students WHERE id = ?').get(studentId) as any
+              if (localStudent) {
+                console.warn(`[Auto-healing sync] Pushing missing parent student '${studentId}' to Supabase before retrying '${item.table_name}'`)
+                const formattedStudent = sanitizeRowPayload('students', 'create', localStudent, localStudent.id)
+                const { error: studentErr } = await supabase.from('students').upsert(formattedStudent)
+                if (!studentErr) {
+                  const { error: retryErr } = await supabase.from(item.table_name).upsert(payload)
+                  if (!retryErr) {
+                    autoHealed = true
+                  }
+                }
+              } else if (item.table_name === 'cash_journal') {
+                // Orphaned student reference in cash_journal: clear foreign key so the financial transaction is recorded
+                console.warn(`[Auto-healing sync] Nullifying orphaned related_student_id on cash_journal '${item.record_id}'`)
+                payload.related_student_id = null
+                const { error: retryErr } = await supabase.from('cash_journal').upsert(payload)
+                if (!retryErr) {
+                  autoHealed = true
+                }
+              }
+            }
+          } catch (fkHealErr) {
+            console.warn('[Auto-healing sync] Foreign key resolution failed:', fkHealErr)
+          }
+        }
 
-          // Keep status as error so it remains visible in the Sync modal and can be quarantined/retried
+        if (autoHealed) {
           db.prepare(
             `UPDATE sync_queue
-             SET status = 'error', error_message = ?, updated_at = CURRENT_TIMESTAMP
+             SET status = 'synced', synced_at = CURRENT_TIMESTAMP, error_message = NULL
              WHERE id = ?`
-          ).run(errMsg, item.id)
+          ).run(item.id)
+          try {
+            db.prepare(`UPDATE ${item.table_name} SET sync_status = 'synced' WHERE id = ?`).run(
+              item.record_id
+            )
+          } catch {}
+          processedCount++
+          continue
         }
+
+        // ── UNRECOVERABLE ROW ERROR HANDLING ──
+        // Distinguish systemic table/schema failure from isolated row failure
+        const isTableSchemaErr =
+          error?.code === 'PGRST204' ||
+          error?.code === 'PGRST200' ||
+          error?.code === '42P01' ||
+          errMsg.includes('relation') ||
+          errMsg.includes('schema cache')
+
+        if (isTableSchemaErr) {
+          sessionFailedTables.add(item.table_name)
+        }
+
+        LoggerService.log(
+          'error',
+          'sync',
+          `Échec envoi (${item.table_name} ID: ${item.record_id}) : ${errMsg}`,
+          error
+        )
+
+        // Automatically report to cloud telemetry ("mouchard")
+        TelemetryService.reportSyncBlockage(
+          item.table_name,
+          item.record_id,
+          errMsg,
+          totalItemsCount
+        ).catch(() => {})
+
+        const currentRetries = Number(item.retry_count || 0) + 1
+        const newStatus = currentRetries >= 5 ? 'failed' : 'error'
+
+        db.prepare(
+          `UPDATE sync_queue
+           SET status = ?, retry_count = ?, error_message = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`
+        ).run(newStatus, currentRetries, errMsg, item.id)
       }
     }
   }

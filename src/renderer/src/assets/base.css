@@ -114,4 +114,9 @@
   body {
     @apply bg-background text-foreground;
   }
+  select option {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+  }
 }
+

@@ -6,7 +6,7 @@
  * @module pages/finance/FinanceJournal
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -231,12 +231,10 @@ interface EnrichedEntry extends CashJournalEntry {
 export default function FinanceJournal() {
   const {
     entries,
-    dailyBalance,
     monthlyBalance,
     totalBalance,
     loading,
     cashiers,
-    dailySummary,
     currentClosure,
     fetchEntries,
     createEntry,
@@ -307,7 +305,8 @@ export default function FinanceJournal() {
     }
     fetchEntries(activeFilters)
 
-    const targetDate = filters.startDate || today
+    const isSingleDay = filters.startDate && filters.endDate && filters.startDate === filters.endDate
+    const targetDate = isSingleDay ? filters.startDate : today
     fetchCashierDailySummary(
       targetDate,
       filters.createdBy !== 'all' ? filters.createdBy : undefined,
@@ -371,7 +370,7 @@ export default function FinanceJournal() {
 
     fetchDashboardStats()
     fetchRecoveryRate()
-  }, [entries])
+  }, [currentYear])
 
   const categories =
     form.department === 'bus'
@@ -449,6 +448,43 @@ export default function FinanceJournal() {
   }
 
   const incomeEntries = enriched.filter((e) => e.type === 'income')
+
+  const journalMetrics = useMemo(() => {
+    let cash = 0
+    let check = 0
+    let mobile = 0
+    let transfer = 0
+    let total = 0
+
+    for (const e of incomeEntries) {
+      const amt = Number(e.amount) || 0
+      total += amt
+      const m = (e.payment_method || 'cash').toLowerCase()
+      if (m === 'check' || m === 'cheque') {
+        check += amt
+      } else if (
+        m === 'mobile_money' ||
+        m === 'mvola' ||
+        m === 'orange_money' ||
+        m === 'airtel_money'
+      ) {
+        mobile += amt
+      } else if (m === 'transfer' || m === 'virement') {
+        transfer += amt
+      } else {
+        cash += amt
+      }
+    }
+
+    return {
+      totalTickets: incomeEntries.length,
+      cash,
+      check,
+      mobile,
+      transfer,
+      total
+    }
+  }, [incomeEntries])
 
   const toggleSelectEntry = (id: string) => {
     setSelectedEntryIds((prev) =>
@@ -604,14 +640,20 @@ export default function FinanceJournal() {
           <Button
             variant="outline"
             onClick={async () => {
-              const bal = dailyBalance || { total_income: 0, total_expense: 0, balance: 0 }
+              const totalIncome =
+                summary?.totalIncome ??
+                enriched.filter((e) => e.type === 'income').reduce((s, e) => s + (Number(e.amount) || 0), 0)
+              const totalExpense =
+                summary?.totalExpense ??
+                enriched.filter((e) => e.type === 'expense').reduce((s, e) => s + (Number(e.amount) || 0), 0)
+              const netBalance = totalIncome - totalExpense
               const targetDate = filters.startDate || today
               const r = await window.api.pdf.generateDailyReport({
                 date: targetDate,
-                total_income: bal.total_income,
-                total_expense: bal.total_expense,
-                balance: bal.balance,
-                station_code: filters.stationCode !== 'all' ? filters.stationCode : activeStation,
+                total_income: totalIncome,
+                total_expense: totalExpense,
+                balance: netBalance,
+                station_code: filters.stationCode !== 'all' ? filters.stationCode : 'all',
                 cashier: filters.createdBy !== 'all' ? filters.createdBy : undefined,
                 entries: enriched.map((e) => ({
                   type: e.type,
@@ -942,19 +984,19 @@ export default function FinanceJournal() {
           <div className="flex-1 min-w-[130px]">
             <Label className="text-xs text-gray-500">Type</Label>
             <select
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm mt-1"
+              className="flex h-9 w-full rounded-md border border-input bg-white text-gray-900 px-3 text-sm mt-1"
               value={filters.type || 'all'}
               onChange={(e) => setFilters((p) => ({ ...p, type: e.target.value }))}
             >
-              <option value="all">Tous</option>
-              <option value="income">Recettes</option>
-              <option value="expense">Dépenses</option>
+              <option value="all" className="bg-white text-gray-900">Tous</option>
+              <option value="income" className="bg-white text-gray-900">Recettes</option>
+              <option value="expense" className="bg-white text-gray-900">Dépenses</option>
             </select>
           </div>
           <div className="flex-1 min-w-[180px]">
             <Label className="text-xs text-gray-500">Catégorie</Label>
             <select
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm mt-1"
+              className="flex h-9 w-full rounded-md border border-input bg-white text-gray-900 px-3 text-sm mt-1"
               value={
                 filters.category === 'all' ? 'all' : `${filters.department}:${filters.category}`
               }
@@ -968,24 +1010,24 @@ export default function FinanceJournal() {
                 }
               }}
             >
-              <option value="all">Toutes</option>
-              <optgroup label="── Élèves ──">
+              <option value="all" className="bg-white text-gray-900">Toutes</option>
+              <optgroup label="── Élèves ──" className="bg-white text-gray-900">
                 {STUDENT_CATEGORIES.map((c) => (
-                  <option key={`eleve:${c.value}`} value={`eleve:${c.value}`}>
+                  <option key={`eleve:${c.value}`} value={`eleve:${c.value}`} className="bg-white text-gray-900">
                     {c.label}
                   </option>
                 ))}
               </optgroup>
-              <optgroup label="── École ──">
+              <optgroup label="── École ──" className="bg-white text-gray-900">
                 {CATEGORIES_ECOLE.map((c) => (
-                  <option key={`ecole:${c.value}`} value={`ecole:${c.value}`}>
+                  <option key={`ecole:${c.value}`} value={`ecole:${c.value}`} className="bg-white text-gray-900">
                     {c.label}
                   </option>
                 ))}
               </optgroup>
-              <optgroup label="── Transport (Bus) ──">
+              <optgroup label="── Transport (Bus) ──" className="bg-white text-gray-900">
                 {CATEGORIES_BUS.map((c) => (
-                  <option key={`bus:${c.value}`} value={`bus:${c.value}`}>
+                  <option key={`bus:${c.value}`} value={`bus:${c.value}`} className="bg-white text-gray-900">
                     {c.label}
                   </option>
                 ))}
@@ -994,22 +1036,26 @@ export default function FinanceJournal() {
           </div>
 
           {/* Filtre Caissier / Opérateur (Avenant N°3) */}
-          <div className="flex-1 min-w-[160px]">
+          <div className="flex-1 min-w-[180px]">
             <Label className="text-xs text-gray-500 flex items-center gap-1">
               <UserCheck className="w-3.5 h-3.5 text-primary" />
               <span>Opérateur / Caissier</span>
             </Label>
             <select
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm mt-1 font-medium"
+              className="flex h-9 w-full rounded-md border border-input bg-white text-gray-900 px-3 text-sm mt-1 font-medium shadow-2xs focus:ring-2 focus:ring-primary/20 focus:border-primary"
               value={filters.createdBy || 'all'}
               onChange={(e) => setFilters((p) => ({ ...p, createdBy: e.target.value }))}
             >
-              <option value="all">Tous les caissiers</option>
-              {cashiers.map((c) => (
-                <option key={c} value={c}>
-                  👤 {c}
-                </option>
-              ))}
+              <option value="all" className="bg-white text-gray-900">Tous les caissiers</option>
+              {cashiers.map((c) => {
+                const val = typeof c === 'string' ? c : c.username
+                const label = typeof c === 'string' ? c : c.displayName
+                return (
+                  <option key={val} value={val} className="bg-white text-gray-900 py-1">
+                    {label}
+                  </option>
+                )
+              })}
             </select>
           </div>
 
@@ -1017,15 +1063,15 @@ export default function FinanceJournal() {
           <div className="w-[120px]">
             <Label className="text-xs text-gray-500">Station</Label>
             <select
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm mt-1"
+              className="flex h-9 w-full rounded-md border border-input bg-white text-gray-900 px-3 text-sm mt-1"
               value={filters.stationCode || 'all'}
               onChange={(e) => setFilters((p) => ({ ...p, stationCode: e.target.value }))}
             >
-              <option value="all">Toutes</option>
-              <option value="C1">Station C1</option>
-              <option value="C2">Station C2</option>
-              <option value="C3">Station C3</option>
-              <option value="C4">Station C4</option>
+              <option value="all" className="bg-white text-gray-900">Toutes</option>
+              <option value="C1" className="bg-white text-gray-900">Station C1</option>
+              <option value="C2" className="bg-white text-gray-900">Station C2</option>
+              <option value="C3" className="bg-white text-gray-900">Station C3</option>
+              <option value="C4" className="bg-white text-gray-900">Station C4</option>
             </select>
           </div>
 
@@ -1063,9 +1109,22 @@ export default function FinanceJournal() {
               <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                 <span>Pointage & Journal de Caisse Opérateur</span>
                 <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                  {filters.createdBy !== 'all' ? `Caissier : ${filters.createdBy}` : 'Tous caissiers'}
+                  {filters.createdBy !== 'all'
+                    ? `Caissier : ${(() => {
+                        const found = cashiers.find(
+                          (c) => (typeof c === 'string' ? c : c.username) === filters.createdBy
+                        )
+                        return found
+                          ? typeof found === 'string'
+                            ? found
+                            : found.displayName
+                          : filters.createdBy
+                      })()}`
+                    : 'Tous caissiers'}
                   {filters.stationCode !== 'all' ? ` • Station : ${filters.stationCode}` : ''}
-                  {` • ${filters.startDate ? `du ${new Date(filters.startDate).toLocaleDateString('fr-FR')}` : "Aujourd'hui"}`}
+                  {filters.startDate && filters.endDate && filters.startDate !== filters.endDate
+                    ? ` • du ${new Date(filters.startDate).toLocaleDateString('fr-FR')} au ${new Date(filters.endDate).toLocaleDateString('fr-FR')}`
+                    : ` • ${filters.startDate ? `du ${new Date(filters.startDate).toLocaleDateString('fr-FR')}` : "Toutes dates"}`}
                 </span>
               </h3>
               <p className="text-xs text-gray-500">
@@ -1115,42 +1174,42 @@ export default function FinanceJournal() {
           <div className="bg-white/90 p-3 rounded-lg border border-amber-100/80 shadow-2xs">
             <span className="text-[11px] font-medium text-gray-500 block">Tickets Traités</span>
             <span className="text-xl font-bold text-gray-900 mt-0.5 block">
-              {dailySummary ? dailySummary.total_tickets : enriched.filter((e) => e.type === 'income').length}
+              {journalMetrics.totalTickets}
             </span>
           </div>
 
           <div className="bg-white/90 p-3 rounded-lg border border-amber-100/80 shadow-2xs">
             <span className="text-[11px] font-medium text-gray-500 block">Espèces (Cash)</span>
-            <span className="text-sm sm:text-base font-bold text-emerald-700 mt-0.5 block truncate" title={formatMGA(dailySummary ? dailySummary.expected_cash : 0)}>
-              {formatMGA(dailySummary ? dailySummary.expected_cash : enriched.filter((e) => e.type === 'income' && e.payment_method === 'cash').reduce((s, e) => s + (Number(e.amount) || 0), 0))}
+            <span className="text-sm sm:text-base font-bold text-emerald-700 mt-0.5 block truncate" title={formatMGA(journalMetrics.cash)}>
+              {formatMGA(journalMetrics.cash)}
             </span>
           </div>
 
           <div className="bg-white/90 p-3 rounded-lg border border-amber-100/80 shadow-2xs">
             <span className="text-[11px] font-medium text-gray-500 block">Chèques</span>
-            <span className="text-sm sm:text-base font-bold text-blue-700 mt-0.5 block truncate" title={formatMGA(dailySummary ? dailySummary.expected_check : 0)}>
-              {formatMGA(dailySummary ? dailySummary.expected_check : enriched.filter((e) => e.type === 'income' && e.payment_method === 'check').reduce((s, e) => s + (Number(e.amount) || 0), 0))}
+            <span className="text-sm sm:text-base font-bold text-blue-700 mt-0.5 block truncate" title={formatMGA(journalMetrics.check)}>
+              {formatMGA(journalMetrics.check)}
             </span>
           </div>
 
           <div className="bg-white/90 p-3 rounded-lg border border-amber-100/80 shadow-2xs">
             <span className="text-[11px] font-medium text-gray-500 block">MVola / Mobile</span>
-            <span className="text-sm sm:text-base font-bold text-amber-700 mt-0.5 block truncate" title={formatMGA(dailySummary ? dailySummary.expected_mobile : 0)}>
-              {formatMGA(dailySummary ? dailySummary.expected_mobile : enriched.filter((e) => e.type === 'income' && (e.payment_method === 'mobile_money' || e.payment_method === 'mvola')).reduce((s, e) => s + (Number(e.amount) || 0), 0))}
+            <span className="text-sm sm:text-base font-bold text-amber-700 mt-0.5 block truncate" title={formatMGA(journalMetrics.mobile)}>
+              {formatMGA(journalMetrics.mobile)}
             </span>
           </div>
 
           <div className="bg-white/90 p-3 rounded-lg border border-amber-100/80 shadow-2xs">
             <span className="text-[11px] font-medium text-gray-500 block">Virements</span>
-            <span className="text-sm sm:text-base font-bold text-indigo-700 mt-0.5 block truncate" title={formatMGA(dailySummary ? dailySummary.expected_transfer : 0)}>
-              {formatMGA(dailySummary ? dailySummary.expected_transfer : enriched.filter((e) => e.type === 'income' && e.payment_method === 'transfer').reduce((s, e) => s + (Number(e.amount) || 0), 0))}
+            <span className="text-sm sm:text-base font-bold text-indigo-700 mt-0.5 block truncate" title={formatMGA(journalMetrics.transfer)}>
+              {formatMGA(journalMetrics.transfer)}
             </span>
           </div>
 
           <div className="bg-white/90 p-3 rounded-lg border border-amber-200 shadow-2xs bg-amber-50/50">
             <span className="text-[11px] font-semibold text-amber-900 block">Total Encaissé</span>
-            <span className="text-sm sm:text-base font-bold text-primary mt-0.5 block truncate" title={formatMGA(dailySummary ? dailySummary.expected_total : summary.totalIncome)}>
-              {formatMGA(dailySummary ? dailySummary.expected_total : summary.totalIncome)}
+            <span className="text-sm sm:text-base font-bold text-primary mt-0.5 block truncate" title={formatMGA(journalMetrics.total)}>
+              {formatMGA(journalMetrics.total)}
             </span>
           </div>
         </div>
@@ -1646,7 +1705,7 @@ export default function FinanceJournal() {
         onClose={() => setIsClosureModalOpen(false)}
         selectedDate={filters.startDate || today}
         selectedCashier={filters.createdBy !== 'all' ? filters.createdBy : undefined}
-        stationCode={filters.stationCode !== 'all' ? filters.stationCode : activeStation}
+        stationCode={filters.stationCode !== 'all' ? filters.stationCode : undefined}
         onClosureSuccess={() => {
           const activeFilters = {
             ...filters,
