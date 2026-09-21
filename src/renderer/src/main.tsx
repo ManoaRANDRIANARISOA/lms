@@ -10,11 +10,37 @@ window.confirm = (message?: string) => {
   if (window.api && window.api.dialog && window.api.dialog.confirmSync) {
     return window.api.dialog.confirmSync(message || 'Êtes-vous sûr ?')
   }
-  // Fallback (should not be reached in normal app execution, but exists just in case)
-  // We use standard confirm but it might break focus.
-
   return true
 }
+
+// Global telemetry error reporting for unhandled renderer errors
+window.addEventListener('error', (event) => {
+  try {
+    window.api?.telemetry?.reportError(
+      'Renderer window.onerror',
+      event.message || 'Unknown window error',
+      {
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
+        stack: event.error?.stack
+      }
+    )
+  } catch {
+    // Ignore telemetry failure
+  }
+})
+
+window.addEventListener('unhandledrejection', (event) => {
+  try {
+    const reason = event.reason
+    const msg = reason instanceof Error ? reason.message : String(reason)
+    const stack = reason instanceof Error ? reason.stack : undefined
+    window.api?.telemetry?.reportError('Renderer unhandledrejection', msg, { stack })
+  } catch {
+    // Ignore telemetry failure
+  }
+})
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

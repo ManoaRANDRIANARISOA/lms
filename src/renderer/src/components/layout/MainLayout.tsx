@@ -16,7 +16,6 @@ import { useAppStore } from '@/store/useAppStore'
 import StudentList from '@/pages/students/StudentList'
 import StudentDetail from '@/pages/students/StudentDetail'
 import Settings from '@/pages/Settings'
-import CertificatePage from '@/pages/students/CertificatePage'
 import AttendancePage from '@/pages/AttendancePage'
 import EventsPage from '@/pages/EventsPage'
 import FinanceJournal from '@/pages/finance/FinanceJournal'
@@ -99,13 +98,26 @@ export default function MainLayout(): React.JSX.Element {
             <Route path="/students/:id" element={<StudentDetailRoute />} />
             <Route path="/attendance" element={<AttendancePage />} />
             <Route path="/events" element={<EventsPage />} />
-            <Route path="/certificate/:studentId" element={<CertificatePage />} />
-            <Route path="/finance" element={<FinanceJournal />} />
-            <Route path="/finance/alertes" element={<PaymentAlerts />} />
+            <Route
+              path="/finance"
+              element={
+                <ProtectedRoute resource="cash_journal">
+                  <FinanceJournal />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/finance/alertes"
+              element={
+                <ProtectedRoute resource="payments">
+                  <PaymentAlerts />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/finance/config"
               element={
-                <ProtectedRoute resource="payments">
+                <ProtectedRoute resource="payments" allowedRoles={['admin', 'direction']}>
                   <FinanceConfig />
                 </ProtectedRoute>
               }

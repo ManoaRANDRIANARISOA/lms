@@ -1222,7 +1222,15 @@ if ($res) { Write-Output "SUCCESS" } else { Write-Output "FAILED" }
 
     const fmt = (n: number) => `${Number(n || 0).toLocaleString('fr-FR').replace(/\s/g, ' ')} Ar`
 
-    buffers.push(this.encodeText(this.formatLine('  Espèces encaissées', fmt(data.expected_cash))))
+    const cashIn = data.expected_cash_income !== undefined ? data.expected_cash_income : data.expected_cash
+    const cashOut = data.expected_cash_expense || 0
+
+    buffers.push(this.encodeText(this.formatLine('  Espèces encaissées (+)', fmt(cashIn))))
+    if (cashOut > 0) {
+      buffers.push(this.encodeText(this.formatLine('  Dépenses caisse (-)', fmt(cashOut))))
+    }
+    buffers.push(this.encodeText(this.formatLine('  SOLDE THÉORIQUE ESPÈCES', fmt(data.expected_cash))))
+    buffers.push(this.encodeText(this.separatorLine('-')))
     buffers.push(this.encodeText(this.formatLine('  Chèques remis', fmt(data.expected_check))))
     buffers.push(this.encodeText(this.formatLine('  Mobile Money (MVola/...)', fmt(data.expected_mobile))))
     if (data.expected_transfer > 0) {
@@ -1230,7 +1238,7 @@ if ($res) { Write-Output "SUCCESS" } else { Write-Output "FAILED" }
     }
     buffers.push(this.encodeText(this.separatorLine('-')))
     buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
-    buffers.push(this.encodeText(this.formatLine('TOTAL THÉORIQUE CAISSE', fmt(data.expected_total))))
+    buffers.push(this.encodeText(this.formatLine('TOTAL THÉORIQUE GLOBAL', fmt(data.expected_total))))
     buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
     buffers.push(this.encodeText(this.separatorLine('=')))
 

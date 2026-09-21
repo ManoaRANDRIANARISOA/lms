@@ -280,6 +280,19 @@ export default function FinanceConfig() {
 
   const canEditFinance = canWrite('settings') || role === 'direction'
 
+  if (role && role !== 'admin' && role !== 'direction') {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-destructive mb-2">Accès refusé</h2>
+          <p className="text-muted-foreground">
+            Seuls la direction et l'administrateur ont accès à la configuration financière.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) return <div className="p-4">Chargement...</div>
 
   return (

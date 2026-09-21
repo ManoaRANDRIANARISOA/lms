@@ -61,6 +61,7 @@ export default function CashClosureModal({
   } = useCashJournalStore()
 
   const isSupervisor = user?.role === 'admin' || user?.role === 'direction'
+  const isAccounting = user?.role === 'accounting'
 
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -69,19 +70,19 @@ export default function CashClosureModal({
   const [existingClosure, setExistingClosure] = useState<CashClosure | null>(null)
 
   // Paramètres sélectionnables pour la Direction et l'Admin
-  const [modalStation, setModalStation] = useState<string>(stationCode || 'all')
-  const [modalCashier, setModalCashier] = useState<string>(selectedCashier || 'all')
+  const [modalStation, setModalStation] = useState<string>(isAccounting ? 'all' : (stationCode || 'all'))
+  const [modalCashier, setModalCashier] = useState<string>(isAccounting ? (user?.username || 'admin') : (selectedCashier || 'all'))
   const [isConsolidated, setIsConsolidated] = useState<boolean>(false)
 
   // Synchronisation lors de l'ouverture du modal
   useEffect(() => {
     if (isOpen) {
-      setModalStation(stationCode || 'all')
-      setModalCashier(selectedCashier || 'all')
+      setModalStation(isAccounting ? 'all' : (stationCode || 'all'))
+      setModalCashier(isAccounting ? (user?.username || 'admin') : (selectedCashier || 'all'))
       setIsConsolidated(false)
       fetchCashiers()
     }
-  }, [isOpen, stationCode, selectedCashier])
+  }, [isOpen, stationCode, selectedCashier, isAccounting, user])
 
   // Saisie du Billetage
   const [b20000, setB20000] = useState<number>(0)
@@ -95,17 +96,19 @@ export default function CashClosureModal({
   const [notes, setNotes] = useState<string>('')
 
   const activeCashier = useMemo(() => {
-    if (isConsolidated) return 'all'
+    if (isConsolidated && isSupervisor) return 'all'
     if (isSupervisor) return modalCashier
+    if (isAccounting) return user?.username || 'Administrateur'
     if (selectedCashier && selectedCashier !== 'all') return selectedCashier
     return user?.username || 'Administrateur'
-  }, [isConsolidated, isSupervisor, modalCashier, selectedCashier, user])
+  }, [isConsolidated, isSupervisor, isAccounting, modalCashier, selectedCashier, user])
 
   const effectiveStation = useMemo(() => {
-    if (isConsolidated) return 'all'
+    if (isConsolidated && isSupervisor) return 'all'
     if (isSupervisor) return modalStation
+    if (isAccounting) return 'all'
     return stationCode || 'C1'
-  }, [isConsolidated, isSupervisor, modalStation, stationCode])
+  }, [isConsolidated, isSupervisor, isAccounting, modalStation, stationCode])
 
   // Chargement des données à l'ouverture ou au changement des filtres
   useEffect(() => {
@@ -245,6 +248,8 @@ export default function CashClosureModal({
       first_receipt: summary.first_receipt,
       last_receipt: summary.last_receipt,
       expected_cash: summary.expected_cash,
+      expected_cash_income: summary.expected_cash_income,
+      expected_cash_expense: summary.expected_cash_expense,
       expected_check: summary.expected_check,
       expected_mobile: summary.expected_mobile,
       expected_transfer: summary.expected_transfer,
@@ -435,29 +440,52 @@ export default function CashClosureModal({
             </div>
 
             <div className="bg-white p-3 rounded-lg border border-emerald-200 bg-emerald-50/30 shadow-sm">
-              <div className="text-xs text-emerald-800 font-medium">Espèces Théoriques</div>
+              <div className="text-xs text-emerald-800 font-medium">Espèces Encaissées (+)</div>
               <div className="text-base font-bold text-emerald-700 mt-1">
-                {formatMGA(summary?.expected_cash || 0)}
+                {formatMGA(summary?.expected_cash_income ?? summary?.expected_cash ?? 0)}
               </div>
             </div>
 
-            <div className="bg-white p-3 rounded-lg border border-blue-200 bg-blue-50/30 shadow-sm">
+            <div className="bg-white p-3 rounded-lg border border-red-200 bg-red-50/30 shadow-sm">
+              <div className="text-xs text-red-800 font-medium">Dépenses Caisse (-)</div>
+              <div className="text-base font-bold text-red-700 mt-1">
+                {formatMGA(summary?.expected_cash_expense || 0)}
+              </div>
+            </div>
+
+            <div className="bg-white p-3 rounded-lg border border-emerald-300 bg-emerald-50/60 shadow-sm">
+              <div className="text-xs text-emerald-900 font-bold">Solde Théorique Espèces (=)</div>
+              <div className="text-base font-extrabold text-emerald-800 mt-1">
+                {formatMGA(summary?.expected_cash || 0)}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mt-2.5">
+            <div className="bg-white p-2.5 rounded-lg border border-blue-200 bg-blue-50/30 shadow-sm">
               <div className="text-xs text-blue-800 font-medium">Chèques Reçus</div>
-              <div className="text-base font-bold text-blue-700 mt-1">
+              <div className="text-sm font-bold text-blue-700 mt-0.5">
                 {formatMGA(summary?.expected_check || 0)}
               </div>
             </div>
 
-            <div className="bg-white p-3 rounded-lg border border-purple-200 bg-purple-50/30 shadow-sm">
+            <div className="bg-white p-2.5 rounded-lg border border-purple-200 bg-purple-50/30 shadow-sm">
               <div className="text-xs text-purple-800 font-medium">Mobile Money</div>
-              <div className="text-base font-bold text-purple-700 mt-1">
+              <div className="text-sm font-bold text-purple-700 mt-0.5">
                 {formatMGA(summary?.expected_mobile || 0)}
+              </div>
+            </div>
+
+            <div className="bg-white p-2.5 rounded-lg border border-indigo-200 bg-indigo-50/30 shadow-sm">
+              <div className="text-xs text-indigo-800 font-medium">Virements</div>
+              <div className="text-sm font-bold text-indigo-700 mt-0.5">
+                {formatMGA(summary?.expected_transfer || 0)}
               </div>
             </div>
           </div>
 
           <div className="mt-2.5 flex items-center justify-between px-3.5 py-2 bg-gray-100 rounded-lg border border-gray-200 text-xs">
-            <span className="font-semibold text-gray-700">Total Général Théorique Encaissé :</span>
+            <span className="font-semibold text-gray-700">Total Général Net (Recettes - Dépenses) :</span>
             <span className="font-extrabold text-sm text-gray-900">
               {formatMGA(summary?.expected_total || 0)}
             </span>

@@ -141,24 +141,25 @@ export async function checkCloudHealth(): Promise<{ ok: boolean; latencyMs?: num
   }
 
   const start = Date.now()
-  try {
-    const timeoutPromise = new Promise<{ error: Error }>((_, reject) =>
-      setTimeout(() => reject(new Error('Délai d’attente réseau dépassé (5s)')), 5000)
-    )
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 5000)
 
-    const probePromise = supabase
+  try {
+    const { error } = (await (supabase
       .from('settings')
       .select('key')
-      .limit(1)
+      .limit(1) as any)
+      .abortSignal(controller.signal)) as any
 
-    const result = (await Promise.race([probePromise, timeoutPromise])) as any
+    clearTimeout(timeoutId)
 
-    if (result && result.error) {
-      return { ok: false, error: result.error.message || 'Erreur retournée par Supabase' }
+    if (error) {
+      return { ok: false, error: error.message || 'Erreur retournée par Supabase' }
     }
 
     return { ok: true, latencyMs: Date.now() - start }
   } catch (err: unknown) {
+    clearTimeout(timeoutId)
     const msg = err instanceof Error ? err.message : String(err)
     return { ok: false, error: msg }
   }

@@ -26,7 +26,7 @@ import {
   FileText,
   type LucideIcon
 } from 'lucide-react'
-import type { Resource } from '@shared/types'
+import type { Resource, UserRole } from '@shared/types'
 import { SyncStatusWidget } from '@/components/sync/SyncStatusWidget'
 import { SyncProgressModal } from '@/components/sync/SyncProgressModal'
 import { useSyncStore } from '@/store/useSyncStore'
@@ -38,6 +38,7 @@ interface NavLeafProps {
   to: string
   label: string
   resource?: Resource
+  allowedRoles?: UserRole[]
   indent?: boolean
   icon?: LucideIcon
   exact?: boolean
@@ -47,6 +48,7 @@ interface SubItem {
   to: string
   label: string
   resource?: Resource
+  allowedRoles?: UserRole[]
   exact?: boolean
 }
 
@@ -61,14 +63,19 @@ interface NavModuleProps {
 // --------------------------------------------
 // Simple link (leaf node)
 // --------------------------------------------
-function NavLeaf({ to, label, resource, indent = false, icon: Icon, exact = false }: NavLeafProps) {
+function NavLeaf({ to, label, resource, allowedRoles, indent = false, icon: Icon, exact = false }: NavLeafProps) {
   const location = useLocation()
   const canRead = useAuthStore((s) => s.canRead)
+  const user = useAuthStore((s) => s.user)
   const isActive = exact
     ? location.pathname === to
     : location.pathname === to || (to !== '/' && location.pathname.startsWith(to + '/'))
 
   if (resource && !canRead(resource)) {
+    return null
+  }
+
+  if (allowedRoles && (!user?.role || !allowedRoles.includes(user.role))) {
     return null
   }
 
@@ -94,9 +101,14 @@ function NavLeaf({ to, label, resource, indent = false, icon: Icon, exact = fals
 function NavModule({ label, icon: Icon, items, isOpen, onToggle }: NavModuleProps) {
   const location = useLocation()
   const canRead = useAuthStore((s) => s.canRead)
+  const user = useAuthStore((s) => s.user)
 
-  // Filter items by RBAC — hide entire module if no items visible
-  const visibleItems = items.filter((item) => !item.resource || canRead(item.resource))
+  // Filter items by RBAC & allowedRoles — hide entire module if no items visible
+  const visibleItems = items.filter((item) => {
+    if (item.resource && !canRead(item.resource)) return false
+    if (item.allowedRoles && (!user?.role || !item.allowedRoles.includes(user.role))) return false
+    return true
+  })
   if (visibleItems.length === 0) return null
 
   // Highlight parent if any child route is active
@@ -133,6 +145,7 @@ function NavModule({ label, icon: Icon, items, isOpen, onToggle }: NavModuleProp
               to={item.to}
               label={item.label}
               resource={item.resource}
+              allowedRoles={item.allowedRoles}
               indent
               exact={item.exact}
             />
@@ -204,9 +217,9 @@ export default function Sidebar(): React.JSX.Element {
           isOpen={openModule === 'Finance'}
           onToggle={() => handleToggle('Finance')}
           items={[
-            { to: '/finance', label: 'Journal', resource: 'payments', exact: true },
+            { to: '/finance', label: 'Journal', resource: 'cash_journal', exact: true },
             { to: '/finance/alertes', label: 'Alertes impayés', resource: 'payments' },
-            { to: '/finance/config', label: 'Configuration', resource: 'payments' }
+            { to: '/finance/config', label: 'Configuration', resource: 'payments', allowedRoles: ['admin', 'direction'] }
           ]}
         />
 

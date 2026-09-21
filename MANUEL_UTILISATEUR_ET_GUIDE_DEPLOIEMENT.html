@@ -1660,6 +1660,50 @@ Write-Host "Imprimante POS-80 configuree avec succes pour le LMS !"</pre>
           </ul>
         </div>
       </div>
+
+      <!-- 7.10 NORME COMPTABLE & PROCÉDURE D'ANNULATION -->
+      <div
+        style="background: #FFFFFF; border: 2px solid var(--primary); border-radius: 12px; padding: 22px; margin-top: 20px; box-shadow: var(--shadow);">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span
+              style="background: #FEF3C7; color: #92400E; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">Module
+              7.10</span>
+            <h3 style="font-size: 18px; font-weight: 800; color: var(--primary-darker); margin: 0;">Norme Comptable d'Intangibilité des Écritures & Procédure d'Annulation</h3>
+          </div>
+          <span class="badge badge-gold" style="font-size: 11px;">Conformité Fiscale & Audit</span>
+        </div>
+
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 14px; line-height: 1.6;">
+          En comptabilité générale et en gestion de caisse scolaire certifiée (normes SYSCOHADA / PCG / DGI),
+          <strong>une transaction financière enregistrée ou un reçu émis ne doit JAMAIS être physiquement supprimé</strong> de la base de données.
+        </p>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 16px;">
+          <div style="background: #FEF2F2; border-left: 4px solid #DC2626; padding: 14px; border-radius: 0 8px 8px 0;">
+            <h4 style="font-size: 14px; font-weight: 700; color: #991B1B; margin-bottom: 6px;">❌ Pourquoi la suppression directe est interdite ?</h4>
+            <ul style="font-size: 13px; color: #7F1D1D; line-height: 1.6; margin-left: 16px;">
+              <li><strong>Rupture de séquence des reçus :</strong> Supprimer un reçu <code>REC-2026-C1-00123</code> crée un « trou » suspect dans la numérotation qui est immédiatement sanctionné lors d'un contrôle fiscal ou d'un audit de commissariat aux comptes.</li>
+              <li><strong>Risque de fraude interne :</strong> Un caissier malveillant pourrait encaisser des espèces, imprimer le reçu papier au parent, puis supprimer la ligne du logiciel pour empocher la somme.</li>
+              <li><strong>Perte d'historique :</strong> La direction perd la trace de qui a saisi quoi, quand et pourquoi.</li>
+            </ul>
+          </div>
+
+          <div style="background: #F0FDF4; border-left: 4px solid #16A34A; padding: 14px; border-radius: 0 8px 8px 0;">
+            <h4 style="font-size: 14px; font-weight: 700; color: #166534; margin-bottom: 6px;">✔️ La Solution Normée : La Contre-Passation (Sortie Compensatoire)</h4>
+            <ul style="font-size: 13px; color: #14532D; line-height: 1.6; margin-left: 16px;">
+              <li><strong>Annulation par le dossier élève :</strong> Si l'erreur porte sur un paiement d'élève, cliquez sur « Annuler le paiement » directement dans l'onglet Finance de sa fiche. Le paiement est archivé avec motif et la dette du mois est rouverte.</li>
+              <li><strong>Sortie de régularisation :</strong> Si une somme doit être compensée en caisse, enregistrez une <strong>Sortie de caisse</strong> de même montant avec la mention <em>« Régularisation erreur saisie reçu N°... »</em>.</li>
+              <li><strong>Équilibre mathématique parfait :</strong> L'entrée (+) et la sortie (-) s'annulent exactement. Le solde théorique de caisse du Ticket Z reste rigoureusement exact au centime près.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div style="background: var(--surface-subtle); border-radius: 8px; padding: 14px; font-size: 13px; color: var(--text-muted);">
+          <strong>💡 Comment présenter cela au client / à la direction ?</strong>
+          <br>Expliquez-lui : <em>« Ce n'est pas une contrainte technique du logiciel, c'est la <strong>norme légale de sécurité financière</strong> qui protège la direction contre les vols de caisse et assure que l'école est 100% irréprochable face au fisc et aux commissaires aux comptes. Tout ce qui entre et sort est justifié, traçable et numéroté sans aucune rupture. »</em>
+        </div>
+      </div>
     </section>
 
     <!-- SECTION 8: DÉPANNAGE MATÉRIEL AVANCÉ & FICHES PRATIQUES -->

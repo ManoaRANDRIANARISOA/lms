@@ -11,7 +11,7 @@
 import React from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/useAuthStore'
-import type { Resource } from '@shared/types'
+import type { Resource, UserRole } from '@shared/types'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -19,14 +19,18 @@ interface ProtectedRouteProps {
   resource?: Resource
   /** If true, requires write access instead of read */
   requireWrite?: boolean
+  /** Optional: restrict access to specific roles */
+  allowedRoles?: UserRole[]
 }
 
 export default function ProtectedRoute({
   children,
   resource,
-  requireWrite = false
+  requireWrite = false,
+  allowedRoles
 }: ProtectedRouteProps): React.JSX.Element {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const user = useAuthStore((s) => s.user)
   const canRead = useAuthStore((s) => s.canRead)
   const canWrite = useAuthStore((s) => s.canWrite)
   const location = useLocation()
@@ -34,6 +38,20 @@ export default function ProtectedRoute({
   // Not authenticated → redirect to login
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />
+  }
+
+  // Role check if allowedRoles is specified
+  if (allowedRoles && (!user?.role || !allowedRoles.includes(user.role))) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-destructive mb-2">Accès refusé</h2>
+          <p className="text-muted-foreground">
+            Vous n'avez pas les permissions nécessaires pour accéder à cette page.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   // If a resource is specified, check access

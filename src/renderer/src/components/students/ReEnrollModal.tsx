@@ -77,17 +77,30 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
     !isNewStudent || student.student_status === 'Ancien'
   )
 
-  // Update override state when modal opens or student changes
-  useEffect(() => {
-    setIsReenrollmentOverride(!isNewStudent || student.student_status === 'Ancien')
-  }, [isOpen, isNewStudent, student.student_status])
-
   const actualIsNewStudent = !isReenrollmentOverride
   const title = actualIsNewStudent ? 'Inscription' : 'Réinscription'
 
-  const [targetYear, setTargetYear] = useState(
-    isNewStudent ? currentYear : getNextYear(currentYear)
+  const isEnrolledInCurrentYear = enrolledYears.some(
+    (y) => y.replace(/['"]/g, '').trim() === currentYear.replace(/['"]/g, '').trim()
   )
+
+  // Default to currentYear unless student is ALREADY enrolled in currentYear
+  const [targetYear, setTargetYear] = useState(
+    isEnrolledInCurrentYear ? getNextYear(currentYear) : currentYear
+  )
+  const [confirmFutureYear, setConfirmFutureYear] = useState(false)
+
+  // Update override state and reset targetYear when modal opens or student changes
+  useEffect(() => {
+    setIsReenrollmentOverride(!isNewStudent || student.student_status === 'Ancien')
+    if (isOpen) {
+      setConfirmFutureYear(false)
+      const isAlreadyInCurrent = enrolledYears.some(
+        (y) => y.replace(/['"]/g, '').trim() === currentYear.replace(/['"]/g, '').trim()
+      )
+      setTargetYear(isAlreadyInCurrent ? getNextYear(currentYear) : currentYear)
+    }
+  }, [isOpen, isNewStudent, student.student_status, enrolledYears, currentYear])
   const [newClass, setNewClass] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -235,6 +248,8 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
     }
   }
 
+  const isFutureYear = targetYear.trim() > currentYear.trim()
+
   return (
     <Dialog
       isOpen={isOpen}
@@ -245,7 +260,10 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
           <Button variant="outline" onClick={onClose} disabled={loading}>
             Annuler
           </Button>
-          <Button onClick={handleReEnroll} disabled={loading || isAlreadyEnrolled}>
+          <Button
+            onClick={handleReEnroll}
+            disabled={loading || isAlreadyEnrolled || (isFutureYear && !confirmFutureYear)}
+          >
             {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Confirmer {title}
           </Button>
@@ -253,6 +271,29 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
       }
     >
       <div className="space-y-4">
+        {isFutureYear && (
+          <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 text-sm text-amber-900 flex flex-col gap-2 shadow-sm">
+            <div className="flex items-center gap-2 font-bold text-amber-800">
+              <span className="text-base">⚠️</span>
+              <span>Attention : Année Scolaire Future ({targetYear})</span>
+            </div>
+            <p className="text-xs text-amber-800 leading-relaxed">
+              L'année en cours de l'établissement est <strong>{currentYear}</strong>. Vous êtes sur le point d'inscrire cet élève pour l'année <strong>{targetYear}</strong>.
+            </p>
+            <label className="flex items-start gap-2.5 mt-1 pt-2 border-t border-amber-200 font-medium cursor-pointer text-xs text-amber-950">
+              <input
+                type="checkbox"
+                checked={confirmFutureYear}
+                onChange={(e) => setConfirmFutureYear(e.target.checked)}
+                className="mt-0.5 rounded border-amber-400 text-amber-600 focus:ring-amber-500 w-4 h-4 accent-amber-600"
+              />
+              <span>
+                Je confirme qu'il s'agit bien d'une <strong>PRÉ-INSCRIPTION</strong> pour l'année scolaire <strong>{targetYear}</strong>.
+              </span>
+            </label>
+          </div>
+        )}
+
         <div className="bg-blue-50 p-3 rounded-md text-sm text-blue-700 flex flex-col gap-2">
           <p>
             Cette action inscrira l'élève dans la nouvelle classe pour l'année scolaire {targetYear}

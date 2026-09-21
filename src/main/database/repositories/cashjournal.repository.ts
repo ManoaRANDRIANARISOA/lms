@@ -151,23 +151,13 @@ export class CashJournalRepository {
           COALESCE(
             CASE WHEN s.departure_date IS NOT NULL THEN 'Quitté le ' || strftime('%d/%m/%Y', s.departure_date) ELSE NULL END,
             (SELECT class_name FROM student_fees sf
-             WHERE sf.student_id = s.id AND sf.school_year = ? AND sf.class_name IS NOT NULL AND sf.class_name != ''),
-            (SELECT 
-               CASE 
-                 WHEN school_year > ? THEN 'Pré-inscrit (' || class_name || ' en ' || school_year || ')'
-                 ELSE 'Ancien (' || class_name || ' en ' || school_year || ')'
-               END
-             FROM student_fees sf
-             WHERE sf.student_id = s.id AND sf.class_name IS NOT NULL AND sf.class_name != ''
-             ORDER BY school_year DESC LIMIT 1),
+             WHERE sf.student_id = s.id AND sf.school_year = ? AND sf.class_name IS NOT NULL AND sf.class_name != '' LIMIT 1),
+            NULLIF(s.class, 'Classe non spécifiée'),
             'Non inscrit'
           ) as student_class
         FROM cash_journal cj
         LEFT JOIN students s ON cj.related_student_id = s.id
-        LEFT JOIN student_payments sp ON (
-          (cj.related_payment_id IS NOT NULL AND sp.id = cj.related_payment_id)
-          OR (cj.related_payment_id IS NULL AND cj.related_student_id IS NOT NULL AND sp.student_id = cj.related_student_id AND sp.payment_date = cj.transaction_date AND sp.amount = cj.amount AND sp.deleted = 0)
-        )
+        LEFT JOIN student_payments sp ON cj.related_payment_id = sp.id
         WHERE cj.deleted = 0
       `
     } else {
@@ -191,15 +181,12 @@ export class CashJournalRepository {
           ) as student_class
         FROM cash_journal cj
         LEFT JOIN students s ON cj.related_student_id = s.id
-        LEFT JOIN student_payments sp ON (
-          (cj.related_payment_id IS NOT NULL AND sp.id = cj.related_payment_id)
-          OR (cj.related_payment_id IS NULL AND cj.related_student_id IS NOT NULL AND sp.student_id = cj.related_student_id AND sp.payment_date = cj.transaction_date AND sp.amount = cj.amount AND sp.deleted = 0)
-        )
+        LEFT JOIN student_payments sp ON cj.related_payment_id = sp.id
         WHERE cj.deleted = 0
       `
     }
     const params: (string | number)[] = filters.schoolYear
-      ? [filters.schoolYear, filters.schoolYear]
+      ? [filters.schoolYear]
       : []
 
     if (filters.startDate) {
@@ -479,7 +466,7 @@ export class CashJournalRepository {
     cashier?: string,
     stationCode?: string
   ): CashierDailySummary {
-    let whereClause = "WHERE cj.deleted = 0 AND date(cj.transaction_date) = ? AND cj.type = 'income'"
+    let whereClause = "WHERE cj.deleted = 0 AND date(cj.transaction_date) = ?"
     const params: (string | number)[] = [date]
 
     if (cashier && cashier !== 'all') {
@@ -521,11 +508,13 @@ export class CashJournalRepository {
       )
       .all(...params) as any[]
 
-    let expectedCash = 0
+    let expectedCashIncome = 0
+    let expectedCashExpense = 0
+    let expectedIncome = 0
+    let expectedExpenses = 0
     let expectedCheck = 0
     let expectedMobile = 0
     let expectedTransfer = 0
-    let expectedTotal = 0
     const receiptNumbers: string[] = []
     const checks: Array<{
       amount: number
@@ -534,38 +523,52 @@ export class CashJournalRepository {
       receipt_number?: string
     }> = []
 
+    let ticketCount = 0
+
     for (const r of rows) {
       const amt = Number(r.amount) || 0
-      expectedTotal += amt
+      const isExpense = r.type === 'expense'
       const m = (r.method || 'cash').toLowerCase()
-      if (m === 'check' || m === 'cheque') {
-        expectedCheck += amt
-        checks.push({
-          amount: amt,
-          description: r.description,
-          student_name: r.first_name ? `${r.last_name} ${r.first_name}` : undefined,
-          receipt_number: r.receipt_num
-        })
-      } else if (
-        m === 'mobile_money' ||
-        m === 'mvola' ||
-        m === 'orange_money' ||
-        m === 'airtel_money'
-      ) {
-        expectedMobile += amt
-      } else if (m === 'transfer' || m === 'virement') {
-        expectedTransfer += amt
-      } else {
-        expectedCash += amt
-      }
 
-      if (r.receipt_num) {
-        receiptNumbers.push(r.receipt_num)
+      if (isExpense) {
+        expectedExpenses += amt
+        if (m === 'cash' || !m) {
+          expectedCashExpense += amt
+        }
+      } else {
+        ticketCount++
+        expectedIncome += amt
+        if (m === 'check' || m === 'cheque') {
+          expectedCheck += amt
+          checks.push({
+            amount: amt,
+            description: r.description,
+            student_name: r.first_name ? `${r.last_name} ${r.first_name}` : undefined,
+            receipt_number: r.receipt_num
+          })
+        } else if (
+          m === 'mobile_money' ||
+          m === 'mvola' ||
+          m === 'orange_money' ||
+          m === 'airtel_money'
+        ) {
+          expectedMobile += amt
+        } else if (m === 'transfer' || m === 'virement') {
+          expectedTransfer += amt
+        } else {
+          expectedCashIncome += amt
+        }
+
+        if (r.receipt_num) {
+          receiptNumbers.push(r.receipt_num)
+        }
       }
     }
 
-    const totalTickets = rows.length
-    const averageBasket = totalTickets > 0 ? Math.round(expectedTotal / totalTickets) : 0
+    const netCash = expectedCashIncome - expectedCashExpense
+    const expectedTotal = expectedIncome - expectedExpenses
+    const totalTickets = ticketCount
+    const averageBasket = totalTickets > 0 ? Math.round(expectedIncome / totalTickets) : 0
     const sortedReceipts = [...receiptNumbers].sort()
 
     return {
@@ -573,7 +576,10 @@ export class CashJournalRepository {
       cashier: cashier || 'all',
       station_code: stationCode || 'C1',
       total_tickets: totalTickets,
-      expected_cash: expectedCash,
+      expected_cash: netCash,
+      expected_cash_income: expectedCashIncome,
+      expected_cash_expense: expectedCashExpense,
+      expected_expenses: expectedExpenses,
       expected_check: expectedCheck,
       expected_mobile: expectedMobile,
       expected_transfer: expectedTransfer,

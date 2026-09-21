@@ -675,6 +675,7 @@ interface APIType {
       father_name?: string
       mother_name?: string
       photo_path?: string
+      manual_parent_field?: boolean
     }) => Promise<{ success: boolean; filePath?: string; error?: string }>
     generateReportCard: (
       studentData: {

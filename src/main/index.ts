@@ -160,6 +160,19 @@ app.whenReady().then(() => {
   // Start Email Scheduler (daily report at 18h)
   EmailService.startScheduler()
 
+  // Process-level telemetry error capture
+  process.on('uncaughtException', (error) => {
+    console.error('[Main Process UncaughtException]', error)
+    TelemetryService.reportError('Main Process uncaughtException', error.message, error.stack).catch(() => {})
+  })
+
+  process.on('unhandledRejection', (reason) => {
+    console.error('[Main Process UnhandledRejection]', reason)
+    const msg = reason instanceof Error ? reason.message : String(reason)
+    const stack = reason instanceof Error ? reason.stack : undefined
+    TelemetryService.reportError('Main Process unhandledRejection', msg, stack).catch(() => {})
+  })
+
   // Flush pending offline telemetry logs ("mouchard") after startup
   setTimeout(() => {
     TelemetryService.flushPendingLogs().catch((err) => {

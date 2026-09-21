@@ -32,6 +32,19 @@ export default class ErrorBoundary extends React.Component<Props, State> {
     if (import.meta.env.DEV) {
       console.error('ErrorBoundary caught an error', error, errorInfo)
     }
+    try {
+      window.api?.telemetry?.reportError(
+        'React ErrorBoundary',
+        error?.message || 'React ErrorBoundary caught an unhandled component error',
+        {
+          componentStack: errorInfo?.componentStack,
+          errorStack: error?.stack,
+          name: error?.name
+        }
+      )
+    } catch {
+      // Ignore telemetry failure in boundary
+    }
   }
 
   render() {

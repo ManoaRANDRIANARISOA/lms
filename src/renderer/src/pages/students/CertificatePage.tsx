@@ -14,6 +14,7 @@ export default function CertificatePage() {
   const [schoolName, setSchoolName] = useState('Lycée Manjary Soa')
   const [schoolLogo, setSchoolLogo] = useState<string | null>(null)
   const [certType, setCertType] = useState<'scolarite' | 'radiation' | 'assiduite'>('scolarite')
+  const [manualParentField, setManualParentField] = useState(false)
 
   useEffect(() => {
     if (studentId) {
@@ -57,11 +58,24 @@ export default function CertificatePage() {
   }
 
   const renderParentText = () => {
+    if (manualParentField) {
+      return (
+        <>
+          , fils/fille de : ............................................................................................................
+        </>
+      )
+    }
     const parents: string[] = []
     if (currentStudent.father_name) parents.push(currentStudent.father_name)
     if (currentStudent.mother_name) parents.push(currentStudent.mother_name)
 
-    if (parents.length === 0) return null
+    if (parents.length === 0) {
+      return (
+        <>
+          , fils/fille de : ............................................................................................................
+        </>
+      )
+    }
 
     return (
       <>
@@ -167,6 +181,16 @@ export default function CertificatePage() {
             <option value="assiduite">Certificat d'Assiduité</option>
           </select>
 
+          <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer select-none border px-2.5 py-2 rounded-md bg-white hover:bg-gray-50">
+            <input
+              type="checkbox"
+              checked={manualParentField}
+              onChange={(e) => setManualParentField(e.target.checked)}
+              className="rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <span>Pointillés parents (manuel)</span>
+          </label>
+
           <Button onClick={handlePrint} variant="outline">
             <Printer className="mr-2 h-4 w-4" />
             Imprimer
@@ -186,8 +210,9 @@ export default function CertificatePage() {
                   registration_number: currentStudent.registration_number,
                   father_name: currentStudent.father_name,
                   mother_name: currentStudent.mother_name,
-                  photo_path: currentStudent.photo_path
-                })
+                  photo_path: currentStudent.photo_path,
+                  manual_parent_field: manualParentField
+                } as any)
                 if (res.success && res.filePath) {
                   // Open the generated PDF automatically
                   window.api.pdf.openFile(res.filePath)

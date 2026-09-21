@@ -237,6 +237,7 @@ export class PdfService {
     father_name?: string
     mother_name?: string
     photo_path?: string
+    manual_parent_field?: boolean
   }): { success: boolean; filePath?: string; error?: string } {
     try {
       const doc = new jsPDF()
@@ -310,8 +311,14 @@ export class PdfService {
       if (studentData.father_name) parents.push(studentData.father_name)
       if (studentData.mother_name) parents.push(studentData.mother_name)
 
-      if (parents.length > 0) {
+      if (studentData.manual_parent_field) {
+        doc.text('Fils/Fille de : ............................................................................................................', 20, y)
+        y += 10
+      } else if (parents.length > 0) {
         doc.text(`Fils/Fille de : ${parents.join(' et de ')}`, 20, y)
+        y += 10
+      } else {
+        doc.text('Fils/Fille de : ............................................................................................................', 20, y)
         y += 10
       }
 
