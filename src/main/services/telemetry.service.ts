@@ -58,7 +58,12 @@ export function isNetworkOrOfflineError(error: any): boolean {
     msg.includes('hors ligne') ||
     msg.includes('hors-ligne') ||
     msg.includes('socket hang up') ||
-    msg.includes('supabase non configuré')
+    msg.includes('supabase non configuré') ||
+    msg.includes('aborted') ||
+    msg.includes('abort') ||
+    msg.includes('the operation was aborted') ||
+    msg.includes('undici') ||
+    msg.includes('fetch error')
   )
 }
 

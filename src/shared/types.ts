@@ -242,6 +242,7 @@ export interface FeeRecord {
   monthly_tuition: number
   fram_paid_by_parent: boolean
   is_reenrollment?: boolean | number
+  deleted?: boolean | number
 
   created_at?: string
   updated_at?: string

@@ -42,6 +42,8 @@ function UnpaidItemsGrouped({ items }: { items: UnpaidItem[] }) {
 
   const getTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
+      enrollment: "Frais d'inscription",
+      reenrollment: 'Réinscription',
       tuition: 'Écolage',
       bus: 'Transport',
       canteen: 'Cantine',
@@ -52,6 +54,8 @@ function UnpaidItemsGrouped({ items }: { items: UnpaidItem[] }) {
 
   const getTypeColor = (type: string) => {
     const colors: Record<string, string> = {
+      enrollment: 'bg-sky-50 text-sky-700 border-sky-200',
+      reenrollment: 'bg-indigo-50 text-indigo-700 border-indigo-200',
       tuition: 'bg-rose-50 text-rose-700 border-rose-200',
       bus: 'bg-amber-50 text-amber-700 border-amber-200',
       canteen: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -320,6 +324,8 @@ export default function PaymentAlerts() {
               onChange={(e) => setSelectedType(e.target.value)}
             >
               <option value="all">Tous les types</option>
+              <option value="enrollment">Frais d'inscription</option>
+              <option value="reenrollment">Réinscription</option>
               <option value="tuition">Écolage</option>
               <option value="canteen">Cantine</option>
               <option value="bus">Transport</option>
@@ -440,9 +446,9 @@ export default function PaymentAlerts() {
                     </td>
                     <td className="px-6 py-4 text-center align-top pt-5">
                       <a
-                        href={`#/students/${student.student_id}`}
+                        href={`#/students/${student.student_id}?tab=finance&year=${targetYear}`}
                         className="inline-flex items-center justify-center p-2 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-white border border-transparent hover:border-gray-200 hover:shadow-sm transition-all"
-                        title="Voir le dossier de l'élève"
+                        title="Voir le dossier financier de l'élève"
                       >
                         <ExternalLink className="w-4 h-4" />
                       </a>

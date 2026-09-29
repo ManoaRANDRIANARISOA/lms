@@ -134,7 +134,13 @@ export const WorkstationMonitor: React.FC = () => {
         `    Table       : ${r.table_name || 'N/A'} (ID: ${r.record_id || 'N/A'})`,
         `    En attente  : ${r.pending_count ?? 'N/A'}`,
         `    Message     : ${r.message}`,
-        `    Détails     : ${r.error_details ? r.error_details : 'Aucun détail technique'}`,
+        `    Détails     : ${
+          r.error_details
+            ? typeof r.error_details === 'string'
+              ? r.error_details
+              : JSON.stringify(r.error_details, null, 2)
+            : 'Aucun détail technique'
+        }`,
         `----------------------------------------------------------------------`
       )
     })

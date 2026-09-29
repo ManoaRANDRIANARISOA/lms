@@ -44,11 +44,17 @@ async function fetchAndSyncUserFromCloud(
   try {
     if (!supabase) return null
     const cleanUsername = username.trim()
-    const { data, error } = await supabase
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
+
+    const { data, error } = (await (supabase
       .from('users')
       .select('*')
       .ilike('username', cleanUsername)
-      .maybeSingle()
+      .maybeSingle() as any)
+      .abortSignal(controller.signal)) as any
+
+    clearTimeout(timeoutId)
 
     if (error || !data) return null
 
