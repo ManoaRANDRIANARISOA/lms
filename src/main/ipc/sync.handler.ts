@@ -10,7 +10,12 @@ import {
   getSyncQueueErrors,
   retrySyncErrors,
   quarantineAndUnblockQueue,
-  getIsSyncing
+  getIsSyncing,
+  getReconciliationItems,
+  reconcileAttachStudent,
+  reconcileCreateMissingStudent,
+  reconcileConvertToGeneralCash,
+  reconcileDiscardOrphan
 } from '../services/sync.service'
 import { TelemetryService } from '../services/telemetry.service'
 
@@ -123,5 +128,35 @@ export function registerSyncHandlers(): void {
   // --------------------------------------------
   ipcMain.handle('telemetry:reportError', async (_, context: string, message: string, details?: any) => {
     return TelemetryService.reportError(context, message, details)
+  })
+
+  // --------------------------------------------
+  // CROSS-STATION HEARTBEATS & CONVERGENCE
+  // --------------------------------------------
+  ipcMain.handle('telemetry:fetchWorkstationHeartbeats', async () => {
+    return TelemetryService.fetchWorkstationHeartbeats()
+  })
+
+  // --------------------------------------------
+  // RECONCILIATION ASSISTANT (ORPHAN/FAILED RECORDS)
+  // --------------------------------------------
+  ipcMain.handle('sync:getReconciliationItems', async () => {
+    return getReconciliationItems()
+  })
+
+  ipcMain.handle('sync:reconcileAttachStudent', async (_, queueId: number, targetStudentId: string) => {
+    return reconcileAttachStudent(queueId, targetStudentId)
+  })
+
+  ipcMain.handle('sync:reconcileCreateMissingStudent', async (_, queueId: number, studentData: any) => {
+    return reconcileCreateMissingStudent(queueId, studentData)
+  })
+
+  ipcMain.handle('sync:reconcileConvertToGeneralCash', async (_, queueId: number) => {
+    return reconcileConvertToGeneralCash(queueId)
+  })
+
+  ipcMain.handle('sync:reconcileDiscardOrphan', async (_, queueId: number, reason: string) => {
+    return reconcileDiscardOrphan(queueId, reason)
   })
 }

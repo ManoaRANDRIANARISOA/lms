@@ -28,6 +28,7 @@ export const SyncProgressModal: React.FC = () => {
     latencyMs,
     pendingCount,
     errorCount,
+    failedCount,
     quarantinedCount,
     lastSyncTime,
     healthError,
@@ -35,7 +36,8 @@ export const SyncProgressModal: React.FC = () => {
     errors,
     startSync,
     retryErrors,
-    quarantineAndUnblock
+    quarantineAndUnblock,
+    openReconciliation
   } = useSyncStore()
 
   const [isUnblocking, setIsUnblocking] = React.useState(false)
@@ -57,7 +59,8 @@ export const SyncProgressModal: React.FC = () => {
       `Date & Heure : ${new Date().toLocaleString('fr-FR')}`,
       `État Réseau  : ${isOnline ? 'En ligne' : 'Hors ligne'} (Latence: ${latencyMs ?? 'N/A'} ms)`,
       `File Locale  : ${pendingCount} modification(s) en attente`,
-      `Blocages     : ${errorCount} erreur(s)`,
+      `Blocages     : ${errorCount} erreur(s) temporaire(s)`,
+      `Échecs Fails : ${failedCount} écriture(s) bloquée(s)`,
       `Quarantaine  : ${quarantinedCount} enregistrement(s) isolé(s)`,
       `Dernière syn : ${lastSyncTime ? new Date(lastSyncTime).toLocaleString('fr-FR') : 'Jamais'}`,
       ``,
@@ -301,6 +304,36 @@ export const SyncProgressModal: React.FC = () => {
               )}
             </div>
           </div>
+
+          {/* Failed / Quarantined items requiring human decision */}
+          {(failedCount > 0 || quarantinedCount > 0) && (
+            <div className="p-3 bg-rose-50 border border-rose-300 rounded-lg flex items-start justify-between gap-3 text-xs text-rose-900 shadow-xs">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <div className="font-bold text-rose-950 flex items-center gap-1.5">
+                    <span>{failedCount + quarantinedCount} écriture(s) bloquée(s) ou orpheline(s)</span>
+                    <span className="text-[10px] bg-rose-200/80 text-rose-800 font-semibold px-2 py-0.2 rounded-full">
+                      Décision requise
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-rose-800 leading-relaxed">
+                    Des paiements ou écritures locales ne parviennent pas à être envoyés au Cloud car l'élève ou le compte associé est introuvable. Utilisez l'Assistant pour les réconcilier ou les rattacher sans bloquer votre poste.
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => {
+                  closeModal()
+                  openReconciliation()
+                }}
+                className="shrink-0 bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs shadow-xs"
+              >
+                Assistant de Réconciliation
+              </Button>
+            </div>
+          )}
 
           {/* Quarantined items notification */}
           {quarantinedCount > 0 && (

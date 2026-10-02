@@ -800,6 +800,7 @@ interface APIType {
       latencyMs?: number
       pendingCount: number
       errorCount: number
+      failedCount?: number
       quarantinedCount?: number
       lastSyncTime: string | null
       error?: string
@@ -827,6 +828,43 @@ interface APIType {
       message?: string
       error?: string
     }>
+    getReconciliationItems: () => Promise<{
+      success: boolean
+      items?: Array<{
+        id: number
+        table_name: string
+        record_id: string
+        action: string
+        status: string
+        payload: any
+        error_message?: string
+        retry_count: number
+        created_at: string
+        updated_at: string
+      }>
+      error?: string
+    }>
+    reconcileAttachStudent: (
+      queueId: number,
+      targetStudentId: string
+    ) => Promise<{ success: boolean; message?: string; error?: string }>
+    reconcileCreateMissingStudent: (
+      queueId: number,
+      studentData: {
+        first_name: string
+        last_name: string
+        class_name?: string
+        gender?: string
+        registration_number?: string
+      }
+    ) => Promise<{ success: boolean; message?: string; studentId?: string; error?: string }>
+    reconcileConvertToGeneralCash: (
+      queueId: number
+    ) => Promise<{ success: boolean; message?: string; error?: string }>
+    reconcileDiscardOrphan: (
+      queueId: number,
+      reason: string
+    ) => Promise<{ success: boolean; message?: string; error?: string }>
     onProgress: (
       callback: (data: {
         phase: 'idle' | 'checking' | 'pushing' | 'pulling' | 'success' | 'error'
@@ -933,8 +971,46 @@ interface APIType {
       }>
       error?: string
     }>
+    fetchWorkstationHeartbeats: () => Promise<{
+      success: boolean
+      cloudCounts?: Record<string, number>
+      stations?: Array<{
+        station: string
+        hostname: string
+        platform: string
+        app_version: string
+        last_seen: string
+        counts: Record<string, number>
+        queue_pending: number
+        queue_failed: number
+        queue_quarantined: number
+      }>
+      error?: string
+    }>
     reportError: (context: string, message: string, details?: any) => Promise<boolean>
     clearStationErrors: () => Promise<{ success: boolean; error?: string }>
+  }
+  updater: {
+    check: () => Promise<{ success: boolean; error?: string; isDev?: boolean }>
+    install: () => Promise<void>
+    getDownloadedInfo: () => Promise<{ version: string; releaseNotes?: any } | null>
+    onChecking: (callback: () => void) => () => void
+    onUpdateAvailable: (
+      callback: (info: { version: string; releaseDate?: string; releaseNotes?: any }) => void
+    ) => () => void
+    onUpdateNotAvailable: (callback: (info: { version: string }) => void) => () => void
+    onDownloadProgress: (
+      callback: (progress: {
+        percent: number
+        bytesPerSecond: number
+        transferred: number
+        total: number
+      }) => void
+    ) => () => void
+    onUpdateDownloaded: (
+      callback: (info: { version: string; releaseNotes?: any }) => void
+    ) => () => void
+    onError: (callback: (err: { error: string }) => void) => () => void
   }
 }
 

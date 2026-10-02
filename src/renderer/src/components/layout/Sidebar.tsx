@@ -24,11 +24,14 @@ import {
   ClipboardCheck,
   CalendarDays,
   FileText,
+  Sparkles,
   type LucideIcon
 } from 'lucide-react'
 import type { Resource, UserRole } from '@shared/types'
+import { toast } from 'sonner'
 import { SyncStatusWidget } from '@/components/sync/SyncStatusWidget'
 import { SyncProgressModal } from '@/components/sync/SyncProgressModal'
+import { ReconciliationModal } from '@/components/sync/ReconciliationModal'
 import { useSyncStore } from '@/store/useSyncStore'
 
 // --------------------------------------------
@@ -163,6 +166,30 @@ import logo from '@/assets/logo.png'
 // --------------------------------------------
 export default function Sidebar(): React.JSX.Element {
   const location = useLocation()
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
+
+  const handleCheckUpdate = async () => {
+    if (!window.api?.updater?.check) return
+    setCheckingUpdate(true)
+    const toastId = toast.loading('Recherche de mise à jour...')
+    try {
+      const res = await window.api.updater.check()
+      if (res.isDev) {
+        toast.info('Mode développement (pas de mise à jour distante).', { id: toastId })
+      } else if (!res.success) {
+        toast.error(`Vérification impossible : ${res.error || 'Connexion réseau requise'}`, { id: toastId })
+      } else {
+        setTimeout(() => {
+          toast.dismiss(toastId)
+        }, 1500)
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      toast.error(`Erreur : ${msg}`, { id: toastId })
+    } finally {
+      setCheckingUpdate(false)
+    }
+  }
 
   // CRITICAL: We must subscribe to permissions to trigger a re-render
   // when fetchPermissions() completes after login/refresh.
@@ -279,13 +306,25 @@ export default function Sidebar(): React.JSX.Element {
       {/* Widget unifié : Profil Utilisateur, Statut Cloud & Actions Rapides */}
       <SyncStatusWidget />
 
-      {/* Version dynamique */}
-      <div className="text-[11px] text-primary-foreground/40 text-center mt-1.5 font-mono">
-        v{appVersion}
+      {/* Version dynamique & Bouton simple de mise à jour */}
+      <div className="flex items-center justify-center gap-2 mt-1.5 px-2">
+        <span className="text-[11px] text-primary-foreground/50 font-mono">v{appVersion}</span>
+        <button
+          onClick={handleCheckUpdate}
+          disabled={checkingUpdate}
+          className="text-[10px] text-primary-foreground/80 hover:text-white bg-primary-foreground/10 hover:bg-primary-foreground/20 px-2 py-0.5 rounded-full transition-all flex items-center gap-1 active:scale-95 disabled:opacity-50"
+          title="Rechercher et installer les nouvelles mises à jour"
+        >
+          <Sparkles className={`w-2.5 h-2.5 text-amber-300 ${checkingUpdate ? 'animate-spin' : ''}`} />
+          <span>{checkingUpdate ? 'Vérification...' : 'Mettre à jour'}</span>
+        </button>
       </div>
 
       {/* Modal de progression et détails de synchronisation */}
       <SyncProgressModal />
+
+      {/* Assistant de réconciliation des écritures orphelines */}
+      <ReconciliationModal />
     </aside>
   )
 }

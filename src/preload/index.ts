@@ -398,6 +398,15 @@ const api = {
     getErrors: () => ipcRenderer.invoke('sync:getErrors'),
     retryErrors: () => ipcRenderer.invoke('sync:retryErrors'),
     quarantineAndUnblock: () => ipcRenderer.invoke('sync:quarantineAndUnblock'),
+    getReconciliationItems: () => ipcRenderer.invoke('sync:getReconciliationItems'),
+    reconcileAttachStudent: (queueId: number, targetStudentId: string) =>
+      ipcRenderer.invoke('sync:reconcileAttachStudent', queueId, targetStudentId),
+    reconcileCreateMissingStudent: (queueId: number, studentData: any) =>
+      ipcRenderer.invoke('sync:reconcileCreateMissingStudent', queueId, studentData),
+    reconcileConvertToGeneralCash: (queueId: number) =>
+      ipcRenderer.invoke('sync:reconcileConvertToGeneralCash', queueId),
+    reconcileDiscardOrphan: (queueId: number, reason: string) =>
+      ipcRenderer.invoke('sync:reconcileDiscardOrphan', queueId, reason),
     onProgress: (callback: (data: any) => void) => {
       const listener = (_event: IpcRendererEvent, data: any) => callback(data)
       ipcRenderer.on('sync:progress', listener)
@@ -413,6 +422,7 @@ const api = {
   telemetry: {
     fetchStationErrors: (limit?: number) => ipcRenderer.invoke('telemetry:fetchStationErrors', limit),
     clearStationErrors: () => ipcRenderer.invoke('telemetry:clearStationErrors'),
+    fetchWorkstationHeartbeats: () => ipcRenderer.invoke('telemetry:fetchWorkstationHeartbeats'),
     reportError: (context: string, message: string, details?: any) =>
       ipcRenderer.invoke('telemetry:reportError', context, message, details)
   },
@@ -427,6 +437,45 @@ const api = {
       // Remove all previous listeners to avoid duplicates if component remounts
       ipcRenderer.removeAllListeners('app:log-error')
       ipcRenderer.on('app:log-error', callback)
+    }
+  },
+
+  // --------------------------------------------
+  // Remote Application Updater
+  // --------------------------------------------
+  updater: {
+    check: () => ipcRenderer.invoke('updater:check'),
+    install: () => ipcRenderer.invoke('updater:install'),
+    getDownloadedInfo: () => ipcRenderer.invoke('updater:getDownloadedInfo'),
+    onChecking: (callback: () => void) => {
+      const listener = () => callback()
+      ipcRenderer.on('updater:checking', listener)
+      return () => ipcRenderer.removeListener('updater:checking', listener)
+    },
+    onUpdateAvailable: (callback: (info: any) => void) => {
+      const listener = (_event: IpcRendererEvent, info: any) => callback(info)
+      ipcRenderer.on('updater:update-available', listener)
+      return () => ipcRenderer.removeListener('updater:update-available', listener)
+    },
+    onUpdateNotAvailable: (callback: (info: any) => void) => {
+      const listener = (_event: IpcRendererEvent, info: any) => callback(info)
+      ipcRenderer.on('updater:update-not-available', listener)
+      return () => ipcRenderer.removeListener('updater:update-not-available', listener)
+    },
+    onDownloadProgress: (callback: (progress: any) => void) => {
+      const listener = (_event: IpcRendererEvent, progress: any) => callback(progress)
+      ipcRenderer.on('updater:download-progress', listener)
+      return () => ipcRenderer.removeListener('updater:download-progress', listener)
+    },
+    onUpdateDownloaded: (callback: (info: any) => void) => {
+      const listener = (_event: IpcRendererEvent, info: any) => callback(info)
+      ipcRenderer.on('updater:update-downloaded', listener)
+      return () => ipcRenderer.removeListener('updater:update-downloaded', listener)
+    },
+    onError: (callback: (err: any) => void) => {
+      const listener = (_event: IpcRendererEvent, err: any) => callback(err)
+      ipcRenderer.on('updater:error', listener)
+      return () => ipcRenderer.removeListener('updater:error', listener)
     }
   },
 

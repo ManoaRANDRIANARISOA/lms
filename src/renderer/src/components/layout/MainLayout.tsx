@@ -6,7 +6,7 @@
  * @module components/layout/MainLayout
  */
 
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Routes, Route, useParams, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/useAuthStore'
 import Sidebar from '@/components/layout/Sidebar'
@@ -15,6 +15,9 @@ import { useAppStore } from '@/store/useAppStore'
 // Pages
 import StudentList from '@/pages/students/StudentList'
 import StudentDetail from '@/pages/students/StudentDetail'
+import StudentForm from '@/pages/students/StudentForm'
+import CertificatePage from '@/pages/students/CertificatePage'
+import { useStudentStore } from '@/store/useStudentStore'
 import Settings from '@/pages/Settings'
 import AttendancePage from '@/pages/AttendancePage'
 import EventsPage from '@/pages/EventsPage'
@@ -37,12 +40,38 @@ import AuditLogPage from '@/pages/auth/AuditLogPage'
 function StudentDetailRoute(): React.JSX.Element | null {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [isEditing, setIsEditing] = useState(false)
+  const { currentStudent, currentFees, getStudent } = useStudentStore()
+
+  useEffect(() => {
+    if (id) {
+      getStudent(id)
+    }
+  }, [id, getStudent])
+
   if (!id) return null
+
+  if (isEditing) {
+    return (
+      <div className="p-6 w-full h-full">
+        <StudentForm
+          initialData={currentStudent}
+          initialFees={currentFees}
+          onSuccess={() => {
+            setIsEditing(false)
+            if (id) getStudent(id)
+          }}
+          onCancel={() => setIsEditing(false)}
+        />
+      </div>
+    )
+  }
+
   return (
     <StudentDetail
       studentId={id}
       onBack={() => navigate('/students')}
-      onEdit={() => navigate('/students')}
+      onEdit={() => setIsEditing(true)}
     />
   )
 }
@@ -96,6 +125,7 @@ export default function MainLayout(): React.JSX.Element {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/students" element={<StudentList />} />
             <Route path="/students/:id" element={<StudentDetailRoute />} />
+            <Route path="/certificate/:studentId" element={<CertificatePage />} />
             <Route path="/attendance" element={<AttendancePage />} />
             <Route path="/events" element={<EventsPage />} />
             <Route

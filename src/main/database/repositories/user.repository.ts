@@ -275,8 +275,12 @@ export class UserRepository {
 
       db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...values)
 
-      // Add to sync queue
-      addToSyncQueue('users', id, 'update', input)
+      // Add to sync queue with explicit id and ISO timestamp for immediate cloud propagation
+      addToSyncQueue('users', id, 'update', {
+        id,
+        ...input,
+        updated_at: new Date().toISOString()
+      })
 
       return { success: true, user: this.getById(id) ?? undefined }
     } catch (error: unknown) {
@@ -316,7 +320,12 @@ export class UserRepository {
       `
       ).run(id)
 
-      addToSyncQueue('users', id, 'update', { active: 0, deleted: 1 })
+      addToSyncQueue('users', id, 'update', {
+        id,
+        active: 0,
+        deleted: 1,
+        updated_at: new Date().toISOString()
+      })
 
       return { success: true }
     } catch (error: unknown) {

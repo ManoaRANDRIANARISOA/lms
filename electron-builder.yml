@@ -61,5 +61,7 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 publish:
-  provider: generic
-  url: https://example.com/auto-updates
+  provider: github
+  owner: ManoaRANDRIANARISOA
+  repo: lms
+  releaseType: release

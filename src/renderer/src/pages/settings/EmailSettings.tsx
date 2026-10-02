@@ -237,7 +237,7 @@ export default function EmailSettings() {
               status.auto_send ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
             )}
           >
-            {status.auto_send ? 'Envoi auto 18h' : 'Envoi manuel'}
+            {status.auto_send ? 'Envoi auto dès 16h30 + Rattrapage matin' : 'Envoi manuel'}
           </span>
         </div>
       </div>
@@ -336,7 +336,7 @@ export default function EmailSettings() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-2">
                   <div className="flex items-center justify-between">
-                    <Label>Clé SMTP Brevo (xsmtpsib-...)</Label>
+                    <Label>Clé API v3 ou SMTP Brevo (xkeysib-... ou xsmtpsib-...)</Label>
                     <a
                       href="https://app.brevo.com/settings/keys/smtp"
                       target="_blank"
@@ -453,7 +453,7 @@ export default function EmailSettings() {
               className="h-4 w-4"
             />
             <Label htmlFor="auto-send">
-              Envoi automatique du bilan journalier à 18h (Jours ouvrables : Lundi au Samedi)
+              Envoi automatique du bilan journalier consolidé dès 16h30 (avec rattrapage automatique le lendemain matin)
             </Label>
           </div>
 

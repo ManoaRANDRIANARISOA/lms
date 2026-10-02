@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dossier de Valorisation Commerciale & Stratégie Marché — Logiciel LMS École</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --primary-light: #eff6ff;
+      --secondary: #0f172a;
+      --accent: #10b981;
+      --accent-light: #ecfdf5;
+      --purple: #8b5cf6;
+      --purple-light: #f5f3ff;
+      --amber: #f59e0b;
+      --amber-light: #fffbeb;
+      --rose: #f43f5e;
+      --slate-50: #f8fafc;
+      --slate-100: #f1f5f9;
+      --slate-200: #e2e8f0;
+      --slate-300: #cbd5e1;
+      --slate-400: #94a3b8;
+      --slate-500: #64748b;
+      --slate-600: #475569;
+      --slate-700: #334155;
+      --slate-800: #1e293b;
+      --slate-900: #0f172a;
+      --radius: 14px;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+      --shadow-lg: 0 10px 25px -5px rgb(0 0 0 / 0.08), 0 8px 10px -6px rgb(0 0 0 / 0.04);
+      --shadow-xl: 0 20px 30px -10px rgb(0 0 0 / 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #f8fafc;
+      color: var(--slate-800);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Print & Export Optimizations */
+    @media print {
+      body {
+        background: #ffffff;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .page-break {
+        page-break-before: always;
+      }
+      .container {
+        max-width: 100% !important;
+        padding: 0 !important;
+      }
+      .card {
+        box-shadow: none !important;
+        border: 1px solid var(--slate-300) !important;
+      }
+    }
+
+    .container {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 40px 24px 80px 24px;
+    }
+
+    /* Header & Hero */
+    header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #1e1b4b 100%);
+      border-radius: 24px;
+      padding: 56px 48px;
+      color: #ffffff;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--shadow-xl);
+      margin-bottom: 40px;
+    }
+
+    header::before {
+      content: '';
+      position: absolute;
+      top: -100px;
+      right: -100px;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, rgba(139, 92, 246, 0.1) 60%, transparent 80%);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .badge-top {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #93c5fd;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      margin-bottom: 20px;
+    }
+
+    .badge-top .dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent);
+    }
+
+    h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 42px;
+      line-height: 1.15;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+      background: linear-gradient(to right, #ffffff, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .lead {
+      font-size: 18px;
+      color: #94a3b8;
+      max-width: 820px;
+      margin-bottom: 32px;
+    }
+
+    .header-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      padding-top: 28px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .h-metric {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .h-metric .val {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+
+    .h-metric .lbl {
+      font-size: 13px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+
+    /* Actions Bar */
+    .action-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+      background: #ffffff;
+      padding: 16px 24px;
+      border-radius: 16px;
+      border: 1px solid var(--slate-200);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .doc-meta {
+      font-size: 14px;
+      color: var(--slate-500);
+    }
+
+    .doc-meta strong {
+      color: var(--slate-800);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--primary);
+      color: #ffffff;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--slate-100);
+      color: var(--slate-700);
+      border: 1px solid var(--slate-300);
+    }
+
+    .btn-secondary:hover {
+      background: var(--slate-200);
+    }
+
+    /* Section Headings */
+    .section-header {
+      margin-bottom: 24px;
+      margin-top: 48px;
+    }
+
+    .section-tag {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--primary);
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .section-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--slate-900);
+      letter-spacing: -0.01em;
+    }
+
+    .section-desc {
+      font-size: 15px;
+      color: var(--slate-500);
+      margin-top: 4px;
+    }
+
+    /* Grid & Cards */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    @media (max-width: 992px) {
+      .grid-2, .grid-3 {
+        grid-template-columns: 1fr;
+      }
+      header {
+        padding: 36px 24px;
+      }
+      h1 {
+        font-size: 32px;
+      }
+    }
+
+    .card {
+      background: #ffffff;
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .card:hover {
+      box-shadow: var(--shadow);
+      transform: translateY(-2px);
+    }
+
+    .card-highlight {
+      border-left: 4px solid var(--primary);
+    }
+
+    .card-success {
+      border-left: 4px solid var(--accent);
+    }
+
+    .card-purple {
+      border-left: 4px solid var(--purple);
+    }
+
+    .card-amber {
+      border-left: 4px solid var(--amber);
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--slate-900);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card-title svg {
+      width: 20px;
+      height: 20px;
+      color: var(--primary);
+    }
+
+    .card p {
+      font-size: 14.5px;
+      color: var(--slate-600);
+      line-height: 1.6;
+    }
+
+    /* Features List */
+    .feature-list {
+      list-style: none;
+      margin-top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .feature-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--slate-700);
+    }
+
+    .feature-list li::before {
+      content: '✓';
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      background: var(--accent-light);
+      color: var(--accent);
+      border-radius: 50%;
+      font-weight: 800;
+      font-size: 11px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    /* Tables */
+    .table-container {
+      background: #ffffff;
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 24px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    thead {
+      background: var(--slate-50);
+      border-bottom: 1px solid var(--slate-200);
+    }
+
+    th {
+      padding: 16px 20px;
+      font-weight: 700;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--slate-600);
+    }
+
+    td {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--slate-100);
+      color: var(--slate-700);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background-color: #f8fafc;
+    }
+
+    .price-tag {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      color: var(--slate-900);
+      font-size: 15px;
+    }
+
+    .price-tag.highlight {
+      color: var(--primary);
+      font-size: 16px;
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 11.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .badge-blue { background: var(--primary-light); color: var(--primary); }
+    .badge-green { background: var(--accent-light); color: var(--accent); }
+    .badge-purple { background: var(--purple-light); color: var(--purple); }
+    .badge-amber { background: var(--amber-light); color: var(--amber); }
+
+    /* Key Callout Box */
+    .callout {
+      background: linear-gradient(to right, #eff6ff, #f8fafc);
+      border-left: 4px solid var(--primary);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin: 24px 0;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .callout-icon {
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .callout-content h4 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--slate-900);
+      margin-bottom: 4px;
+    }
+
+    .callout-content p {
+      font-size: 13.5px;
+      color: var(--slate-600);
+      line-height: 1.5;
+    }
+
+    /* Comparison Pitch Cards */
+    .pitch-card {
+      background: #ffffff;
+      border: 1px solid var(--slate-200);
+      border-radius: 16px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+    }
+
+    .pitch-card.popular {
+      border: 2px solid var(--primary);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .popular-tag {
+      position: absolute;
+      top: -12px;
+      right: 24px;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 4px 12px;
+      border-radius: 9999px;
+    }
+
+    .pitch-price {
+      margin: 18px 0;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--slate-100);
+    }
+
+    .pitch-price .amount {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--slate-900);
+    }
+
+    .pitch-price .period {
+      font-size: 13px;
+      color: var(--slate-500);
+    }
+
+    /* R&D Hours Table */
+    .rd-summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 768px) {
+      .rd-summary {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .rd-box {
+      background: #ffffff;
+      border: 1px solid var(--slate-200);
+      border-radius: 12px;
+      padding: 18px;
+      text-align: center;
+    }
+
+    .rd-box .val {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--slate-800);
+    }
+
+    .rd-box .lbl {
+      font-size: 12px;
+      color: var(--slate-500);
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    /* Objections Section */
+    .objection-box {
+      background: #ffffff;
+      border: 1px solid var(--slate-200);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 14px;
+    }
+
+    .objection-q {
+      font-weight: 700;
+      color: var(--rose);
+      font-size: 14.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .objection-a {
+      font-size: 14px;
+      color: var(--slate-700);
+      line-height: 1.55;
+      padding-left: 24px;
+      border-left: 2px solid var(--accent);
+    }
+
+    footer {
+      margin-top: 60px;
+      padding-top: 30px;
+      border-top: 1px solid var(--slate-200);
+      text-align: center;
+      font-size: 13px;
+      color: var(--slate-500);
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Entête Principale -->
+  <header>
+    <div class="badge-top">
+      <span class="dot"></span> Étude Stratégique & Grille Tarifaire Officielle (v2.2.5)
+    </div>
+    <h1>Dossier de Valorisation Commerciale & Grille Tarifaire</h1>
+    <p class="lead">
+      Document de référence pour le démarchage commercial, la prospection d'établissements scolaires et l'évaluation financière de la cession du projet logiciel <strong>LMS École</strong>.
+    </p>
+
+    <div class="header-metrics">
+      <div class="h-metric">
+        <span class="val">Local-First</span>
+        <span class="lbl">Architecture résiliente</span>
+      </div>
+      <div class="h-metric">
+        <span class="val">100% Hors-Ligne</span>
+        <span class="lbl">Tolérance coupures JIRAMA / Net</span>
+      </div>
+      <div class="h-metric">
+        <span class="val">1 450 Heures</span>
+        <span class="lbl">Investissement R&D Senior</span>
+      </div>
+      <div class="h-metric">
+        <span class="val">Production</span>
+        <span class="lbl">Éprouvé (770+ élèves)</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Barre d'action commerciale -->
+  <div class="action-bar no-print">
+    <div class="doc-meta">
+      <strong>Destinataire :</strong> Équipe commerciale & Prospectrice | <strong>Date d'émission :</strong> Septembre 2026 | <strong>Version logiciel :</strong> 2.2.5
+    </div>
+    <div>
+      <button class="btn btn-secondary" onclick="window.print()">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>
+        Imprimer / Sauvegarder PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- SECTION 1 : POURQUOI CE LOGICIEL EST UNIQUE -->
+  <div class="section-header">
+    <span class="section-tag">Analyse Produit & Avantages Concurrentiels</span>
+    <h2 class="section-title">1. Ce qui fait la Très Haute Valeur du Logiciel (Les Moats)</h2>
+    <p class="section-desc">Pourquoi 90% des logiciels de gestion scolaire échouent à Madagascar et en Afrique, et comment notre architecture résout ce problème fondamental.</p>
+  </div>
+
+  <div class="grid-3">
+    <div class="card card-highlight">
+      <div class="card-title">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Architecture Offline-First Absolue
+      </div>
+      <p>
+        Les solutions concurrentes sont des sites web (PHP/Laravel). Dès qu'il y a un délestage électrique ou une coupure réseau, la caisse est bloquée, les parents s'impatientent et les reçus ne sortent plus.
+      </p>
+      <ul class="feature-list">
+        <li>Base SQLite locale intégrée ultra-rapide.</li>
+        <li>Encaissement et édition de tickets instantanés, même sans connexion internet.</li>
+        <li>Synchronisation Cloud Supabase bidirectionnelle en tâche de fond dès le retour du réseau.</li>
+      </ul>
+    </div>
+
+    <div class="card card-success">
+      <div class="card-title">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        Blindage Financier & Reçus POS
+      </div>
+      <p>
+        Zéro possibilité de détournement ou de trou de caisse. Chaque franc est tracé à la seconde près avec un journal de caisse inviolable.
+      </p>
+      <ul class="feature-list">
+        <li>Numérotation normalisée par poste : <code>REC-YYYY-C&lt;station&gt;-XXXXX</code>.</li>
+        <li>Impression thermique de tickets de caisse POS (80mm) et reçus A4.</li>
+        <li>Suivi dynamique des impayés au centime près (droits, écolages, bus, cantine).</li>
+      </ul>
+    </div>
+
+    <div class="card card-purple">
+      <div class="card-title">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        Moteur d'Auto-Healing Multi-Postes
+      </div>
+      <p>
+        Dans un réseau multi-postes (C1, C2, C3, Direction), deux caissiers peuvent inscrire deux élèves au même moment. Le moteur résout les collisions sans intervention technique.
+      </p>
+      <ul class="feature-list">
+        <li>Auto-résolution des collisions matricules et clés étrangères Postgres.</li>
+        <li>Mouchard télémétrique en direct pour surveiller la santé des postes à distance.</li>
+        <li>Pas besoin d'administrateur système permanent sur site.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="callout-icon">💡</div>
+    <div class="callout-content">
+      <h4>Ce que vous vendez au Directeur d'école :</h4>
+      <p>Vous ne lui vendez pas "un logiciel", vous lui vendez <strong>la sérénité financière absolue</strong> : la certitude qu'aucun écolage ne sera oublié, qu'aucune coupure d'électricité ne bloquera la rentrée des classes, et que chaque Ariary encaissé est tracé et consultable à distance par la Direction.</p>
+    </div>
+  </div>
+
+  <!-- SECTION 2 : GRILLE TARIFAIRE MADAGASCAR -->
+  <div class="section-header page-break">
+    <span class="section-tag">Tarification Marché Local</span>
+    <h2 class="section-title">2. Grille Tarifaire Conseillée — Madagascar</h2>
+    <p class="section-desc">Tarifs calibrés selon la taille de l'établissement, le pouvoir d'achat des parents et le nombre de postes de travail.</p>
+  </div>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Segment Établissement</th>
+          <th>Profil & Effectifs</th>
+          <th>Fourchette Licence Perpétuelle</th>
+          <th>Fourchette Abonnement Mensuel (SaaS)</th>
+          <th>Marge de Négociation & Inclus</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <strong>Petite Enseigne</strong><br>
+            <span class="badge-pill badge-blue">1 à 2 Postes</span>
+          </td>
+          <td>
+            Écoles privées de quartier, maternelles et primaires.<br>
+            <em>Effectif : 100 à 350 élèves</em><br>
+            <small style="color: var(--slate-500);">Écolage moyen : 20 000 à 35 000 Ar/mois</small>
+          </td>
+          <td>
+            <div class="price-tag highlight">1 500 000 Ar à 3 000 000 Ar</div>
+            <div style="font-size: 12px; color: var(--slate-500);">Prix pivot conseillé : <strong>2 200 000 Ar</strong><br>Maintenance an 2 : 15% / an</div>
+          </td>
+          <td>
+            <div class="price-tag highlight">100 000 Ar à 180 000 Ar <span style="font-size: 12px; font-weight: normal;">/ mois</span></div>
+            <div style="font-size: 12px; color: var(--slate-500);">Paiement annuel : 1 000 000 Ar à 1 800 000 Ar/an</div>
+          </td>
+          <td>
+            • Installation sur 1 ou 2 ordinateurs<br>
+            • Formation rapide du caissier (3h)<br>
+            • Support réactif WhatsApp<br>
+            <em>Rentabilisé par les droits de 12 à 20 élèves</em>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <strong>Moyenne Enseigne</strong><br>
+            <span class="badge-pill badge-green">3 à 5 Postes Réseau</span>
+          </td>
+          <td>
+            Collèges et Lycées privés de référence (comme Manjary Soa).<br>
+            <em>Effectif : 350 à 1 000 élèves</em><br>
+            <small style="color: var(--slate-500);">Écolage moyen : 45 000 à 80 000 Ar/mois</small>
+          </td>
+          <td>
+            <div class="price-tag highlight">4 500 000 Ar à 8 500 000 Ar</div>
+            <div style="font-size: 12px; color: var(--slate-500);">Prix pivot conseillé : <strong>6 000 000 Ar</strong><br>Maintenance an 2 : 15% / an</div>
+          </td>
+          <td>
+            <div class="price-tag highlight">250 000 Ar à 450 000 Ar <span style="font-size: 12px; font-weight: normal;">/ mois</span></div>
+            <div style="font-size: 12px; color: var(--slate-500);">Paiement annuel : 2 500 000 Ar à 4 500 000 Ar/an</div>
+          </td>
+          <td>
+            • Réseau multi-postes (C1, C2, C3 + Direction)<br>
+            • Synchronisation Cloud Supabase dédiée<br>
+            • Gestion bus, cantine, uniformes, bulletins<br>
+            • Mouchard télémétrique inclus
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <strong>Grande Enseigne & Écoles Chères</strong><br>
+            <span class="badge-pill badge-purple">Multi-Postes & Réseau Avancé</span>
+          </td>
+          <td>
+            Établissements homologués (AEFE, Cambridge, bilingues, confessionnels majeurs).<br>
+            <em>Effectif : > 1 000 élèves</em><br>
+            <small style="color: var(--slate-500);">Écolage moyen : 150 000 à 600 000+ Ar/mois</small>
+          </td>
+          <td>
+            <div class="price-tag highlight">12 000 000 Ar à 25 000 000 Ar</div>
+            <div style="font-size: 12px; color: var(--slate-500);">Prix pivot conseillé : <strong>18 000 000 Ar</strong><br>Contrat annuel SLA : 2 500 000 Ar/an</div>
+          </td>
+          <td>
+            <div class="price-tag highlight">700 000 Ar à 1 500 000 Ar <span style="font-size: 12px; font-weight: normal;">/ mois</span></div>
+            <div style="font-size: 12px; color: var(--slate-500);">Contrat annuel : 7 000 000 Ar à 15 000 000 Ar/an</div>
+          </td>
+          <td>
+            • Déploiement multi-campus / postes illimités<br>
+            • Personnalisation complète des maquettes<br>
+            • Sauvegardes cloud chiffrées automatiques<br>
+            • Support d'astreinte 7j/7 & formation sur site
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SECTION 3 : GRILLE TARIFAIRE MARCHE INTERNATIONAL -->
+  <div class="section-header">
+    <span class="section-tag">Expansion Régionale & Internationale</span>
+    <h2 class="section-title">3. Grille Tarifaire Conseillée — Marché International</h2>
+    <p class="section-desc">Cibles prioritaires : Sénégal (Dakar), Côte d'Ivoire (Abidjan), Cameroun (Douala/Yaoundé), Gabon, RDC et Réseau Écoles Françaises / Internationales (IB World).</p>
+  </div>
+
+  <div class="grid-3">
+    <div class="pitch-card">
+      <div>
+        <span class="badge-pill badge-blue">Écoles de Ville</span>
+        <h3 style="margin-top: 12px; font-size: 18px;">Afrique Francophone (Base)</h3>
+        <p style="font-size: 13.5px; color: var(--slate-500); margin-top: 6px;">Établissements de 200 à 500 élèves (Dakar, Abidjan, etc.)</p>
+        <div class="pitch-price">
+          <div class="amount">2 200 €</div>
+          <div class="period">Licence perpétuelle (ou 90 € / mois en SaaS)</div>
+        </div>
+        <ul class="feature-list">
+          <li>1 à 3 postes caisse & secrétariat</li>
+          <li>Synchronisation Cloud incluse</li>
+          <li>Bulletins scolaires francophones</li>
+          <li>Support à distance</li>
+        </ul>
+      </div>
+      <div style="margin-top: 24px; font-size: 12px; color: var(--slate-500);">
+        Équivalent FCFA : ~1 440 000 FCFA licence ou 59 000 FCFA/mois
+      </div>
+    </div>
+
+    <div class="pitch-card popular">
+      <span class="popular-tag">Offre Vedette</span>
+      <div>
+        <span class="badge-pill badge-green">Groupes Scolaires</span>
+        <h3 style="margin-top: 12px; font-size: 18px;">Établissements Majeurs</h3>
+        <p style="font-size: 13.5px; color: var(--slate-500); margin-top: 6px;">Collèges-Lycées de 500 à 1 500 élèves</p>
+        <div class="pitch-price">
+          <div class="amount">5 800 €</div>
+          <div class="period">Licence perpétuelle (ou 290 € / mois en SaaS)</div>
+        </div>
+        <ul class="feature-list">
+          <li>Jusqu'à 8 postes simultanés</li>
+          <li>Gestion cantine, transport et personnel</li>
+          <li>Portail de télémétrie en temps réel</li>
+          <li>Personnalisation complète du logo et charte</li>
+        </ul>
+      </div>
+      <div style="margin-top: 24px; font-size: 12px; color: var(--slate-500);">
+        Équivalent FCFA : ~3 800 000 FCFA licence ou 190 000 FCFA/mois
+      </div>
+    </div>
+
+    <div class="pitch-card">
+      <div>
+        <span class="badge-pill badge-purple">International & AEFE</span>
+        <h3 style="margin-top: 12px; font-size: 18px;">Écoles Internationales / Réseaux</h3>
+        <p style="font-size: 13.5px; color: var(--slate-500); margin-top: 6px;">Écoles bilingues & réseaux multi-campus</p>
+        <div class="pitch-price">
+          <div class="amount">14 500 €</div>
+          <div class="period">Licence Groupe (ou 750 € / mois en SaaS)</div>
+        </div>
+        <ul class="feature-list">
+          <li>Postes illimités et multi-campus</li>
+          <li>Contrat SLA support garanti sous 2h</li>
+          <li>Formation sur site ou visio certifiée</li>
+          <li>Accès aux mises à jour majeures</li>
+        </ul>
+      </div>
+      <div style="margin-top: 24px; font-size: 12px; color: var(--slate-500);">
+        Équivalent FCFA : ~9 500 000 FCFA licence ou 490 000 FCFA/mois
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 4 : VALORISATION DU PROJET EN CAS DE REVENTE -->
+  <div class="section-header page-break">
+    <span class="section-tag">Évaluation de la Propriété Intellectuelle (Cession d'Actif)</span>
+    <h2 class="section-title">4. Valeur de Revente Globale du Projet (Cession Code Source)</h2>
+    <p class="section-desc">Si vous décidez de revendre l'intégralité du code source, de la propriété intellectuelle et des droits commerciaux à un éditeur de logiciels, une ESN ou un repreneur.</p>
+  </div>
+
+  <!-- Décomposition R&D -->
+  <div class="rd-summary">
+    <div class="rd-box">
+      <div class="val">1 450 h</div>
+      <div class="lbl">Temps de Dev Senior</div>
+    </div>
+    <div class="rd-box">
+      <div class="val">100% TS / React</div>
+      <div class="lbl">Stack Moderne et Pérenne</div>
+    </div>
+    <div class="rd-box">
+      <div class="val">42 000+</div>
+      <div class="lbl">Lignes de Code Propre</div>
+    </div>
+    <div class="rd-box">
+      <div class="val">0 Dette Tech</div>
+      <div class="lbl">Validé 0 Erreur Typecheck</div>
+    </div>
+  </div>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Scénario de Cession</th>
+          <th>Ce qui est cédé à l'acheteur</th>
+          <th>Valeur en Ariary (MGA)</th>
+          <th>Valeur en Euros (€)</th>
+          <th>Méthode de calcul retenue</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <strong>Scénario A : Code Source Nu</strong><br>
+            <span class="badge-pill badge-amber">Actif Technologique</span>
+          </td>
+          <td>
+            • Dépôt GitHub complet avec historique.<br>
+            • Documentation d'architecture & scripts de build.<br>
+            • Droit de rebranding et d'exploitation sans redevance.
+          </td>
+          <td>
+            <div class="price-tag highlight">50 000 000 Ar à 85 000 000 Ar</div>
+          </td>
+          <td>
+            <div class="price-tag">10 000 € à 17 000 €</div>
+          </td>
+          <td>
+            Coût de remplacement R&D décoté (~1 450h × tarif délocalisé très compétitif).
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <strong>Scénario B : Projet avec Déploiement Pilote</strong><br>
+            <span class="badge-pill badge-blue">Recommandé Actuellement</span>
+          </td>
+          <td>
+            • Tout le Scénario A.<br>
+            • Référence client en production (Lycée Manjary Soa, 770+ élèves).<br>
+            • Base de données testée et éprouvée sur une vraie rentrée scolaire.<br>
+            • Support de transition de 30 jours assuré par le concepteur.
+          </td>
+          <td>
+            <div class="price-tag highlight">90 000 000 Ar à 150 000 000 Ar</div>
+          </td>
+          <td>
+            <div class="price-tag">18 000 € à 30 000 €</div>
+          </td>
+          <td>
+            Valeur d'usage prouvée + actif logiciel immédiatement commercialisable sans frais de R&D additionnels.
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <strong>Scénario C : Société Packagée avec Portefeuille (5 à 10 Écoles)</strong><br>
+            <span class="badge-pill badge-green">Plein Potentiel Commercial</span>
+          </td>
+          <td>
+            • Tout le Scénario B.<br>
+            • Portefeuille de 5 à 10 contrats annuels de maintenance ou abonnements SaaS en cours.<br>
+            • Matériel marketing, argumentaire de vente et pipeline de prospects.
+          </td>
+          <td>
+            <div class="price-tag highlight">200 000 000 Ar à 400 000 000 Ar</div>
+          </td>
+          <td>
+            <div class="price-tag">40 000 € à 80 000 €</div>
+          </td>
+          <td>
+            Valorisation financière sur multiple de 3x à 4x le Chiffre d'Affaires Récurrent Annuel (ARR).
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SECTION 5 : ARGUMENTAIRE POUR LA PROSPECTRICE -->
+  <div class="section-header">
+    <span class="section-tag">Guide Terrain pour la Prospectrice</span>
+    <h2 class="section-title">5. Réponses Clés aux Objections des Directeurs d'Écoles</h2>
+    <p class="section-desc">Les arguments infaillibles à utiliser lors des rendez-vous avec les responsables d'établissements.</p>
+  </div>
+
+  <div class="objection-box">
+    <div class="objection-q">
+      <span>❓</span> Objection 1 : « Nous utilisons déjà Excel et cela nous convient très bien. »
+    </div>
+    <div class="objection-a">
+      <strong>Réponse prospectrice :</strong> « Avec Excel, un fichier peut être supprimé ou modifié par erreur, les formules sautent, et surtout vous n'avez aucun moyen de savoir si un paiement saisi a réellement été mis en caisse. Notre système génère des reçus numérotés inviolables (<code>REC-2026-C1-...</code>) et calcule les reliquats d'écolage et de droits automatiquement. En 1 mois, le logiciel vous évite des millions d'Ariary d'impayés qu'Excel ne vous alerte jamais. »
+    </div>
+  </div>
+
+  <div class="objection-box">
+    <div class="objection-q">
+      <span>❓</span> Objection 2 : « Nous avons souvent des coupures d'électricité (JIRAMA) et notre connexion internet est très lente. »
+    </div>
+    <div class="objection-a">
+      <strong>Réponse prospectrice :</strong> « C'est exactement pour cela que ce logiciel a été conçu ! Contrairement aux sites web qui deviennent inaccessibles dès que la box internet s'éteint, notre application fonctionne <strong>100% hors-ligne</strong> sur votre ordinateur. Vous continuez d'encaisser les écolages et d'imprimer les tickets. Dès que le courant ou internet revient, tout se synchronise automatiquement sur le Cloud sans aucune manipulation. »
+    </div>
+  </div>
+
+  <div class="objection-box">
+    <div class="objection-q">
+      <span>❓</span> Objection 3 : « C'est trop cher pour notre budget cette année. »
+    </div>
+    <div class="objection-a">
+      <strong>Réponse prospectrice :</strong> « Une école de 400 élèves a en moyenne 10 à 25 millions d'Ariary d'impayés non recouvrés chaque année par manque de suivi rigoureux. Notre module d'Alertes Impayés vous permet de récupérer ces sommes dès les premières semaines de classe. À 120 000 Ar par mois, le logiciel est rentabilisé dès le premier écolage en retard recouvré ! »
+    </div>
+  </div>
+
+  <div class="objection-box">
+    <div class="objection-q">
+      <span>❓</span> Objection 4 : « Est-ce que mes données restent confidentielles ? »
+    </div>
+    <div class="objection-a">
+      <strong>Réponse prospectrice :</strong> « Vos données financières et la liste de vos élèves sont stockées localement sur votre ordinateur dans une base sécurisée et chiffrée. Personne d'autre que les utilisateurs que vous autorisez (avec mot de passe et rôle défini) ne peut y accéder. »
+    </div>
+  </div>
+
+  <!-- Résumé de la Proposition de Valeur -->
+  <div class="card card-success" style="margin-top: 32px; background: #ffffff;">
+    <div class="card-title" style="color: var(--accent); font-size: 20px;">
+      🚀 Synthèse Stratégique pour votre Démarche
+    </div>
+    <p style="font-size: 15px; color: var(--slate-700); margin-top: 8px;">
+      Le projet dispose d'une <strong>valeur marchande solide et immédiatement actionnable</strong>. Vous avez le choix entre :
+    </p>
+    <ol style="margin-left: 20px; margin-top: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 14.5px; color: var(--slate-700);">
+      <li><strong>Exploitation commerciale directe (Modèle SaaS) :</strong> En signant seulement 10 écoles moyennes à 300 000 Ar/mois, vous générez <strong>3 000 000 Ar de revenus récurrents chaque mois</strong> (36 millions d'Ar/an) avec des coûts d'infrastructure Cloud quasi-nuls (Supabase gratuit ou 25$/mois).</li>
+      <li><strong>Modèle Licence + Installation :</strong> Vente à 4 500 000 Ar par école en moyenne avec paiement au déploiement, idéal pour générer du cash-flow immédiat.</li>
+      <li><strong>Cession / Rachat :</strong> Le code source seul, compte tenu de son niveau de finition exceptionnel et de son absence totale de dette technique, vaut au minimum <strong>50 à 90 millions d'Ariary (10 000 € à 18 000 €)</strong> sur le marché des éditeurs de logiciels et ESN d'Afrique francophone.</li>
+    </ol>
+  </div>
+
+  <footer>
+    <p>Document confidentiel établi pour la direction commerciale — Logiciel LMS École v2.2.5 © 2026</p>
+    <p style="margin-top: 4px; font-size: 11.5px; color: var(--slate-400);">Généré à partir de l'analyse réelle des données, du code source et des statistiques du marché éducatif.</p>
+  </footer>
+
+</div>
+
+</body>
+</html>

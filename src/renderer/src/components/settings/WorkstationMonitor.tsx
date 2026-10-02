@@ -11,7 +11,10 @@ import {
   ChevronUp,
   Clock,
   Database,
-  Trash2
+  Trash2,
+  Activity,
+  Check,
+  AlertTriangle
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -28,15 +31,48 @@ export interface TelemetryReportItem {
   timestamp: string
 }
 
+export interface StationHeartbeat {
+  station: string
+  hostname: string
+  platform: string
+  app_version: string
+  last_seen: string
+  last_sync?: string
+  counts: Record<string, number>
+  queue_pending: number
+  queue_failed: number
+  queue_quarantined: number
+  station_error_count?: number
+}
+
 export const WorkstationMonitor: React.FC = () => {
   const [reports, setReports] = useState<TelemetryReportItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [heartbeats, setHeartbeats] = useState<StationHeartbeat[]>([])
+  const [cloudCounts, setCloudCounts] = useState<Record<string, number>>({})
+  const [loadingHeartbeats, setLoadingHeartbeats] = useState(false)
   const [selectedStation, setSelectedStation] = useState<string>('ALL')
   const [limit, setLimit] = useState<number>(250)
   const [totalCloudCount, setTotalCloudCount] = useState<number>(0)
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [isSendingTest, setIsSendingTest] = useState(false)
   const [isClearingCloud, setIsClearingCloud] = useState(false)
+
+  const fetchHeartbeats = async () => {
+    if (!window.api?.telemetry?.fetchWorkstationHeartbeats) return
+    setLoadingHeartbeats(true)
+    try {
+      const res = await window.api.telemetry.fetchWorkstationHeartbeats()
+      if (res.success) {
+        if (res.stations) setHeartbeats(res.stations)
+        if (res.cloudCounts) setCloudCounts(res.cloudCounts)
+      }
+    } catch (err) {
+      console.error('Failed to fetch heartbeats:', err)
+    } finally {
+      setLoadingHeartbeats(false)
+    }
+  }
 
   const fetchTelemetry = async (customLimit?: number) => {
     if (!window.api?.telemetry?.fetchStationErrors) return
@@ -91,6 +127,7 @@ export const WorkstationMonitor: React.FC = () => {
 
   useEffect(() => {
     fetchTelemetry()
+    fetchHeartbeats()
   }, [])
 
   const handleSendTestSignal = async () => {
@@ -236,18 +273,244 @@ export const WorkstationMonitor: React.FC = () => {
           <Button
             variant="default"
             size="sm"
-            onClick={() => fetchTelemetry()}
-            disabled={loading}
+            onClick={() => {
+              fetchTelemetry()
+              fetchHeartbeats()
+            }}
+            disabled={loading || loadingHeartbeats}
             className="text-xs bg-slate-900 hover:bg-slate-800 text-white"
           >
-            <RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'Chargement...' : 'Actualiser'}
+            <RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading || loadingHeartbeats ? 'animate-spin' : ''}`} />
+            {loading || loadingHeartbeats ? 'Chargement...' : 'Actualiser'}
           </Button>
         </div>
       </div>
 
+      {/* SECTION CONVERGENCE : MATRICE COMPARATIVE DES BASES DE DONNÉES (POSTES VS CLOUD) */}
+      <div className="p-4 bg-slate-50/80 border border-slate-200 rounded-xl space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Activity className="w-4 h-4 text-indigo-600" />
+            <h3 className="text-sm font-bold text-gray-900">
+              Matrice de Convergence & État des Bases (C1, C2, C3 vs Cloud)
+            </h3>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            {loadingHeartbeats ? (
+              <span className="flex items-center gap-1.5 text-indigo-600">
+                <RefreshCw className="w-3 h-3 animate-spin" /> Bilan des postes...
+              </span>
+            ) : (
+              <span>Dernier contrôle : {new Date().toLocaleTimeString('fr-FR')}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Cloud Reference Banner */}
+        <div className="flex flex-wrap items-center gap-2 p-2.5 bg-indigo-950 text-white rounded-lg text-xs shadow-xs">
+          <div className="flex items-center gap-1.5 font-bold mr-2 text-indigo-200">
+            <Database className="w-4 h-4 text-indigo-400" />
+            <span>Référence Supabase Cloud :</span>
+          </div>
+          <span className="bg-indigo-900/80 px-2 py-0.5 rounded text-[11px] border border-indigo-700/50">
+            Élèves : <strong className="text-white">{cloudCounts.students ?? '-'}</strong>
+          </span>
+          <span className="bg-indigo-900/80 px-2 py-0.5 rounded text-[11px] border border-indigo-700/50">
+            Paiements : <strong className="text-white">{cloudCounts.student_payments ?? '-'}</strong>
+          </span>
+          <span className="bg-indigo-900/80 px-2 py-0.5 rounded text-[11px] border border-indigo-700/50">
+            Caisse : <strong className="text-white">{cloudCounts.cash_journal ?? '-'}</strong>
+          </span>
+          <span className="bg-indigo-900/80 px-2 py-0.5 rounded text-[11px] border border-indigo-700/50">
+            Comptes : <strong className="text-white">{cloudCounts.users ?? '-'}</strong>
+          </span>
+        </div>
+
+        {/* Stations Comparative Table */}
+        <div className="overflow-x-auto border border-gray-200 rounded-lg bg-white shadow-xs">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-gray-100/90 border-b border-gray-200 text-gray-700 font-semibold text-[11px]">
+                <th className="py-2.5 px-3">Poste</th>
+                <th className="py-2.5 px-3">Hôte / Version</th>
+                <th className="py-2.5 px-3">État Connexion</th>
+                <th className="py-2.5 px-3 text-center">Élèves</th>
+                <th className="py-2.5 px-3 text-center">Paiements</th>
+                <th className="py-2.5 px-3 text-center">Caisse</th>
+                <th className="py-2.5 px-3 text-center">File Locale</th>
+                <th className="py-2.5 px-3 text-center">Statut Convergence</th>
+                <th className="py-2.5 px-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {heartbeats.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-6 text-center text-gray-400">
+                    Aucun bilan reçu. Lancez une synchronisation sur chaque poste pour faire remonter leur état.
+                  </td>
+                </tr>
+              ) : (
+                heartbeats.map((hb) => {
+                  const sCount = hb.counts?.students ?? 0
+                  const pCount = hb.counts?.student_payments ?? 0
+                  const cCount = hb.counts?.cash_journal ?? 0
+
+                  const sMatch = !cloudCounts.students || sCount === cloudCounts.students
+                  const pMatch = !cloudCounts.student_payments || pCount === cloudCounts.student_payments
+                  const cMatch = !cloudCounts.cash_journal || cCount === cloudCounts.cash_journal
+
+                  const pending = hb.queue_pending ?? 0
+                  const failed = hb.queue_failed ?? 0
+                  const quarantined = hb.queue_quarantined ?? 0
+
+                  const isFullySynced = sMatch && pMatch && cMatch && pending === 0 && failed === 0
+
+                  // Calculate online state
+                  const lastSeenTime = hb.last_seen || hb.last_sync
+                  let isOnline = false
+                  let statusLabel = 'Inconnu'
+                  let statusSub = 'Aucun signal'
+                  if (lastSeenTime) {
+                    const diffMin = Math.round((Date.now() - new Date(lastSeenTime).getTime()) / (60 * 1000))
+                    if (diffMin <= 10) {
+                      isOnline = true
+                      statusLabel = 'Connecté (En ligne)'
+                      statusSub = 'Actif maintenant'
+                    } else if (diffMin < 60) {
+                      statusLabel = `Vu il y a ${diffMin} min`
+                      statusSub = new Date(lastSeenTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                    } else if (diffMin < 24 * 60) {
+                      const hours = Math.floor(diffMin / 60)
+                      statusLabel = `Vu il y a ${hours}h`
+                      statusSub = new Date(lastSeenTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                    } else {
+                      statusLabel = 'Hors-ligne'
+                      statusSub = new Date(lastSeenTime).toLocaleDateString('fr-FR')
+                    }
+                  }
+
+                  const errorCount = (hb as any).station_error_count || 0
+
+                  return (
+                    <tr key={hb.station} className="hover:bg-gray-50/70 transition-colors">
+                      <td className="py-2.5 px-3 font-bold text-gray-900 flex items-center gap-1.5">
+                        <Laptop className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Poste {hb.station}</span>
+                      </td>
+                      <td className="py-2.5 px-3 text-gray-600">
+                        <div className="font-medium text-gray-800">{hb.hostname || 'N/A'}</div>
+                        <div className="text-[10px] text-gray-400">v{hb.app_version || '1.2.1'} ({hb.platform})</div>
+                      </td>
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          {isOnline ? (
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                          ) : (
+                            <span className="w-2.5 h-2.5 rounded-full bg-slate-300 shrink-0" />
+                          )}
+                          <span className={`font-semibold text-xs ${isOnline ? 'text-emerald-700' : 'text-slate-700'}`}>
+                            {statusLabel}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-gray-400 pl-4">{statusSub}</div>
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span
+                          className={`font-semibold px-2 py-0.5 rounded text-[11px] ${
+                            sMatch ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-100 text-amber-800 font-bold'
+                          }`}
+                        >
+                          {sCount}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span
+                          className={`font-semibold px-2 py-0.5 rounded text-[11px] ${
+                            pMatch ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-100 text-amber-800 font-bold'
+                          }`}
+                        >
+                          {pCount}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span
+                          className={`font-semibold px-2 py-0.5 rounded text-[11px] ${
+                            cMatch ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-100 text-amber-800 font-bold'
+                          }`}
+                        >
+                          {cCount}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <div className="flex items-center justify-center gap-1 text-[11px]">
+                          {pending > 0 && (
+                            <span className="text-amber-700 bg-amber-50 px-1 rounded font-medium" title="En attente">
+                              {pending} attente
+                            </span>
+                          )}
+                          {failed > 0 && (
+                            <span className="text-rose-700 bg-rose-100 px-1 rounded font-bold animate-pulse" title="Bloqués">
+                              {failed} bloqués
+                            </span>
+                          )}
+                          {quarantined > 0 && (
+                            <span className="text-purple-700 bg-purple-50 px-1 rounded font-medium" title="Quarantaine">
+                              {quarantined} isolés
+                            </span>
+                          )}
+                          {pending === 0 && failed === 0 && quarantined === 0 && (
+                            <span className="text-emerald-600 font-medium">0</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        {isFullySynced ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
+                            <Check className="w-3 h-3 text-emerald-600" /> Aligné 100%
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800">
+                            <AlertTriangle className="w-3 h-3 text-amber-600" /> Écarts Détectés
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedStation(hb.station)
+                            const el = document.getElementById('incidents-log-section')
+                            if (el) el.scrollIntoView({ behavior: 'smooth' })
+                            toast.info(`Filtre activé sur le Poste ${hb.station}`)
+                          }}
+                          className={`text-[11px] h-6 px-2 ${
+                            errorCount > 0
+                              ? 'border-rose-300 text-rose-700 hover:bg-rose-50'
+                              : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>Incidents</span>
+                          {errorCount > 0 ? (
+                            <span className="ml-1 px-1 py-0.2 rounded-full bg-rose-600 text-white font-bold text-[9px]">
+                              {errorCount}
+                            </span>
+                          ) : (
+                            <span className="ml-1 text-[9px] text-gray-400">0</span>
+                          )}
+                        </Button>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Workstation Filters & Limit Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
+      <div id="incidents-log-section" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-medium text-gray-500 mr-1 flex items-center gap-1">
             <Laptop className="w-3.5 h-3.5" /> Filtrer par poste :
@@ -264,6 +527,10 @@ export const WorkstationMonitor: React.FC = () => {
           </button>
           {stationsList.map((st) => {
             const count = reports.filter((r) => r.station === st).length
+            const hb = heartbeats.find((h) => h.station === st)
+            const lastTime = hb?.last_seen || hb?.last_sync
+            const isStOnline = lastTime && (Date.now() - new Date(lastTime).getTime() <= 10 * 60 * 1000)
+
             return (
               <button
                 key={st}
@@ -274,6 +541,11 @@ export const WorkstationMonitor: React.FC = () => {
                     : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100 border border-indigo-100'
                 }`}
               >
+                {isStOnline ? (
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" title="En ligne actuellement" />
+                ) : (
+                  <span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" title="Hors-ligne" />
+                )}
                 <span>Poste {st}</span>
                 <span
                   className={`text-[10px] px-1.5 py-0.2 rounded-full ${

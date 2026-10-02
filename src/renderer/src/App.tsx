@@ -20,6 +20,7 @@ import { Toaster } from 'sonner'
 import ErrorBoundary from '@/components/shared/ErrorBoundary'
 import LoginPage from '@/pages/auth/LoginPage'
 import MainLayout from '@/components/layout/MainLayout'
+import { UpdateModal } from '@/components/shared/UpdateModal'
 
 import { useFinanceStore } from '@/store/useFinanceStore'
 
@@ -81,6 +82,7 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
         <ErrorBoundary>
           <AuthInitializer>
             <AppRoutes />
+            <UpdateModal />
             <Toaster position="top-right" richColors closeButton />
           </AuthInitializer>
         </ErrorBoundary>

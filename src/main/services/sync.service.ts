@@ -4,6 +4,7 @@ import dotenv from 'dotenv'
 import path from 'path'
 import * as fs from 'fs'
 import { app, BrowserWindow } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
 import { LoggerService } from './logger.service'
 import { TelemetryService, isNetworkOrOfflineError } from './telemetry.service'
 
@@ -191,6 +192,7 @@ export async function checkCloudHealth(timeoutMs: number = 15000): Promise<{ ok:
 export function getSyncQueueStatus(): {
   pendingCount: number
   errorCount: number
+  failedCount: number
   quarantinedCount: number
   lastSyncTime: string | null
 } {
@@ -200,10 +202,11 @@ export function getSyncQueueStatus(): {
         `SELECT 
           SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
           SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as errors,
+          SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
           SUM(CASE WHEN status = 'quarantined' THEN 1 ELSE 0 END) as quarantined
          FROM sync_queue`
       )
-      .get() as { pending: number | null; errors: number | null; quarantined: number | null } | undefined
+      .get() as { pending: number | null; errors: number | null; failed: number | null; quarantined: number | null } | undefined
 
     const settingRow = db
       .prepare("SELECT value FROM settings WHERE key = 'last_sync_time'")
@@ -221,16 +224,17 @@ export function getSyncQueueStatus(): {
     return {
       pendingCount: counts?.pending || 0,
       errorCount: counts?.errors || 0,
+      failedCount: counts?.failed || 0,
       quarantinedCount: counts?.quarantined || 0,
       lastSyncTime
     }
   } catch {
-    return { pendingCount: 0, errorCount: 0, quarantinedCount: 0, lastSyncTime: null }
+    return { pendingCount: 0, errorCount: 0, failedCount: 0, quarantinedCount: 0, lastSyncTime: null }
   }
 }
 
 /**
- * Retrieve failed or quarantined queue items
+ * Retrieve failed, error or quarantined queue items
  */
 export function getSyncQueueErrors(limit = 100) {
   try {
@@ -238,7 +242,7 @@ export function getSyncQueueErrors(limit = 100) {
       .prepare(
         `SELECT id, table_name, record_id, action, status, error_message, created_at, COALESCE(updated_at, created_at) as updated_at
          FROM sync_queue
-         WHERE status IN ('error', 'skipped', 'quarantined')
+         WHERE status IN ('error', 'failed', 'skipped', 'quarantined')
          ORDER BY id DESC LIMIT ?`
       )
       .all(limit)
@@ -249,7 +253,7 @@ export function getSyncQueueErrors(limit = 100) {
 }
 
 /**
- * Reset all failed and skipped records to pending for safe retry
+ * Reset all failed, error, and skipped records to pending for safe retry
  */
 export function retrySyncErrors(): { changes: number } {
   try {
@@ -257,7 +261,7 @@ export function retrySyncErrors(): { changes: number } {
       .prepare(
         `UPDATE sync_queue
          SET status = 'pending', error_message = NULL, updated_at = CURRENT_TIMESTAMP
-         WHERE status IN ('error', 'skipped', 'quarantined')`
+         WHERE status IN ('error', 'failed', 'skipped', 'quarantined')`
       )
       .run()
     return { changes: res.changes }
@@ -281,7 +285,7 @@ export async function quarantineAndUnblockQueue(): Promise<{
       .prepare(
         `SELECT id, table_name, record_id, error_message 
          FROM sync_queue 
-         WHERE status IN ('error', 'skipped')`
+         WHERE status IN ('error', 'failed', 'skipped')`
       )
       .all() as { id: number; table_name: string; record_id: string; error_message: string | null }[]
 
@@ -302,7 +306,7 @@ export async function quarantineAndUnblockQueue(): Promise<{
       .prepare(
         `UPDATE sync_queue 
          SET status = 'quarantined', updated_at = CURRENT_TIMESTAMP 
-         WHERE status IN ('error', 'skipped')`
+         WHERE status IN ('error', 'failed', 'skipped')`
       )
       .run()
 
@@ -327,6 +331,408 @@ export async function quarantineAndUnblockQueue(): Promise<{
       remainingPending: 0,
       message: `Erreur lors du déblocage : ${msg}`
     }
+  }
+}
+
+export interface ReconciliationItem {
+  id: number
+  table_name: string
+  record_id: string
+  action: string
+  status: string
+  error_message: string | null
+  receipt_number?: string
+  amount?: number
+  date?: string
+  created_by?: string
+  student_id?: string
+  student_name?: string
+  class_name?: string
+  description?: string
+  created_at: string
+}
+
+/**
+ * Retrieve all items in error, failed, or quarantined status for visual human reconciliation
+ */
+export function getReconciliationItems(): ReconciliationItem[] {
+  try {
+    const rows = db
+      .prepare(
+        `SELECT id, table_name, record_id, action, status, error_message, data, created_at
+         FROM sync_queue
+         WHERE status IN ('error', 'failed', 'quarantined')
+         ORDER BY id DESC LIMIT 100`
+      )
+      .all() as Array<{
+        id: number
+        table_name: string
+        record_id: string
+        action: string
+        status: string
+        error_message: string | null
+        data: string
+        created_at: string
+      }>
+
+    const items: ReconciliationItem[] = []
+
+    for (const r of rows) {
+      let parsedData: any = {}
+      try {
+        parsedData = typeof r.data === 'string' ? JSON.parse(r.data) : r.data || {}
+      } catch {
+        parsedData = {}
+      }
+
+      let receiptNumber = parsedData.receipt_number
+      let amount = parsedData.amount
+      let date = parsedData.payment_date || parsedData.transaction_date || parsedData.created_at
+      let createdBy = parsedData.created_by
+      let studentId = parsedData.student_id || parsedData.related_student_id
+      let studentName: string | undefined
+      let className: string | undefined
+      let description = parsedData.description || parsedData.notes
+
+      // If missing from payload, inspect local SQLite table directly
+      if (r.table_name === 'student_payments') {
+        const localPay = db
+          .prepare(
+            'SELECT receipt_number, amount, payment_date, created_by, student_id FROM student_payments WHERE id = ?'
+          )
+          .get(r.record_id) as any
+        if (localPay) {
+          receiptNumber = receiptNumber || localPay.receipt_number
+          amount = amount !== undefined ? amount : localPay.amount
+          date = date || localPay.payment_date
+          createdBy = createdBy || localPay.created_by
+          studentId = studentId || localPay.student_id
+        }
+      } else if (r.table_name === 'cash_journal') {
+        const localCj = db
+          .prepare(
+            'SELECT receipt_number, amount, transaction_date, created_by, related_student_id, description FROM cash_journal WHERE id = ?'
+          )
+          .get(r.record_id) as any
+        if (localCj) {
+          receiptNumber = receiptNumber || localCj.receipt_number
+          amount = amount !== undefined ? amount : localCj.amount
+          date = date || localCj.transaction_date
+          createdBy = createdBy || localCj.created_by
+          studentId = studentId || localCj.related_student_id
+          description = description || localCj.description
+        }
+      }
+
+      if (studentId) {
+        const localStudent = db
+          .prepare('SELECT first_name, last_name, class_name FROM students WHERE id = ?')
+          .get(studentId) as any
+        if (localStudent) {
+          studentName = `${localStudent.first_name || ''} ${localStudent.last_name || ''}`.trim()
+          className = localStudent.class_name
+        } else {
+          studentName = `Élève ID: ${studentId} (Introuvable)`
+        }
+      }
+
+      items.push({
+        id: r.id,
+        table_name: r.table_name,
+        record_id: r.record_id,
+        action: r.action,
+        status: r.status,
+        error_message: r.error_message,
+        receipt_number: receiptNumber,
+        amount,
+        date,
+        created_by: createdBy,
+        student_id: studentId,
+        student_name: studentName,
+        class_name: className,
+        description,
+        created_at: r.created_at
+      })
+    }
+
+    return items
+  } catch (err) {
+    console.error('getReconciliationItems error:', err)
+    return []
+  }
+}
+
+/**
+ * Re-links an orphan payment or cash_journal entry to an existing student
+ */
+export function reconcileAttachStudent(
+  queueId: number,
+  targetStudentId: string
+): { success: boolean; error?: string } {
+  try {
+    const queueItem = db
+      .prepare('SELECT * FROM sync_queue WHERE id = ?')
+      .get(queueId) as any
+    if (!queueItem) {
+      return { success: false, error: 'Enregistrement de file introuvable' }
+    }
+
+    const student = db
+      .prepare('SELECT id, first_name, last_name FROM students WHERE id = ? AND deleted = 0')
+      .get(targetStudentId) as any
+    if (!student) {
+      return { success: false, error: 'Élève cible introuvable' }
+    }
+
+    const nowIso = new Date().toISOString()
+
+    if (queueItem.table_name === 'student_payments') {
+      db.prepare(
+        'UPDATE student_payments SET student_id = ?, sync_status = "pending", updated_at = ? WHERE id = ?'
+      ).run(targetStudentId, nowIso, queueItem.record_id)
+
+      // Also update linked cash_journal if exists
+      db.prepare(
+        'UPDATE cash_journal SET related_student_id = ?, sync_status = "pending", updated_at = ? WHERE related_payment_id = ?'
+      ).run(targetStudentId, nowIso, queueItem.record_id)
+    } else if (queueItem.table_name === 'cash_journal') {
+      db.prepare(
+        'UPDATE cash_journal SET related_student_id = ?, sync_status = "pending", updated_at = ? WHERE id = ?'
+      ).run(targetStudentId, nowIso, queueItem.record_id)
+    }
+
+    // Update queue item payload
+    let parsedData: any = {}
+    try {
+      parsedData = JSON.parse(queueItem.data || '{}')
+    } catch {
+      parsedData = {}
+    }
+
+    if (queueItem.table_name === 'cash_journal') {
+      parsedData.related_student_id = targetStudentId
+    } else {
+      parsedData.student_id = targetStudentId
+    }
+    parsedData.updated_at = nowIso
+
+    db.prepare(
+      `UPDATE sync_queue
+       SET data = ?, status = 'pending', retry_count = 0, error_message = NULL, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    ).run(JSON.stringify(parsedData), queueId)
+
+    // Audit log in settings_history
+    try {
+      db.prepare(
+        `INSERT INTO settings_history (key, old_value, new_value, changed_by, created_at)
+         VALUES (?, ?, ?, 'reconciliation_attach', CURRENT_TIMESTAMP)`
+      ).run(
+        `reconciliation:${queueItem.table_name}:${queueItem.record_id}`,
+        queueItem.data,
+        JSON.stringify(parsedData)
+      )
+    } catch {}
+
+    // Immediately trigger sync
+    syncWithCloud().catch((e) => console.error('Auto sync after attach error:', e))
+
+    return { success: true }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { success: false, error: msg }
+  }
+}
+
+/**
+ * Reconciles an orphan entry by creating the missing student record first
+ */
+export function reconcileCreateMissingStudent(
+  queueId: number,
+  studentData: {
+    first_name: string
+    last_name: string
+    class_name: string
+    registration_number?: string
+  }
+): { success: boolean; error?: string } {
+  try {
+    const queueItem = db.prepare('SELECT * FROM sync_queue WHERE id = ?').get(queueId) as any
+    if (!queueItem) {
+      return { success: false, error: 'Enregistrement de file introuvable' }
+    }
+
+    const newStudentId = uuidv4()
+    const nowIso = new Date().toISOString()
+    const currentYear = new Date().getFullYear().toString()
+    const regNum = studentData.registration_number || `${currentYear}-${Math.floor(10000 + Math.random() * 90000)}`
+
+    // 1. Insert new student locally
+    db.prepare(`
+      INSERT INTO students (
+        id, registration_number, first_name, last_name, class_name,
+        enrollment_date, status, active, deleted, sync_status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, date('now'), 'active', 1, 0, 'pending', ?, ?)
+    `).run(
+      newStudentId,
+      regNum,
+      studentData.first_name.trim(),
+      studentData.last_name.trim(),
+      studentData.class_name.trim(),
+      nowIso,
+      nowIso
+    )
+
+    // 2. Queue student creation so parent is pushed before child
+    addToSyncQueue('students', newStudentId, 'create', {
+      id: newStudentId,
+      registration_number: regNum,
+      first_name: studentData.first_name.trim(),
+      last_name: studentData.last_name.trim(),
+      class_name: studentData.class_name.trim(),
+      enrollment_date: nowIso.split('T')[0],
+      status: 'active',
+      active: 1,
+      deleted: 0,
+      updated_at: nowIso
+    })
+
+    // 3. Attach orphan payment/cash to this new student
+    return reconcileAttachStudent(queueId, newStudentId)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { success: false, error: msg }
+  }
+}
+
+/**
+ * Reclassifies an orphan student payment or cash item into a general cash transaction
+ */
+export function reconcileConvertToGeneralCash(
+  queueId: number
+): { success: boolean; error?: string } {
+  try {
+    const queueItem = db.prepare('SELECT * FROM sync_queue WHERE id = ?').get(queueId) as any
+    if (!queueItem) {
+      return { success: false, error: 'Enregistrement introuvable' }
+    }
+
+    const nowIso = new Date().toISOString()
+
+    if (queueItem.table_name === 'cash_journal') {
+      db.prepare(`
+        UPDATE cash_journal 
+        SET related_student_id = NULL, department = 'general', sync_status = 'pending', updated_at = ?
+        WHERE id = ?
+      `).run(nowIso, queueItem.record_id)
+
+      let parsedData: any = {}
+      try {
+        parsedData = JSON.parse(queueItem.data || '{}')
+      } catch {}
+      parsedData.related_student_id = null
+      parsedData.department = 'general'
+      parsedData.updated_at = nowIso
+
+      db.prepare(`
+        UPDATE sync_queue
+        SET data = ?, status = 'pending', retry_count = 0, error_message = NULL, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(JSON.stringify(parsedData), queueId)
+    } else if (queueItem.table_name === 'student_payments') {
+      const localPay = db.prepare('SELECT * FROM student_payments WHERE id = ?').get(queueItem.record_id) as any
+      if (localPay) {
+        // Create matching general cash journal entry
+        const cashId = uuidv4()
+        db.prepare(`
+          INSERT INTO cash_journal (
+            id, transaction_date, amount, transaction_type, category,
+            description, created_by, department, receipt_number, sync_status, created_at, updated_at
+          ) VALUES (?, ?, ?, 'income', 'divers', ?, ?, 'general', ?, 'pending', ?, ?)
+        `).run(
+          cashId,
+          localPay.payment_date || nowIso.split('T')[0],
+          localPay.amount,
+          `Recette diverse réconciliée (Reçu: ${localPay.receipt_number || 'N/A'})`,
+          localPay.created_by || 'Système',
+          localPay.receipt_number || null,
+          nowIso,
+          nowIso
+        )
+
+        addToSyncQueue('cash_journal', cashId, 'create', {
+          id: cashId,
+          transaction_date: localPay.payment_date || nowIso.split('T')[0],
+          amount: localPay.amount,
+          transaction_type: 'income',
+          category: 'divers',
+          description: `Recette diverse réconciliée (Reçu: ${localPay.receipt_number || 'N/A'})`,
+          created_by: localPay.created_by || 'Système',
+          department: 'general',
+          receipt_number: localPay.receipt_number || null,
+          updated_at: nowIso
+        })
+
+        // Soft-delete orphan payment
+        db.prepare('UPDATE student_payments SET deleted = 1, sync_status = "synced", updated_at = ? WHERE id = ?').run(
+          nowIso,
+          queueItem.record_id
+        )
+      }
+
+      // Mark queue item completed/synced
+      db.prepare("UPDATE sync_queue SET status = 'synced', error_message = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(
+        queueId
+      )
+    }
+
+    syncWithCloud().catch((e) => console.error('Auto sync after convert to general cash error:', e))
+    return { success: true }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { success: false, error: msg }
+  }
+}
+
+/**
+ * Discards an irrecoverable orphan queue item with full audit traceability
+ */
+export function reconcileDiscardOrphan(
+  queueId: number,
+  reason: string
+): { success: boolean; error?: string } {
+  try {
+    const queueItem = db.prepare('SELECT * FROM sync_queue WHERE id = ?').get(queueId) as any
+    if (!queueItem) {
+      return { success: false, error: 'Enregistrement introuvable' }
+    }
+
+    // Save into settings_history
+    try {
+      db.prepare(
+        `INSERT INTO settings_history (key, old_value, new_value, changed_by, created_at)
+         VALUES (?, ?, ?, 'reconciliation_discard', CURRENT_TIMESTAMP)`
+      ).run(
+        `reconciliation:discarded:${queueItem.table_name}:${queueItem.record_id}`,
+        queueItem.data,
+        JSON.stringify({ reason, timestamp: new Date().toISOString() })
+      )
+    } catch {}
+
+    // Mark deleted in local table
+    try {
+      db.prepare(`UPDATE ${queueItem.table_name} SET deleted = 1, sync_status = 'synced' WHERE id = ?`).run(
+        queueItem.record_id
+      )
+    } catch {}
+
+    // Remove from sync_queue
+    db.prepare('DELETE FROM sync_queue WHERE id = ?').run(queueId)
+
+    return { success: true }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { success: false, error: msg }
   }
 }
 
@@ -416,36 +822,52 @@ export async function syncWithCloud(forceFullSync: boolean = false) {
       return { success: false, error: health.error }
     }
 
+    // PULL FIRST: Get remote changes from cloud first to absorb any remote deletions/updates
+    await pullRemoteChanges(forceFullSync)
+
     // PUSH: Send local changes to cloud
     await pushLocalChanges()
-
-    // PULL: Get remote changes from cloud
-    await pullRemoteChanges(forceFullSync)
 
     // Flush any pending error/sync telemetry to Supabase audit_logs
     await TelemetryService.flushPendingLogs().catch(() => {})
 
+    // Publish workstation status heartbeat to cloud for real-time multi-station convergence
+    await TelemetryService.publishWorkstationHeartbeat().catch(() => {})
+
     const finalStatus = getSyncQueueStatus()
-    const hasUnsyncedItems = finalStatus.pendingCount > 0 || finalStatus.errorCount > 0
+    const totalBlocked = finalStatus.errorCount + finalStatus.failedCount + finalStatus.quarantinedCount
+    const hasUnsyncedItems = finalStatus.pendingCount > 0 || totalBlocked > 0
+
+    // Notify all open renderer windows that sync completed to trigger instant UI refresh
+    try {
+      const wins = BrowserWindow.getAllWindows()
+      wins.forEach((w) => {
+        if (!w.isDestroyed()) {
+          w.webContents.send('app:sync-completed')
+        }
+      })
+    } catch {}
 
     if (hasUnsyncedItems) {
       broadcastProgress({
-        phase: 'error',
+        phase: totalBlocked > 0 ? 'error' : 'pushing',
         current: 100,
         total: 100,
         percent: 100,
-        message: `Synchronisation partielle : ${finalStatus.pendingCount} en attente, ${finalStatus.errorCount} anomalie(s)`,
+        message: totalBlocked > 0
+          ? `Synchro partielle : ${totalBlocked} écriture(s) bloquée(s)`
+          : `${finalStatus.pendingCount} modification(s) en attente`,
         lastSync: finalStatus.lastSyncTime || new Date().toISOString(),
         pendingCount: finalStatus.pendingCount,
-        errorCount: finalStatus.errorCount
+        errorCount: totalBlocked
       })
 
       return {
         success: false,
         partial: true,
         pendingCount: finalStatus.pendingCount,
-        errorCount: finalStatus.errorCount,
-        error: `${finalStatus.pendingCount} modification(s) en attente, ${finalStatus.errorCount} anomalie(s) non synchronisée(s).`
+        errorCount: totalBlocked,
+        error: `${finalStatus.pendingCount} modification(s) en attente, ${totalBlocked} écriture(s) bloquée(s).`
       }
     }
 
@@ -492,6 +914,7 @@ const TABLE_DEPENDENCIES: Record<string, string[]> = {
   time_tracking: ['personnel'],
   daily_attendance: ['students'],
   student_payments: ['students', 'student_fees'],
+  cash_journal: ['students', 'student_payments'],
   event_payments: ['students', 'parent_events'],
   bus_attendance: ['students'],
   canteen_attendance: ['students']
@@ -944,7 +1367,7 @@ async function pushLocalChanges() {
           } else if (item.table_name === 'users') {
             const { error } = await supabase
               .from('users')
-              .upsert(payload, { onConflict: 'username' })
+              .upsert(payload, { onConflict: 'id' })
             upsertError = error
           } else if (item.table_name === 'time_tracking') {
             const { error } = await supabase
@@ -962,6 +1385,25 @@ async function pushLocalChanges() {
               .upsert(payload, { onConflict: 'student_id,school_year' })
             upsertError = error
           } else {
+            // ANTI-RESURRECTION SAFEGUARD:
+            // If the cloud already marked this record as deleted, an offline update must NOT overwrite deleted=true with deleted=false
+            if (payload && (payload.deleted === 0 || payload.deleted === false || payload.deleted === undefined)) {
+              try {
+                const { data: remoteCheck } = await supabase
+                  .from(item.table_name)
+                  .select('deleted')
+                  .eq('id', item.record_id)
+                  .maybeSingle()
+                if (remoteCheck?.deleted) {
+                  db.prepare(`UPDATE ${item.table_name} SET deleted = 1, sync_status = 'synced' WHERE id = ?`).run(item.record_id)
+                  db.prepare("UPDATE sync_queue SET status = 'completed', error_message = NULL WHERE id = ?").run(item.id)
+                  continue
+                }
+              } catch {
+                // Non-blocking fallback
+              }
+            }
+
             const { error } = await supabase.from(item.table_name).upsert(payload)
             upsertError = error
           }
@@ -1222,6 +1664,139 @@ async function pushLocalChanges() {
   await TelemetryService.flushPendingLogs().catch(() => {})
 }
 
+interface MergeResult {
+  mergedRecord: Record<string, any>
+  stillPendingFields: Record<string, any>
+  hasConflict: boolean
+  shouldKeepDelete: boolean
+}
+
+/**
+ * 3-Way Field-Level Merge for concurrent offline/online modifications across workstations.
+ *
+ * Example Scenario:
+ * - PC 1 modified fields offline on Monday (e.g. address, phone).
+ * - PC 2 modified fields online on Monday evening (e.g. classroom, phone).
+ * - On Wednesday, PC 1 connects and pulls PC 2's remote changes.
+ *
+ * Result:
+ * - Non-conflicting fields are merged (PC 1 gets PC 2's classroom; PC 1 keeps address).
+ * - Conflicting fields (phone) resolve via Last-Write-Wins (LWW) based on true modification timestamps.
+ * - Local queue is updated so subsequent push sends the unified record without wiping out remote changes.
+ */
+function mergeRecordFields(
+  tableName: string,
+  localRecord: Record<string, any>,
+  remoteRecord: Record<string, any>,
+  pendingQueueItems: any[],
+  colNames: Set<string>
+): MergeResult {
+  // 1. Check if local had a pending delete action
+  const deleteItem = pendingQueueItems.find((q) => q.action === 'delete')
+  if (deleteItem) {
+    const localDeleteTime = new Date(deleteItem.created_at || '2000-01-01').getTime()
+    const remoteUpdateTime = new Date(remoteRecord.updated_at || '2000-01-01').getTime()
+    if (remoteUpdateTime > localDeleteTime) {
+      // Remote was updated after local delete -> remote update wins
+      return {
+        mergedRecord: { ...remoteRecord },
+        stillPendingFields: {},
+        hasConflict: true,
+        shouldKeepDelete: false
+      }
+    } else {
+      // Local delete is newer -> local delete wins
+      return {
+        mergedRecord: { ...localRecord, deleted: 1 },
+        stillPendingFields: { deleted: 1 },
+        hasConflict: true,
+        shouldKeepDelete: true
+      }
+    }
+  }
+
+  // 2. Aggregate local changes
+  const localQueuedData: Record<string, any> = {}
+
+  for (const q of pendingQueueItems) {
+    try {
+      const parsed = typeof q.data === 'string' ? JSON.parse(q.data || '{}') : (q.data || {})
+      Object.assign(localQueuedData, parsed)
+    } catch {}
+  }
+
+  const localChangedFields = new Set(
+    Object.keys(localQueuedData).filter(
+      (k) => k !== 'id' && k !== 'sync_status' && k !== 'search_text' && k !== 'created_at' && k !== 'updated_at'
+    )
+  )
+
+  const mergedRecord: Record<string, any> = { ...localRecord }
+  const stillPendingFields: Record<string, any> = {}
+  let hasConflict = false
+
+  for (const col of Object.keys(remoteRecord)) {
+    if (!colNames.has(col) || col === 'id' || col === 'sync_status' || col === 'search_text') {
+      continue
+    }
+
+    const localVal = localRecord[col]
+    const remoteVal = remoteRecord[col]
+
+    if (!localChangedFields.has(col)) {
+      // Field was untouched locally by PC 1: adopt remote value (PC 2's modification)!
+      mergedRecord[col] = remoteVal
+    } else {
+      // Field was modified locally by PC 1!
+      const isSame =
+        localVal === remoteVal ||
+        (localVal == null && remoteVal == null) ||
+        (typeof localVal === 'number' && typeof remoteVal === 'number' && localVal === remoteVal) ||
+        String(localVal) === String(remoteVal)
+
+      if (isSame) {
+        mergedRecord[col] = localVal
+      } else {
+        // True field divergence:
+        // Local user explicitly modified this field offline.
+        // Preserve local modification and queue it to be propagated to cloud alongside remote merged fields.
+        hasConflict = true
+        mergedRecord[col] = localVal
+        stillPendingFields[col] = localVal
+        LoggerService.log(
+          'info',
+          'sync',
+          `[Arbitrage Conflit] Table ${tableName}, ID ${remoteRecord.id}, Champ '${col}' : modification locale (${localVal}) préservée face à la valeur distante (${remoteVal})`
+        )
+      }
+    }
+  }
+
+  // 3. Sensitive domain protections (Receipt numbers & print tracking)
+  if (tableName === 'student_payments' || tableName === 'cash_journal') {
+    if (!mergedRecord.receipt_number && localRecord.receipt_number) {
+      mergedRecord.receipt_number = localRecord.receipt_number
+    }
+    mergedRecord.print_count = Math.max(
+      Number(localRecord.print_count || 0),
+      Number(remoteRecord.print_count || 0)
+    )
+    if (!mergedRecord.last_printed_at && localRecord.last_printed_at) {
+      mergedRecord.last_printed_at = localRecord.last_printed_at
+    }
+    if (!mergedRecord.last_printed_by && localRecord.last_printed_by) {
+      mergedRecord.last_printed_by = localRecord.last_printed_by
+    }
+  }
+
+  return {
+    mergedRecord,
+    stillPendingFields,
+    hasConflict,
+    shouldKeepDelete: false
+  }
+}
+
 /**
  * Pull remote changes from Supabase in batch transactions with non-destructive conflict handling.
  */
@@ -1231,12 +1806,19 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
     .prepare("SELECT value FROM settings WHERE key = 'last_sync_time'")
     .get() as { value: string } | undefined
 
-  let lastSync = '2020-01-01T00:00:00Z'
+  let fetchThreshold = '2020-01-01T00:00:00Z'
   if (!forceFullSync && settingsRow && settingsRow.value) {
     try {
-      lastSync = JSON.parse(settingsRow.value)
+      const parsed = JSON.parse(settingsRow.value)
+      const dateVal = new Date(parsed)
+      if (!isNaN(dateVal.getTime())) {
+        // 5-minute safety overlap window to ensure no remote changes are missed due to clock drift
+        fetchThreshold = new Date(dateVal.getTime() - 5 * 60 * 1000).toISOString()
+      } else {
+        fetchThreshold = parsed
+      }
     } catch {
-      lastSync = settingsRow.value
+      fetchThreshold = settingsRow.value
     }
   }
 
@@ -1289,11 +1871,13 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
       while (fetchMore) {
         const from = page * pageSize
         const to = from + pageSize - 1
+        const pkCol = table === 'settings' ? 'key' : 'id'
         const { data, error } = await supabase
           .from(table)
           .select('*')
-          .gt('updated_at', lastSync)
+          .gt('updated_at', fetchThreshold)
           .order('updated_at', { ascending: true })
+          .order(pkCol, { ascending: true })
           .range(from, to)
 
         if (error) {
@@ -1344,18 +1928,57 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
 
           if (recordToSave.deleted) {
             if (local) {
-              db.prepare(`UPDATE ${table} SET deleted = 1, updated_at = ? WHERE id = ?`).run(
-                recordToSave.updated_at,
-                record.id
-              )
+              // Check if local workstation has a pending edit made strictly AFTER the remote deletion
+              let pendingItems: any[] = []
+              try {
+                pendingItems = db
+                  .prepare(
+                    `SELECT * FROM sync_queue WHERE table_name = ? AND record_id = ? AND status IN ('pending', 'error')`
+                  )
+                  .all(table, record.id) as any[]
+              } catch {
+                pendingItems = []
+              }
+
+              let localHasNewerEdit = false
+              const remoteDelTime = new Date(recordToSave.updated_at || '2000-01-01').getTime()
+
+              for (const q of pendingItems) {
+                if (q.action !== 'delete') {
+                  const qTime = new Date(q.created_at || q.updated_at || '2000-01-01').getTime()
+                  if (qTime > remoteDelTime) {
+                    localHasNewerEdit = true
+                    break
+                  }
+                }
+              }
+
+              if (localHasNewerEdit) {
+                // Local user actively edited/re-enrolled this record AFTER the remote deletion
+                // Keep local active, let push propagate it
+                continue
+              }
+
+              // Remote deletion confirmed: apply deleted = 1 and clear stale unpushed updates
+              db.prepare(
+                `UPDATE ${table} SET deleted = 1, sync_status = 'synced', updated_at = ? WHERE id = ?`
+              ).run(recordToSave.updated_at, record.id)
+
+              try {
+                db.prepare(
+                  `DELETE FROM sync_queue WHERE table_name = ? AND record_id = ? AND action != 'delete'`
+                ).run(table, record.id)
+              } catch {
+                // Table might not be in sync_queue
+              }
             } else {
               const fields = Object.keys(recordToSave).join(', ')
               const placeholders = Object.keys(recordToSave)
                 .map(() => '?')
                 .join(', ')
-              db.prepare(`INSERT INTO ${table} (${fields}) VALUES (${placeholders})`).run(
-                ...Object.values(recordToSave)
-              )
+              db.prepare(
+                `INSERT INTO ${table} (${fields}, sync_status) VALUES (${placeholders}, 'synced')`
+              ).run(...Object.values(recordToSave))
             }
             continue
           }
@@ -1387,9 +2010,8 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
             }
           }
 
-          // Safe conflict resolution for unique constraints
+          // Safe conflict resolution for unique constraints (tables with composite candidate keys)
           const uniqueConstraints: Record<string, string[]> = {
-            users: ['username'],
             student_fees: ['student_id', 'school_year'],
             bus_attendance: ['student_id', 'attendance_date'],
             canteen_attendance: ['student_id', 'attendance_date'],
@@ -1440,28 +2062,112 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
                 `INSERT INTO ${table} (${fields}, sync_status) VALUES (${placeholders}, 'synced')`
               ).run(...Object.values(recordToSave))
             } else {
-              // Local vs Cloud resolution
-              // SAFEGUARD: Never overwrite local records that have unpushed changes (sync_status === 'pending')
-              if (local && local.sync_status === 'pending') {
-                continue
+              // Local record exists: check if there are pending unpushed changes
+              let pendingItems: any[] = []
+              try {
+                pendingItems = db
+                  .prepare(
+                    `SELECT * FROM sync_queue WHERE table_name = ? AND record_id = ? AND status IN ('pending', 'error') ORDER BY id ASC`
+                  )
+                  .all(table, record.id) as any[]
+              } catch {
+                pendingItems = []
               }
 
-              const localDate = new Date(local.updated_at || '2000-01-01')
-              const cloudDate = new Date(record.updated_at || '2000-01-01')
-              const hasNewerPrint =
-                table === 'student_payments' &&
-                (recordToSave.print_count || 0) > (local.print_count || 0)
+              if (pendingItems.length === 0) {
+                // No pending local edits: apply remote updates directly
+                const localDate = new Date(local.updated_at || '2000-01-01')
+                const cloudDate = new Date(record.updated_at || '2000-01-01')
+                const hasNewerPrint =
+                  table === 'student_payments' &&
+                  (recordToSave.print_count || 0) > (local.print_count || 0)
 
-              if (localDate <= cloudDate || forceFullSync || hasNewerPrint) {
-                const updates = Object.entries(recordToSave)
-                  .map(([key]) => `${key} = ?`)
-                  .join(', ')
-                db.prepare(`UPDATE ${table} SET ${updates}, sync_status = 'synced' WHERE id = ?`).run(
-                  ...Object.values(recordToSave),
+                if (localDate <= cloudDate || forceFullSync || hasNewerPrint) {
+                  const updates = Object.entries(recordToSave)
+                    .filter(([k]) => colNames.has(k) && k !== 'id')
+                    .map(([key]) => `${key} = ?`)
+                    .join(', ')
+                  const vals = Object.entries(recordToSave)
+                    .filter(([k]) => colNames.has(k) && k !== 'id')
+                    .map(([, v]) => v)
+
+                  db.prepare(`UPDATE ${table} SET ${updates}, sync_status = 'synced' WHERE id = ?`).run(
+                    ...vals,
+                    record.id
+                  )
+
+                  if (table === 'student_payments') {
+                    try {
+                      db.prepare(`
+                        UPDATE cash_journal 
+                        SET print_count = MAX(COALESCE(print_count, 0), ?),
+                            last_printed_at = COALESCE(?, last_printed_at),
+                            last_printed_by = COALESCE(?, last_printed_by),
+                            receipt_number = COALESCE(?, receipt_number)
+                        WHERE related_payment_id = ?
+                      `).run(
+                        recordToSave.print_count || 0,
+                        recordToSave.last_printed_at || null,
+                        recordToSave.last_printed_by || null,
+                        recordToSave.receipt_number || null,
+                        record.id
+                      )
+                    } catch {}
+                  }
+                }
+              } else {
+                // CONCURRENT EDIT DETECTED: 3-way field-level merge
+                const mergeRes = mergeRecordFields(table, local, recordToSave, pendingItems, colNames)
+
+                if (mergeRes.shouldKeepDelete) {
+                  db.prepare(`UPDATE ${table} SET deleted = 1 WHERE id = ?`).run(record.id)
+                  continue
+                }
+
+                // If remote update superseded local delete, remove delete queue item
+                const delQ = pendingItems.find((q) => q.action === 'delete')
+                if (delQ && !mergeRes.shouldKeepDelete) {
+                  db.prepare(`DELETE FROM sync_queue WHERE id = ?`).run(delQ.id)
+                  pendingItems = pendingItems.filter((q) => q.id !== delQ.id)
+                }
+
+                const updateCols = Object.keys(mergeRes.mergedRecord).filter(
+                  (k) => colNames.has(k) && k !== 'id'
+                )
+                const setClause = updateCols.map((c) => `${c} = ?`).join(', ')
+                const updateVals = updateCols.map((c) => mergeRes.mergedRecord[c])
+                const hasPendingToPush = Object.keys(mergeRes.stillPendingFields).length > 0
+                const nextStatus = hasPendingToPush ? 'pending' : 'synced'
+
+                db.prepare(`UPDATE ${table} SET ${setClause}, sync_status = ? WHERE id = ?`).run(
+                  ...updateVals,
+                  nextStatus,
                   record.id
                 )
 
-                // If a student payment received print metadata, cascade immediately to linked cash_journal
+                // Update sync_queue accordingly
+                if (hasPendingToPush && pendingItems.length > 0) {
+                  const latestQ = pendingItems[pendingItems.length - 1]
+                  db.prepare(
+                    `UPDATE sync_queue SET data = ?, status = 'pending', error_message = NULL WHERE id = ?`
+                  ).run(
+                    JSON.stringify({ ...mergeRes.mergedRecord, ...mergeRes.stillPendingFields }),
+                    latestQ.id
+                  )
+
+                  if (pendingItems.length > 1) {
+                    const oldIds = pendingItems.slice(0, -1).map((q) => q.id)
+                    db.prepare(`DELETE FROM sync_queue WHERE id IN (${oldIds.map(() => '?').join(',')})`).run(
+                      ...oldIds
+                    )
+                  }
+                } else if (pendingItems.length > 0) {
+                  const allIds = pendingItems.map((q) => q.id)
+                  db.prepare(
+                    `UPDATE sync_queue SET status = 'synced', synced_at = CURRENT_TIMESTAMP, error_message = NULL WHERE id IN (${allIds.map(() => '?').join(',')})`
+                  ).run(...allIds)
+                }
+
                 if (table === 'student_payments') {
                   try {
                     db.prepare(`
@@ -1472,15 +2178,26 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
                           receipt_number = COALESCE(?, receipt_number)
                       WHERE related_payment_id = ?
                     `).run(
-                      recordToSave.print_count || 0,
-                      recordToSave.last_printed_at || null,
-                      recordToSave.last_printed_by || null,
-                      recordToSave.receipt_number || null,
+                      mergeRes.mergedRecord.print_count || 0,
+                      mergeRes.mergedRecord.last_printed_at || null,
+                      mergeRes.mergedRecord.last_printed_by || null,
+                      mergeRes.mergedRecord.receipt_number || null,
                       record.id
                     )
-                  } catch {
-                    // Ignore if cash_journal column not migrated yet
-                  }
+                  } catch {}
+                }
+
+                if (mergeRes.hasConflict) {
+                  try {
+                    db.prepare(`
+                      INSERT INTO settings_history (key, old_value, new_value, changed_by, created_at)
+                      VALUES (?, ?, ?, 'sync_field_merge', CURRENT_TIMESTAMP)
+                    `).run(
+                      `conflict:${table}:${record.id}`,
+                      JSON.stringify(local),
+                      JSON.stringify(mergeRes.mergedRecord)
+                    )
+                  } catch {}
                 }
               }
             }

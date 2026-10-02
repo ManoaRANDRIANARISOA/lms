@@ -1243,6 +1243,91 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
             </div>
           )}
 
+          {/* Informative Payment Context Summary */}
+          {(() => {
+            let totalExpected = 0
+            let alreadyPaid = 0
+            let currentBalance = 0
+            let label = ''
+
+            if (formData.payment_type === 'enrollment' || formData.payment_type === 'reenrollment') {
+              totalExpected = enrollmentExpected || 0
+              alreadyPaid = enrollmentPaidAmt || 0
+              currentBalance = Math.max(0, enrollmentBalance)
+              label = formData.payment_type === 'reenrollment' ? 'Réinscription' : "Droit d'inscription"
+            } else if (formData.payment_type === 'fram') {
+              totalExpected = framExpected || 15000
+              alreadyPaid = framPaidAmt || 0
+              currentBalance = Math.max(0, framBalance)
+              label = 'Cotisation FRAM'
+            } else if (['tuition', 'canteen', 'bus'].includes(formData.payment_type)) {
+              const currentFeeRecord = status?.feeRecord || feeRecord
+              if (formData.payment_type === 'tuition') {
+                totalExpected = getTuitionCost(
+                  currentFeeRecord,
+                  configPrices,
+                  Boolean(studentInfo?.is_personnel_child)
+                )
+                label = `Écolage ${formData.month ? `(${formData.month})` : ''}`
+              } else if (formData.payment_type === 'bus') {
+                totalExpected = getBusCost(currentFeeRecord, configPrices)
+                label = `Transport Bus ${formData.month ? `(${formData.month})` : ''}`
+              } else if (formData.payment_type === 'canteen') {
+                totalExpected = getCanteenCost(currentFeeRecord, configPrices)
+                label = `Cantine ${formData.month ? `(${formData.month})` : ''}`
+              }
+              if (formData.month) {
+                const existingPayments = payments.filter(
+                  (p) => p.payment_type === formData.payment_type && p.month === formData.month
+                )
+                alreadyPaid = existingPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+                currentBalance = Math.max(0, totalExpected - alreadyPaid)
+              }
+            } else if (formData.payment_type === 'uniform') {
+              label = `Uniforme (${formData.item || 'Article'})`
+              totalExpected = (formData.item && configPrices?.uniforms?.[formData.item]) || 0
+              alreadyPaid = 0
+              currentBalance = totalExpected
+            } else if (formData.payment_type === 'event') {
+              const evt = events.find((e) => e.id === formData.item)
+              label = `Événement : ${evt?.event_name || ''}`
+              totalExpected = evt?.amount_per_parent || 0
+              alreadyPaid = 0
+              currentBalance = totalExpected
+            }
+
+            if (totalExpected <= 0 && currentBalance <= 0) return null
+
+            return (
+              <div className="p-3.5 bg-amber-50/90 border border-amber-200/80 rounded-lg space-y-2">
+                <div className="flex items-center justify-between text-xs text-amber-900 font-semibold">
+                  <span className="uppercase tracking-wider text-[11px]">{label || 'Situation financière'}</span>
+                  {alreadyPaid > 0 && (
+                    <span className="text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded font-medium">
+                      Déjà versé : {alreadyPaid.toLocaleString()} Ar
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-end justify-between border-t border-amber-200/60 pt-2">
+                  <div>
+                    <span className="text-[11px] text-gray-500 block uppercase">Total attendu</span>
+                    <span className="text-sm font-semibold text-gray-800">
+                      {totalExpected.toLocaleString()} Ar
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[11px] text-amber-700 font-semibold block uppercase tracking-wider">
+                      Reste à payer actuel
+                    </span>
+                    <span className="text-lg font-bold text-amber-900 tabular-nums">
+                      {currentBalance.toLocaleString()} Ar
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
           {/* Expected amount override if partial payment on a monthly fee */}
           {(() => {
             if (!['tuition', 'canteen', 'bus'].includes(formData.payment_type) || !formData.month)
@@ -1309,14 +1394,93 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="amount">Montant encaissé aujourd'hui (Ar)</Label>
+            <div className="flex justify-between items-center">
+              <Label htmlFor="amount" className="font-semibold text-gray-800">
+                Montant encaissé aujourd'hui (Ar)
+              </Label>
+              {(() => {
+                let currentBal = 0
+                if (formData.payment_type === 'enrollment' || formData.payment_type === 'reenrollment') {
+                  currentBal = Math.max(0, enrollmentBalance)
+                } else if (formData.payment_type === 'fram') {
+                  currentBal = Math.max(0, framBalance)
+                } else if (['tuition', 'canteen', 'bus'].includes(formData.payment_type) && formData.month) {
+                  const currentFeeRecord = status?.feeRecord || feeRecord
+                  let cost = 0
+                  if (formData.payment_type === 'tuition') cost = getTuitionCost(currentFeeRecord, configPrices, Boolean(studentInfo?.is_personnel_child))
+                  else if (formData.payment_type === 'bus') cost = getBusCost(currentFeeRecord, configPrices)
+                  else if (formData.payment_type === 'canteen') cost = getCanteenCost(currentFeeRecord, configPrices)
+                  const existing = payments.filter((p) => p.payment_type === formData.payment_type && p.month === formData.month)
+                  const paid = existing.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+                  currentBal = Math.max(0, cost - paid)
+                } else if (formData.payment_type === 'uniform') {
+                  currentBal = (formData.item && configPrices?.uniforms?.[formData.item]) || 0
+                } else if (formData.payment_type === 'event') {
+                  const evt = events.find((e) => e.id === formData.item)
+                  currentBal = evt?.amount_per_parent || 0
+                }
+                if (currentBal > 0) {
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, amount: currentBal.toString() })}
+                      className="text-xs text-primary hover:underline font-medium cursor-pointer"
+                    >
+                      Payer le solde ({currentBal.toLocaleString()} Ar)
+                    </button>
+                  )
+                }
+                return null
+              })()}
+            </div>
             <Input
               id="amount"
               type="number"
               value={formData.amount}
               onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+              placeholder="Montant versé par le parent"
               required
             />
+            {/* Real-time balance calculation indicator */}
+            {(() => {
+              const entered = parseFloat(formData.amount)
+              let currentBal = 0
+              if (formData.payment_type === 'enrollment' || formData.payment_type === 'reenrollment') {
+                currentBal = Math.max(0, enrollmentBalance)
+              } else if (formData.payment_type === 'fram') {
+                currentBal = Math.max(0, framBalance)
+              } else if (['tuition', 'canteen', 'bus'].includes(formData.payment_type) && formData.month) {
+                const currentFeeRecord = status?.feeRecord || feeRecord
+                let cost = 0
+                if (formData.payment_type === 'tuition') cost = getTuitionCost(currentFeeRecord, configPrices, Boolean(studentInfo?.is_personnel_child))
+                else if (formData.payment_type === 'bus') cost = getBusCost(currentFeeRecord, configPrices)
+                else if (formData.payment_type === 'canteen') cost = getCanteenCost(currentFeeRecord, configPrices)
+                const existing = payments.filter((p) => p.payment_type === formData.payment_type && p.month === formData.month)
+                const paid = existing.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+                currentBal = Math.max(0, cost - paid)
+              }
+              if (isNaN(entered) || entered <= 0 || currentBal <= 0) return null
+              const remainingAfter = currentBal - entered
+              if (remainingAfter === 0) {
+                return (
+                  <p className="text-xs text-emerald-700 font-medium">
+                    ✓ Ce versement soldera l'intégralité du reste à payer.
+                  </p>
+                )
+              } else if (remainingAfter > 0) {
+                return (
+                  <p className="text-xs text-amber-700 font-medium">
+                    Nouveau reste à payer après ce versement : {remainingAfter.toLocaleString()} Ar
+                  </p>
+                )
+              } else {
+                return (
+                  <p className="text-xs text-blue-700 font-medium">
+                    Note : Ce versement dépasse le solde attendu de {(-remainingAfter).toLocaleString()} Ar.
+                  </p>
+                )
+              }
+            })()}
           </div>
 
           <div className="grid gap-2">

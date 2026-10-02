@@ -30,12 +30,14 @@ interface SyncState {
   latencyMs?: number
   pendingCount: number
   errorCount: number
+  failedCount: number
   quarantinedCount: number
   lastSyncTime: string | null
   healthError?: string
   progress: SyncProgressData
   errors: SyncErrorItem[]
   isModalOpen: boolean
+  isReconciliationOpen: boolean
   appVersion: string
 
   // Actions
@@ -46,6 +48,8 @@ interface SyncState {
   quarantineAndUnblock: () => Promise<boolean>
   openModal: () => void
   closeModal: () => void
+  openReconciliation: () => void
+  closeReconciliation: () => void
   init: () => () => void
 }
 
@@ -57,10 +61,11 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   latencyMs: undefined,
   pendingCount: 0,
   errorCount: 0,
+  failedCount: 0,
   quarantinedCount: 0,
   lastSyncTime: null,
   healthError: undefined,
-  appVersion: '1.1.11',
+  appVersion: '2.2.5',
   progress: {
     phase: 'idle',
     current: 0,
@@ -70,6 +75,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   },
   errors: [],
   isModalOpen: false,
+  isReconciliationOpen: false,
 
   openModal: () => {
     set({ isModalOpen: true })
@@ -79,6 +85,16 @@ export const useSyncStore = create<SyncState>((set, get) => ({
 
   closeModal: () => {
     set({ isModalOpen: false })
+  },
+
+  openReconciliation: () => {
+    set({ isReconciliationOpen: true })
+  },
+
+  closeReconciliation: () => {
+    set({ isReconciliationOpen: false })
+    get().fetchStatus()
+    get().fetchErrors()
   },
 
   fetchStatus: async () => {
@@ -92,6 +108,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
           latencyMs: status.latencyMs,
           pendingCount: status.pendingCount,
           errorCount: status.errorCount,
+          failedCount: status.failedCount || 0,
           quarantinedCount: status.quarantinedCount || 0,
           lastSyncTime: status.lastSyncTime,
           healthError: undefined

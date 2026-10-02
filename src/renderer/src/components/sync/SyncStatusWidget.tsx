@@ -6,7 +6,8 @@ import {
   RefreshCw,
   CheckCircle,
   UploadCloud,
-  LogOut
+  LogOut,
+  AlertTriangle
 } from 'lucide-react'
 
 const roleLabels: Record<string, string> = {
@@ -24,6 +25,8 @@ export const SyncStatusWidget: React.FC = () => {
     isOnline,
     pendingCount,
     errorCount,
+    failedCount,
+    quarantinedCount,
     progress,
     startSync,
     openModal,
@@ -39,9 +42,11 @@ export const SyncStatusWidget: React.FC = () => {
     ? 'Connexion Internet indisponible. Vos modifications sont enregistrées localement en toute sécurité.'
     : isSyncing
       ? progress.message || 'Synchronisation en cours...'
-      : pendingCount > 0
-        ? `${pendingCount} modification(s) prête(s) à être envoyée(s) sur le Cloud.`
-        : 'Toutes les données sont synchronisées avec le Cloud.'
+      : (failedCount > 0 || quarantinedCount > 0)
+        ? `${failedCount + quarantinedCount} écriture(s) bloquée(s) ou isolée(s). Cliquez pour réconcilier.`
+        : pendingCount > 0
+          ? `${pendingCount} modification(s) prête(s) à être envoyée(s) sur le Cloud.`
+          : 'Toutes les données sont synchronisées avec le Cloud.'
 
   const initial = (user?.full_name || user?.username || 'U').charAt(0).toUpperCase()
 
@@ -61,7 +66,9 @@ export const SyncStatusWidget: React.FC = () => {
           {isSyncing ? (
             <RefreshCw className="w-3.5 h-3.5 text-blue-300 animate-spin shrink-0" />
           ) : isOnline ? (
-            pendingCount > 0 ? (
+            (failedCount > 0 || quarantinedCount > 0) ? (
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-300 animate-pulse shrink-0" />
+            ) : pendingCount > 0 ? (
               <UploadCloud className="w-3.5 h-3.5 text-amber-300 shrink-0" />
             ) : (
               <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -76,16 +83,18 @@ export const SyncStatusWidget: React.FC = () => {
                 ? `Synchro en cours (${progress.percent}%)`
                 : !isOnline
                   ? 'Mode Hors-ligne'
-                  : pendingCount > 0
-                    ? `${pendingCount} en attente`
-                    : 'Cloud à jour'}
+                  : (failedCount > 0 || quarantinedCount > 0)
+                    ? `${failedCount + quarantinedCount} à réconcilier`
+                    : pendingCount > 0
+                      ? `${pendingCount} en attente`
+                      : 'Cloud à jour'}
             </span>
           </div>
 
-          {errorCount > 0 && (
+          {(errorCount > 0 || failedCount > 0) && (
             <span
               className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0"
-              title={`${errorCount} erreur(s) de synchronisation`}
+              title={`${errorCount + failedCount} anomalie(s) ou écriture(s) bloquée(s)`}
             />
           )}
         </button>

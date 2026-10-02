@@ -28,10 +28,12 @@ import { registerLogHandlers } from './ipc/log.handler'
 import { registerPrinterHandlers } from './ipc/printer.handler'
 import { registerSyncHandlers } from './ipc/sync.handler'
 import { registerDuplicateHandlers } from './ipc/duplicate.handler'
+import { registerUpdaterHandlers } from './ipc/updater.handler'
 import { startPeriodicSync } from './services/sync.service'
 import { startSessionMonitor, stopSessionMonitor } from './auth/session.service'
 import { EmailService } from './services/email.service'
 import { TelemetryService } from './services/telemetry.service'
+import { UpdaterService } from './services/updater.service'
 
 // Auth handlers are now registered via registerAuthHandlers() below
 
@@ -67,6 +69,9 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  // Initialize Remote Updater
+  UpdaterService.init(mainWindow)
 }
 
 // This method will be called when Electron has finished
@@ -110,6 +115,7 @@ app.whenReady().then(() => {
   registerPrinterHandlers()
   registerSyncHandlers()
   registerDuplicateHandlers()
+  registerUpdaterHandlers()
 
   // Register custom protocol for local resources
   protocol.handle('local-resource', async (req) => {

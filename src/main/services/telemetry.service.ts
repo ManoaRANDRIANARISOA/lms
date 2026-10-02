@@ -9,6 +9,7 @@
  */
 
 import os from 'os'
+import { app } from 'electron'
 import db from '../database/db'
 import { supabase } from './sync.service'
 import { LoggerService } from './logger.service'
@@ -301,4 +302,156 @@ export class TelemetryService {
       return { success: false, error: msg }
     }
   }
+
+  /**
+   * Publishes a workstation status heartbeat to Supabase with local row counts and queue status
+   */
+  static async publishWorkstationHeartbeat(): Promise<boolean> {
+    try {
+      const stationCode = this.getStationCode()
+      const hostname = os.hostname()
+      const platform = `${process.platform} ${os.release()}`
+      let appVersion = '2.2.5'
+      try {
+        appVersion = app.getVersion() || '2.2.5'
+      } catch {}
+
+      // Count local active records
+      const counts: Record<string, number> = {
+        students: (db.prepare('SELECT count(*) as c FROM students WHERE deleted = 0').get() as any)?.c || 0,
+        student_payments: (db.prepare('SELECT count(*) as c FROM student_payments WHERE deleted = 0').get() as any)?.c || 0,
+        cash_journal: (db.prepare('SELECT count(*) as c FROM cash_journal WHERE deleted = 0').get() as any)?.c || 0,
+        users: (db.prepare('SELECT count(*) as c FROM users WHERE deleted = 0').get() as any)?.c || 0
+      }
+
+      // Count sync_queue states
+      const queueCounts = db.prepare(`
+        SELECT 
+          SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+          SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as errors,
+          SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+          SUM(CASE WHEN status = 'quarantined' THEN 1 ELSE 0 END) as quarantined
+        FROM sync_queue
+      `).get() as any
+
+      const queue = {
+        pending: queueCounts?.pending || 0,
+        errors: queueCounts?.errors || 0,
+        failed: queueCounts?.failed || 0,
+        quarantined: queueCounts?.quarantined || 0
+      }
+
+      const payload = {
+        station: stationCode,
+        hostname,
+        platform,
+        app_version: appVersion,
+        counts,
+        queue,
+        last_sync: new Date().toISOString()
+      }
+
+      const { error } = await supabase.from('audit_logs').insert({
+        action: 'station_heartbeat',
+        table_name: 'telemetry',
+        record_id: stationCode,
+        new_value: JSON.stringify(payload)
+      })
+
+      return !error
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Fetches latest heartbeat for all workstations along with cloud row counts for cross-station convergence comparison
+   */
+  static async fetchWorkstationHeartbeats(): Promise<{
+    success: boolean
+    cloudCounts?: Record<string, number>
+    stations?: Array<{
+      station: string
+      hostname: string
+      platform: string
+      app_version: string
+      counts: Record<string, number>
+      queue: { pending: number; errors: number; failed: number; quarantined: number }
+      last_sync: string
+    }>
+    error?: string
+  }> {
+    try {
+      // 1. Fetch Cloud active counts
+      const [stRes, payRes, cjRes, usrRes] = await Promise.all([
+        supabase.from('students').select('*', { count: 'exact', head: true }).eq('deleted', false),
+        supabase.from('student_payments').select('*', { count: 'exact', head: true }).eq('deleted', false),
+        supabase.from('cash_journal').select('*', { count: 'exact', head: true }).eq('deleted', false),
+        supabase.from('users').select('*', { count: 'exact', head: true }).eq('deleted', false)
+      ])
+
+      const cloudCounts: Record<string, number> = {
+        students: stRes.count ?? 0,
+        student_payments: payRes.count ?? 0,
+        cash_journal: cjRes.count ?? 0,
+        users: usrRes.count ?? 0
+      }
+
+      // 2. Fetch recent station_heartbeat entries from audit_logs
+      const { data: logs, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .eq('action', 'station_heartbeat')
+        .eq('table_name', 'telemetry')
+        .order('id', { ascending: false })
+        .limit(100)
+
+      if (error) {
+        return { success: false, cloudCounts, error: error.message }
+      }
+
+      const latestByStation = new Map<string, any>()
+      for (const row of logs || []) {
+        const stationKey = row.record_id || 'UNKNOWN'
+        if (!latestByStation.has(stationKey)) {
+          try {
+            const parsed = JSON.parse(row.new_value)
+            latestByStation.set(stationKey, {
+              ...parsed,
+              station: parsed.station || stationKey,
+              last_seen: parsed.last_sync || row.created_at,
+              server_recorded_at: row.created_at
+            })
+          } catch {
+            // ignore malformed
+          }
+        }
+      }
+
+      // 3. Count recent station_error incidents per station
+      const { data: errorRows } = await supabase
+        .from('audit_logs')
+        .select('record_id')
+        .eq('action', 'station_error')
+        .limit(300)
+
+      const errorCountByStation: Record<string, number> = {}
+      for (const eRow of errorRows || []) {
+        const st = eRow.record_id || 'UNKNOWN'
+        errorCountByStation[st] = (errorCountByStation[st] || 0) + 1
+      }
+
+      for (const [st, obj] of latestByStation.entries()) {
+        obj.station_error_count = errorCountByStation[st] || 0
+      }
+
+      const stations = Array.from(latestByStation.values())
+
+      return { success: true, cloudCounts, stations }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return { success: false, error: msg }
+    }
+  }
 }
+
