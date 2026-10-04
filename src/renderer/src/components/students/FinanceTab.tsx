@@ -26,7 +26,7 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { useFinanceStore } from '@/store/useFinanceStore'
-import { useAppStore } from '@/store/useAppStore'
+import { useAppStore, getDynamicSchoolYear } from '@/store/useAppStore'
 import { useAuthStore } from '@/store/useAuthStore'
 import { usePermissions } from '@/lib/usePermissions'
 import type { Payment, FeeRecord, FinancePrices } from '@shared/types'
@@ -173,7 +173,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
   const loadData = async () => {
     setLoading(true)
     try {
-      const cleanYear = (schoolYear || useAppStore.getState().currentYear || '2026-2027')
+      const cleanYear = (schoolYear || useAppStore.getState().currentYear || getDynamicSchoolYear())
         .replace(/['"]/g, '')
         .trim()
 

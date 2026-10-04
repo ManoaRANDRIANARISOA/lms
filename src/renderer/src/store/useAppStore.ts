@@ -9,7 +9,7 @@ interface AppState {
   fetchSettings: () => Promise<void>
 }
 
-function getDynamicSchoolYear(): string {
+export function getDynamicSchoolYear(): string {
   const now = new Date()
   const month = now.getMonth() + 1
   const year = now.getFullYear()

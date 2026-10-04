@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { BarChart3, FileText, Users, CreditCard, Download } from 'lucide-react'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
-import { useAppStore } from '@/store/useAppStore'
+import { useAppStore, getDynamicSchoolYear } from '@/store/useAppStore'
 import StudentExportModal from '@/components/students/StudentExportModal'
 import DataExportModal, { ExportColumnDef, ExportPresetDef } from '@/components/shared/DataExportModal'
 
@@ -30,7 +30,7 @@ export default function ReportsPage() {
   const globalSchoolYear = useAppStore((s) => s.currentYear)
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
-  const [schoolYear, setSchoolYear] = useState(globalSchoolYear || '2026-2027')
+  const [schoolYear, setSchoolYear] = useState(globalSchoolYear || getDynamicSchoolYear())
   const [financeReport, setFinanceReport] = useState<FinanceReport | null>(null)
   const [payrollReport, setPayrollReport] = useState<PayrollReport | null>(null)
   const [tuitionReport, setTuitionReport] = useState<Record<string, unknown> | null>(null)

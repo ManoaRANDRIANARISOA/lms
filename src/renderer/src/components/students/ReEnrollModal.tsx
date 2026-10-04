@@ -5,6 +5,7 @@ import { Input } from '../ui/input'
 import { Loader2 } from 'lucide-react'
 import { useClasses } from '@/lib/useClasses'
 import { useFinanceStore } from '@/store/useFinanceStore'
+import { getDynamicSchoolYear } from '@/store/useAppStore'
 
 interface ReEnrollModalProps {
   isOpen: boolean
@@ -43,7 +44,7 @@ const getNextClass = (currentClass: string, allClasses: string[]): string => {
 }
 
 const getNextYear = (currentYear: string): string => {
-  if (!currentYear) return '2026-2027'
+  if (!currentYear) return getDynamicSchoolYear()
   const parts = currentYear.split('-')
   if (parts.length === 2) {
     const start = parseInt(parts[0])
@@ -331,7 +332,7 @@ export const ReEnrollModal: React.FC<ReEnrollModalProps> = ({
           <Input
             value={targetYear}
             onChange={(e) => setTargetYear(e.target.value)}
-            placeholder="Ex: 2026-2027"
+            placeholder={`Ex: ${currentYear || getDynamicSchoolYear()}`}
           />
         </div>
 

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import type { Payment } from '@shared/types'
-import { useAppStore } from '@/store/useAppStore'
+import { useAppStore, getDynamicSchoolYear } from '@/store/useAppStore'
 import {
   Printer,
   FileText,
@@ -268,7 +268,7 @@ export default function ReceiptDetailModal({
               </div>
               <div>
                 <span className="text-xs text-muted-foreground block">Année scolaire</span>
-                <span className="text-foreground">{payment.school_year || '2026-2027'}</span>
+                <span className="text-foreground">{payment.school_year || useAppStore.getState().currentYear || getDynamicSchoolYear()}</span>
               </div>
             </div>
 

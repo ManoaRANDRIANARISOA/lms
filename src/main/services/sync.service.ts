@@ -978,10 +978,28 @@ function sanitizeRowPayload(tableName: string, action: string, rawData: any, rec
     delete payload.is_reenrollment
     if (!payload.school_year || typeof payload.school_year !== 'string' || !payload.school_year.trim()) {
       try {
-        const currentYearRow = db.prepare("SELECT value FROM settings WHERE key = 'current_school_year'").get() as any
-        payload.school_year = currentYearRow?.value || '2026-2027'
+        const row = db.prepare("SELECT value FROM settings WHERE key IN ('school_year', 'current_school_year') ORDER BY CASE WHEN key = 'school_year' THEN 1 ELSE 2 END LIMIT 1").get() as any
+        let val = ''
+        if (row?.value) {
+          try {
+            const parsed = JSON.parse(row.value)
+            val = typeof parsed === 'string' ? parsed.trim() : String(parsed).trim()
+          } catch {
+            val = String(row.value).replace(/['"]/g, '').trim()
+          }
+        }
+        if (!val) {
+          const now = new Date()
+          const month = now.getMonth() + 1
+          const year = now.getFullYear()
+          val = month >= 8 ? `${year}-${year + 1}` : `${year - 1}-${year}`
+        }
+        payload.school_year = val
       } catch {
-        payload.school_year = '2026-2027'
+        const now = new Date()
+        const month = now.getMonth() + 1
+        const year = now.getFullYear()
+        payload.school_year = month >= 8 ? `${year}-${year + 1}` : `${year - 1}-${year}`
       }
     }
   }

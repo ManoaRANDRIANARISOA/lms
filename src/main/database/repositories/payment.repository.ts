@@ -356,8 +356,7 @@ export class PaymentRepository {
     const id = uuidv4()
     const cleanSchoolYear = (
       payment.school_year ||
-      StudentRepository.getCurrentSchoolYear() ||
-      '2026-2027'
+      StudentRepository.getCurrentSchoolYear()
     )
       .replace(/['"]/g, '')
       .trim()
