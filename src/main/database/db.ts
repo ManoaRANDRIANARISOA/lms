@@ -152,7 +152,9 @@ const runMigrations = (): void => {
     '044_add_cash_closures.sql',
     '045_backfill_missing_receipt_numbers.sql',
     '046_sync_queue_resilience.sql',
-    '047_normalize_cashier_usernames.sql'
+    '047_normalize_cashier_usernames.sql',
+    '048_add_performance_indexes.sql',
+    '049_align_student_fees_with_finance_prices.sql'
   ]
   migrations.forEach(applyMigration)
 }

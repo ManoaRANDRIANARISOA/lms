@@ -188,6 +188,60 @@ export function registerStudentHandlers(): void {
     }
   )
 
+  ipcMain.handle(
+    'student:getPendingEnrollmentRectifications',
+    async (_, schoolYear: string) => {
+      if (!canRead('students')) {
+        return { success: false, error: 'Accès refusé: lecture inscriptions élèves' }
+      }
+      return StudentRepository.getPendingEnrollmentRectifications(schoolYear)
+    }
+  )
+
+  ipcMain.handle(
+    'student:batchRectifyEnrollmentType',
+    async (
+      _,
+      studentIds: string[],
+      schoolYear: string,
+      targetType: 'reenrollment' | 'enrollment'
+    ) => {
+      if (!canWrite('students')) {
+        return { success: false, error: 'Accès refusé: modification inscriptions élèves' }
+      }
+      const result = StudentRepository.batchRectifyEnrollmentType(studentIds, schoolYear, targetType)
+      if (result.success && result.count && result.count > 0) {
+        logAction(
+          getCurrentUser()?.id || null,
+          'update',
+          'students',
+          'batch',
+          null,
+          JSON.stringify({ rectified_type: targetType, count: result.count, school_year: schoolYear })
+        )
+      }
+      return result
+    }
+  )
+
+  ipcMain.handle('student:syncFeesWithPricing', async (_, schoolYear: string) => {
+    if (!canWrite('settings')) {
+      return { success: false, error: 'Accès refusé: synchronisation tarifs scolaires' }
+    }
+    const result = StudentRepository.syncFeesWithPricing(schoolYear)
+    if (result.success && result.updatedCount && result.updatedCount > 0) {
+      logAction(
+        getCurrentUser()?.id || null,
+        'update',
+        'settings',
+        'student_fees',
+        null,
+        JSON.stringify({ action: 'syncFeesWithPricing', updatedCount: result.updatedCount, school_year: schoolYear })
+      )
+    }
+    return result
+  })
+
   // --------------------------------------------
   // SERVICE STATS
   // --------------------------------------------

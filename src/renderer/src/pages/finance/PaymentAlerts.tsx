@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { useClasses } from '@/lib/useClasses'
 import { cn } from '@/lib/utils'
-import { ExternalLink, Search, Filter, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { ExternalLink, Search, Filter, AlertCircle, ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 import { useAppStore } from '@/store/useAppStore'
 
@@ -242,6 +242,14 @@ export default function PaymentAlerts() {
               ))}
             </select>
           </div>
+          <a
+            href="#/finance"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors shadow-sm"
+            title="Ouvrir le module d'harmonisation des inscriptions / réinscriptions"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Harmoniser Inscriptions
+          </a>
           <Button onClick={() => loadAlerts(targetYear)} variant="outline" className="gap-2">
             Actualiser
           </Button>

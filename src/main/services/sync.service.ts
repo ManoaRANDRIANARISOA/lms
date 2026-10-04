@@ -1581,6 +1581,25 @@ async function pushLocalChanges() {
                   if (!retryErr) {
                     autoHealed = true
                   }
+                } else if (studentErr?.code === '23505') {
+                  // Registration number collision on student: resolve collision and retry
+                  const currentYearPrefix = new Date().getFullYear().toString()
+                  const localMaxRow = db.prepare(`
+                    SELECT MAX(CAST(SUBSTR(registration_number, 6) AS INTEGER)) as max_num 
+                    FROM students 
+                    WHERE registration_number LIKE ?
+                  `).get(`${currentYearPrefix}-%`) as { max_num: number | null } | undefined
+                  const nextNum = (localMaxRow?.max_num || 0) + 1
+                  const newRegNum = `${currentYearPrefix}-${String(nextNum).padStart(5, '0')}`
+                  db.prepare('UPDATE students SET registration_number = ? WHERE id = ?').run(newRegNum, localStudent.id)
+                  formattedStudent.registration_number = newRegNum
+                  const { error: retryStudentErr } = await supabase.from('students').upsert(formattedStudent)
+                  if (!retryStudentErr) {
+                    const { error: retryErr } = await supabase.from(item.table_name).upsert(payload)
+                    if (!retryErr) {
+                      autoHealed = true
+                    }
+                  }
                 } else if (item.table_name === 'cash_journal') {
                   // Fallback: If parent student push fails on constraint, nullify related_student_id on cash_journal so ledger is not blocked
                   console.warn(`[Auto-healing sync] Student push failed (${studentErr.message}). Nullifying related_student_id on cash_journal '${item.record_id}'`)
@@ -1598,6 +1617,12 @@ async function pushLocalChanges() {
                 if (!retryErr) {
                   autoHealed = true
                 }
+              } else if (item.table_name === 'student_payments') {
+                // Truly orphaned payment (student does not exist locally): quarantine to prevent blocking the queue
+                console.warn(`[Auto-healing sync] Parent student '${studentId}' not found for payment '${item.record_id}'. Quarantining.`)
+                db.prepare(`UPDATE sync_queue SET status = 'quarantined', error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+                  .run(`Élève parent inexistant (${studentId}) - paiement mis en quarantaine pour réconciliation`, item.id)
+                continue
               }
             }
           } catch (fkHealErr) {
@@ -1633,14 +1658,7 @@ async function pushLocalChanges() {
           sessionFailedTables.add(item.table_name)
         }
 
-        LoggerService.log(
-          'error',
-          'sync',
-          `Échec envoi (${item.table_name} ID: ${item.record_id}) : ${errMsg}`,
-          error
-        )
-
-        // Automatically report to cloud telemetry ("mouchard")
+        // Report to cloud telemetry & SQLite mouchard (with automatic 15-min deduplication)
         TelemetryService.reportSyncBlockage(
           item.table_name,
           item.record_id,

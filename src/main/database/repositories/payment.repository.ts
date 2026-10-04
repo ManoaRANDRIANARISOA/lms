@@ -378,23 +378,35 @@ export class PaymentRepository {
 
       const totalPaid = Number(existing?.total_paid || 0)
 
-      // Fetch student's tuition fee
-      const feeRow = db
-        .prepare(`SELECT monthly_tuition FROM student_fees WHERE student_id = ? AND school_year = ? AND deleted = 0`)
-        .get(payment.student_id, cleanSchoolYear) as { monthly_tuition: number | null } | undefined
+      // Fetch student's tuition fee (prioritizing central dynamic pricing from finance_prices)
+      const studentRow = db
+        .prepare(`SELECT class, is_personnel_child FROM students WHERE id = ?`)
+        .get(payment.student_id) as
+        | { class?: string; is_personnel_child?: unknown }
+        | undefined
+      const isPC =
+        studentRow?.is_personnel_child == 1 ||
+        studentRow?.is_personnel_child === '1' ||
+        studentRow?.is_personnel_child === '1.0' ||
+        studentRow?.is_personnel_child === true ||
+        studentRow?.is_personnel_child === 'true'
 
-      let expectedMonthlyFee = Number(feeRow?.monthly_tuition || 0)
-      if (expectedMonthlyFee <= 0) {
-        const studentRow = db.prepare(`SELECT class FROM students WHERE id = ?`).get(payment.student_id) as { class: string } | undefined
-        if (studentRow?.class) {
-          try {
-            const pricesSetting = db.prepare("SELECT value FROM settings WHERE key = 'finance_prices'").get() as { value: string } | undefined
-            if (pricesSetting?.value) {
-              const prices = JSON.parse(pricesSetting.value)
-              expectedMonthlyFee = Number(prices.tuition?.[studentRow.class] || 0)
-            }
-          } catch {}
-        }
+      const feeRow = db
+        .prepare(
+          `SELECT monthly_tuition, tuition_level FROM student_fees WHERE student_id = ? AND school_year = ? AND deleted = 0`
+        )
+        .get(payment.student_id, cleanSchoolYear) as
+        | { monthly_tuition: number | null; tuition_level?: string }
+        | undefined
+
+      let expectedMonthlyFee = 0
+      if (isPC) {
+        expectedMonthlyFee = 0
+      } else {
+        const level = feeRow?.tuition_level || studentRow?.class || ''
+        const tuitionConfig = StudentRepository.resolveTuitionConfig(level)
+        expectedMonthlyFee =
+          tuitionConfig.price > 0 ? tuitionConfig.price : Number(feeRow?.monthly_tuition || 0)
       }
 
       if (expectedMonthlyFee > 0 && totalPaid >= expectedMonthlyFee) {
@@ -911,7 +923,7 @@ export class PaymentRepository {
         .prepare(
           `
         SELECT s.id, s.first_name, s.last_name, s.class, s.departure_date, s.is_personnel_child,
-               sf.monthly_tuition, sf.tuition_level, sf.bus_subscribed, sf.bus_route, 
+               sf.monthly_tuition, sf.tuition_level, sf.bus_subscribed, sf.bus_route, sf.bus_monthly_fee,
                sf.canteen_subscribed, sf.canteen_days_per_week, sf.canteen_days,
                sf.is_reenrollment, sf.enrollment_fee, sf.reenrollment_fee, sf.class_name,
                (SELECT COUNT(*) FROM student_fees sf_past 
@@ -1078,17 +1090,20 @@ export class PaymentRepository {
           const hasReenPay = studentDroits.reenrollment > 0
           const hasEnrPay = studentDroits.enrollment > 0
 
+          const isConfirmedReenrollment =
+            student.is_reenrollment === 1 ||
+            student.is_reenrollment === true ||
+            student.is_reenrollment === '1'
+
           let isReturning = false
-          if (hasReenPay) {
+          if (isConfirmedReenrollment) {
+            isReturning = true
+          } else if (hasReenPay) {
             isReturning = true
           } else if (hasEnrPay) {
             isReturning = false
           } else {
-            isReturning =
-              student.is_reenrollment === 1 ||
-              student.is_reenrollment === true ||
-              student.is_reenrollment === '1' ||
-              (Number(student.past_years_count) > 0)
+            isReturning = Number(student.past_years_count) > 0
           }
 
           const defaultRegPrice = Number(prices.registration) || 140000
@@ -1111,27 +1126,27 @@ export class PaymentRepository {
           }
         }
 
-        // --- Tuition ---
+        // --- Tuition (Centralized Dynamic Pricing) ---
         const isPersonnelChild =
           student.is_personnel_child === 1 ||
           student.is_personnel_child === '1' ||
           student.is_personnel_child === true ||
           student.is_personnel_child === 'true'
-        const level = student.tuition_level || resolvedClass
-        const configTuition = level ? Number(prices?.tuition?.[level]) : undefined
-        let effectiveTuition = Number(student.monthly_tuition) || 0
-        if (configTuition !== undefined && configTuition > 0) {
-          // Si sf.monthly_tuition a une coquille (ex: 50001 au lieu de 50000, écart < 10 Ar), on applique la configuration
-          if (effectiveTuition === 0 || Math.abs(effectiveTuition - configTuition) < 10) {
-            effectiveTuition = configTuition
-          }
+
+        let tuitionCost = 0
+        if (!isPersonnelChild) {
+          const level = student.tuition_level || resolvedClass
+          const tuitionConfig = StudentRepository.resolveTuitionConfig(level)
+          tuitionCost =
+            tuitionConfig.price > 0 ? tuitionConfig.price : Number(student.monthly_tuition) || 0
         }
-        const tuitionCost = isPersonnelChild ? 0 : effectiveTuition
         checkMonthlyService('tuition', tuitionCost, 'Écolage')
 
         // --- Bus ---
         if (student.bus_subscribed && student.bus_route) {
-          const busCost = prices?.bus?.[student.bus_route] || 0
+          const customBusFee = Number(student.bus_monthly_fee) || 0
+          const busCost =
+            customBusFee > 0 ? customBusFee : prices?.bus?.[student.bus_route] || 0
           checkMonthlyService('bus', busCost, 'Transport')
         }
 

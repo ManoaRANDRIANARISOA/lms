@@ -207,6 +207,34 @@ interface APIType {
       schoolYear: string,
       newType: 'enrollment' | 'reenrollment'
     ) => Promise<{ success: boolean; error?: string }>
+    getPendingEnrollmentRectifications: (schoolYear: string) => Promise<{
+      success: boolean
+      items?: Array<{
+        student_id: string
+        first_name: string
+        last_name: string
+        class_name: string
+        amount_paid: number
+        payment_date: string
+        receipt_number: string
+        payment_type: string
+        is_reenrollment: number
+        past_years_count: number
+        expected_if_new: number
+        expected_if_returning: number
+        balance_if_new: number
+        balance_if_returning: number
+      }>
+      error?: string
+    }>
+    batchRectifyEnrollmentType: (
+      studentIds: string[],
+      schoolYear: string,
+      newType: 'enrollment' | 'reenrollment'
+    ) => Promise<{ success: boolean; count?: number; error?: string }>
+    syncFeesWithPricing: (
+      schoolYear: string
+    ) => Promise<{ success: boolean; updatedCount?: number; error?: string }>
 
     repairSync: () => Promise<{ success: boolean; error?: string }>
     resetDatabase: (includeRemote: boolean) => Promise<{ success: boolean; error?: string }>

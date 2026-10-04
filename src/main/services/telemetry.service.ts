@@ -69,6 +69,9 @@ export function isNetworkOrOfflineError(error: any): boolean {
 }
 
 export class TelemetryService {
+  private static recentReports = new Map<string, number>()
+  private static readonly DEDUP_TTL_MS = 15 * 60 * 1000 // 15 minutes suppression for identical errors
+
   /**
    * Retrieves the current station code (e.g. 'C1', 'C2') or fallback to hostname
    */
@@ -109,6 +112,25 @@ export class TelemetryService {
     if (isNetworkOrOfflineError(message) || isNetworkOrOfflineError(details) || isNetworkOrOfflineError(extra)) {
       LoggerService.log('info', context, `[Hors-ligne] ${message}`, extraDetails)
       return false
+    }
+
+    // SAFEGUARD: Deduplicate repeated errors within 15 minutes to prevent telemetry flooding
+    const dedupKey = `${context}:${extra?.tableName || ''}:${extra?.recordId || ''}:${(message || '').slice(0, 100)}`
+    const now = Date.now()
+    const lastReportTime = this.recentReports.get(dedupKey)
+    if (lastReportTime && now - lastReportTime < this.DEDUP_TTL_MS) {
+      // Suppress duplicate transmission to Supabase
+      return true
+    }
+    this.recentReports.set(dedupKey, now)
+
+    // Clean up stale cache keys if it exceeds 200 entries
+    if (this.recentReports.size > 200) {
+      for (const [k, time] of this.recentReports.entries()) {
+        if (now - time >= this.DEDUP_TTL_MS) {
+          this.recentReports.delete(k)
+        }
+      }
     }
 
     // 1. Log locally to SQLite app_logs (persisted with resolved = 0)
@@ -247,6 +269,7 @@ export class TelemetryService {
         .from('audit_logs')
         .select('*', { count: 'exact' })
         .eq('table_name', 'telemetry')
+        .eq('action', 'station_error')
         .order('timestamp', { ascending: false })
         .limit(limit)
 
@@ -291,7 +314,7 @@ export class TelemetryService {
       const { error } = await supabase
         .from('audit_logs')
         .delete()
-        .eq('table_name', 'telemetry')
+        .eq('action', 'station_error')
 
       if (error) {
         return { success: false, error: error.message }

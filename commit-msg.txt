@@ -1,6 +1,47 @@
-Release v1.0.11: Améliorations et corrections
+feat(release): v2.3.1 — Harmonisation écolages dynamiques, réconciliation réinscriptions & assainissement mouchard
 
-- package.json : Incrémentation de la version à 1.0.11.
-- src/main/services/logger.service.ts : Suppression de l'importation inutilisée de `BrowserWindow` pour corriger les avertissements (warnings).
-- src/main/auth/rbac.service.ts : Ajustement des permissions RBAC. Le secrétariat a maintenant un accès "full" (complet) aux paiements (payments), et la caisse a un accès "full" (complet) au journal de caisse (cash_journal).
-- src/renderer/src/pages/personnel/PersonnelList.tsx : Nettoyage du code en supprimant un `console.log` de débogage inutile.
+### 1. Centralisation & Dynamisme des Tarifs d'Écolage (Single Source of Truth)
+- `src/main/database/repositories/payment.repository.ts`:
+  - `getUnpaidAlerts`: Suppression du seuil restrictif `< 10 Ar` empêchant l'actualisation dynamique du tarif d'écolage centralisé. Résolution automatique via `StudentRepository.resolveTuitionConfig(tuition_level || resolvedClass)`.
+  - Prise en charge des tarifs dérogatoires de transport (`bus_monthly_fee`).
+  - `create`: Application de `resolveTuitionConfig` dans le contrôle anti-doublon d'écolage pour valider avec exactitude le plafond mensuel payé.
+- `src/main/database/migrations/049_align_student_fees_with_finance_prices.sql`:
+  - Migration SQL additive et non destructive réalignant les frais mensuels statiques de scolarité dans `student_fees` (CM1 à 45 000 Ar, 3ème/2nde/1ère à 55 000 Ar) avec la configuration centrale `finance_prices`.
+  - Préservation stricte des enfants du personnel (`is_personnel_child` = 0 Ar).
+- `src/main/database/db.ts`:
+  - Enregistrement de la migration 049 dans l'exécuteur de migrations au démarrage.
+- `src/main/services/report.service.ts`:
+  - Utilisation de `resolveTuitionConfig` et exclusion des enfants de personnel dans `getUnpaidTuitionReport`.
+- `src/renderer/src/components/students/FinanceTab.tsx`:
+  - Ajout de la fonction de résolution de niveau `resolveTuitionLevelName` et sécurisation de `getTuitionCost` pour l'en-tête et la grille mensuelle (aucun montant erroné ou écolage doublé).
+
+### 2. Réconciliation des Inscriptions / Réinscriptions (Droits 115 000 Ar vs 140 000 Ar)
+- `src/main/database/repositories/student.repository.ts`:
+  - Ajout de `getPendingEnrollmentRectifications`: Détection des élèves ayant payé 115 000 Ar avec `is_reenrollment = 1` mais enregistrés sous le libellé d'encaissement générique `enrollment`.
+  - Ajout de `batchRectifyEnrollmentType`: Rectification en lot des types de paiement et mise à jour cohérente du statut réinscription.
+  - Ajout de `syncFeesWithPricing`: Alignement des enregistrements `student_fees` avec la grille tarifaire active.
+- `src/main/ipc/student.handler.ts`:
+  - Canaux IPC pour la récupération, la rectification en lot et la synchronisation des frais.
+- `src/preload/index.ts`, `src/preload/index.d.ts`, `src/renderer/src/env.d.ts`:
+  - Exposition et typage TypeScript sécurisé via ContextBridge (`window.api.student.*`).
+- `src/renderer/src/components/finance/EnrollmentReconciliation.tsx`:
+  - Nouveau composant d'interface utilisateur permettant aux gestionnaires de prévisualiser et réconcilier en un clic les droits des élèves concernés.
+- `src/renderer/src/pages/finance/FinanceConfig.tsx`:
+  - Intégration du composant de réconciliation dans les paramètres financiers.
+- `src/renderer/src/pages/finance/PaymentAlerts.tsx`:
+  - Bandeau d'information et lien direct vers l'outil de réconciliation en cas d'écarts détectés sur les droits.
+
+### 3. Télémétrie Cloud & Assainissement du Mouchard Supabase
+- `src/main/services/telemetry.service.ts`:
+  - Ajout d'un cache de déduplication avec fenêtre glissante de 15 minutes (`DEDUP_TTL_MS`) dans `TelemetryService.reportError` pour stopper l'inondation de rapports identiques.
+  - Isolation du filtre `.eq('action', 'station_error')` dans `fetchWorkstationTelemetry` et `clearCloudTelemetry` afin d'éviter d'effacer ou de confondre les heartbeats des postes.
+- `src/main/services/sync.service.ts`:
+  - Auto-guérison des erreurs de clés étrangères (23503) : gestion des collisions de matricules (23505) lors de la transmission préalable de l'élève parent.
+  - Mise en quarantaine immédiate (`status = 'quarantined'`) des paiements orphelins (élève parent introuvable en local) pour éviter les blocages de la file de synchro.
+  - Suppression de la double journalisation redondante (`LoggerService.log` avant `reportSyncBlockage`).
+
+### 4. Release Notes, Versioning & Documentation
+- `CHANGELOG.md`:
+  - Création du journal officiel des modifications selon la norme Keep a Changelog et SemVer.
+- `package.json`:
+  - Incrémentation de la version applicative à `v2.3.1`.

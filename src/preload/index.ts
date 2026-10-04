@@ -51,6 +51,21 @@ const api = {
       schoolYear: string,
       newType: 'enrollment' | 'reenrollment'
     ) => ipcRenderer.invoke('student:rectifyEnrollmentType', studentId, schoolYear, newType),
+    getPendingEnrollmentRectifications: (schoolYear: string) =>
+      ipcRenderer.invoke('student:getPendingEnrollmentRectifications', schoolYear),
+    batchRectifyEnrollmentType: (
+      studentIds: string[],
+      schoolYear: string,
+      newType: 'enrollment' | 'reenrollment'
+    ) =>
+      ipcRenderer.invoke(
+        'student:batchRectifyEnrollmentType',
+        studentIds,
+        schoolYear,
+        newType
+      ),
+    syncFeesWithPricing: (schoolYear: string) =>
+      ipcRenderer.invoke('student:syncFeesWithPricing', schoolYear),
 
     repairSync: () => ipcRenderer.invoke('student:repairSync'),
     resetDatabase: (includeRemote: boolean) => ipcRenderer.invoke('db:reset', includeRemote)

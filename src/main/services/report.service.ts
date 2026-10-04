@@ -7,6 +7,7 @@
  */
 
 import db from '../database/db'
+import { StudentRepository } from '../database/repositories/student.repository'
 
 export class ReportService {
   static generateMonthlyFinanceReport(year: number, month: number) {
@@ -71,19 +72,21 @@ export class ReportService {
       const fees = db
         .prepare(
           `
-        SELECT sf.class_name, sf.student_id, sf.monthly_tuition,
-               s.first_name, s.last_name
+        SELECT sf.class_name, sf.student_id, sf.monthly_tuition, sf.tuition_level,
+               s.first_name, s.last_name, s.is_personnel_child
         FROM student_fees sf
         JOIN students s ON sf.student_id = s.id
-        WHERE sf.school_year = ? AND sf.deleted = 0 AND sf.monthly_tuition > 0
+        WHERE sf.school_year = ? AND sf.deleted = 0 AND s.deleted = 0
       `
         )
         .all(targetYear) as Array<{
         class_name: string
         student_id: string
         monthly_tuition: number
+        tuition_level?: string
         first_name: string
         last_name: string
+        is_personnel_child?: unknown
       }>
 
       const [startYear] = targetYear.split('-').map(Number)
@@ -108,6 +111,21 @@ export class ReportService {
       > = {}
 
       fees.forEach((fee) => {
+        const isPC =
+          fee.is_personnel_child == 1 ||
+          fee.is_personnel_child === '1' ||
+          fee.is_personnel_child === '1.0' ||
+          fee.is_personnel_child === true ||
+          fee.is_personnel_child === 'true'
+        if (isPC) return
+
+        const tuitionConfig = StudentRepository.resolveTuitionConfig(
+          fee.tuition_level || fee.class_name
+        )
+        const effectiveTuition =
+          tuitionConfig.price > 0 ? tuitionConfig.price : Number(fee.monthly_tuition) || 0
+        if (effectiveTuition <= 0) return
+
         const paidMonths = payments
           .filter((p) => p.student_id === fee.student_id)
           .map((p) => p.month)
@@ -117,7 +135,7 @@ export class ReportService {
           byClass[fee.class_name].push({
             student: `${fee.last_name} ${fee.first_name}`,
             unpaid: unpaid.length,
-            total_due: unpaid.length * fee.monthly_tuition
+            total_due: unpaid.length * effectiveTuition
           })
         }
       })

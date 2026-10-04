@@ -71,6 +71,16 @@ interface ServiceCard {
   balance?: number
 }
 
+const resolveTuitionLevelName = (levelOrClass?: string | null): string => {
+  if (!levelOrClass) return ''
+  const norm = levelOrClass.trim().toUpperCase()
+  if (['TPS', 'PS', 'MS', 'GS', 'MATERNELLE'].includes(norm)) return 'Maternelle'
+  if (['CP', 'CE1', 'CE2', 'CM1', 'CM2', 'PRIMAIRE'].includes(norm)) return 'Primaire'
+  if (['6EME', '6ÈME', '5EME', '5ÈME', '4EME', '4ÈME', '3EME', '3ÈME', 'COLLÈGE', 'COLLEGE'].includes(norm)) return 'Collège'
+  if (['2NDE', 'SECONDE', '1ERE', '1ÈRE', 'PREMIÈRE', 'TA', 'TD', 'TERMINALE', 'LYCÉE', 'LYCEE'].includes(norm)) return 'Lycée'
+  return levelOrClass
+}
+
 const getTuitionCost = (
   record: FeeRecord | undefined | null,
   prices: FinancePrices | null,
@@ -80,6 +90,10 @@ const getTuitionCost = (
   if (!record) return 0
   if (record.tuition_level && prices?.tuition?.[record.tuition_level]) {
     return prices.tuition[record.tuition_level]
+  }
+  const resolved = resolveTuitionLevelName(record.tuition_level || record.class_name)
+  if (resolved && prices?.tuition?.[resolved]) {
+    return prices.tuition[resolved]
   }
   return record.monthly_tuition || 0
 }
@@ -617,15 +631,14 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
   const hasEnrollmentPayment = payments.some((p) => p.payment_type === 'enrollment')
 
   let isReturning = false
-  if (hasReenrollmentPayment) {
+  if (busFeeRecord?.is_reenrollment === 1 || busFeeRecord?.is_reenrollment === true) {
+    isReturning = true
+  } else if (hasReenrollmentPayment) {
     isReturning = true
   } else if (hasEnrollmentPayment) {
     isReturning = false
   } else {
-    isReturning =
-      studentInfo?.student_status === 'Ancien' ||
-      busFeeRecord?.is_reenrollment === 1 ||
-      busFeeRecord?.is_reenrollment === true
+    isReturning = studentInfo?.student_status === 'Ancien'
   }
 
   const enrollmentType = isReturning ? 'reenrollment' : 'enrollment'
@@ -934,7 +947,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           </div>
           <p
             className={`text-2xl font-bold truncate ${studentInfo?.is_personnel_child && studentInfo?.student_status !== 'Non inscrit' && status?.feeRecord ? 'text-purple-600 text-lg' : 'text-gray-900'}`}
-            title={`${(studentInfo?.is_personnel_child && studentInfo?.student_status !== 'Non inscrit' && status?.feeRecord ? 0 : configPrices?.tuition?.[status?.feeRecord?.tuition_level ?? ''] || status?.feeRecord?.monthly_tuition || 0).toLocaleString()} Ar`}
+            title={`${getTuitionCost(status?.feeRecord, configPrices, Boolean(studentInfo?.is_personnel_child)).toLocaleString()} Ar`}
           >
             {studentInfo?.is_personnel_child &&
             studentInfo?.student_status !== 'Non inscrit' &&
@@ -942,7 +955,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
               ? 'EXONÉRÉ (Enfant Personnel)'
               : studentInfo?.student_status === 'Non inscrit' || !status?.feeRecord
                 ? 'NON INSCRIT'
-                : `${(configPrices?.tuition?.[status?.feeRecord?.tuition_level ?? ''] || status?.feeRecord?.monthly_tuition || 0).toLocaleString()} Ar`}
+                : `${getTuitionCost(status?.feeRecord, configPrices, Boolean(studentInfo?.is_personnel_child)).toLocaleString()} Ar`}
           </p>
           <p className="text-xs text-gray-500 truncate">
             Niveau: {status?.feeRecord?.tuition_level || '-'}
