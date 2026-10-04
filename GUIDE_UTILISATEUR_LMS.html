@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guide Officiel Utilisateur & Maintenance — LMS École</title>
+  <style>
+    :root {
+      --primary: #4338ca;
+      --primary-gradient: linear-gradient(135deg, #312e81 0%, #4338ca 50%, #6366f1 100%);
+      --accent: #0ea5e9;
+      --success: #059669;
+      --success-bg: #ecfdf5;
+      --warning: #d97706;
+      --warning-bg: #fffbeb;
+      --danger: #dc2626;
+      --danger-bg: #fef2f2;
+      --slate-50: #f8fafc;
+      --slate-100: #f1f5f9;
+      --slate-200: #e2e8f0;
+      --slate-300: #cbd5e1;
+      --slate-600: #475569;
+      --slate-700: #334155;
+      --slate-800: #1e293b;
+      --slate-900: #0f172a;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: #f1f5f9;
+      color: var(--slate-800);
+      line-height: 1.6;
+      padding: 24px;
+    }
+
+    .wrapper {
+      max-width: 1100px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      border: 1px solid var(--slate-200);
+    }
+
+    /* HEADER */
+    header {
+      background: var(--primary-gradient);
+      color: #ffffff;
+      padding: 48px 40px;
+      position: relative;
+    }
+
+    .badge-release {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 4px 14px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 14px;
+    }
+
+    header h1 {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 10px;
+    }
+
+    header p {
+      font-size: 16px;
+      color: #e0e7ff;
+      max-width: 760px;
+      font-weight: 400;
+    }
+
+    /* QUICK NAVIGATION */
+    nav.summary-nav {
+      background: var(--slate-50);
+      border-bottom: 1px solid var(--slate-200);
+      padding: 18px 40px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 24px;
+    }
+
+    nav.summary-nav a {
+      color: var(--primary);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      background: #ffffff;
+      border: 1px solid var(--slate-200);
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s;
+    }
+
+    nav.summary-nav a:hover {
+      background: #eef2ff;
+      border-color: #c7d2fe;
+      transform: translateY(-1px);
+    }
+
+    /* MAIN CONTAINER */
+    main {
+      padding: 40px;
+    }
+
+    section {
+      margin-bottom: 56px;
+    }
+
+    h2 {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--slate-900);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--slate-100);
+    }
+
+    .icon-h2 {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: #eef2ff;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    h3 {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--slate-800);
+      margin: 22px 0 10px 0;
+    }
+
+    p {
+      margin-bottom: 14px;
+      font-size: 14px;
+      color: var(--slate-600);
+    }
+
+    /* SVG DIAGRAM CONTAINERS */
+    .diagram-card {
+      background: var(--slate-50);
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      margin: 20px 0;
+      text-align: center;
+    }
+
+    .diagram-card h4 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--slate-700);
+      margin-bottom: 16px;
+      text-align: left;
+    }
+
+    .diagram-svg {
+      width: 100%;
+      max-width: 900px;
+      height: auto;
+      margin: 0 auto;
+    }
+
+    /* STEP CARDS */
+    .step-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin: 20px 0;
+    }
+
+    .step-card {
+      background: #ffffff;
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      position: relative;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .step-card-num {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      font-size: 20px;
+      font-weight: 900;
+      color: var(--slate-300);
+    }
+
+    .step-card h4 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--slate-900);
+      margin-bottom: 8px;
+    }
+
+    .step-card p {
+      font-size: 13px;
+      color: var(--slate-600);
+      margin-bottom: 0;
+    }
+
+    /* ALERT BOXES */
+    .alert-box {
+      padding: 16px 20px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      margin: 16px 0;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      line-height: 1.5;
+    }
+
+    .alert-box-info {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e40af;
+    }
+
+    .alert-box-success {
+      background: var(--success-bg);
+      border: 1px solid #a7f3d0;
+      color: #065f46;
+    }
+
+    .alert-box-warning {
+      background: var(--warning-bg);
+      border: 1px solid #fde68a;
+      color: #92400e;
+    }
+
+    .alert-box-danger {
+      background: var(--danger-bg);
+      border: 1px solid #fecaca;
+      color: #991b1b;
+    }
+
+    .alert-icon {
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    /* TABLES */
+    table.guide-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin: 20px 0;
+      background: #ffffff;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      border: 1px solid var(--slate-200);
+    }
+
+    table.guide-table th {
+      background: var(--slate-100);
+      color: var(--slate-800);
+      font-weight: 700;
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--slate-200);
+    }
+
+    table.guide-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--slate-200);
+      color: var(--slate-700);
+    }
+
+    table.guide-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    table.guide-table tr:hover {
+      background: var(--slate-50);
+    }
+
+    .pill-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .pill-success { background: #d1fae5; color: #065f46; }
+    .pill-warning { background: #fef3c7; color: #92400e; }
+    .pill-danger { background: #fee2e2; color: #991b1b; }
+    .pill-info { background: #dbeafe; color: #1e40af; }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background: var(--slate-100);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: var(--primary);
+    }
+
+    footer {
+      background: var(--slate-50);
+      border-top: 1px solid var(--slate-200);
+      padding: 30px 40px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--slate-600);
+    }
+  </style>
+</head>
+<body>
+
+<div class="wrapper">
+  <!-- EN-TÊTE OFFICIEL -->
+  <header>
+    <div class="badge-release">
+      <span>● Architecture Certifiée</span>
+      <span>• Version 2.3.2</span>
+    </div>
+    <h1>Guide Complet Utilisateur, Gestion & Synchronisation</h1>
+    <p>Ce manuel d'exploitation fournit toutes les procédures claires et détaillées pour la gestion des réinscriptions, l'élimination des faux doublons, la réconciliation intelligente en quarantaine et la garantie de synchronisation parfaite entre vos postes.</p>
+  </header>
+
+  <!-- NAVIGATION RAPIDE -->
+  <nav class="summary-nav">
+    <a href="#flux-sync">🔄 1. Architecture & Auto-Guérison</a>
+    <a href="#reinscriptions">📝 2. Réinscriptions & Tarifs</a>
+    <a href="#doublons">🔍 3. Détecteur Intelligent de Doublons</a>
+    <a href="#quarantaine">🛡️ 4. Quarantaine & Résolution</a>
+    <a href="#matrice">📊 5. Matrice de Convergence</a>
+    <a href="#direction">👤 6. Comptes & Direction PC 1</a>
+  </nav>
+
+  <main>
+
+    <!-- SECTION 1 : FLUX & AUTO-GUÉRISON -->
+    <section id="flux-sync">
+      <h2>
+        <span class="icon-h2">🔄</span>
+        1. Architecture de Synchronisation & Moteur d'Auto-Guérison
+      </h2>
+      <p>Le logiciel fonctionne selon le principe <strong>Local-First (Hors-ligne d'abord)</strong> : chaque ordinateur possède sa propre base SQLite locale sécurisée. Dès qu'Internet est présent, les modifications sont transmises à Supabase Cloud et redescendues sur les autres machines.</p>
+
+      <div class="diagram-card">
+        <h4>Schéma Directeur : Flux des Données et Cycle d'Auto-Guérison</h4>
+        <svg class="diagram-svg" viewBox="0 0 850 220" xmlns="http://www.w3.org/2000/svg">
+          <!-- Postes Locaux -->
+          <rect x="20" y="25" width="220" height="70" rx="8" fill="#ffffff" stroke="#4338ca" stroke-width="2"/>
+          <text x="130" y="55" font-family="sans-serif" font-size="13" font-weight="bold" fill="#1e1b4b" text-anchor="middle">Poste Local (C1, C2, C3, C4)</text>
+          <text x="130" y="75" font-family="sans-serif" font-size="11" fill="#475569" text-anchor="middle">Base SQLite locale ultra-rapide</text>
+
+          <!-- Auto-Heal Scanner -->
+          <rect x="20" y="125" width="220" height="70" rx="8" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="4 2"/>
+          <text x="130" y="153" font-family="sans-serif" font-size="12" font-weight="bold" fill="#312e81" text-anchor="middle">Moteur Auto-Heal (Nouveau)</text>
+          <text x="130" y="173" font-family="sans-serif" font-size="10" fill="#4338ca" text-anchor="middle">Détecte et réenfile les oublis locaux</text>
+
+          <!-- Flèche vers Outbox Queue -->
+          <path d="M 240 60 L 320 60" stroke="#4338ca" stroke-width="2" marker-end="url(#arrow)"/>
+          <path d="M 240 160 L 280 160 L 280 80 L 320 80" stroke="#6366f1" stroke-width="2" fill="none"/>
+
+          <!-- Outbox Queue -->
+          <rect x="320" y="35" width="180" height="70" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+          <text x="410" y="65" font-family="sans-serif" font-size="13" font-weight="bold" fill="#0f172a" text-anchor="middle">File d'Attente Outbox</text>
+          <text x="410" y="85" font-family="sans-serif" font-size="11" fill="#64748b" text-anchor="middle">Tris par ordre de dépendance</text>
+
+          <!-- Flèche vers Cloud -->
+          <path d="M 500 70 L 590 70" stroke="#0ea5e9" stroke-width="3" marker-end="url(#arrow)"/>
+
+          <!-- Supabase Cloud -->
+          <rect x="590" y="20" width="240" height="180" rx="12" fill="#0f172a" stroke="#0284c7" stroke-width="2"/>
+          <text x="710" y="55" font-family="sans-serif" font-size="15" font-weight="bold" fill="#ffffff" text-anchor="middle">☁️ Supabase Cloud</text>
+          <text x="710" y="80" font-family="sans-serif" font-size="11" fill="#38bdf8" text-anchor="middle">Référence Centrale Sécurisée</text>
+
+          <rect x="610" y="105" width="200" height="35" rx="6" fill="#1e293b"/>
+          <text x="710" y="127" font-family="sans-serif" font-size="11" fill="#e2e8f0" text-anchor="middle">Élèves : 777 | Paiements : 3580</text>
+
+          <rect x="610" y="148" width="200" height="35" rx="6" fill="#1e293b"/>
+          <text x="710" y="170" font-family="sans-serif" font-size="11" fill="#e2e8f0" text-anchor="middle">Caisse : 3679 | Comptes : 7</text>
+
+          <!-- Marker definitions -->
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#4338ca"/>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+
+      <div class="alert-box alert-box-success">
+        <span class="alert-icon">💡</span>
+        <div>
+          <strong>Pourquoi l'auto-guérison (Auto-Heal Outbox) résout le problème du PC 1 :</strong><br>
+          Auparavant, si une modification était effectuée sans être ajoutée immédiatement à la file d'attente, elle restait figée dans SQLite et la file affichait <em>« 0 modification en attente »</em>. Le nouveau moteur <code>reconcilePendingOutbox()</code> scanne désormais automatiquement toutes les tables au démarrage et lors de chaque synchronisation. Tout enregistrement en attente est immédiatement pris en charge et envoyé au Cloud.
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2 : RÉINSCRIPTIONS & TARIFS -->
+    <section id="reinscriptions">
+      <h2>
+        <span class="icon-h2">📝</span>
+        2. Réinscriptions Annuelles & Application des Tarifs Dynamiques
+      </h2>
+      <p>La réinscription assure le passage d'un élève à la classe supérieure sans jamais créer de fiche en double.</p>
+
+      <div class="step-grid">
+        <div class="step-card">
+          <span class="step-card-num">01</span>
+          <h4>Vérification de l'Année</h4>
+          <p>Assurez-vous d'être positionné sur l'année active <code>2026-2027</code>. Les résidus accidentels d'années futures ont été purgés et normalisés.</p>
+        </div>
+        <div class="step-card">
+          <span class="step-card-num">02</span>
+          <h4>Bouton « Réinscrire »</h4>
+          <p>Ouvrez la fiche existante de l'élève et cliquez sur le bouton <strong>Réinscrire</strong>. Sélectionnez sa nouvelle classe (ex: passage de 5ème en 4ème).</p>
+        </div>
+        <div class="step-card">
+          <span class="step-card-num">03</span>
+          <h4>Grille Dynamique</h4>
+          <p>Le logiciel applique automatiquement le tarif d'écolage et le droit de réinscription officiel configuré dans les Paramètres Généraux.</p>
+        </div>
+        <div class="step-card">
+          <span class="step-card-num">04</span>
+          <h4>Paiements Échelonnés</h4>
+          <p>Si les parents versent un acompte (ex: 30 000 Ar), saisissez-le librement. Dès réception du solde (ex: 85 000 Ar), émettez le second reçu : le système ne le bloquera jamais en doublon.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3 : DÉTECTEUR INTELLIGENT DE DOUBLONS -->
+    <section id="doublons">
+      <h2>
+        <span class="icon-h2">🔍</span>
+        3. Détecteur Intelligent de Doublons & Protection des Acomptes
+      </h2>
+      <p>Le détecteur de doublons a été doté d'une <strong>intelligence financière contextuelle</strong> : il sait faire la différence entre une vente multiple, un paiement échelonné et une réelle collision d'encaissement.</p>
+
+      <div class="diagram-card">
+        <h4>Arbre de Décision Algorithmique du Détecteur</h4>
+        <svg class="diagram-svg" viewBox="0 0 850 180" xmlns="http://www.w3.org/2000/svg">
+          <!-- Root -->
+          <rect x="20" y="65" width="160" height="50" rx="8" fill="#312e81"/>
+          <text x="100" y="95" font-family="sans-serif" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">Paiement Détecté</text>
+
+          <!-- Branch 1: Retail -->
+          <line x1="180" y1="80" x2="260" y2="35" stroke="#94a3b8" stroke-width="2"/>
+          <rect x="260" y="15" width="220" height="45" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+          <text x="370" y="35" font-family="sans-serif" font-size="11" font-weight="bold" fill="#0f172a" text-anchor="middle">Uniforme / Carnets / Badges</text>
+          <text x="370" y="50" font-family="sans-serif" font-size="10" fill="#64748b" text-anchor="middle">Vente au détail légitime</text>
+
+          <line x1="480" y1="35" x2="550" y2="35" stroke="#059669" stroke-width="2"/>
+          <rect x="550" y="15" width="270" height="45" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1.5"/>
+          <text x="685" y="35" font-family="sans-serif" font-size="11" font-weight="bold" fill="#065f46" text-anchor="middle">✅ AUTORISÉ (Jamais signalé)</text>
+          <text x="685" y="50" font-family="sans-serif" font-size="10" fill="#047857" text-anchor="middle">Reçus distincts conservés en trésorerie</text>
+
+          <!-- Branch 2: Installments -->
+          <line x1="180" y1="90" x2="260" y2="90" stroke="#94a3b8" stroke-width="2"/>
+          <rect x="260" y="70" width="220" height="45" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+          <text x="370" y="90" font-family="sans-serif" font-size="11" font-weight="bold" fill="#0f172a" text-anchor="middle">Écolage en tranches (ex: 25k + 25k)</text>
+          <text x="370" y="105" font-family="sans-serif" font-size="10" fill="#64748b" text-anchor="middle">Total &le; Tarif mensuel classe</text>
+
+          <line x1="480" y1="90" x2="550" y2="90" stroke="#059669" stroke-width="2"/>
+          <rect x="550" y="70" width="270" height="45" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1.5"/>
+          <text x="685" y="90" font-family="sans-serif" font-size="11" font-weight="bold" fill="#065f46" text-anchor="middle">✅ VALIDE (Paiement partiel)</text>
+          <text x="685" y="105" font-family="sans-serif" font-size="10" fill="#047857" text-anchor="middle">Complète le mois sans fausse alerte</text>
+
+          <!-- Branch 3: Collision -->
+          <line x1="180" y1="100" x2="260" y2="145" stroke="#94a3b8" stroke-width="2"/>
+          <rect x="260" y="125" width="220" height="45" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
+          <text x="370" y="145" font-family="sans-serif" font-size="11" font-weight="bold" fill="#991b1b" text-anchor="middle">Collision multi-caisses (C1 vs C3)</text>
+          <text x="370" y="160" font-family="sans-serif" font-size="10" fill="#dc2626" text-anchor="middle">Même mois payé en double au tarif plein</text>
+
+          <line x1="480" y1="145" x2="550" y2="145" stroke="#dc2626" stroke-width="2"/>
+          <rect x="550" y="125" width="270" height="45" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
+          <text x="685" y="145" font-family="sans-serif" font-size="11" font-weight="bold" fill="#991b1b" text-anchor="middle">⚠️ SIGNALÉ POUR DÉCISION</text>
+          <text x="685" y="160" font-family="sans-serif" font-size="10" fill="#b91c1c" text-anchor="middle">Résolution assistée avec mise à jour caisse</text>
+        </svg>
+      </div>
+
+      <table class="guide-table">
+        <thead>
+          <tr>
+            <th>Type d'Écriture</th>
+            <th>Exemple Concret</th>
+            <th>Comportement du Système</th>
+            <th>Impact Trésorerie</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Carnet / Fournitures</strong></td>
+            <td>1 carnet acheté en juillet + 1 carnet acheté en septembre</td>
+            <td><span class="pill-badge pill-success">Accepté</span> Aucun blocage</td>
+            <td>Les deux recettes sont enregistrées</td>
+          </tr>
+          <tr>
+            <td><strong>Écolage fractionné</strong></td>
+            <td>38 000 Ar le 1er du mois puis 12 000 Ar le 15 (Tarif : 50k)</td>
+            <td><span class="pill-badge pill-success">Paiement Partiel</span> Reçu valide</td>
+            <td>Le mois est marqué intégralement payé</td>
+          </tr>
+          <tr>
+            <td><strong>Double encaissement C1/C3</strong></td>
+            <td>50 000 Ar payé sur PC 1 et 50 000 Ar payé sur PC 3</td>
+            <td><span class="pill-badge pill-danger">Collision Multi-Postes</span> Signalé</td>
+            <td>Annulation du doublon après contrôle du reçu</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- SECTION 4 : QUARANTAINE & RÉSOLUTION -->
+    <section id="quarantaine">
+      <h2>
+        <span class="icon-h2">🛡️</span>
+        4. Centre de Quarantaine & Résolution Assistée des Incohérences
+      </h2>
+      <p>Lorsqu'une écriture locale ne peut être envoyée au Cloud (par exemple un reçu émis pour un identifiant d'élève supprimé), le logiciel la place en <strong>Quarantaine de Sécurité</strong>. La caisse n'est jamais bloquée.</p>
+
+      <div class="alert-box alert-box-info">
+        <span class="alert-icon">📍</span>
+        <div>
+          <strong>Accès Direct :</strong> Rendez-vous dans <strong>Paramètres</strong> &gt; bandeau <strong>Matrice de Convergence</strong> &gt; bouton <code>[Quarantaine & Incohérences]</code>. Le badge rouge vous indique le nombre exact d'écritures nécessitant une décision.
+        </div>
+      </div>
+
+      <div class="step-grid">
+        <div class="step-card" style="border-top: 4px solid var(--primary);">
+          <h4>1. Rattacher à un Élève</h4>
+          <p>Si l'élève est déjà présent mais que son identifiant avait été modifié, recherchez son nom dans la barre intelligente : l'écriture lui est rattachée et part au Cloud immédiatement.</p>
+        </div>
+        <div class="step-card" style="border-top: 4px solid var(--success);">
+          <h4>2. Créer l'Élève Manquant</h4>
+          <p>Si l'élève avait été omis dans la base, renseignez son nom, prénom et classe : le logiciel crée sa fiche élève et lui associe le reçu instantanément.</p>
+        </div>
+        <div class="step-card" style="border-top: 4px solid var(--warning);">
+          <h4>3. Reclasser en Caisse Générale</h4>
+          <p>Si la recette est autonome (vente libre de fournitures, don, cantine occasionnelle sans compte élève), convertissez-la en mouvement de trésorerie libre.</p>
+        </div>
+        <div class="step-card" style="border-top: 4px solid var(--danger);">
+          <h4>4. Annuler avec Traçabilité</h4>
+          <p>S'il s'agit d'une erreur de saisie ou d'un test, annulez l'écriture. Un motif d'audit est exigé pour justifier la suppression dans les registres officiels.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 5 : MATRICE DE CONVERGENCE -->
+    <section id="matrice">
+      <h2>
+        <span class="icon-h2">📊</span>
+        5. Matrice de Convergence Multi-Postes (Contrôle en Temps Réel)
+      </h2>
+      <p>La Matrice de Convergence compare en temps réel la base de chaque ordinateur avec la référence Supabase Cloud.</p>
+
+      <div class="step-card" style="margin: 20px 0;">
+        <h4>Comprendre les Indicateurs Visuels</h4>
+        <ul style="margin-left: 20px; margin-top: 10px; font-size: 13px;">
+          <li style="margin-bottom: 8px;"><strong style="color: var(--success);">Statut Conforme (Vert) :</strong> L'ordinateur possède exactement le même nombre d'élèves, de paiements et de lignes de caisse que le Cloud. Tout est aligné.</li>
+          <li style="margin-bottom: 8px;"><strong style="color: var(--warning);">Écarts Détectés (Orange) :</strong> Des données ont été saisies localement sans encore être synchronisées, ou le poste doit télécharger les dernières recettes émises par les autres caisses. Cliquez sur <em>Actualiser</em>.</li>
+          <li><strong style="color: var(--primary);">File Locale à 0 :</strong> Aucune modification n'est bloquée sur cet ordinateur. Tout a été envoyé.</li>
+        </ul>
+      </div>
+
+      <div class="alert-box alert-box-warning">
+        <span class="alert-icon">⚠️</span>
+        <div>
+          <strong>Réflexe de Clôture Quotidienne :</strong> Chaque soir, avant d'éteindre les ordinateurs, chaque caisse clique sur le bouton de synchronisation (en bas à gauche) et vérifie que la file locale affiche <code>0</code>.
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 6 : COMPTE DIRECTION PC 1 -->
+    <section id="direction">
+      <h2>
+        <span class="icon-h2">👤</span>
+        6. Synchronisation Propre du Compte Utilisateur Direction
+      </h2>
+      <p>Conformément aux normes d'ingénierie et sans recours au bricolage :</p>
+      <ul>
+        <li>Sur le <strong>PC 1 de la Direction</strong>, la modification du compte utilisateur est enregistrée dans sa base locale SQLite avec le drapeau <code>sync_status = 'pending'</code>.</li>
+        <li>Le moteur d'auto-guérison <code>reconcilePendingOutbox()</code> découvre automatiquement cette ligne en attente lors du prochain démarrage ou clic sur <strong>Synchroniser</strong> sur le PC 1.</li>
+        <li>L'ordre est immédiatement poussé sur Supabase Cloud et redescendu automatiquement sur tous les autres postes sans aucune intervention manuelle.</li>
+      </ul>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer>
+    Système de Gestion Scolaire & Financière LMS • Document Technique Officiel • Déployé sous Version 2.3.2 • Octobre 2026
+  </footer>
+</div>
+
+</body>
+</html>

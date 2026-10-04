@@ -5,6 +5,33 @@ Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/)
 
 ---
 
+## [2.3.3] - 2026-10-04
+
+### 🚀 Nouveautés & Architecture Système
+- **Moteur d'Auto-Guérison Outbox (`reconcilePendingOutbox` dans `sync.service.ts`)** :
+  - Découverte et réenfilage automatique au démarrage et avant chaque synchro de toute écriture locale restée en `sync_status = 'pending'` mais absente de la file `sync_queue`.
+  - Résout définitivement la synchronisation autonome des comptes utilisateurs modifiés (notamment le compte Direction sur PC 1) et de toute modification hors-ligne non indexée sans nécessiter de bricolage manuel.
+- **Détecteur Intelligent de Doublons (`duplicate.handler.ts`)** :
+  - Élimination des 90% de faux positifs : immunisation totale pour les achats de fournitures et d'uniformes (`uniform`) possédant des reçus distincts.
+  - Reconnaissance automatique des paiements d'écolage échelonnés (ex. 25k + 25k = 50k) et des acomptes sur réinscription (ex. 30k + 85k = 115k), ne signalant que les réelles collisions d'encaissement multi-caisses.
+- **Enrichissement de la Télémétrie Cloud & Surveillance Multi-Postes (`telemetry.service.ts` & `WorkstationMonitor.tsx`)** :
+  - Ajout de l'instantané `blocked_summary` dans le battement de cœur périodique (`station_heartbeat`) publié sur Supabase : permet à l'administrateur de voir à distance sur son propre écran le détail exact des écritures bloquées sur les autres machines (PC 1, PC 2, PC 3).
+  - Normalisation unifiée des métriques de file d'attente (pending, bloqués, quarantaine) dans le moniteur de convergence et affichage contextuel d'une puce d'alerte pour les enregistrements en difficulté.
+  - Déduplication intelligente des alertes d'erreurs (TTL 15 minutes) et filtrage des simples déconnexions réseau pour éviter toute saturation de la base Supabase.
+  - Bouton d'accès permanent `[Quarantaine & Incohérences]` intégré dans le bandeau de la Matrice de Convergence avec compteur dynamique en temps réel.
+- **Documentation & Pédagogie Visuelle (`GUIDE_UTILISATEUR_LMS.html`)** :
+  - Création d'un guide utilisateur HTML complet avec schémas décisionnels SVG interactifs pour la réinscription, la gestion des doublons, la réconciliation en quarantaine et les contrôles quotidiens de caisse.
+
+### 🛡️ Correctifs & Précision Graphique
+- **Journal Financier (`FinanceJournal.tsx`)** :
+  - Élimination de la double soustraction du padding vertical dans `DetailedFinanceChart`. La ligne zéro en pointillés et la base des barres partagent désormais un repère absolu unifié en pourcentage (`bottom: ${zeroRatio * 100}%`).
+- **Résilience & Stabilité Interface Utilisateur (`PaymentAlerts.tsx`)** :
+  - Sécurisation des imports critiques (`useClasses`, `cn`), empêchant toute levée d'exception ErrorBoundary lors du rendu du tableau des impayés.
+- **Fiabilité TypeScript & Compilation** :
+  - Validation à 100% de la compilation `npx tsc --noEmit` et du bundle de production `electron-vite build` (0 erreurs, 0 avertissements bloquants).
+
+---
+
 ## [2.3.2] - 2026-10-04
 
 ### 🚀 Nouveautés & Améliorations

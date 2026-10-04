@@ -307,7 +307,7 @@ export function registerDuplicateHandlers(): void {
         const payments = db.prepare(query).all(...params) as any[]
 
         if (payments.length > 1) {
-          // Safeguard: Check if this is a legitimate installment payment (e.g. 25 000 + 25 000 Ar = 50 000 Ar)
+          // SAFEGUARD 1: Écolage (Tuition) — Protect partial installments (e.g. 25 000 + 25 000 Ar = 50 000 Ar)
           if (d.payment_type === 'tuition') {
             let expectedMonthlyFee = 0
             const feeRow = db
@@ -326,6 +326,59 @@ export function registerDuplicateHandlers(): void {
             const totalSum = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
             if (expectedMonthlyFee > 0 && totalSum <= expectedMonthlyFee) {
               // Legitimate installment payment! Do not flag as a duplicate collision.
+              continue
+            }
+          }
+
+          // SAFEGUARD 2: Réinscription & Inscription — Protect installment advances
+          if (d.payment_type === 'reenrollment') {
+            const totalSum = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+            if (totalSum <= 115000) {
+              // Legitimate advance deposit + balance payment!
+              continue
+            }
+          } else if (d.payment_type === 'enrollment') {
+            const totalSum = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+            if (totalSum <= 80000) {
+              // Legitimate advance deposit + balance payment!
+              continue
+            }
+          }
+
+          // SAFEGUARD 3: Uniformes, Fournitures, Événements — Ventes au détail d'articles multiples
+          // Ne jamais considérer comme doublon si les reçus sont différents et émis à des dates/heures distinctes
+          if (
+            d.payment_type !== 'tuition' &&
+            d.payment_type !== 'bus' &&
+            d.payment_type !== 'canteen' &&
+            d.payment_type !== 'enrollment' &&
+            d.payment_type !== 'reenrollment'
+          ) {
+            // Un doublon d'uniforme n'existe QUE si le même numéro de reçu a été dupliqué
+            // ou si la même somme a été saisie par double-clic à moins de 10 minutes d'intervalle
+            const hasSameReceipt = payments.some(
+              (p1, idx1) =>
+                p1.receipt_number &&
+                payments.some((p2, idx2) => idx1 !== idx2 && p2.receipt_number === p1.receipt_number)
+            )
+
+            let hasAccidentalDoubleClick = false
+            for (let i = 0; i < payments.length; i++) {
+              for (let j = i + 1; j < payments.length; j++) {
+                if (payments[i].amount === payments[j].amount && payments[i].payment_date === payments[j].payment_date) {
+                  const t1 = new Date(payments[i].created_at || payments[i].payment_date).getTime()
+                  const t2 = new Date(payments[j].created_at || payments[j].payment_date).getTime()
+                  if (Math.abs(t1 - t2) <= 10 * 60 * 1000) {
+                    hasAccidentalDoubleClick = true
+                    break
+                  }
+                }
+              }
+              if (hasAccidentalDoubleClick) break
+            }
+
+            if (!hasSameReceipt && !hasAccidentalDoubleClick) {
+              // Achats multiples légitimes (ex: carnet en juillet puis carnet en septembre)
               continue
             }
           }

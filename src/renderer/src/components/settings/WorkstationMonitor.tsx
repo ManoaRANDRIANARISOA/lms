@@ -14,9 +14,11 @@ import {
   Trash2,
   Activity,
   Check,
-  AlertTriangle
+  AlertTriangle,
+  ShieldAlert
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useSyncStore } from '@/store/useSyncStore'
 
 export interface TelemetryReportItem {
   id: number
@@ -39,13 +41,22 @@ export interface StationHeartbeat {
   last_seen: string
   last_sync?: string
   counts: Record<string, number>
-  queue_pending: number
-  queue_failed: number
-  queue_quarantined: number
+  queue_pending?: number
+  queue_failed?: number
+  queue_quarantined?: number
+  queue?: { pending: number; errors: number; failed: number; quarantined: number }
+  blocked_summary?: Array<{
+    table_name: string
+    record_id: string
+    status: string
+    error_message?: string
+    created_at?: string
+  }>
   station_error_count?: number
 }
 
 export const WorkstationMonitor: React.FC = () => {
+  const { openReconciliation } = useSyncStore()
   const [reports, setReports] = useState<TelemetryReportItem[]>([])
   const [loading, setLoading] = useState(false)
   const [heartbeats, setHeartbeats] = useState<StationHeartbeat[]>([])
@@ -57,11 +68,26 @@ export const WorkstationMonitor: React.FC = () => {
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [isSendingTest, setIsSendingTest] = useState(false)
   const [isClearingCloud, setIsClearingCloud] = useState(false)
+  const [quarantineCount, setQuarantineCount] = useState<number>(0)
+
+  const fetchQuarantineCount = async () => {
+    try {
+      if (window.api?.sync?.getReconciliationItems) {
+        const res = await window.api.sync.getReconciliationItems()
+        if (res && res.items) {
+          setQuarantineCount(res.items.length)
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   const fetchHeartbeats = async () => {
     if (!window.api?.telemetry?.fetchWorkstationHeartbeats) return
     setLoadingHeartbeats(true)
     try {
+      fetchQuarantineCount()
       const res = await window.api.telemetry.fetchWorkstationHeartbeats()
       if (res.success) {
         if (res.stations) setHeartbeats(res.stations)
@@ -296,6 +322,25 @@ export const WorkstationMonitor: React.FC = () => {
             </h3>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-500">
+            <Button
+              size="sm"
+              variant={quarantineCount > 0 ? 'destructive' : 'outline'}
+              onClick={openReconciliation}
+              className={`h-7 text-xs gap-1.5 font-medium ${
+                quarantineCount > 0
+                  ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-xs'
+                  : 'border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:text-indigo-900'
+              }`}
+              title="Ouvrir le centre visuel de réconciliation des écritures orphelines et quarantaine"
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>Quarantaine & Incohérences</span>
+              {quarantineCount > 0 && (
+                <span className="bg-white text-rose-700 text-[10px] font-bold px-1.5 py-0.2 rounded-full shadow-xs">
+                  {quarantineCount}
+                </span>
+              )}
+            </Button>
             {loadingHeartbeats ? (
               <span className="flex items-center gap-1.5 text-indigo-600">
                 <RefreshCw className="w-3 h-3 animate-spin" /> Bilan des postes...
@@ -359,11 +404,11 @@ export const WorkstationMonitor: React.FC = () => {
                   const pMatch = !cloudCounts.student_payments || pCount === cloudCounts.student_payments
                   const cMatch = !cloudCounts.cash_journal || cCount === cloudCounts.cash_journal
 
-                  const pending = hb.queue_pending ?? 0
-                  const failed = hb.queue_failed ?? 0
-                  const quarantined = hb.queue_quarantined ?? 0
+                  const pending = hb.queue?.pending ?? hb.queue_pending ?? 0
+                  const failed = (hb.queue?.failed ?? 0) + (hb.queue?.errors ?? 0) + (hb.queue_failed ?? 0)
+                  const quarantined = hb.queue?.quarantined ?? hb.queue_quarantined ?? 0
 
-                  const isFullySynced = sMatch && pMatch && cMatch && pending === 0 && failed === 0
+                  const isFullySynced = sMatch && pMatch && cMatch && pending === 0 && failed === 0 && quarantined === 0
 
                   // Calculate online state
                   const lastSeenTime = hb.last_seen || hb.last_sync
@@ -390,6 +435,7 @@ export const WorkstationMonitor: React.FC = () => {
                   }
 
                   const errorCount = (hb as any).station_error_count || 0
+                  const blockedItems = hb.blocked_summary || []
 
                   return (
                     <tr key={hb.station} className="hover:bg-gray-50/70 transition-colors">
@@ -442,24 +488,36 @@ export const WorkstationMonitor: React.FC = () => {
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-center">
-                        <div className="flex items-center justify-center gap-1 text-[11px]">
-                          {pending > 0 && (
-                            <span className="text-amber-700 bg-amber-50 px-1 rounded font-medium" title="En attente">
-                              {pending} attente
+                        <div className="flex flex-col items-center justify-center gap-0.5 text-[11px]">
+                          <div className="flex items-center justify-center gap-1">
+                            {pending > 0 && (
+                              <span className="text-amber-700 bg-amber-50 px-1 rounded font-medium" title="En attente">
+                                {pending} attente
+                              </span>
+                            )}
+                            {failed > 0 && (
+                              <span className="text-rose-700 bg-rose-100 px-1 rounded font-bold animate-pulse" title="Bloqués">
+                                {failed} bloqués
+                              </span>
+                            )}
+                            {quarantined > 0 && (
+                              <span className="text-purple-700 bg-purple-50 px-1 rounded font-medium" title="Quarantaine">
+                                {quarantined} isolés
+                              </span>
+                            )}
+                            {pending === 0 && failed === 0 && quarantined === 0 && (
+                              <span className="text-emerald-600 font-medium">0</span>
+                            )}
+                          </div>
+                          {blockedItems.length > 0 && (
+                            <span
+                              className="text-[9px] text-rose-700 bg-rose-50 px-1 py-0.2 rounded border border-rose-200 cursor-help"
+                              title={blockedItems
+                                .map((b) => `• ${b.table_name} [${b.record_id}]: ${b.error_message || b.status}`)
+                                .join('\n')}
+                            >
+                              ⚠️ {blockedItems.length} bloqué{blockedItems.length > 1 ? 's' : ''} ({blockedItems[0].table_name})
                             </span>
-                          )}
-                          {failed > 0 && (
-                            <span className="text-rose-700 bg-rose-100 px-1 rounded font-bold animate-pulse" title="Bloqués">
-                              {failed} bloqués
-                            </span>
-                          )}
-                          {quarantined > 0 && (
-                            <span className="text-purple-700 bg-purple-50 px-1 rounded font-medium" title="Quarantaine">
-                              {quarantined} isolés
-                            </span>
-                          )}
-                          {pending === 0 && failed === 0 && quarantined === 0 && (
-                            <span className="text-emerald-600 font-medium">0</span>
                           )}
                         </div>
                       </td>

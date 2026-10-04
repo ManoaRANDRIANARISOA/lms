@@ -364,6 +364,20 @@ export class TelemetryService {
         quarantined: queueCounts?.quarantined || 0
       }
 
+      let blocked_summary: any[] = []
+      if (queue.errors > 0 || queue.failed > 0 || queue.quarantined > 0) {
+        try {
+          blocked_summary = db
+            .prepare(
+              `SELECT table_name, record_id, status, error_message, created_at 
+               FROM sync_queue 
+               WHERE status IN ('error', 'failed', 'quarantined') 
+               ORDER BY id DESC LIMIT 5`
+            )
+            .all()
+        } catch {}
+      }
+
       const payload = {
         station: stationCode,
         hostname,
@@ -371,6 +385,7 @@ export class TelemetryService {
         app_version: appVersion,
         counts,
         queue,
+        blocked_summary,
         last_sync: new Date().toISOString()
       }
 
@@ -439,11 +454,17 @@ export class TelemetryService {
         if (!latestByStation.has(stationKey)) {
           try {
             const parsed = JSON.parse(row.new_value)
+            const queueObj = parsed.queue || {}
             latestByStation.set(stationKey, {
               ...parsed,
               station: parsed.station || stationKey,
               last_seen: parsed.last_sync || row.created_at,
-              server_recorded_at: row.created_at
+              server_recorded_at: row.created_at,
+              queue: queueObj,
+              queue_pending: queueObj.pending ?? parsed.queue_pending ?? 0,
+              queue_failed: (queueObj.failed ?? 0) + (queueObj.errors ?? 0) + (parsed.queue_failed ?? 0),
+              queue_quarantined: queueObj.quarantined ?? parsed.queue_quarantined ?? 0,
+              blocked_summary: parsed.blocked_summary || []
             })
           } catch {
             // ignore malformed

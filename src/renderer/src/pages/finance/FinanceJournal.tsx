@@ -88,72 +88,76 @@ function DetailedFinanceChart({ data }: { data: { date: string; total: number }[
       </div>
 
       <div className="flex-1 overflow-x-auto custom-scrollbar flex flex-col">
-        {/* Zone de tracé des barres avec marges verticales de sécurité pour les étiquettes */}
-        <div className="flex-1 relative min-w-[700px] w-full pt-6 pb-6">
-          {/* Ligne Zéro en pointillés, parfaitement alignée sur l'axe des barres */}
-          <div
-            className="absolute left-0 right-0 border-t border-dashed border-gray-300 pointer-events-none z-0 flex items-center"
-            style={{ bottom: `calc(24px + (100% - 48px) * ${zeroRatio})` }}
-          >
-            <span className="text-[9px] font-medium text-gray-500 bg-white/90 px-1 rounded absolute right-1 -translate-y-1/2">
-              0 Ar
-            </span>
-          </div>
+        {/* Zone de tracé des barres avec repère de coordonnées unifié */}
+        <div className="flex-1 relative min-w-[700px] w-full">
+          {/* Surface graphique protégée par des marges pour les étiquettes */}
+          <div className="absolute inset-x-0 top-7 bottom-6">
+            {/* Ligne Zéro en pointillés, parfaitement alignée sur l'axe des barres */}
+            <div
+              className="absolute left-0 right-0 border-t border-dashed border-gray-400 pointer-events-none z-0 flex items-center"
+              style={{ bottom: `${zeroRatio * 100}%` }}
+            >
+              <span className="text-[9px] font-semibold text-gray-500 bg-white/95 px-1 rounded absolute right-1 -translate-y-1/2 shadow-xs">
+                0 Ar
+              </span>
+            </div>
 
-          {/* Colonnes de barres */}
-          <div className="flex justify-between items-stretch h-full w-full gap-1 z-10 relative">
-            {filledData.map((item, i) => {
-              const isNegative = item.total < 0
-              const barHeightPct = (Math.abs(item.total) / range) * 100
-              const d = new Date(item.date)
-              const shortDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
-              const compactVal = new Intl.NumberFormat('fr-MG', { notation: 'compact' }).format(
-                item.total
-              )
+            {/* Colonnes de barres */}
+            <div className="flex justify-between items-stretch h-full w-full gap-1 z-10 relative">
+              {filledData.map((item, i) => {
+                const isNegative = item.total < 0
+                const barHeightPct = (Math.abs(item.total) / range) * 100
+                const d = new Date(item.date)
+                const shortDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+                const compactVal = new Intl.NumberFormat('fr-MG', { notation: 'compact' }).format(
+                  item.total
+                )
+                const effectiveHeight = item.total === 0 ? 0 : Math.max(barHeightPct, 1.5)
 
-              return (
-                <div
-                  key={i}
-                  className="flex-1 flex flex-col items-center h-full relative group min-w-[20px]"
-                >
-                  {/* Info-bulle précise au survol */}
-                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 text-white text-[11px] font-semibold py-1 px-2 rounded whitespace-nowrap z-50 pointer-events-none shadow-md">
-                    {shortDate} : {formatMGA(item.total)}
-                  </div>
+                return (
+                  <div
+                    key={i}
+                    className="flex-1 flex flex-col items-center h-full relative group min-w-[20px]"
+                  >
+                    {/* Info-bulle précise au survol */}
+                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 text-white text-[11px] font-semibold py-1 px-2 rounded whitespace-nowrap z-50 pointer-events-none shadow-md">
+                      {shortDate} : {formatMGA(item.total)}
+                    </div>
 
-                  {/* Barre calibrée dans la hauteur utile */}
-                  <div className="w-full h-full relative">
-                    <div
-                      className="absolute w-full flex flex-col items-center"
-                      style={{
-                        height: `calc((100% - 48px) * ${Math.max(barHeightPct / 100, 0.015)})`,
-                        bottom: isNegative
-                          ? `calc(24px + (100% - 48px) * ${zeroRatio} - (100% - 48px) * ${Math.max(barHeightPct / 100, 0.015)})`
-                          : `calc(24px + (100% - 48px) * ${zeroRatio})`
-                      }}
-                    >
-                      {!isNegative ? (
-                        <>
-                          {item.total > 0 && (
-                            <span className="text-[9px] text-primary font-bold whitespace-nowrap absolute -top-4 hidden group-hover:block md:block pointer-events-none">
-                              {compactVal}
-                            </span>
+                    {/* Barre calibrée exactement sur l'axe zéro */}
+                    <div className="w-full h-full relative">
+                      {item.total !== 0 && (
+                        <div
+                          className="absolute w-full flex flex-col items-center"
+                          style={{
+                            height: `${effectiveHeight}%`,
+                            bottom: isNegative
+                              ? `calc(${zeroRatio * 100}% - ${effectiveHeight}%)`
+                              : `${zeroRatio * 100}%`
+                          }}
+                        >
+                          {!isNegative ? (
+                            <>
+                              <span className="text-[9px] text-primary font-bold whitespace-nowrap absolute -top-4 hidden group-hover:block md:block pointer-events-none">
+                                {compactVal}
+                              </span>
+                              <div className="bg-primary/60 group-hover:bg-primary transition-colors rounded-t-sm w-[75%] max-w-[28px] h-full cursor-pointer shadow-xs" />
+                            </>
+                          ) : (
+                            <>
+                              <div className="bg-destructive/60 group-hover:bg-destructive transition-colors rounded-b-sm w-[75%] max-w-[28px] h-full cursor-pointer shadow-xs" />
+                              <span className="text-[9px] text-destructive font-bold whitespace-nowrap absolute -bottom-4 hidden group-hover:block md:block pointer-events-none">
+                                {compactVal}
+                              </span>
+                            </>
                           )}
-                          <div className="bg-primary/60 group-hover:bg-primary transition-colors rounded-t-sm w-[75%] max-w-[28px] h-full cursor-pointer shadow-xs" />
-                        </>
-                      ) : (
-                        <>
-                          <div className="bg-destructive/60 group-hover:bg-destructive transition-colors rounded-b-sm w-[75%] max-w-[28px] h-full cursor-pointer shadow-xs" />
-                          <span className="text-[9px] text-destructive font-bold whitespace-nowrap absolute -bottom-4 hidden group-hover:block md:block pointer-events-none">
-                            {compactVal}
-                          </span>
-                        </>
+                        </div>
                       )}
                     </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
         </div>
 

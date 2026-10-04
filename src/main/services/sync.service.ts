@@ -775,6 +775,68 @@ export function addToSyncQueue(
 }
 
 /**
+ * Auto-Heal Outbox: Scans local tables for records marked sync_status = 'pending'
+ * that do not have an active entry in sync_queue. This self-healing routine ensures
+ * that any record modified offline, in older versions, or during unqueued transactions
+ * (like user account modifications or migrated payments) is automatically enqueued and pushed.
+ */
+export function reconcilePendingOutbox(): number {
+  let enqueuedCount = 0
+  const tables = [
+    'users',
+    'students',
+    'student_fees',
+    'student_payments',
+    'cash_journal',
+    'personnel',
+    'subjects',
+    'grades',
+    'class_subjects',
+    'assessments',
+    'parent_events',
+    'event_payments',
+    'bus_attendance',
+    'canteen_attendance',
+    'cash_closures'
+  ]
+
+  for (const table of tables) {
+    try {
+      const tableInfo = db.prepare(`PRAGMA table_info(${table})`).all() as any[]
+      const hasSyncStatus = tableInfo.some((col) => col.name === 'sync_status')
+      if (!hasSyncStatus) continue
+
+      const pendingRows = db
+        .prepare(
+          `SELECT * FROM ${table} 
+           WHERE sync_status = 'pending' 
+             AND id NOT IN (
+               SELECT record_id FROM sync_queue 
+               WHERE table_name = ? AND status IN ('pending', 'error', 'quarantined')
+             )
+           LIMIT 150`
+        )
+        .all(table) as any[]
+
+      for (const row of pendingRows) {
+        const action = row.deleted ? 'delete' : 'update'
+        const payload = { ...row }
+        delete payload.sync_status
+        addToSyncQueue(table, row.id, action, payload)
+        enqueuedCount++
+      }
+    } catch (err) {
+      console.warn(`[Auto-Heal Outbox] Could not reconcile pending rows for table ${table}:`, err)
+    }
+  }
+
+  if (enqueuedCount > 0) {
+    console.log(`[Auto-Heal Outbox] Discovered and enqueued ${enqueuedCount} unqueued pending record(s) for cloud synchronization.`)
+  }
+  return enqueuedCount
+}
+
+/**
  * Main sync function (called manually via button or periodically)
  */
 export async function syncWithCloud(forceFullSync: boolean = false) {
@@ -796,6 +858,9 @@ export async function syncWithCloud(forceFullSync: boolean = false) {
   isSyncing = true
 
   try {
+    // Auto-heal: Ensure any row with sync_status = 'pending' across all local tables is enqueued
+    reconcilePendingOutbox()
+
     const queueStatus = getSyncQueueStatus()
     broadcastProgress({
       phase: 'checking',
@@ -1208,6 +1273,9 @@ function deepMergeFinancePrices(local: any, remote: any, preferRemote = false): 
  * Push local changes to Supabase with batching, auto-healing of FKs, and real-time progress.
  */
 async function pushLocalChanges() {
+  // Ensure unqueued pending table rows are enqueued before counting
+  reconcilePendingOutbox()
+
   const totalItemsCount = (
     db
       .prepare(
