@@ -5,6 +5,30 @@ Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/)
 
 ---
 
+## [2.3.2] - 2026-10-04
+
+### 🚀 Nouveautés & Améliorations
+- **Graphique Chronologique du Journal de Caisse (`FinanceJournal.tsx`)** :
+  - Alignement mathématique strict de la ligne zéro en pointillés (`zeroRatio`) sur l'origine des barres de flux positif/négatif.
+  - Séparation complète de l'axe des dates dans un conteneur dédié en bas (`h-[26px] border-t border-gray-100`), éliminant tout chevauchement des écritures (ex. `-4 M`, `320 k` avec les numéros de jour).
+- **Navigation & Ergonomie des Impayés (`PaymentAlerts.tsx`)** :
+  - Suppression de la fausse redirection vers le journal de caisse depuis le module des impayés, maintenant les opérations d'harmonisation groupée au sein de l'espace d'administration financière.
+- **Pérennité & Robustesse Multi-Années Scolaires** :
+  - Remplacement de toutes les années scolaires codées en dur (`'2026-2027'`) par la résolution dynamique `getDynamicSchoolYear()` et `StudentRepository.getCurrentSchoolYear()` dans l'ensemble des modules (`sync.service.ts`, `payment.repository.ts`, `FinanceTab.tsx`, `ReEnrollModal.tsx`, `ReportsPage.tsx`, `ReceiptDetailModal.tsx`, `FinanceJournal.tsx`).
+  - Priorisation de l'année scolaire active de l'établissement dans la fiche élève (`StudentDetail.tsx`) évitant le basculement involontaire vers les années futures lors de pré-inscriptions.
+
+### 🛡️ Assainissement des Données & Intégrité Financière
+- **Migration Corrective `050_realign_errant_2028_payments_and_fees.sql`** :
+  - Normalisation de la faute typographique `2026_2027` ➔ `2026-2027` (Nomentsoa Urielle Stephanie MAHERINIAINA, rétablissant ses 6 règlements de scolarité, réinscription et FRAM).
+  - Réaffectation à l'année en cours `2026-2027` des paiements réels légitimes saisis par mégarde sous l'étiquette `2027-2028` :
+    - Écolage septembre 2026 de Christian Henintsoa RAKOTOBE (5ème, `REC-2027-C3-00014`, 50 000 Ar).
+    - Écolage octobre 2026 de Tohy Iloniaiko RASOLOFO (CP1, `REC-2027-C2-00010`, 45 000 Ar).
+    - Réinscriptions 2026-2027 de Fitahiana ANDRIANIAVO (`REC-2027-C2-00001`, 115 000 Ar) et Andritiana RAZAKAMAHAVONJY (`REC-2027-C1-00001`, 115 000 Ar).
+    - Uniformes réels de Hiraina ANDRIAMIHAMISON (30 000 Ar), Salohy RAMBELOHERINIRINA (30 000 Ar) et Tolotra RAKOTOARIVAO (25 000 Ar).
+  - Purge des doublons de clics d'essai de juillet/août et des fiches `student_fees` 2027-2028 orphelines, alignée sur SQLite local et Supabase Cloud.
+
+---
+
 ## [2.3.1] - 2026-10-04
 
 ### 🚀 Nouveautés & Améliorations

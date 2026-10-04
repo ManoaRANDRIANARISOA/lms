@@ -154,7 +154,8 @@ const runMigrations = (): void => {
     '046_sync_queue_resilience.sql',
     '047_normalize_cashier_usernames.sql',
     '048_add_performance_indexes.sql',
-    '049_align_student_fees_with_finance_prices.sql'
+    '049_align_student_fees_with_finance_prices.sql',
+    '050_realign_errant_2028_payments_and_fees.sql'
   ]
   migrations.forEach(applyMigration)
 }
