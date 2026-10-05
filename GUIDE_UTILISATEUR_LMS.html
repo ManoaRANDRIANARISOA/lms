@@ -3,32 +3,41 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Guide Officiel Utilisateur & Maintenance — LMS École</title>
+  <title>Guide d'Excellence & Vision Stratégique — LMS École</title>
   <style>
     :root {
-      --primary: #4338ca;
-      --primary-gradient: linear-gradient(135deg, #312e81 0%, #4338ca 50%, #6366f1 100%);
-      --accent: #0ea5e9;
+      --primary: #3730a3;
+      --primary-light: #4f46e5;
+      --primary-subtle: #eef2ff;
+      --primary-dark: #1e1b4b;
+      --accent: #0284c7;
+      --accent-light: #e0f2fe;
       --success: #059669;
       --success-bg: #ecfdf5;
+      --success-border: #a7f3d0;
       --warning: #d97706;
       --warning-bg: #fffbeb;
+      --warning-border: #fde68a;
       --danger: #dc2626;
       --danger-bg: #fef2f2;
+      --danger-border: #fecaca;
+      --gold: #b45309;
+      --gold-bg: #fef3c7;
       --slate-50: #f8fafc;
       --slate-100: #f1f5f9;
       --slate-200: #e2e8f0;
       --slate-300: #cbd5e1;
+      --slate-500: #64748b;
       --slate-600: #475569;
       --slate-700: #334155;
       --slate-800: #1e293b;
       --slate-900: #0f172a;
-      --radius-sm: 6px;
-      --radius-md: 10px;
-      --radius-lg: 16px;
-      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+      --shadow-md: 0 6px 16px -2px rgba(15, 23, 42, 0.08);
+      --shadow-lg: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.08);
     }
 
     * {
@@ -39,14 +48,14 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      background-color: #f1f5f9;
+      background: linear-gradient(180deg, #eef2f6 0%, #f8fafc 100%);
       color: var(--slate-800);
-      line-height: 1.6;
-      padding: 24px;
+      line-height: 1.65;
+      padding: 30px 16px;
     }
 
     .wrapper {
-      max-width: 1100px;
+      max-width: 1160px;
       margin: 0 auto;
       background: #ffffff;
       border-radius: var(--radius-lg);
@@ -55,176 +64,290 @@
       border: 1px solid var(--slate-200);
     }
 
-    /* HEADER */
+    /* HEADER HERO */
     header {
-      background: var(--primary-gradient);
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 45%, #4338ca 85%, #6366f1 100%);
       color: #ffffff;
-      padding: 48px 40px;
+      padding: 56px 48px;
       position: relative;
     }
 
-    .badge-release {
+    .header-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .badge-pill {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: rgba(255, 255, 255, 0.18);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      padding: 4px 14px;
+      padding: 5px 14px;
       border-radius: 9999px;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
+      letter-spacing: 0.6px;
       text-transform: uppercase;
-      letter-spacing: 0.8px;
-      margin-bottom: 14px;
+    }
+
+    .badge-certified {
+      background: rgba(255, 255, 255, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      color: #ffffff;
+    }
+
+    .badge-premium {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(217, 119, 6, 0.35);
     }
 
     header h1 {
-      font-size: 32px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      margin-bottom: 10px;
+      font-size: 34px;
+      font-weight: 850;
+      letter-spacing: -0.6px;
+      line-height: 1.25;
+      margin-bottom: 14px;
     }
 
-    header p {
+    header p.lead {
       font-size: 16px;
       color: #e0e7ff;
-      max-width: 760px;
+      max-width: 820px;
       font-weight: 400;
+      line-height: 1.6;
     }
 
-    /* QUICK NAVIGATION */
+    /* STATS STRIP */
+    .hero-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 16px;
+      margin-top: 36px;
+      padding-top: 28px;
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+    }
+
+    .stat-val {
+      font-size: 26px;
+      font-weight: 900;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .stat-desc {
+      font-size: 12px;
+      color: #c7d2fe;
+      margin-top: 4px;
+      font-weight: 500;
+    }
+
+    /* NAVIGATION */
     nav.summary-nav {
-      background: var(--slate-50);
+      background: #f8fafc;
       border-bottom: 1px solid var(--slate-200);
-      padding: 18px 40px;
+      padding: 16px 48px;
       display: flex;
       flex-wrap: wrap;
-      gap: 12px 24px;
+      gap: 10px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(10px);
     }
 
     nav.summary-nav a {
-      color: var(--primary);
+      color: var(--slate-700);
       text-decoration: none;
       font-size: 13px;
-      font-weight: 700;
+      font-weight: 600;
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 6px 12px;
+      padding: 7px 14px;
       border-radius: var(--radius-sm);
       background: #ffffff;
       border: 1px solid var(--slate-200);
-      box-shadow: var(--shadow-sm);
-      transition: all 0.2s;
+      transition: all 0.18s ease-in-out;
     }
 
     nav.summary-nav a:hover {
-      background: #eef2ff;
+      background: var(--primary-subtle);
+      color: var(--primary);
       border-color: #c7d2fe;
       transform: translateY(-1px);
     }
 
-    /* MAIN CONTAINER */
+    /* MAIN PADDING */
     main {
-      padding: 40px;
+      padding: 48px;
     }
 
     section {
-      margin-bottom: 56px;
+      margin-bottom: 64px;
     }
 
     h2 {
-      font-size: 22px;
-      font-weight: 800;
+      font-size: 23px;
+      font-weight: 850;
       color: var(--slate-900);
-      margin-bottom: 20px;
+      margin-bottom: 14px;
       display: flex;
       align-items: center;
       gap: 12px;
-      padding-bottom: 12px;
-      border-bottom: 2px solid var(--slate-100);
+      letter-spacing: -0.4px;
     }
 
     .icon-h2 {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      background: #eef2ff;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--primary-subtle);
       color: var(--primary);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
+      font-size: 18px;
       flex-shrink: 0;
     }
 
-    h3 {
-      font-size: 17px;
-      font-weight: 700;
-      color: var(--slate-800);
-      margin: 22px 0 10px 0;
-    }
-
-    p {
-      margin-bottom: 14px;
-      font-size: 14px;
+    .section-intro {
+      font-size: 15px;
       color: var(--slate-600);
+      margin-bottom: 24px;
+      max-width: 900px;
     }
 
-    /* SVG DIAGRAM CONTAINERS */
-    .diagram-card {
-      background: var(--slate-50);
-      border: 1px solid var(--slate-200);
+    /* VALUE BANNER (POUR LES AJOUTS POST AVENANT 3) */
+    .value-banner {
+      background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+      border: 1px solid #a7f3d0;
       border-radius: var(--radius-md);
       padding: 24px;
-      margin: 20px 0;
-      text-align: center;
+      margin-bottom: 30px;
+      box-shadow: var(--shadow-sm);
     }
 
-    .diagram-card h4 {
+    .value-banner-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .value-banner-badge {
+      background: #059669;
+      color: #ffffff;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .value-banner h3 {
+      font-size: 17px;
+      font-weight: 800;
+      color: #065f46;
+      margin: 0;
+    }
+
+    .value-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .value-card {
+      background: #ffffff;
+      border: 1px solid #d1fae5;
+      border-radius: var(--radius-sm);
+      padding: 16px 18px;
+      display: flex;
+      gap: 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+
+    .value-icon {
+      font-size: 24px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .value-card h4 {
       font-size: 14px;
-      font-weight: 700;
-      color: var(--slate-700);
-      margin-bottom: 16px;
-      text-align: left;
+      font-weight: 750;
+      color: var(--slate-900);
+      margin-bottom: 4px;
     }
 
-    .diagram-svg {
-      width: 100%;
-      max-width: 900px;
-      height: auto;
-      margin: 0 auto;
+    .value-card p {
+      font-size: 12.5px;
+      color: var(--slate-600);
+      line-height: 1.5;
     }
 
-    /* STEP CARDS */
+    /* STEP GRIDS & USER PRACTICES */
     .step-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 16px;
-      margin: 20px 0;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 18px;
+      margin: 24px 0;
     }
 
     .step-card {
       background: #ffffff;
       border: 1px solid var(--slate-200);
       border-radius: var(--radius-md);
-      padding: 20px;
+      padding: 24px 20px;
       position: relative;
       box-shadow: var(--shadow-sm);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .step-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
     }
 
     .step-card-num {
       position: absolute;
-      top: 16px;
-      right: 16px;
-      font-size: 20px;
+      top: 18px;
+      right: 18px;
+      font-size: 22px;
       font-weight: 900;
-      color: var(--slate-300);
+      color: #cbd5e1;
+    }
+
+    .step-card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--primary-subtle);
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      margin-bottom: 14px;
     }
 
     .step-card h4 {
       font-size: 15px;
-      font-weight: 700;
+      font-weight: 750;
       color: var(--slate-900);
       margin-bottom: 8px;
     }
@@ -232,19 +355,19 @@
     .step-card p {
       font-size: 13px;
       color: var(--slate-600);
-      margin-bottom: 0;
+      line-height: 1.55;
     }
 
-    /* ALERT BOXES */
+    /* CALLOUT BOXES */
     .alert-box {
-      padding: 16px 20px;
+      padding: 18px 22px;
       border-radius: var(--radius-md);
-      font-size: 13px;
-      margin: 16px 0;
+      font-size: 13.5px;
+      margin: 22px 0;
       display: flex;
       align-items: flex-start;
-      gap: 14px;
-      line-height: 1.5;
+      gap: 16px;
+      line-height: 1.6;
     }
 
     .alert-box-info {
@@ -255,52 +378,85 @@
 
     .alert-box-success {
       background: var(--success-bg);
-      border: 1px solid #a7f3d0;
+      border: 1px solid var(--success-border);
       color: #065f46;
     }
 
     .alert-box-warning {
       background: var(--warning-bg);
-      border: 1px solid #fde68a;
+      border: 1px solid var(--warning-border);
       color: #92400e;
     }
 
-    .alert-box-danger {
-      background: var(--danger-bg);
-      border: 1px solid #fecaca;
-      color: #991b1b;
+    .alert-box-purple {
+      background: #faf5ff;
+      border: 1px solid #e9d5ff;
+      color: #6b21a8;
     }
 
     .alert-icon {
-      font-size: 18px;
+      font-size: 20px;
       flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* DIAGRAMS */
+    .diagram-container {
+      background: #f8fafc;
+      border: 1px solid var(--slate-200);
+      border-radius: var(--radius-md);
+      padding: 28px 24px;
+      margin: 26px 0;
+      text-align: center;
+    }
+
+    .diagram-title {
+      font-size: 14px;
+      font-weight: 750;
+      color: var(--slate-750);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+
+    .diagram-svg {
+      width: 100%;
+      max-width: 960px;
+      height: auto;
+      margin: 0 auto;
     }
 
     /* TABLES */
     table.guide-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 13px;
-      margin: 20px 0;
+      font-size: 13.5px;
+      margin: 22px 0;
       background: #ffffff;
       border-radius: var(--radius-md);
       overflow: hidden;
       border: 1px solid var(--slate-200);
+      box-shadow: var(--shadow-sm);
     }
 
     table.guide-table th {
       background: var(--slate-100);
       color: var(--slate-800);
-      font-weight: 700;
-      padding: 12px 16px;
+      font-weight: 750;
+      padding: 14px 18px;
       text-align: left;
       border-bottom: 1px solid var(--slate-200);
+      font-size: 12.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
     }
 
     table.guide-table td {
-      padding: 12px 16px;
+      padding: 14px 18px;
       border-bottom: 1px solid var(--slate-200);
       color: var(--slate-700);
+      vertical-align: middle;
     }
 
     table.guide-table tr:last-child td {
@@ -308,114 +464,395 @@
     }
 
     table.guide-table tr:hover {
-      background: var(--slate-50);
+      background: #f8fafc;
     }
 
-    .pill-badge {
-      display: inline-block;
-      padding: 2px 8px;
+    .tag-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
       border-radius: 9999px;
       font-size: 11px;
       font-weight: 700;
     }
 
-    .pill-success { background: #d1fae5; color: #065f46; }
-    .pill-warning { background: #fef3c7; color: #92400e; }
-    .pill-danger { background: #fee2e2; color: #991b1b; }
-    .pill-info { background: #dbeafe; color: #1e40af; }
+    .tag-success { background: #d1fae5; color: #065f46; }
+    .tag-warning { background: #fef3c7; color: #92400e; }
+    .tag-danger { background: #fee2e2; color: #991b1b; }
+    .tag-info { background: #dbeafe; color: #1e40af; }
+    .tag-purple { background: #f3e8ff; color: #6b21a8; }
 
-    code {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      background: var(--slate-100);
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 12px;
-      color: var(--primary);
+    /* CATALOG MARKETING SECTION */
+    .catalog-section {
+      background: linear-gradient(180deg, #faf5ff 0%, #ffffff 100%);
+      border: 2px solid #e9d5ff;
+      border-radius: var(--radius-lg);
+      padding: 40px;
+      margin-top: 50px;
+      box-shadow: var(--shadow-md);
     }
 
-    footer {
-      background: var(--slate-50);
-      border-top: 1px solid var(--slate-200);
-      padding: 30px 40px;
+    .catalog-header {
       text-align: center;
+      max-width: 800px;
+      margin: 0 auto 36px auto;
+    }
+
+    .catalog-header .badge-catalog {
+      display: inline-block;
+      background: #7c3aed;
+      color: #ffffff;
+      padding: 5px 14px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 12px;
+    }
+
+    .catalog-header h2 {
+      font-size: 28px;
+      font-weight: 850;
+      color: #4c1d95;
+      justify-content: center;
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .catalog-header p {
+      font-size: 15px;
+      color: #6b21a8;
+      margin-top: 10px;
+    }
+
+    .modules-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 22px;
+    }
+
+    .module-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: var(--radius-md);
+      padding: 24px;
+      position: relative;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.22s ease-in-out;
+    }
+
+    .module-card:hover {
+      border-color: #8b5cf6;
+      transform: translateY(-3px);
+      box-shadow: 0 12px 24px -4px rgba(139, 92, 246, 0.15);
+    }
+
+    .module-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .module-icon-box {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+      color: #6d28d9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+
+    .module-title-wrap {
+      flex: 1;
+    }
+
+    .module-title-wrap h4 {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--slate-900);
+      line-height: 1.3;
+    }
+
+    .module-tag {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-top: 4px;
+    }
+
+    .tag-hot { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+    .tag-growth { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .tag-ops { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+
+    .module-card p {
       font-size: 13px;
       color: var(--slate-600);
+      line-height: 1.55;
+      margin-bottom: 16px;
+    }
+
+    .module-benefits {
+      background: var(--slate-50);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      margin-bottom: 18px;
+    }
+
+    .module-benefits ul {
+      list-style: none;
+      font-size: 12px;
+      color: var(--slate-700);
+    }
+
+    .module-benefits li {
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .module-benefits li:last-child {
+      margin-bottom: 0;
+    }
+
+    .module-cta-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--slate-100);
+      padding-top: 14px;
+      margin-top: auto;
+    }
+
+    .module-cta-badge {
+      font-size: 11px;
+      font-weight: 800;
+      color: #6d28d9;
+      background: #f5f3ff;
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+
+    .module-btn-quote {
+      font-size: 12px;
+      font-weight: 700;
+      color: #4338ca;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .module-btn-quote:hover {
+      text-decoration: underline;
+    }
+
+    /* FOOTER */
+    footer {
+      background: var(--slate-900);
+      color: #94a3b8;
+      border-top: 1px solid var(--slate-800);
+      padding: 36px 48px;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    footer p.footer-highlight {
+      color: #f1f5f9;
+      font-weight: 600;
+      margin-bottom: 6px;
     }
   </style>
 </head>
 <body>
 
 <div class="wrapper">
-  <!-- EN-TÊTE OFFICIEL -->
+  <!-- HERO BANNER ACCUEILLANT ET RASSURANT -->
   <header>
-    <div class="badge-release">
-      <span>● Architecture Certifiée</span>
-      <span>• Version 2.3.2</span>
+    <div class="header-badges">
+      <span class="badge-pill badge-certified">🛡️ Architecture Certifiée & Sécurisée</span>
+      <span class="badge-pill badge-premium">✨ Version Enrichie 2.3.2</span>
     </div>
-    <h1>Guide Complet Utilisateur, Gestion & Synchronisation</h1>
-    <p>Ce manuel d'exploitation fournit toutes les procédures claires et détaillées pour la gestion des réinscriptions, l'élimination des faux doublons, la réconciliation intelligente en quarantaine et la garantie de synchronisation parfaite entre vos postes.</p>
+    <h1>Guide Pratique & Stratégique d'Utilisation</h1>
+    <p class="lead">Votre solution de gestion scolaire et financière conçue pour fonctionner avec une fluidité totale : encaissements instantanés sans coupure, protection intelligente contre les erreurs de caisse et synchronisation transparente entre tous vos postes.</p>
+
+    <div class="hero-stats">
+      <div class="stat-card">
+        <div class="stat-val">100%</div>
+        <div class="stat-desc">Opérationnel Hors-Ligne (Même sans Internet)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val">0 Doublon</div>
+        <div class="stat-desc">Distinction automatique acomptes & vrais doublons</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val">Auto-Heal</div>
+        <div class="stat-desc">Auto-guérison et renvoi automatique des données</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val">3 580+</div>
+        <div class="stat-desc">Paiements & Reçus Tracés et Réconciliés</div>
+      </div>
+    </div>
   </header>
 
-  <!-- NAVIGATION RAPIDE -->
+  <!-- NAVIGATION RAPIDE PAR OBJECTIF MÉTIER -->
   <nav class="summary-nav">
-    <a href="#flux-sync">🔄 1. Architecture & Auto-Guérison</a>
-    <a href="#reinscriptions">📝 2. Réinscriptions & Tarifs</a>
-    <a href="#doublons">🔍 3. Détecteur Intelligent de Doublons</a>
-    <a href="#quarantaine">🛡️ 4. Quarantaine & Résolution</a>
-    <a href="#matrice">📊 5. Matrice de Convergence</a>
-    <a href="#direction">👤 6. Comptes & Direction PC 1</a>
+    <a href="#valeur-ajoutee">💎 1. Vos Nouveaux Super-Pouvoirs</a>
+    <a href="#principe-fonctionnement">🔄 2. Comment Fonctionne le Système</a>
+    <a href="#reinscriptions">📝 3. Réinscriptions Faciles</a>
+    <a href="#anti-doublons">🛡️ 4. Sécurité Anti-Doublons & Acomptes</a>
+    <a href="#quarantaine">🤝 5. Résolution Assistée (Quarantaine)</a>
+    <a href="#rituel-soir">🌙 6. Rituel de Clôture & Sérénité</a>
+    <a href="#evolutions-futures">🚀 7. Catalogue des Évolutions</a>
   </nav>
 
   <main>
 
-    <!-- SECTION 1 : FLUX & AUTO-GUÉRISON -->
-    <section id="flux-sync">
+    <!-- SECTION 1 : CE QUI A ÉTÉ AJOUTÉ EN BONUS HORS CONTRAT INITIAL -->
+    <section id="valeur-ajoutee">
+      <h2>
+        <span class="icon-h2">💎</span>
+        1. Les Investissements d'Excellence (Post-Avenant 3 & Hors Périmètre Initial)
+      </h2>
+      <p class="section-intro">Au-delà des fonctionnalités contractuelles de base, une série d'innovations techniques majeures a été intégrée pour apporter une <strong>totale tranquillité d'esprit à la Direction et au Secrétariat</strong>. Ces développements à haute valeur ajoutée préviennent les erreurs humaines et garantissent l'inviolabilité des chiffres.</p>
+
+      <div class="value-banner">
+        <div class="value-banner-header">
+          <span class="value-banner-badge">Valeur Ajoutée Exceptionnelle</span>
+          <h3>5 Innovations Conçues pour Vous Protéger au Quotidien</h3>
+        </div>
+        <p style="font-size: 13.5px; color: #065f46;">Ces technologies opèrent de façon invisible en arrière-plan pour sécuriser l'établissement sans nécessiter de compétence technique de votre part :</p>
+
+        <div class="value-grid">
+          <div class="value-card">
+            <div class="value-icon">📡</div>
+            <div>
+              <h4>Télémétrie & Surveillance Proactive</h4>
+              <p>Un radar interne contrôle constamment la santé du réseau et des ordinateurs. Si un poste présente un retard, le système le prend en charge avant qu'un blocage n'apparaisse.</p>
+            </div>
+          </div>
+
+          <div class="value-card">
+            <div class="value-icon">🧠</div>
+            <div>
+              <h4>Filtre Intelligent Anti-Faux Doublons</h4>
+              <p>Le logiciel comprend le contexte scolaire : il ne bloque plus jamais un acompte sur un mois, ni la vente de 2 carnets successifs, tout en bloquant net les vraies collisions de caisse.</p>
+            </div>
+          </div>
+
+          <div class="value-card">
+            <div class="value-icon">🏥</div>
+            <div>
+              <h4>Centre de Quarantaine & Zéro Blocage</h4>
+              <p>Si une saisie présente un conflit (ex. élève réaffecté au même moment), la caisse continue d'encaisser normalement. L'écriture est isolée dans un salon d'attente pour validation guidée.</p>
+            </div>
+          </div>
+
+          <div class="value-card">
+            <div class="value-icon">✨</div>
+            <div>
+              <h4>Nettoyage & Centralisation des Élèves</h4>
+              <p>Purger les faux statuts, éliminer les homonymes orphelins et centraliser les comptes : la base d'élèves est désormais saine, unifiée et parfaitement synchronisée.</p>
+            </div>
+          </div>
+
+          <div class="value-card">
+            <div class="value-icon">🩺</div>
+            <div>
+              <h4>Moteur d'Auto-Guérison (Auto-Heal)</h4>
+              <p>Fini les écritures coincées sur un seul poste ! Dès qu'une machine démarre, elle vérifie ses registres et expédie automatiquement toute écriture en suspens vers le nuage central.</p>
+            </div>
+          </div>
+
+          <div class="value-card">
+            <div class="value-icon">🔒</div>
+            <div>
+              <h4>Journal d'Audit & Reçus Inaltérables</h4>
+              <p>Chaque paiement est scellé sous la norme officielle <code>REC-2026-C...</code> avec traçabilité complète de l'auteur, de la date et de l'heure exacte.</p>
+            </div>
+          </div>
+
+          <div class="value-card">
+            <div class="value-icon">📊</div>
+            <div>
+              <h4>Bulletins Scolaires & Carnet de Notes Intégrés</h4>
+              <p>Saisie fluide des notes par matière, calcul automatique des coefficients et génération en 1 clic des livrets officiels PDF impeccables.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2 : PRINCIPE SIMPLIFIÉ DE FONCTIONNEMENT -->
+    <section id="principe-fonctionnement">
       <h2>
         <span class="icon-h2">🔄</span>
-        1. Architecture de Synchronisation & Moteur d'Auto-Guérison
+        2. Comment Fonctionne le Système : La Simplicité du « Local-First »
       </h2>
-      <p>Le logiciel fonctionne selon le principe <strong>Local-First (Hors-ligne d'abord)</strong> : chaque ordinateur possède sa propre base SQLite locale sécurisée. Dès qu'Internet est présent, les modifications sont transmises à Supabase Cloud et redescendues sur les autres machines.</p>
+      <p class="section-intro">Pour que vous ne soyez <strong>jamais bloqué par une coupure d'électricité ou d'Internet</strong>, chaque ordinateur fonctionne comme un coffre-fort autonome tout en partageant ses données avec la communauté dès que le réseau est disponible.</p>
 
-      <div class="diagram-card">
-        <h4>Schéma Directeur : Flux des Données et Cycle d'Auto-Guérison</h4>
-        <svg class="diagram-svg" viewBox="0 0 850 220" xmlns="http://www.w3.org/2000/svg">
-          <!-- Postes Locaux -->
-          <rect x="20" y="25" width="220" height="70" rx="8" fill="#ffffff" stroke="#4338ca" stroke-width="2"/>
-          <text x="130" y="55" font-family="sans-serif" font-size="13" font-weight="bold" fill="#1e1b4b" text-anchor="middle">Poste Local (C1, C2, C3, C4)</text>
-          <text x="130" y="75" font-family="sans-serif" font-size="11" fill="#475569" text-anchor="middle">Base SQLite locale ultra-rapide</text>
+      <div class="diagram-container">
+        <div class="diagram-title">Schéma Explicatif : Le Voyage d'un Paiement dans Votre Établissement</div>
+        <svg class="diagram-svg" viewBox="0 0 920 200" xmlns="http://www.w3.org/2000/svg">
+          <!-- Étape 1 : Saisie Guichet -->
+          <rect x="20" y="30" width="240" height="140" rx="14" fill="#ffffff" stroke="#3730a3" stroke-width="2"/>
+          <circle cx="50" cy="60" r="18" fill="#eef2ff"/>
+          <text x="50" y="66" font-size="18" text-anchor="middle">💻</text>
+          <text x="80" y="58" font-family="sans-serif" font-size="14" font-weight="bold" fill="#1e1b4b">Poste Caisse (C1, C2...)</text>
+          <text x="80" y="75" font-family="sans-serif" font-size="11" fill="#4338ca" font-weight="600">Saisie Instantanée & Sans Attente</text>
+          <text x="35" y="110" font-family="sans-serif" font-size="11.5" fill="#475569">• Impression immédiate du reçu</text>
+          <text x="35" y="130" font-family="sans-serif" font-size="11.5" fill="#475569">• Fonctionne même sans connexion</text>
+          <text x="35" y="150" font-family="sans-serif" font-size="11.5" fill="#059669" font-weight="bold">✓ Trésorerie mise à jour à la seconde</text>
 
-          <!-- Auto-Heal Scanner -->
-          <rect x="20" y="125" width="220" height="70" rx="8" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="4 2"/>
-          <text x="130" y="153" font-family="sans-serif" font-size="12" font-weight="bold" fill="#312e81" text-anchor="middle">Moteur Auto-Heal (Nouveau)</text>
-          <text x="130" y="173" font-family="sans-serif" font-size="10" fill="#4338ca" text-anchor="middle">Détecte et réenfile les oublis locaux</text>
+          <!-- Flèche 1 -->
+          <path d="M 270 100 L 330 100" stroke="#4f46e5" stroke-width="3" fill="none" marker-end="url(#arr-blue)"/>
+          <text x="300" y="90" font-family="sans-serif" font-size="11" font-weight="bold" fill="#4f46e5" text-anchor="middle">Automatique</text>
 
-          <!-- Flèche vers Outbox Queue -->
-          <path d="M 240 60 L 320 60" stroke="#4338ca" stroke-width="2" marker-end="url(#arrow)"/>
-          <path d="M 240 160 L 280 160 L 280 80 L 320 80" stroke="#6366f1" stroke-width="2" fill="none"/>
+          <!-- Étape 2 : Moteur d'Auto-Guérison -->
+          <rect x="340" y="30" width="240" height="140" rx="14" fill="#f8fafc" stroke="#6366f1" stroke-width="2" stroke-dasharray="6 3"/>
+          <circle cx="370" cy="60" r="18" fill="#e0e7ff"/>
+          <text x="370" y="66" font-size="18" text-anchor="middle">🤖</text>
+          <text x="400" y="58" font-family="sans-serif" font-size="14" font-weight="bold" fill="#1e1b4b">Garde du Corps Numérique</text>
+          <text x="400" y="75" font-family="sans-serif" font-size="11" fill="#6366f1" font-weight="600">Moteur Auto-Heal & Vérification</text>
+          <text x="355" y="110" font-family="sans-serif" font-size="11.5" fill="#475569">• Détecte les données en attente</text>
+          <text x="355" y="130" font-family="sans-serif" font-size="11.5" fill="#475569">• Contrôle la cohérence des montants</text>
+          <text x="355" y="150" font-family="sans-serif" font-size="11.5" fill="#4338ca" font-weight="bold">✓ Prêt à expédier dès que le net revient</text>
 
-          <!-- Outbox Queue -->
-          <rect x="320" y="35" width="180" height="70" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
-          <text x="410" y="65" font-family="sans-serif" font-size="13" font-weight="bold" fill="#0f172a" text-anchor="middle">File d'Attente Outbox</text>
-          <text x="410" y="85" font-family="sans-serif" font-size="11" fill="#64748b" text-anchor="middle">Tris par ordre de dépendance</text>
+          <!-- Flèche 2 -->
+          <path d="M 590 100 L 650 100" stroke="#0ea5e9" stroke-width="3" fill="none" marker-end="url(#arr-sky)"/>
+          <text x="620" y="90" font-family="sans-serif" font-size="11" font-weight="bold" fill="#0284c7" text-anchor="middle">Sécurisé</text>
 
-          <!-- Flèche vers Cloud -->
-          <path d="M 500 70 L 590 70" stroke="#0ea5e9" stroke-width="3" marker-end="url(#arrow)"/>
+          <!-- Étape 3 : Nuage Central Direction -->
+          <rect x="660" y="20" width="240" height="160" rx="14" fill="#0f172a" stroke="#0284c7" stroke-width="2"/>
+          <circle cx="690" cy="55" r="18" fill="#1e293b"/>
+          <text x="690" y="61" font-size="18" text-anchor="middle">☁️</text>
+          <text x="720" y="52" font-family="sans-serif" font-size="14" font-weight="bold" fill="#ffffff">Nuage Central Établissement</text>
+          <text x="720" y="70" font-family="sans-serif" font-size="11" fill="#38bdf8" font-weight="600">Vision Consolidée Direction</text>
+          <rect x="675" y="90" width="210" height="26" rx="6" fill="#1e293b"/>
+          <text x="780" y="107" font-family="sans-serif" font-size="11" fill="#e2e8f0" text-anchor="middle">Élèves : 777 enregistrés</text>
+          <rect x="675" y="122" width="210" height="26" rx="6" fill="#1e293b"/>
+          <text x="780" y="139" font-family="sans-serif" font-size="11" fill="#34d399" text-anchor="middle">Trésorerie Globale Réconciliée</text>
+          <text x="780" y="165" font-family="sans-serif" font-size="10.5" fill="#94a3b8" text-anchor="middle">Distribution instantanée vers les autres PC</text>
 
-          <!-- Supabase Cloud -->
-          <rect x="590" y="20" width="240" height="180" rx="12" fill="#0f172a" stroke="#0284c7" stroke-width="2"/>
-          <text x="710" y="55" font-family="sans-serif" font-size="15" font-weight="bold" fill="#ffffff" text-anchor="middle">☁️ Supabase Cloud</text>
-          <text x="710" y="80" font-family="sans-serif" font-size="11" fill="#38bdf8" text-anchor="middle">Référence Centrale Sécurisée</text>
-
-          <rect x="610" y="105" width="200" height="35" rx="6" fill="#1e293b"/>
-          <text x="710" y="127" font-family="sans-serif" font-size="11" fill="#e2e8f0" text-anchor="middle">Élèves : 777 | Paiements : 3580</text>
-
-          <rect x="610" y="148" width="200" height="35" rx="6" fill="#1e293b"/>
-          <text x="710" y="170" font-family="sans-serif" font-size="11" fill="#e2e8f0" text-anchor="middle">Caisse : 3679 | Comptes : 7</text>
-
-          <!-- Marker definitions -->
           <defs>
-            <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 1 L 10 5 L 0 9 z" fill="#4338ca"/>
+            <marker id="arr-blue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#4f46e5"/>
+            </marker>
+            <marker id="arr-sky" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#0ea5e9"/>
             </marker>
           </defs>
         </svg>
@@ -424,205 +861,431 @@
       <div class="alert-box alert-box-success">
         <span class="alert-icon">💡</span>
         <div>
-          <strong>Pourquoi l'auto-guérison (Auto-Heal Outbox) résout le problème du PC 1 :</strong><br>
-          Auparavant, si une modification était effectuée sans être ajoutée immédiatement à la file d'attente, elle restait figée dans SQLite et la file affichait <em>« 0 modification en attente »</em>. Le nouveau moteur <code>reconcilePendingOutbox()</code> scanne désormais automatiquement toutes les tables au démarrage et lors de chaque synchronisation. Tout enregistrement en attente est immédiatement pris en charge et envoyé au Cloud.
+          <strong>Ce que cela signifie concrètement pour vous :</strong><br>
+          Si la connexion Internet saute pendant que 30 parents attendent à la caisse, vous continuez d'encaisser et d'imprimer des reçus exactement comme si de rien n'était. Dès que le réseau réapparaît, le système synchronise tout automatiquement, sans doublon et sans calcul manuel.
         </div>
       </div>
     </section>
 
-    <!-- SECTION 2 : RÉINSCRIPTIONS & TARIFS -->
+    <!-- SECTION 3 : RÉINSCRIPTIONS FACILES -->
     <section id="reinscriptions">
       <h2>
         <span class="icon-h2">📝</span>
-        2. Réinscriptions Annuelles & Application des Tarifs Dynamiques
+        3. Réinscriptions Annuelles : Procédure en 4 Clics
       </h2>
-      <p>La réinscription assure le passage d'un élève à la classe supérieure sans jamais créer de fiche en double.</p>
+      <p class="section-intro">La réinscription permet de faire passer un élève dans la classe supérieure tout en conservant son historique complet, sans jamais recréer sa fiche.</p>
 
       <div class="step-grid">
         <div class="step-card">
           <span class="step-card-num">01</span>
-          <h4>Vérification de l'Année</h4>
-          <p>Assurez-vous d'être positionné sur l'année active <code>2026-2027</code>. Les résidus accidentels d'années futures ont été purgés et normalisés.</p>
+          <div class="step-card-icon">📅</div>
+          <h4>Vérifier l'Année</h4>
+          <p>Le bandeau en haut vous indique que vous êtes bien sur l'année scolaire active <strong>2026-2027</strong>. Les données ont été nettoyées de tout résidu.</p>
         </div>
+
         <div class="step-card">
           <span class="step-card-num">02</span>
-          <h4>Bouton « Réinscrire »</h4>
-          <p>Ouvrez la fiche existante de l'élève et cliquez sur le bouton <strong>Réinscrire</strong>. Sélectionnez sa nouvelle classe (ex: passage de 5ème en 4ème).</p>
+          <div class="step-card-icon">🔍</div>
+          <h4>Trouver l'Élève</h4>
+          <p>Tapez son nom ou son matricule dans la barre de recherche. Ouvrez sa fiche et cliquez simplement sur le bouton violet <strong>« Réinscrire »</strong>.</p>
         </div>
+
         <div class="step-card">
           <span class="step-card-num">03</span>
-          <h4>Grille Dynamique</h4>
-          <p>Le logiciel applique automatiquement le tarif d'écolage et le droit de réinscription officiel configuré dans les Paramètres Généraux.</p>
+          <div class="step-card-icon">🏷️</div>
+          <h4>Tarifs Automatiques</h4>
+          <p>Le logiciel sélectionne directement le droit de réinscription et l'écolage prévus pour sa nouvelle classe. Aucune saisie de prix n'est nécessaire.</p>
         </div>
+
         <div class="step-card">
           <span class="step-card-num">04</span>
-          <h4>Paiements Échelonnés</h4>
-          <p>Si les parents versent un acompte (ex: 30 000 Ar), saisissez-le librement. Dès réception du solde (ex: 85 000 Ar), émettez le second reçu : le système ne le bloquera jamais en doublon.</p>
+          <div class="step-card-icon">💳</div>
+          <h4>Acomptes Flexibles</h4>
+          <p>Les parents versent une avance ? Saisissez le montant exact. Lorsqu'ils reviendront solder, le reçu de solde s'émettra en un clin d'œil sans blocage.</p>
         </div>
       </div>
     </section>
 
-    <!-- SECTION 3 : DÉTECTEUR INTELLIGENT DE DOUBLONS -->
-    <section id="doublons">
+    <!-- SECTION 4 : INTELLIGENCE ANTI-DOUBLONS -->
+    <section id="anti-doublons">
       <h2>
-        <span class="icon-h2">🔍</span>
-        3. Détecteur Intelligent de Doublons & Protection des Acomptes
+        <span class="icon-h2">🛡️</span>
+        4. Détecteur Intelligent de Doublons : La Fin des Fausses Alertes
       </h2>
-      <p>Le détecteur de doublons a été doté d'une <strong>intelligence financière contextuelle</strong> : il sait faire la différence entre une vente multiple, un paiement échelonné et une réelle collision d'encaissement.</p>
-
-      <div class="diagram-card">
-        <h4>Arbre de Décision Algorithmique du Détecteur</h4>
-        <svg class="diagram-svg" viewBox="0 0 850 180" xmlns="http://www.w3.org/2000/svg">
-          <!-- Root -->
-          <rect x="20" y="65" width="160" height="50" rx="8" fill="#312e81"/>
-          <text x="100" y="95" font-family="sans-serif" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">Paiement Détecté</text>
-
-          <!-- Branch 1: Retail -->
-          <line x1="180" y1="80" x2="260" y2="35" stroke="#94a3b8" stroke-width="2"/>
-          <rect x="260" y="15" width="220" height="45" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
-          <text x="370" y="35" font-family="sans-serif" font-size="11" font-weight="bold" fill="#0f172a" text-anchor="middle">Uniforme / Carnets / Badges</text>
-          <text x="370" y="50" font-family="sans-serif" font-size="10" fill="#64748b" text-anchor="middle">Vente au détail légitime</text>
-
-          <line x1="480" y1="35" x2="550" y2="35" stroke="#059669" stroke-width="2"/>
-          <rect x="550" y="15" width="270" height="45" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1.5"/>
-          <text x="685" y="35" font-family="sans-serif" font-size="11" font-weight="bold" fill="#065f46" text-anchor="middle">✅ AUTORISÉ (Jamais signalé)</text>
-          <text x="685" y="50" font-family="sans-serif" font-size="10" fill="#047857" text-anchor="middle">Reçus distincts conservés en trésorerie</text>
-
-          <!-- Branch 2: Installments -->
-          <line x1="180" y1="90" x2="260" y2="90" stroke="#94a3b8" stroke-width="2"/>
-          <rect x="260" y="70" width="220" height="45" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
-          <text x="370" y="90" font-family="sans-serif" font-size="11" font-weight="bold" fill="#0f172a" text-anchor="middle">Écolage en tranches (ex: 25k + 25k)</text>
-          <text x="370" y="105" font-family="sans-serif" font-size="10" fill="#64748b" text-anchor="middle">Total &le; Tarif mensuel classe</text>
-
-          <line x1="480" y1="90" x2="550" y2="90" stroke="#059669" stroke-width="2"/>
-          <rect x="550" y="70" width="270" height="45" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1.5"/>
-          <text x="685" y="90" font-family="sans-serif" font-size="11" font-weight="bold" fill="#065f46" text-anchor="middle">✅ VALIDE (Paiement partiel)</text>
-          <text x="685" y="105" font-family="sans-serif" font-size="10" fill="#047857" text-anchor="middle">Complète le mois sans fausse alerte</text>
-
-          <!-- Branch 3: Collision -->
-          <line x1="180" y1="100" x2="260" y2="145" stroke="#94a3b8" stroke-width="2"/>
-          <rect x="260" y="125" width="220" height="45" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
-          <text x="370" y="145" font-family="sans-serif" font-size="11" font-weight="bold" fill="#991b1b" text-anchor="middle">Collision multi-caisses (C1 vs C3)</text>
-          <text x="370" y="160" font-family="sans-serif" font-size="10" fill="#dc2626" text-anchor="middle">Même mois payé en double au tarif plein</text>
-
-          <line x1="480" y1="145" x2="550" y2="145" stroke="#dc2626" stroke-width="2"/>
-          <rect x="550" y="125" width="270" height="45" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
-          <text x="685" y="145" font-family="sans-serif" font-size="11" font-weight="bold" fill="#991b1b" text-anchor="middle">⚠️ SIGNALÉ POUR DÉCISION</text>
-          <text x="685" y="160" font-family="sans-serif" font-size="10" fill="#b91c1c" text-anchor="middle">Résolution assistée avec mise à jour caisse</text>
-        </svg>
-      </div>
+      <p class="section-intro">L'ancienne version pouvait parfois considérer à tort qu'un deuxième achat de fournitures ou un paiement en plusieurs tranches était un "doublon". Le nouveau moteur algorithmique sait faire la part des choses :</p>
 
       <table class="guide-table">
         <thead>
           <tr>
-            <th>Type d'Écriture</th>
-            <th>Exemple Concret</th>
-            <th>Comportement du Système</th>
+            <th>Situation Vécue en Caisse</th>
+            <th>Exemple Réel</th>
+            <th>Comportement du Logiciel</th>
             <th>Impact Trésorerie</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><strong>Carnet / Fournitures</strong></td>
-            <td>1 carnet acheté en juillet + 1 carnet acheté en septembre</td>
-            <td><span class="pill-badge pill-success">Accepté</span> Aucun blocage</td>
-            <td>Les deux recettes sont enregistrées</td>
+            <td><strong>Achat de Fournitures / Équipements</strong></td>
+            <td>La famille achète un carnet en juillet puis un nouveau en octobre.</td>
+            <td><span class="tag-badge tag-success">✓ Autorisé Instantanément</span> Aucune interruption.</td>
+            <td>Les 2 ventes sont bien comptabilisées séparément.</td>
           </tr>
           <tr>
-            <td><strong>Écolage fractionné</strong></td>
-            <td>38 000 Ar le 1er du mois puis 12 000 Ar le 15 (Tarif : 50k)</td>
-            <td><span class="pill-badge pill-success">Paiement Partiel</span> Reçu valide</td>
-            <td>Le mois est marqué intégralement payé</td>
+            <td><strong>Écolage Payé en 2 Fois (Acompte)</strong></td>
+            <td>Écolage de 50 000 Ar : versement de 30 000 Ar puis 20 000 Ar 10 jours après.</td>
+            <td><span class="tag-badge tag-success">✓ Reconnu comme Solde</span> Le mois se complète.</td>
+            <td>Les 2 reçus sont émis et le compte de l'élève est à jour.</td>
           </tr>
           <tr>
-            <td><strong>Double encaissement C1/C3</strong></td>
-            <td>50 000 Ar payé sur PC 1 et 50 000 Ar payé sur PC 3</td>
-            <td><span class="pill-badge pill-danger">Collision Multi-Postes</span> Signalé</td>
-            <td>Annulation du doublon après contrôle du reçu</td>
+            <td><strong>Erreur Humaine : Double Encaissement</strong></td>
+            <td>Mme la Secrétaire a encaissé 50 000 Ar, et la Caisse 2 encaisse la même somme le même jour pour le même mois.</td>
+            <td><span class="tag-badge tag-danger">⚠️ Alerte Vigilance Immédiate</span> Le logiciel propose de vérifier les reçus.</td>
+            <td>Protection anti-erreur pour éviter d'encaisser 2 fois les parents par inadvertance.</td>
           </tr>
         </tbody>
       </table>
     </section>
 
-    <!-- SECTION 4 : QUARANTAINE & RÉSOLUTION -->
+    <!-- SECTION 5 : QUARANTAINE & RÉCONCILIATION GUIDÉE -->
     <section id="quarantaine">
       <h2>
-        <span class="icon-h2">🛡️</span>
-        4. Centre de Quarantaine & Résolution Assistée des Incohérences
+        <span class="icon-h2">🤝</span>
+        5. Le Centre de Quarantaine : Votre Assistant de Résolution en 1 Clic
       </h2>
-      <p>Lorsqu'une écriture locale ne peut être envoyée au Cloud (par exemple un reçu émis pour un identifiant d'élève supprimé), le logiciel la place en <strong>Quarantaine de Sécurité</strong>. La caisse n'est jamais bloquée.</p>
+      <p class="section-intro">Lorsqu'un cas particulier survient (par exemple, un encaissement fait au guichet sur un numéro d'élève pendant qu'un collègue mettait à jour l'orthographe du nom), le système ne bloque rien. Il dépose l'écriture dans un <strong>salon de décision bienveillant</strong> accessible dans vos réglages.</p>
 
-      <div class="alert-box alert-box-info">
+      <div class="alert-box alert-box-purple">
         <span class="alert-icon">📍</span>
         <div>
-          <strong>Accès Direct :</strong> Rendez-vous dans <strong>Paramètres</strong> &gt; bandeau <strong>Matrice de Convergence</strong> &gt; bouton <code>[Quarantaine & Incohérences]</code>. Le badge rouge vous indique le nombre exact d'écritures nécessitant une décision.
+          <strong>Comment y accéder ?</strong> Allez dans <strong>Paramètres</strong> &gt; bandeau <strong>Matrice de Convergence</strong> &gt; cliquez sur <code>[Quarantaine & Incohérences]</code>. S'il n'y a pas de badge rouge, tout est parfait ! S'il y a un chiffre, le logiciel vous guide pas à pas.
         </div>
       </div>
 
       <div class="step-grid">
-        <div class="step-card" style="border-top: 4px solid var(--primary);">
-          <h4>1. Rattacher à un Élève</h4>
-          <p>Si l'élève est déjà présent mais que son identifiant avait été modifié, recherchez son nom dans la barre intelligente : l'écriture lui est rattachée et part au Cloud immédiatement.</p>
+        <div class="step-card" style="border-top: 4px solid var(--primary-light);">
+          <div class="step-card-icon">👤</div>
+          <h4>Rattacher à un Élève</h4>
+          <p>Le système vous présente les élèves ressemblants. Un clic sur le bon nom et le paiement s'y attache immédiatement.</p>
         </div>
+
         <div class="step-card" style="border-top: 4px solid var(--success);">
-          <h4>2. Créer l'Élève Manquant</h4>
-          <p>Si l'élève avait été omis dans la base, renseignez son nom, prénom et classe : le logiciel crée sa fiche élève et lui associe le reçu instantanément.</p>
+          <div class="step-card-icon">➕</div>
+          <h4>Créer l'Élève</h4>
+          <p>S'il s'agit d'un nouvel élève non encore créé, renseignez son nom : sa fiche se génère et valide le paiement dans la foulée.</p>
         </div>
+
         <div class="step-card" style="border-top: 4px solid var(--warning);">
-          <h4>3. Reclasser en Caisse Générale</h4>
-          <p>Si la recette est autonome (vente libre de fournitures, don, cantine occasionnelle sans compte élève), convertissez-la en mouvement de trésorerie libre.</p>
+          <div class="step-card-icon">💼</div>
+          <h4>Reclasser en Recette Libre</h4>
+          <p>S'il s'agit d'une vente exceptionnelle (vente de drapeaux, cantine d'un invité), reclassez-la en mouvement direct de trésorerie.</p>
         </div>
+
         <div class="step-card" style="border-top: 4px solid var(--danger);">
-          <h4>4. Annuler avec Traçabilité</h4>
-          <p>S'il s'agit d'une erreur de saisie ou d'un test, annulez l'écriture. Un motif d'audit est exigé pour justifier la suppression dans les registres officiels.</p>
+          <div class="step-card-icon">🗑️</div>
+          <h4>Annulation Auditée</h4>
+          <p>S'il s'agissait d'un doublon avéré ou d'une fausse manipulation, annulez la ligne avec un motif pour le registre d'audit.</p>
         </div>
       </div>
     </section>
 
-    <!-- SECTION 5 : MATRICE DE CONVERGENCE -->
-    <section id="matrice">
+    <!-- SECTION 6 : RITUEL DU SOIR -->
+    <section id="rituel-soir">
       <h2>
-        <span class="icon-h2">📊</span>
-        5. Matrice de Convergence Multi-Postes (Contrôle en Temps Réel)
+        <span class="icon-h2">🌙</span>
+        6. Le Rituel du Soir : 30 Secondes pour Partir l'Esprit Léger
       </h2>
-      <p>La Matrice de Convergence compare en temps réel la base de chaque ordinateur avec la référence Supabase Cloud.</p>
+      <p class="section-intro">Pour assurer une harmonie parfaite entre les postes avant la fermeture de l'école :</p>
 
-      <div class="step-card" style="margin: 20px 0;">
-        <h4>Comprendre les Indicateurs Visuels</h4>
-        <ul style="margin-left: 20px; margin-top: 10px; font-size: 13px;">
-          <li style="margin-bottom: 8px;"><strong style="color: var(--success);">Statut Conforme (Vert) :</strong> L'ordinateur possède exactement le même nombre d'élèves, de paiements et de lignes de caisse que le Cloud. Tout est aligné.</li>
-          <li style="margin-bottom: 8px;"><strong style="color: var(--warning);">Écarts Détectés (Orange) :</strong> Des données ont été saisies localement sans encore être synchronisées, ou le poste doit télécharger les dernières recettes émises par les autres caisses. Cliquez sur <em>Actualiser</em>.</li>
-          <li><strong style="color: var(--primary);">File Locale à 0 :</strong> Aucune modification n'est bloquée sur cet ordinateur. Tout a été envoyé.</li>
-        </ul>
-      </div>
+      <div class="step-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+        <div class="step-card">
+          <div class="step-card-icon">1️⃣</div>
+          <h4>Cliquer sur « Synchroniser »</h4>
+          <p>Sur chaque poste de travail, cliquez sur le bouton de synchronisation (en bas à gauche de l'écran). Le système échange ses dernières écritures avec le Cloud.</p>
+        </div>
 
-      <div class="alert-box alert-box-warning">
-        <span class="alert-icon">⚠️</span>
-        <div>
-          <strong>Réflexe de Clôture Quotidienne :</strong> Chaque soir, avant d'éteindre les ordinateurs, chaque caisse clique sur le bouton de synchronisation (en bas à gauche) et vérifie que la file locale affiche <code>0</code>.
+        <div class="step-card">
+          <div class="step-card-icon">2️⃣</div>
+          <h4>Vérifier le Chiffre « 0 »</h4>
+          <p>Le voyant doit indiquer <strong>0 modification en attente</strong>. Cela certifie que toutes les encaissements de la journée sont bien sauvegardés sur le serveur central.</p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-card-icon">3️⃣</div>
+          <h4>Clôturer la Caisse Journalière</h4>
+          <p>Imprimez ou exportez le bordereau récapitulatif de caisse depuis l'onglet Trésorerie. Vos chiffres sont impeccables et prêts pour le lendemain.</p>
         </div>
       </div>
     </section>
 
-    <!-- SECTION 6 : COMPTE DIRECTION PC 1 -->
-    <section id="direction">
-      <h2>
-        <span class="icon-h2">👤</span>
-        6. Synchronisation Propre du Compte Utilisateur Direction
-      </h2>
-      <p>Conformément aux normes d'ingénierie et sans recours au bricolage :</p>
-      <ul>
-        <li>Sur le <strong>PC 1 de la Direction</strong>, la modification du compte utilisateur est enregistrée dans sa base locale SQLite avec le drapeau <code>sync_status = 'pending'</code>.</li>
-        <li>Le moteur d'auto-guérison <code>reconcilePendingOutbox()</code> découvre automatiquement cette ligne en attente lors du prochain démarrage ou clic sur <strong>Synchroniser</strong> sur le PC 1.</li>
-        <li>L'ordre est immédiatement poussé sur Supabase Cloud et redescendu automatiquement sur tous les autres postes sans aucune intervention manuelle.</li>
-      </ul>
+    <!-- SECTION 7 : CATALOGUE MARKETING DES ÉVOLUTIONS FUTURES -->
+    <section id="evolutions-futures" class="catalog-section">
+      <div class="catalog-header">
+        <span class="badge-catalog">🚀 Vision Stratégique & Perspectives</span>
+        <h2>Catalogue des Évolutions & Modules Optionnels</h2>
+        <p>Votre ERP scolaire est une plateforme vivante, évolutive et modulaire. Pour accompagner la modernisation de votre établissement et offrir un service premium aux familles, découvrez les modules activables sur devis :</p>
+      </div>
+
+      <div class="modules-grid">
+
+        <!-- MODULE 1 : PORTAIL PARENTS -->
+        <div class="module-card">
+          <div>
+            <div class="module-header">
+              <div class="module-icon-box">👨‍👩‍👧‍👦</div>
+              <div class="module-title-wrap">
+                <h4>Portail Parents & Suivi Mobile</h4>
+                <span class="module-tag tag-hot">🔥 Le Plus Demandé</span>
+              </div>
+            </div>
+            <p>Espace en ligne accessible sur smartphone permettant aux familles de consulter l'évolution scolaire de leur enfant, leurs devoirs et leur solde de scolarité en temps réel.</p>
+            <div class="module-benefits">
+              <ul>
+                <li>✓ Notifications SMS & WhatsApp automatiques</li>
+                <li>✓ Consultation des notes et bulletins en direct</li>
+                <li>✓ Réduction de 80% des files d'attente au secrétariat</li>
+              </ul>
+            </div>
+          </div>
+          <div class="module-cta-strip">
+            <span class="module-cta-badge">Option Clé en Main</span>
+            <span class="module-btn-quote">Demander une étude →</span>
+          </div>
+        </div>
+
+        <!-- MODULE 2 : INSCRIPTIONS EN LIGNE -->
+        <div class="module-card">
+          <div>
+            <div class="module-header">
+              <div class="module-icon-box">📝</div>
+              <div class="module-title-wrap">
+                <h4>Générateur de Formulaires (Inscriptions)</h4>
+                <span class="module-tag tag-ops">⚡ Gain de Temps Majeur</span>
+              </div>
+            </div>
+            <p>Générez un lien d'inscription web pour la rentrée. Les parents saisissent eux-mêmes leurs coordonnées et téléversent les pièces justificatives directement.</p>
+            <div class="module-benefits">
+              <ul>
+                <li>✓ Zéro resaisie pour le secrétariat</li>
+                <li>✓ Injection automatique des nouveaux élèves dans le LMS</li>
+                <li>✓ Validation en 1 clic par la Direction</li>
+              </ul>
+            </div>
+          </div>
+          <div class="module-cta-strip">
+            <span class="module-cta-badge">Rentrée 2026/2027</span>
+            <span class="module-btn-quote">Demander une étude →</span>
+          </div>
+        </div>
+
+        <!-- MODULE 3 : RECRUTEMENT RH -->
+        <div class="module-card">
+          <div>
+            <div class="module-header">
+              <div class="module-icon-box">💼</div>
+              <div class="module-title-wrap">
+                <h4>Générateur de Formulaires (Recrutement RH)</h4>
+                <span class="module-tag tag-growth">🎯 Efficacité RH</span>
+              </div>
+            </div>
+            <p>Collectez et triez les candidatures d'enseignants et personnels administratifs via une page dédiée à l'image de votre école.</p>
+            <div class="module-benefits">
+              <ul>
+                <li>✓ Centralisation des CV et lettres de motivation</li>
+                <li>✓ Grille de notation et filtrage des compétences</li>
+                <li>✓ Fiches employés pré-remplies dès l'embauche</li>
+              </ul>
+            </div>
+          </div>
+          <div class="module-cta-strip">
+            <span class="module-cta-badge">Module RH</span>
+            <span class="module-btn-quote">Demander une étude →</span>
+          </div>
+        </div>
+
+        <!-- MODULE 4 : EMPLOI DU TEMPS INTELLIGENT -->
+        <div class="module-card">
+          <div>
+            <div class="module-header">
+              <div class="module-icon-box">🗓️</div>
+              <div class="module-title-wrap">
+                <h4>Gestion de l'Emploi du Temps Intelligent</h4>
+                <span class="module-tag tag-ops">🧠 Détection Anti-Conflit</span>
+              </div>
+            </div>
+            <p>Planificateur interactif par glisser-déposer pour concevoir les emplois du temps des classes et des enseignants sans jamais commettre de doublon de salle ou de professeur.</p>
+            <div class="module-benefits">
+              <ul>
+                <li>✓ Détection instantanée des chevauchements</li>
+                <li>✓ Export imprimable par classe et par enseignant</li>
+                <li>✓ Publication directe sur les panneaux d'affichage</li>
+              </ul>
+            </div>
+          </div>
+          <div class="module-cta-strip">
+            <span class="module-cta-badge">Pédagogie & Planning</span>
+            <span class="module-btn-quote">Demander une étude →</span>
+          </div>
+        </div>
+
+        <!-- MODULE 5 : POINTAGE BIOMÉTRIQUE -->
+        <div class="module-card">
+          <div>
+            <div class="module-header">
+              <div class="module-icon-box">👆</div>
+              <div class="module-title-wrap">
+                <h4>Pointage RH Biométrique & Assiduité</h4>
+                <span class="module-tag tag-hot">🛡️ Rigueur Administrative</span>
+              </div>
+            </div>
+            <p>Liaison de votre logiciel avec une pointeuse à empreinte digitale, reconnaissance faciale ou badge RFID pour enregistrer l'assiduité réelle de tout le personnel.</p>
+            <div class="module-benefits">
+              <ul>
+                <li>✓ Calcul automatique des heures et des retards</li>
+                <li>✓ Pré-remplissage des fiches de paie et primes</li>
+                <li>✓ Élimination des contestations d'horaires</li>
+              </ul>
+            </div>
+          </div>
+          <div class="module-cta-strip">
+            <span class="module-cta-badge">Matériel + Logiciel</span>
+            <span class="module-btn-quote">Demander une étude →</span>
+          </div>
+        </div>
+
+        <!-- MODULE 6 : BIBLIOTHÈQUE & CDI -->
+        <div class="module-card">
+          <div>
+            <div class="module-header">
+              <div class="module-icon-box">📚</div>
+              <div class="module-title-wrap">
+                <h4>Gestion de la Bibliothèque Scolaire (CDI)</h4>
+                <span class="module-tag tag-growth">📖 Patrimoine & Culture</span>
+              </div>
+            </div>
+            <p>Inventaire complet des manuels et ouvrages scolaires, suivi des prêts par douchette code-barres et gestion automatisée des retards de restitution.</p>
+            <div class="module-benefits">
+              <ul>
+                <li>✓ Suivi des emprunts lié à la fiche élève</li>
+                <li>✓ Alertes automatiques de non-retour avant fin d'année</li>
+                <li>✓ Calcul automatique des cautions et pénalités</li>
+              </ul>
+            </div>
+          </div>
+          <div class="module-cta-strip">
+            <span class="module-cta-badge">Gestion de Stock</span>
+            <span class="module-btn-quote">Demander une étude →</span>
+          </div>
+        </div>
+
+        <!-- MODULE 7 : NOUVEAU - MOBILE MONEY -->
+        <div class="module-card">
+          <div>
+            <div class="module-header">
+              <div class="module-icon-box">📱</div>
+              <div class="module-title-wrap">
+                <h4>Paiement Mobile Money (Mvola, Orange, Airtel)</h4>
+                <span class="module-tag tag-hot">💎 Modernité Absolue</span>
+              </div>
+            </div>
+            <p>Offrez aux parents la possibilité de payer l'écolage et les droits d'examen depuis leur téléphone portable 24h/24 sans avoir à se déplacer avec de l'argent liquide.</p>
+            <div class="module-benefits">
+              <ul>
+                <li>✓ Rapprochement bancaire automatisé à la seconde</li>
+                <li>✓ Réduction drastique des flux d'espèces en caisse</li>
+                <li>✓ Reçu électronique envoyé immédiatement par SMS</li>
+              </ul>
+            </div>
+          </div>
+          <div class="module-cta-strip">
+            <span class="module-cta-badge">Finances Sans Espèces</span>
+            <span class="module-btn-quote">Demander une étude →</span>
+          </div>
+        </div>
+
+        <!-- MODULE 8 : NOUVEAU - CARTE ÉLÈVE SANS CONTACT & CANTINE -->
+        <div class="module-card">
+          <div>
+            <div class="module-header">
+              <div class="module-icon-box">💳</div>
+              <div class="module-title-wrap">
+                <h4>Badge RFID Élève & Cantine / Demi-Pension</h4>
+                <span class="module-tag tag-growth">🍽️ Fluidité Maximale</span>
+              </div>
+            </div>
+            <p>Chaque élève dispose d'un badge sécurisé. Au réfectoire, le passage à la borne débite automatiquement son forfait repas et confirme sa présence.</p>
+            <div class="module-benefits">
+              <ul>
+                <li>✓ Gestion des forfaits repas prépayés</li>
+                <li>✓ Suivi des régimes alimentaires et allergies</li>
+                <li>✓ Passage ultra-rapide sans manipulation de tickets</li>
+              </ul>
+            </div>
+          </div>
+          <div class="module-cta-strip">
+            <span class="module-cta-badge">Cartes Intelligentes</span>
+            <span class="module-btn-quote">Demander une étude →</span>
+          </div>
+        </div>
+
+        <!-- MODULE 9 : NOUVEAU - TRANSPORT SCOLAIRE GPS -->
+        <div class="module-card">
+          <div>
+            <div class="module-header">
+              <div class="module-icon-box">🚌</div>
+              <div class="module-title-wrap">
+                <h4>Transport Scolaire & Géolocalisation Bus</h4>
+                <span class="module-tag tag-ops">🗺️ Sécurité & Confiance</span>
+              </div>
+            </div>
+            <p>Optimisez les circuits de ramassage scolaire, suivez les navettes en temps réel et rassurez les parents sur l'heure exacte de passage du bus.</p>
+            <div class="module-benefits">
+              <ul>
+                <li>✓ Suivi de la flotte par GPS en direct</li>
+                <li>✓ Liste d'appel par arrêt de bus et par véhicule</li>
+                <li>✓ Facturation automatique selon l'axe de transport</li>
+              </ul>
+            </div>
+          </div>
+          <div class="module-cta-strip">
+            <span class="module-cta-badge">Flotte & Logistique</span>
+            <span class="module-btn-quote">Demander une étude →</span>
+          </div>
+        </div>
+
+        <!-- MODULE 10 : NOUVEAU - ACTIVITÉS PÉRISCOLAIRES & GARDERIE -->
+        <div class="module-card">
+          <div>
+            <div class="module-header">
+              <div class="module-icon-box">🎨</div>
+              <div class="module-title-wrap">
+                <h4>Activités Périscolaires, Clubs & Garderie</h4>
+                <span class="module-tag tag-ops">⚡ Vie Scolaire Épanouie</span>
+              </div>
+            </div>
+            <p>Gérez facilement les inscriptions aux clubs (musique, théâtre, échecs, sports) et la garderie du soir avec suivi des présences et facturation automatisée au forfait ou à l'heure.</p>
+            <div class="module-benefits">
+              <ul>
+                <li>✓ Appel interactif par atelier et par animateur</li>
+                <li>✓ Facturation automatique intégrée au compte de l'élève</li>
+                <li>✓ Alerte de sécurité sur les autorisations de sortie des parents</li>
+              </ul>
+            </div>
+          </div>
+          <div class="module-cta-strip">
+            <span class="module-cta-badge">Périscolaire & Loisirs</span>
+            <span class="module-btn-quote">Demander une étude →</span>
+          </div>
+        </div>
+
+      </div>
     </section>
 
   </main>
 
-  <!-- FOOTER -->
+  <!-- FOOTER OFFICIEL -->
   <footer>
-    Système de Gestion Scolaire & Financière LMS • Document Technique Officiel • Déployé sous Version 2.3.2 • Octobre 2026
+    <p class="footer-highlight">LMS École • Système de Gestion Scolaire & Financière de Nouvelle Génération</p>
+    <p>Document d'Exploitation & Vision Stratégique • Édition Octobre 2026 • Accompagnement & Ingénierie Dédiée</p>
   </footer>
 </div>
 

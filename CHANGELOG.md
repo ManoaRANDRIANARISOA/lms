@@ -5,6 +5,26 @@ Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/)
 
 ---
 
+## [2.3.4] - 2026-10-05
+
+### 🚀 Nouveautés & Auto-Guérison Multi-Postes
+- **Compaction & Idempotence de la File de Synchronisation (`sync.service.ts`)** :
+  - Élimination définitive de l'inflation exponentielle des écritures en erreur (passant de 22 à 44/132 blocages).
+  - Déduplication stricte dans `addToSyncQueue` : actualise la charge utile existante plutôt que de créer des lignes orphelines.
+  - Fonction `compactSyncQueue` pour purger les doublons au démarrage de chaque cycle.
+- **Auto-Guérison des Types PostgreSQL (`grades.deleted`)** :
+  - Conversion automatique des booléens (`"false"`) en entiers (`0` ou `1`) sur le champ `deleted` de la table `grades` pour éliminer l'erreur PostgreSQL `22P02`.
+- **Résolution Automatique des Matières & Clés Étrangères (`class_subjects` & `subjects`)** :
+  - Résolution proactive des contraintes `class_subjects_subject_id_fkey` et `subjects_name_key` (23505) en créant ou adoptant l'identifiant distant Supabase avant d'enchaîner l'insertion.
+- **Assistant Visuel de Réconciliation des Écritures (`ReconciliationModal.tsx` & `sync.handler.ts`)** :
+  - Correction du format de réponse IPC permettant l'affichage effectif des écritures en quarantaine et orphelines avec leurs options de rattachement ou conversion.
+- **Pilotage Administratif à Distance (`station_command`)** :
+  - Diffusion de l'ordre global `reconcile_all` depuis la Matrice de Convergence vers tous les postes connectés.
+  - Déduplication des postes dans le moniteur de télémétrie par empreinte matérielle (`hostname`).
+  - Purge directe des journaux d'erreurs historiques sur Supabase.
+
+---
+
 ## [2.3.3] - 2026-10-04
 
 ### 🚀 Nouveautés & Architecture Système

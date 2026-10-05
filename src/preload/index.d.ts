@@ -893,6 +893,17 @@ interface APIType {
       queueId: number,
       reason: string
     ) => Promise<{ success: boolean; message?: string; error?: string }>
+    runDeepConvergence: () => Promise<{
+      success: boolean
+      aligned?: {
+        deletedStudents: number
+        deletedPayments: number
+        deletedCash: number
+        deletedSubjects: number
+        missingStudentsInserted: number
+      }
+      error?: string
+    }>
     onProgress: (
       callback: (data: {
         phase: 'idle' | 'checking' | 'pushing' | 'pulling' | 'success' | 'error'
@@ -1015,6 +1026,10 @@ interface APIType {
       }>
       error?: string
     }>
+    broadcastRemoteCommand: (
+      command: string,
+      params?: any
+    ) => Promise<{ success: boolean; error?: string }>
     reportError: (context: string, message: string, details?: any) => Promise<boolean>
     clearStationErrors: () => Promise<{ success: boolean; error?: string }>
   }

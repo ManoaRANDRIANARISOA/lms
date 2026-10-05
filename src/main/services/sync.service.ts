@@ -737,8 +737,36 @@ export function reconcileDiscardOrphan(
 }
 
 /**
- * Add a record to the local sync queue.
- * Synchronous to fit into SQLite transactions.
+/**
+ * Compaction de la file d'attente (Norme industrielle Outbox) :
+ * Élimine tous les doublons dans sync_queue en ne conservant que l'entrée la plus récente
+ * pour chaque couple (table_name, record_id). Empêche tout gonflement artificiel de la file.
+ */
+export function compactSyncQueue(): { deletedCount: number } {
+  try {
+    const info = db.prepare(`
+      DELETE FROM sync_queue 
+      WHERE status IN ('pending', 'error', 'failed', 'quarantined')
+        AND id NOT IN (
+          SELECT MAX(id) FROM sync_queue 
+          WHERE status IN ('pending', 'error', 'failed', 'quarantined')
+          GROUP BY table_name, record_id
+        )
+    `).run()
+    if (info.changes > 0) {
+      console.log(`[Outbox Compaction] Purged ${info.changes} duplicate queue rows across stations.`)
+    }
+    return { deletedCount: info.changes }
+  } catch (err) {
+    console.warn('[Outbox Compaction] Error compacting queue:', err)
+    return { deletedCount: 0 }
+  }
+}
+
+/**
+ * Add a record to the local sync queue (Norme ESN Idempotente).
+ * S'il existe déjà une écriture non finalisée pour cet enregistrement, elle est mise à jour
+ * avec le dernier payload au lieu de créer un doublon dans la file.
  */
 export function addToSyncQueue(
   tableName: string,
@@ -751,12 +779,34 @@ export function addToSyncQueue(
     return
   }
   try {
-    db.prepare(
-      `
-      INSERT INTO sync_queue (table_name, record_id, action, data)
-      VALUES (?, ?, ?, ?)
-    `
-    ).run(tableName, recordId, action, JSON.stringify(data))
+    const existing = db
+      .prepare(
+        `SELECT id, action FROM sync_queue 
+         WHERE table_name = ? AND record_id = ? AND status IN ('pending', 'error', 'failed', 'quarantined')
+         ORDER BY id DESC LIMIT 1`
+      )
+      .get(tableName, recordId) as { id: number; action: string } | undefined
+
+    if (existing) {
+      // Conserver l'action 'create' initiale si une mise à jour intervient avant l'envoi cloud
+      const effectiveAction = existing.action === 'create' && action === 'update' ? 'create' : action
+      db.prepare(
+        `UPDATE sync_queue 
+         SET action = ?, data = ?, status = 'pending', retry_count = 0, error_message = NULL, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`
+      ).run(effectiveAction, JSON.stringify(data), existing.id)
+
+      // Purger tout résidu orphelin pour ce record
+      db.prepare(
+        `DELETE FROM sync_queue 
+         WHERE table_name = ? AND record_id = ? AND id != ? AND status IN ('pending', 'error', 'failed', 'quarantined')`
+      ).run(tableName, recordId, existing.id)
+    } else {
+      db.prepare(
+        `INSERT INTO sync_queue (table_name, record_id, action, data, status)
+         VALUES (?, ?, ?, ?, 'pending')`
+      ).run(tableName, recordId, action, JSON.stringify(data))
+    }
 
     // Broadcast updated pending count to UI
     const status = getSyncQueueStatus()
@@ -782,6 +832,27 @@ export function addToSyncQueue(
  */
 export function reconcilePendingOutbox(): number {
   let enqueuedCount = 0
+
+  // 1. Compacter d'abord la file d'attente pour éliminer les doublons accumulés
+  compactSyncQueue()
+
+  // 2. Réévaluer les éléments passés en 'failed' pour leur donner une chance d'auto-guérison
+  try {
+    const failedRows = db
+      .prepare("SELECT count(*) as count FROM sync_queue WHERE status = 'failed'")
+      .get() as { count: number }
+    if (failedRows && failedRows.count > 0) {
+      db.prepare(`
+        UPDATE sync_queue 
+        SET status = 'pending', retry_count = 0, error_message = NULL, updated_at = CURRENT_TIMESTAMP 
+        WHERE status = 'failed'
+      `).run()
+      console.log(`[Auto-Heal Outbox] Reset ${failedRows.count} failed queue items to pending for auto-healing retry.`)
+    }
+  } catch (resetErr) {
+    console.warn('[Auto-Heal Outbox] Could not reset failed queue items:', resetErr)
+  }
+
   const tables = [
     'users',
     'students',
@@ -812,7 +883,7 @@ export function reconcilePendingOutbox(): number {
            WHERE sync_status = 'pending' 
              AND id NOT IN (
                SELECT record_id FROM sync_queue 
-               WHERE table_name = ? AND status IN ('pending', 'error', 'quarantined')
+               WHERE table_name = ? AND status IN ('pending', 'error', 'quarantined', 'failed')
              )
            LIMIT 150`
         )
@@ -837,12 +908,184 @@ export function reconcilePendingOutbox(): number {
 }
 
 /**
+ * Deep Convergence Engine (Norme ESN Snapshot Parity) :
+ * Scanne l'état exact de Supabase et aligne la base locale SQLite :
+ * 1. Tombstone alignment : Aligne tous les enregistrements marqués deleted=true dans Supabase sur SQLite
+ * 2. Active record fill : Télécharge tout élève actif dans Supabase absent de SQLite
+ * 3. Compacte et dédoublonne la file d'attente locale sync_queue
+ * 4. Met à jour le heartbeat poste immédiatement
+ */
+export async function runDeepConvergence(): Promise<{
+  success: boolean
+  aligned: {
+    studentsDeleted: number
+    paymentsDeleted: number
+    cashDeleted: number
+    studentsCreated: number
+    subjectsAligned: number
+    queueCompacted: number
+  }
+  error?: string
+}> {
+  const result = {
+    studentsDeleted: 0,
+    paymentsDeleted: 0,
+    cashDeleted: 0,
+    studentsCreated: 0,
+    subjectsAligned: 0,
+    queueCompacted: 0
+  }
+
+  if (!supabaseUrl || !supabaseKey) {
+    return { success: false, aligned: result, error: 'Supabase non configuré' }
+  }
+
+  try {
+    // 0. Compact local outbox queue first
+    const compRes = compactSyncQueue()
+    result.queueCompacted = compRes.deletedCount
+
+    // 1. Align deleted tombstones from Supabase
+    const [delStudentsRes, delPaymentsRes, delCashRes, delSubsRes] = await Promise.all([
+      supabase.from('students').select('id, updated_at').eq('deleted', true),
+      supabase.from('student_payments').select('id, updated_at').eq('deleted', true),
+      supabase.from('cash_journal').select('id, updated_at').eq('deleted', true),
+      supabase.from('subjects').select('id, updated_at').eq('deleted', true)
+    ])
+
+    const applyTombstones = db.transaction(() => {
+      for (const s of delStudentsRes.data || []) {
+        const info = db.prepare('UPDATE students SET deleted = 1, sync_status = "synced", updated_at = ? WHERE id = ? AND deleted = 0').run(s.updated_at || new Date().toISOString(), s.id)
+        result.studentsDeleted += info.changes
+      }
+      for (const p of delPaymentsRes.data || []) {
+        const info = db.prepare('UPDATE student_payments SET deleted = 1, sync_status = "synced", updated_at = ? WHERE id = ? AND deleted = 0').run(p.updated_at || new Date().toISOString(), p.id)
+        result.paymentsDeleted += info.changes
+      }
+      for (const cj of delCashRes.data || []) {
+        const info = db.prepare('UPDATE cash_journal SET deleted = 1, sync_status = "synced", updated_at = ? WHERE id = ? AND deleted = 0').run(cj.updated_at || new Date().toISOString(), cj.id)
+        result.cashDeleted += info.changes
+      }
+      for (const sub of delSubsRes.data || []) {
+        const info = db.prepare('UPDATE subjects SET deleted = 1, sync_status = "synced", updated_at = ? WHERE id = ? AND deleted = 0').run(sub.updated_at || new Date().toISOString(), sub.id)
+        result.subjectsAligned += info.changes
+      }
+    })
+    applyTombstones()
+
+    // 2. Fetch missing active students from Supabase (deleted = false) that do not exist locally
+    const { data: remoteActiveStudents } = await supabase
+      .from('students')
+      .select('*')
+      .eq('deleted', false)
+
+    if (remoteActiveStudents && remoteActiveStudents.length > 0) {
+      const insertMissingStudents = db.transaction(() => {
+        for (const st of remoteActiveStudents) {
+          const local = db.prepare('SELECT id, deleted FROM students WHERE id = ?').get(st.id) as any
+          if (!local) {
+            const { search_text, ...recordToSave } = st
+            recordToSave.sync_status = 'synced'
+            recordToSave.deleted = 0
+            const cols = Object.keys(recordToSave)
+            const placeholders = cols.map(() => '?').join(', ')
+            const values = cols.map((k) => {
+              const v = recordToSave[k]
+              if (typeof v === 'boolean') return v ? 1 : 0
+              if (typeof v === 'object' && v !== null) return JSON.stringify(v)
+              return v
+            })
+            db.prepare(`INSERT OR REPLACE INTO students (${cols.join(', ')}) VALUES (${placeholders})`).run(...values)
+            result.studentsCreated++
+          } else if (local.deleted === 1) {
+            db.prepare('UPDATE students SET deleted = 0, sync_status = "synced" WHERE id = ?').run(st.id)
+            result.studentsCreated++
+          }
+        }
+      })
+      insertMissingStudents()
+    }
+
+    // 3. Clean up sync_queue items whose records are already synced
+    db.prepare(`
+      DELETE FROM sync_queue 
+      WHERE status IN ('failed', 'error') 
+        AND table_name = 'class_subjects'
+        AND record_id IN (SELECT id FROM class_subjects WHERE sync_status = 'synced')
+    `).run()
+
+    // 4. Publish heartbeat immediately to reflect clean counts on the matrix dashboard
+    await TelemetryService.publishWorkstationHeartbeat().catch(() => {})
+
+    console.log(`[Deep Convergence] Completed successfully:`, result)
+    return { success: true, aligned: result }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[Deep Convergence] Error:', err)
+    return { success: false, aligned: result, error: msg }
+  }
+}
+
+/**
+ * Checks for and executes remote admin commands broadcast from the central dashboard
+ */
+export async function executeRemoteCommandsIfAny(): Promise<boolean> {
+  if (!supabaseUrl || !supabaseKey) return false
+  try {
+    const { data: cmdLogs } = await supabase
+      .from('audit_logs')
+      .select('*')
+      .eq('action', 'station_command')
+      .eq('table_name', 'telemetry')
+      .order('id', { ascending: false })
+      .limit(1)
+
+    if (!cmdLogs || cmdLogs.length === 0) return false
+
+    const latestCmd = cmdLogs[0]
+    const lastExecutedRow = db
+      .prepare("SELECT value FROM settings WHERE key = 'last_executed_remote_command_id'")
+      .get() as { value?: string } | undefined
+    const lastExecutedId = Number(lastExecutedRow?.value || 0)
+
+    if (latestCmd.id > lastExecutedId) {
+      let parsed: any = {}
+      try {
+        parsed = typeof latestCmd.new_value === 'string' ? JSON.parse(latestCmd.new_value) : latestCmd.new_value
+      } catch {
+        parsed = {}
+      }
+
+      console.log(`[Remote Command] Discovered pending command #${latestCmd.id}: ${parsed.command}`)
+
+      if (parsed.command === 'reconcile_all') {
+        await runDeepConvergence()
+        reconcilePendingOutbox()
+      }
+
+      // Mark command executed locally
+      db.prepare(
+        "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('last_executed_remote_command_id', ?, CURRENT_TIMESTAMP)"
+      ).run(String(latestCmd.id))
+
+      return true
+    }
+  } catch (cmdErr) {
+    console.warn('[Remote Command] Error polling command:', cmdErr)
+  }
+  return false
+}
+
+/**
  * Main sync function (called manually via button or periodically)
  */
 export async function syncWithCloud(forceFullSync: boolean = false) {
   if (isSyncing) {
     return { success: false, reason: 'already_syncing' }
   }
+
+  // Poll and execute any remote command from admin
+  await executeRemoteCommandsIfAny().catch(() => {})
 
   if (!supabaseUrl || !supabaseKey) {
     broadcastProgress({
@@ -1162,13 +1405,18 @@ function sanitizeRowPayload(tableName: string, action: string, rawData: any, rec
   for (const key of Object.keys(payload)) {
     const val = payload[key]
     if (booleanFields.includes(key)) {
-      supabasePayload[key] =
-        val === 1 ||
-        val === '1' ||
-        val === '1.0' ||
-        val === 1.0 ||
-        val === true ||
-        val === 'true'
+      if (tableName === 'grades' && key === 'deleted') {
+        supabasePayload[key] =
+          val === 1 || val === '1' || val === 1.0 || val === '1.0' || val === true || val === 'true' ? 1 : 0
+      } else {
+        supabasePayload[key] =
+          val === 1 ||
+          val === '1' ||
+          val === '1.0' ||
+          val === 1.0 ||
+          val === true ||
+          val === 'true'
+      }
     } else if (typeof val === 'boolean') {
       supabasePayload[key] = val
     } else if (typeof val === 'object' && val !== null && !(val instanceof Date)) {
@@ -1713,6 +1961,67 @@ async function pushLocalChanges() {
             }
           } catch (fkHealErr) {
             console.warn('[Auto-healing sync] Foreign key resolution failed:', fkHealErr)
+          }
+        }
+
+        // 4. Auto-heal: Postgres integer type mismatch for boolean false/true (22P02)
+        if (!autoHealed && (error?.code === '22P02' || errMsg.includes('type integer') || errMsg.includes('integer: "false"'))) {
+          try {
+            console.warn(`[Auto-healing sync] Integer syntax error on '${item.table_name}' (${errMsg}). Converting booleans to 0/1 and retrying...`)
+            for (const k of Object.keys(payload)) {
+              if (payload[k] === false) payload[k] = 0
+              else if (payload[k] === true) payload[k] = 1
+            }
+            const { error: retryErr } = await supabase.from(item.table_name).upsert(payload)
+            if (!retryErr) {
+              autoHealed = true
+            }
+          } catch (intHealErr) {
+            console.warn('[Auto-healing sync] Integer auto-heal failed:', intHealErr)
+          }
+        }
+
+        // 5. Auto-heal: class_subjects foreign key to subjects (23503)
+        if (!autoHealed && error?.code === '23503' && item.table_name === 'class_subjects') {
+          try {
+            if (payload.subject_id) {
+              const localSub = db.prepare('SELECT * FROM subjects WHERE id = ?').get(payload.subject_id) as any
+              if (localSub) {
+                console.warn(`[Auto-healing sync] Pushing missing parent subject '${payload.subject_id}' before retrying class_subjects`)
+                const formattedSub = sanitizeRowPayload('subjects', 'create', localSub, localSub.id)
+                const { error: subErr } = await supabase.from('subjects').upsert(formattedSub)
+                if (!subErr) {
+                  const { error: retryErr } = await supabase.from('class_subjects').upsert(payload)
+                  if (!retryErr) {
+                    autoHealed = true
+                  }
+                }
+              }
+            }
+          } catch (csHealErr) {
+            console.warn('[Auto-healing sync] class_subjects foreign key heal failed:', csHealErr)
+          }
+        }
+
+        // 6. Auto-heal: subjects unique constraint collision on name (23505)
+        if (!autoHealed && error?.code === '23505' && item.table_name === 'subjects' && errMsg.includes('subjects_name_key')) {
+          try {
+            console.warn(`[Auto-healing sync] Subject name collision for '${payload.name}'. Aligning local UUID with remote...`)
+            const { data: remoteSub } = await supabase
+              .from('subjects')
+              .select('id')
+              .ilike('name', payload.name)
+              .maybeSingle()
+            if (remoteSub?.id && remoteSub.id !== item.record_id) {
+              db.prepare('UPDATE subjects SET id = ?, sync_status = "synced" WHERE id = ?').run(remoteSub.id, item.record_id)
+              db.prepare('UPDATE class_subjects SET subject_id = ? WHERE subject_id = ?').run(remoteSub.id, item.record_id)
+              db.prepare('UPDATE grades SET subject_id = ? WHERE subject_id = ?').run(remoteSub.id, item.record_id)
+              autoHealed = true
+            } else if (remoteSub?.id === item.record_id) {
+              autoHealed = true
+            }
+          } catch (subCollisionErr) {
+            console.warn('[Auto-healing sync] Subject collision heal failed:', subCollisionErr)
           }
         }
 

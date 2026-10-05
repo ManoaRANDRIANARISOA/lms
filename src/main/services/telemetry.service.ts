@@ -327,6 +327,36 @@ export class TelemetryService {
   }
 
   /**
+   * Broadcasts an administrative command to all workstations via Supabase
+   */
+  static async broadcastRemoteCommand(
+    command: string,
+    params: any = {}
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const payload = {
+        command,
+        params,
+        issued_at: new Date().toISOString(),
+        issued_by: os.hostname()
+      }
+      const { error } = await supabase.from('audit_logs').insert({
+        action: 'station_command',
+        table_name: 'telemetry',
+        record_id: 'ALL',
+        new_value: JSON.stringify(payload)
+      })
+      if (error) {
+        return { success: false, error: error.message }
+      }
+      return { success: true }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return { success: false, error: msg }
+    }
+  }
+
+  /**
    * Publishes a workstation status heartbeat to Supabase with local row counts and queue status
    */
   static async publishWorkstationHeartbeat(): Promise<boolean> {
@@ -448,27 +478,27 @@ export class TelemetryService {
         return { success: false, cloudCounts, error: error.message }
       }
 
-      const latestByStation = new Map<string, any>()
+      const latestByMachine = new Map<string, any>()
       for (const row of logs || []) {
-        const stationKey = row.record_id || 'UNKNOWN'
-        if (!latestByStation.has(stationKey)) {
-          try {
-            const parsed = JSON.parse(row.new_value)
+        try {
+          const parsed = JSON.parse(row.new_value)
+          const machineKey = parsed.hostname || row.record_id || 'UNKNOWN'
+          if (!latestByMachine.has(machineKey)) {
             const queueObj = parsed.queue || {}
-            latestByStation.set(stationKey, {
+            latestByMachine.set(machineKey, {
               ...parsed,
-              station: parsed.station || stationKey,
-              last_seen: parsed.last_sync || row.created_at,
-              server_recorded_at: row.created_at,
+              station: parsed.station || row.record_id || machineKey,
+              last_seen: parsed.last_sync || row.timestamp,
+              server_recorded_at: row.timestamp,
               queue: queueObj,
               queue_pending: queueObj.pending ?? parsed.queue_pending ?? 0,
               queue_failed: (queueObj.failed ?? 0) + (queueObj.errors ?? 0) + (parsed.queue_failed ?? 0),
               queue_quarantined: queueObj.quarantined ?? parsed.queue_quarantined ?? 0,
               blocked_summary: parsed.blocked_summary || []
             })
-          } catch {
-            // ignore malformed
           }
+        } catch {
+          // ignore malformed
         }
       }
 
@@ -485,11 +515,13 @@ export class TelemetryService {
         errorCountByStation[st] = (errorCountByStation[st] || 0) + 1
       }
 
-      for (const [st, obj] of latestByStation.entries()) {
-        obj.station_error_count = errorCountByStation[st] || 0
+      for (const obj of latestByMachine.values()) {
+        obj.station_error_count =
+          (errorCountByStation[obj.station] || 0) +
+          (obj.hostname && obj.hostname !== obj.station ? (errorCountByStation[obj.hostname] || 0) : 0)
       }
 
-      const stations = Array.from(latestByStation.values())
+      const stations = Array.from(latestByMachine.values())
 
       return { success: true, cloudCounts, stations }
     } catch (err: unknown) {

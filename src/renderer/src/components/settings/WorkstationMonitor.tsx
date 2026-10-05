@@ -15,7 +15,8 @@ import {
   Activity,
   Check,
   AlertTriangle,
-  ShieldAlert
+  ShieldAlert,
+  Zap
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSyncStore } from '@/store/useSyncStore'
@@ -69,6 +70,44 @@ export const WorkstationMonitor: React.FC = () => {
   const [isSendingTest, setIsSendingTest] = useState(false)
   const [isClearingCloud, setIsClearingCloud] = useState(false)
   const [quarantineCount, setQuarantineCount] = useState<number>(0)
+  const [isReconcilingGlobal, setIsReconcilingGlobal] = useState(false)
+
+  const handleTriggerGlobalReconciliation = async () => {
+    setIsReconcilingGlobal(true)
+    try {
+      toast.info('Lancement de la convergence locale et ordre de réparation multi-postes...')
+
+      // 1. Run local deep convergence
+      let localResult: any = null
+      if (window.api?.sync?.runDeepConvergence) {
+        localResult = await window.api.sync.runDeepConvergence()
+      }
+
+      // 2. Broadcast remote order to all stations via Supabase telemetry commands
+      if (window.api?.telemetry?.broadcastRemoteCommand) {
+        await window.api.telemetry.broadcastRemoteCommand('reconcile_all')
+      }
+
+      // 3. Inform user
+      if (localResult && localResult.success) {
+        const details = localResult.aligned
+        toast.success(
+          `Convergence locale réussie (${details?.deletedStudents || 0} tombstones élèves alignés). Ordre de réparation diffusé à distance aux postes C1, C4, C5...`
+        )
+      } else {
+        toast.success('Ordre de convergence et réconciliation multi-postes diffusé avec succès !')
+      }
+
+      // 4. Refresh telemetry & heartbeats
+      await fetchHeartbeats()
+      await fetchTelemetry()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      toast.error(`Erreur de convergence : ${msg}`)
+    } finally {
+      setIsReconcilingGlobal(false)
+    }
+  }
 
   const fetchQuarantineCount = async () => {
     try {
@@ -154,6 +193,13 @@ export const WorkstationMonitor: React.FC = () => {
   useEffect(() => {
     fetchTelemetry()
     fetchHeartbeats()
+
+    const interval = setInterval(() => {
+      fetchHeartbeats()
+      fetchTelemetry()
+    }, 30000)
+
+    return () => clearInterval(interval)
   }, [])
 
   const handleSendTestSignal = async () => {
@@ -322,6 +368,18 @@ export const WorkstationMonitor: React.FC = () => {
             </h3>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-500">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleTriggerGlobalReconciliation}
+              disabled={isReconcilingGlobal}
+              className="h-7 text-xs gap-1.5 font-medium border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-900 shadow-xs"
+              title="Déclencher la convergence immédiate sur ce poste et ordonner à distance à tous les postes (C1, C4, C5...) d'aligner leurs données et purger les blocages"
+            >
+              <Zap className={`w-3.5 h-3.5 ${isReconcilingGlobal ? 'animate-spin text-emerald-600' : 'text-emerald-600'}`} />
+              <span>{isReconcilingGlobal ? 'Convergence...' : '⚡ Convergence Multi-Postes'}</span>
+            </Button>
+
             <Button
               size="sm"
               variant={quarantineCount > 0 ? 'destructive' : 'outline'}

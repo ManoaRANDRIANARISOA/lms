@@ -15,7 +15,8 @@ import {
   reconcileAttachStudent,
   reconcileCreateMissingStudent,
   reconcileConvertToGeneralCash,
-  reconcileDiscardOrphan
+  reconcileDiscardOrphan,
+  runDeepConvergence
 } from '../services/sync.service'
 import { TelemetryService } from '../services/telemetry.service'
 
@@ -138,10 +139,25 @@ export function registerSyncHandlers(): void {
   })
 
   // --------------------------------------------
+  // BROADCAST REMOTE COMMAND TO ALL WORKSTATIONS
+  // --------------------------------------------
+  ipcMain.handle('telemetry:broadcastRemoteCommand', async (_, command: string, params?: any) => {
+    return TelemetryService.broadcastRemoteCommand(command, params)
+  })
+
+  // --------------------------------------------
+  // RUN DEEP CONVERGENCE (SNAPSHOT RECONCILIATION)
+  // --------------------------------------------
+  ipcMain.handle('sync:runDeepConvergence', async () => {
+    return runDeepConvergence()
+  })
+
+  // --------------------------------------------
   // RECONCILIATION ASSISTANT (ORPHAN/FAILED RECORDS)
   // --------------------------------------------
   ipcMain.handle('sync:getReconciliationItems', async () => {
-    return getReconciliationItems()
+    const items = getReconciliationItems()
+    return { success: true, items }
   })
 
   ipcMain.handle('sync:reconcileAttachStudent', async (_, queueId: number, targetStudentId: string) => {

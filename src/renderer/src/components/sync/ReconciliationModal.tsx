@@ -80,11 +80,8 @@ export const ReconciliationModal: React.FC = () => {
     setLoading(true)
     try {
       const res = await window.api.sync.getReconciliationItems()
-      if (res.success && res.items) {
-        setItems(res.items)
-      } else {
-        setItems([])
-      }
+      const list = Array.isArray(res) ? res : (res?.items || [])
+      setItems(list)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       toast.error(`Erreur lors du chargement des anomalies : ${msg}`)

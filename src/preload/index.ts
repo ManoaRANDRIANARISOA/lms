@@ -422,6 +422,7 @@ const api = {
       ipcRenderer.invoke('sync:reconcileConvertToGeneralCash', queueId),
     reconcileDiscardOrphan: (queueId: number, reason: string) =>
       ipcRenderer.invoke('sync:reconcileDiscardOrphan', queueId, reason),
+    runDeepConvergence: () => ipcRenderer.invoke('sync:runDeepConvergence'),
     onProgress: (callback: (data: any) => void) => {
       const listener = (_event: IpcRendererEvent, data: any) => callback(data)
       ipcRenderer.on('sync:progress', listener)
@@ -438,6 +439,8 @@ const api = {
     fetchStationErrors: (limit?: number) => ipcRenderer.invoke('telemetry:fetchStationErrors', limit),
     clearStationErrors: () => ipcRenderer.invoke('telemetry:clearStationErrors'),
     fetchWorkstationHeartbeats: () => ipcRenderer.invoke('telemetry:fetchWorkstationHeartbeats'),
+    broadcastRemoteCommand: (command: string, params?: any) =>
+      ipcRenderer.invoke('telemetry:broadcastRemoteCommand', command, params),
     reportError: (context: string, message: string, details?: any) =>
       ipcRenderer.invoke('telemetry:reportError', context, message, details)
   },
