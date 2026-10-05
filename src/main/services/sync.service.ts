@@ -362,6 +362,7 @@ export function getReconciliationItems(): ReconciliationItem[] {
         `SELECT id, table_name, record_id, action, status, error_message, data, created_at
          FROM sync_queue
          WHERE status IN ('error', 'failed', 'quarantined')
+           AND table_name IN ('student_payments', 'cash_journal')
          ORDER BY id DESC LIMIT 100`
       )
       .all() as Array<{
@@ -1006,12 +1007,46 @@ export async function runDeepConvergence(): Promise<{
       insertMissingStudents()
     }
 
-    // 3. Clean up sync_queue items whose records are already synced
+    // 2.5 Align local subjects and class_subjects with Supabase
+    const { data: remoteSubjects } = await supabase
+      .from('subjects')
+      .select('id, name')
+      .eq('deleted', false)
+
+    if (remoteSubjects && remoteSubjects.length > 0) {
+      const alignSubjectsTx = db.transaction(() => {
+        for (const remSub of remoteSubjects) {
+          const localSameName = db
+            .prepare('SELECT id, name FROM subjects WHERE lower(trim(name)) = lower(trim(?)) AND id != ?')
+            .get(remSub.name, remSub.id) as any
+          if (localSameName) {
+            const oldId = localSameName.id
+            const newId = remSub.id
+            console.log(`[Deep Convergence] Remapping local subject '${localSameName.name}' from ${oldId} to ${newId}`)
+            db.prepare('UPDATE subjects SET id = ?, sync_status = "synced" WHERE id = ?').run(newId, oldId)
+            db.prepare('UPDATE class_subjects SET subject_id = ? WHERE subject_id = ?').run(newId, oldId)
+            db.prepare('UPDATE grades SET subject_id = ? WHERE subject_id = ?').run(newId, oldId)
+            db.prepare('DELETE FROM sync_queue WHERE table_name = "subjects" AND record_id = ?').run(oldId)
+            result.subjectsAligned++
+          }
+        }
+      })
+      alignSubjectsTx()
+    }
+
+    // 3. Purge structural tables (class_subjects, subjects) from sync_queue and ensure synced status
     db.prepare(`
       DELETE FROM sync_queue 
-      WHERE status IN ('failed', 'error') 
-        AND table_name = 'class_subjects'
-        AND record_id IN (SELECT id FROM class_subjects WHERE sync_status = 'synced')
+      WHERE table_name IN ('class_subjects', 'subjects')
+    `).run()
+    db.prepare(`UPDATE class_subjects SET sync_status = 'synced'`).run()
+    db.prepare(`UPDATE subjects SET sync_status = 'synced'`).run()
+
+    // 3.5 Purge any non-financial items mistakenly quarantined
+    db.prepare(`
+      DELETE FROM sync_queue 
+      WHERE status = 'quarantined' 
+        AND table_name NOT IN ('student_payments', 'cash_journal')
     `).run()
 
     // 4. Publish heartbeat immediately to reflect clean counts on the matrix dashboard
@@ -2004,24 +2039,46 @@ async function pushLocalChanges() {
         }
 
         // 6. Auto-heal: subjects unique constraint collision on name (23505)
-        if (!autoHealed && error?.code === '23505' && item.table_name === 'subjects' && errMsg.includes('subjects_name_key')) {
+        if (!autoHealed && (error?.code === '23505' || errMsg.includes('subjects_name_key') || errMsg.includes('duplicate key')) && item.table_name === 'subjects') {
           try {
-            console.warn(`[Auto-healing sync] Subject name collision for '${payload.name}'. Aligning local UUID with remote...`)
-            const { data: remoteSub } = await supabase
-              .from('subjects')
-              .select('id')
-              .ilike('name', payload.name)
-              .maybeSingle()
-            if (remoteSub?.id && remoteSub.id !== item.record_id) {
-              db.prepare('UPDATE subjects SET id = ?, sync_status = "synced" WHERE id = ?').run(remoteSub.id, item.record_id)
-              db.prepare('UPDATE class_subjects SET subject_id = ? WHERE subject_id = ?').run(remoteSub.id, item.record_id)
-              db.prepare('UPDATE grades SET subject_id = ? WHERE subject_id = ?').run(remoteSub.id, item.record_id)
-              autoHealed = true
-            } else if (remoteSub?.id === item.record_id) {
-              autoHealed = true
+            const subRow = db.prepare('SELECT name FROM subjects WHERE id = ?').get(item.record_id) as any
+            const targetName = (payload?.name || subRow?.name || '').trim()
+            console.warn(`[Auto-healing sync] Subject name collision for '${targetName}'. Aligning local UUID with remote...`)
+            if (targetName) {
+              const { data: remoteSub } = await supabase
+                .from('subjects')
+                .select('id')
+                .ilike('name', targetName)
+                .maybeSingle()
+              if (remoteSub?.id) {
+                if (remoteSub.id !== item.record_id) {
+                  db.prepare('UPDATE subjects SET id = ?, sync_status = "synced" WHERE id = ?').run(remoteSub.id, item.record_id)
+                  db.prepare('UPDATE class_subjects SET subject_id = ? WHERE subject_id = ?').run(remoteSub.id, item.record_id)
+                  db.prepare('UPDATE grades SET subject_id = ? WHERE subject_id = ?').run(remoteSub.id, item.record_id)
+                }
+                db.prepare('UPDATE subjects SET sync_status = "synced" WHERE id = ?').run(remoteSub.id)
+                autoHealed = true
+              }
             }
           } catch (subCollisionErr) {
             console.warn('[Auto-healing sync] Subject collision heal failed:', subCollisionErr)
+          }
+        }
+
+        // 7. Auto-heal: class_subjects already existing on Supabase
+        if (!autoHealed && item.table_name === 'class_subjects') {
+          try {
+            const { data: remoteCs } = await supabase
+              .from('class_subjects')
+              .select('id')
+              .eq('id', item.record_id)
+              .maybeSingle()
+            if (remoteCs?.id) {
+              db.prepare('UPDATE class_subjects SET sync_status = "synced" WHERE id = ?').run(item.record_id)
+              autoHealed = true
+            }
+          } catch (csCheckErr) {
+            console.warn('[Auto-healing sync] class_subjects verification failed:', csCheckErr)
           }
         }
 

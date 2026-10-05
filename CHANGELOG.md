@@ -5,6 +5,19 @@ Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/)
 
 ---
 
+## [2.3.5] - 2026-10-05
+
+### 🛡️ Résolution Structurelle Matières & Clarté Quarantaine
+- **Harmonisation Automatique des Identifiants Matières (`subjects` & `class_subjects`)** :
+  - Détection et remapping automatique des anciens identifiants (`b0000000...`) vers les identifiants officiels Supabase (`subj-...`) sur les liaisons de classe et carnets de notes.
+  - Élimination des rejets PostgreSQL `subjects_name_key` (23505) et `class_subjects_subject_id_fkey` (23503).
+  - Purge des tables structurelles de la file d'attente locale pour empêcher tout blocage ou mise en quarantaine erronée.
+- **Précision de l'Assistant de Réconciliation** :
+  - Focalisation stricte sur les véritables écritures financières orphelines (paiements et mouvements de caisse).
+  - Élimination des fausses alertes d'incohérences.
+
+---
+
 ## [2.3.4] - 2026-10-05
 
 ### 🚀 Nouveautés & Auto-Guérison Multi-Postes
