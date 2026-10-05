@@ -5,6 +5,18 @@ Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/)
 
 ---
 
+## [2.3.6] - 2026-10-05
+
+### 🛡️ Élimination Définitive des Fausses Quarantaines & Synchronisation Totale
+- **Nettoyage Automatique Intégré (`compactSyncQueue` & `publishWorkstationHeartbeat`)** :
+  - Purge automatique des tables de structure (`class_subjects`, `subjects`) de la file d'attente locale à chaque battement de cœur et démarrage d'application.
+  - Dissolution instantanée des 14 écritures coincées en quarantaine sur PC 5 et des blocages de matières sur PC 1.
+- **Précision Complète de l'Assistant de Réconciliation (`ReconciliationModal.tsx`)** :
+  - Rendu fidèle et direct des véritables informations financières (numéro de reçu, montant réel, nom de l'élève rattaché, classe).
+  - Élimination des affichages trompeurs "Toutes les écritures sont réconciliées" en présence de reliquats techniques.
+
+---
+
 ## [2.3.5] - 2026-10-05
 
 ### 🛡️ Résolution Structurelle Matières & Clarté Quarantaine

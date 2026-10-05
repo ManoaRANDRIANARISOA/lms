@@ -264,9 +264,14 @@ export const ReconciliationModal: React.FC = () => {
           <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
             {items.map((item) => {
               const p = item.payload || {}
+              const anyItem = item as any
               const isItemActive = activeAction?.itemId === item.id
-              const amount = p.amount ? Number(p.amount).toLocaleString('fr-FR') : '0'
-              const dateStr = p.payment_date || p.transaction_date || item.created_at
+              const amountVal = anyItem.amount !== undefined ? anyItem.amount : p.amount
+              const amount = amountVal !== undefined ? Number(amountVal).toLocaleString('fr-FR') : '0'
+              const dateStr = anyItem.date || p.payment_date || p.transaction_date || item.created_at
+              const receiptNum = anyItem.receipt_number || p.receipt_number
+              const studentIdVal = anyItem.student_id || p.student_id || p.related_student_id
+              const studentNameVal = anyItem.student_name
 
               return (
                 <div
@@ -277,14 +282,24 @@ export const ReconciliationModal: React.FC = () => {
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-2">
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                        {item.table_name === 'student_payments' ? 'Paiement Scolaire' : 'Journal de Caisse'}
+                        {item.table_name === 'student_payments' ? 'Paiement Scolaire' : item.table_name === 'cash_journal' ? 'Journal de Caisse' : item.table_name}
                       </span>
                       <span className="text-xs font-semibold text-gray-900">
-                        {p.receipt_number ? `Reçu N° ${p.receipt_number}` : `Réf: ${item.record_id}`}
+                        {receiptNum ? `Reçu N° ${receiptNum}` : `Réf: ${item.record_id}`}
                       </span>
+                      {studentNameVal && (
+                        <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+                          {studentNameVal} {anyItem.class_name ? `(${anyItem.class_name})` : ''}
+                        </span>
+                      )}
                       {item.status === 'failed' && (
                         <span className="text-[10px] font-semibold bg-rose-100 text-rose-800 px-2 py-0.2 rounded-full">
-                          Échec d'envoi ({item.retry_count} essais)
+                          Échec d'envoi
+                        </span>
+                      )}
+                      {item.status === 'quarantined' && (
+                        <span className="text-[10px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.2 rounded-full">
+                          En Quarantaine
                         </span>
                       )}
                     </div>
@@ -301,19 +316,19 @@ export const ReconciliationModal: React.FC = () => {
                       <span className="font-bold text-gray-900">{amount} Ar</span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-gray-500 block">Type de Frais</span>
+                      <span className="text-[10px] text-gray-500 block">Type / Table</span>
                       <span className="font-medium text-gray-800 truncate block">
-                        {p.payment_type || p.category || 'Écolage / Frais'}
+                        {p.payment_type || p.category || item.table_name}
                       </span>
                     </div>
                     <div>
                       <span className="text-[10px] text-gray-500 block">Mois / Période</span>
-                      <span className="font-medium text-gray-800">{p.month || 'N/A'}</span>
+                      <span className="font-medium text-gray-800">{p.month || anyItem.description || 'N/A'}</span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-gray-500 block">ID Élève Inconnu</span>
-                      <span className="font-mono text-[11px] text-rose-700 truncate block" title={p.student_id || p.related_student_id}>
-                        {(p.student_id || p.related_student_id || 'N/A').slice(0, 12)}...
+                      <span className="text-[10px] text-gray-500 block">Réf Élève</span>
+                      <span className="font-mono text-[11px] text-rose-700 truncate block" title={studentIdVal}>
+                        {studentIdVal ? `${studentIdVal.slice(0, 12)}...` : 'N/A'}
                       </span>
                     </div>
                   </div>

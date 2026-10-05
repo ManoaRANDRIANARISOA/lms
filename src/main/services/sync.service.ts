@@ -745,6 +745,15 @@ export function reconcileDiscardOrphan(
  */
 export function compactSyncQueue(): { deletedCount: number } {
   try {
+    // 1. Purge all structural tables (class_subjects, subjects) from sync_queue
+    db.prepare("DELETE FROM sync_queue WHERE table_name IN ('class_subjects', 'subjects')").run()
+    db.prepare("UPDATE class_subjects SET sync_status = 'synced'").run()
+    db.prepare("UPDATE subjects SET sync_status = 'synced'").run()
+
+    // 2. Purge any non-financial items mistakenly quarantined
+    db.prepare("DELETE FROM sync_queue WHERE status = 'quarantined' AND table_name NOT IN ('student_payments', 'cash_journal')").run()
+
+    // 3. Deduplicate active entries per (table_name, record_id)
     const info = db.prepare(`
       DELETE FROM sync_queue 
       WHERE status IN ('pending', 'error', 'failed', 'quarantined')

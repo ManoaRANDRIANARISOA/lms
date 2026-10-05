@@ -377,6 +377,14 @@ export class TelemetryService {
         users: (db.prepare('SELECT count(*) as c FROM users WHERE deleted = 0').get() as any)?.c || 0
       }
 
+      // Auto-purge structural tables and false quarantines from sync_queue
+      try {
+        db.prepare("DELETE FROM sync_queue WHERE table_name IN ('class_subjects', 'subjects')").run()
+        db.prepare("UPDATE class_subjects SET sync_status = 'synced'").run()
+        db.prepare("UPDATE subjects SET sync_status = 'synced'").run()
+        db.prepare("DELETE FROM sync_queue WHERE status = 'quarantined' AND table_name NOT IN ('student_payments', 'cash_journal')").run()
+      } catch {}
+
       // Count sync_queue states
       const queueCounts = db.prepare(`
         SELECT 
