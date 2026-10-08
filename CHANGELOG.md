@@ -5,6 +5,23 @@ Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/)
 
 ---
 
+## [2.3.7] - 2026-10-08
+
+### 🛡️ Sécurisation Industrielle de Synchronisation & Protection Anti-Régression LWW
+- **Verrou Anti-Régression LWW (Last-Write-Wins)** :
+  - Dans `pushLocalChanges()`, vérification systématique de l'horodatage Cloud avant tout `upsert`. Si `remote.updated_at > local.updated_at`, le push local est automatiquement rejeté, préservant ainsi les écritures plus récentes enregistrées par d'autres postes clients.
+  - Préservation stricte des compteurs et historiques de réimpression des reçus (`print_count`, `last_printed_at`, `last_printed_by`).
+- **Inversion Sécurisée du Cycle de Synchronisation** :
+  - `pullRemoteChanges()` s'exécute désormais **systématiquement avant** tout envoi ou scan d'outbox, garantissant que chaque poste absorbe la réalité Cloud avant de préparer un éventuel push.
+  - Le mode « Forcer la récupération complète » devient 100 % unidirectionnel (Cloud ➔ Local) : aucun push n'est déclenché lors d'une restauration manuelle.
+- **Auto-Guérison Outbox Intelligente & Déduplication (`reconcilePendingOutbox`)** :
+  - Seules les écritures modifiées localement *après* le dernier `last_sync_time` sont enfilées.
+  - Auto-guérison automatique des marqueurs historiques `pending` résiduels vers `synced` sans renvoi inutile au Cloud.
+- **Migration 051 & Sanitisation Unique d'Outbox** :
+  - Déploiement de `051_heal_and_align_sync_outbox.sql` et de la routine runtime `oneTimeSanitizeSyncQueue()` pour assainir automatiquement l'ensemble des postes clients dès le démarrage de la version 2.3.7.
+
+---
+
 ## [2.3.6] - 2026-10-05
 
 ### 🛡️ Élimination Définitive des Fausses Quarantaines & Synchronisation Totale

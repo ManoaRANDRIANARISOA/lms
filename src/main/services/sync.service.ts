@@ -427,11 +427,11 @@ export function getReconciliationItems(): ReconciliationItem[] {
 
       if (studentId) {
         const localStudent = db
-          .prepare('SELECT first_name, last_name, class_name FROM students WHERE id = ?')
+          .prepare('SELECT first_name, last_name, class FROM students WHERE id = ?')
           .get(studentId) as any
         if (localStudent) {
           studentName = `${localStudent.first_name || ''} ${localStudent.last_name || ''}`.trim()
-          className = localStudent.class_name
+          className = localStudent.class
         } else {
           studentName = `Élève ID: ${studentId} (Introuvable)`
         }
@@ -863,23 +863,20 @@ export function reconcilePendingOutbox(): number {
     console.warn('[Auto-Heal Outbox] Could not reset failed queue items:', resetErr)
   }
 
-  const tables = [
-    'users',
-    'students',
-    'student_fees',
-    'student_payments',
-    'cash_journal',
-    'personnel',
-    'subjects',
-    'grades',
-    'class_subjects',
-    'assessments',
-    'parent_events',
-    'event_payments',
-    'bus_attendance',
-    'canteen_attendance',
-    'cash_closures'
-  ]
+  let lastSyncIso: string | null = null
+  try {
+    const lastSyncRow = db
+      .prepare("SELECT value FROM settings WHERE key = 'last_sync_time'")
+      .get() as { value: string } | undefined
+    if (lastSyncRow?.value) {
+      const parsed = JSON.parse(lastSyncRow.value)
+      if (typeof parsed === 'string' && parsed.length > 5) {
+        lastSyncIso = parsed
+      }
+    }
+  } catch {}
+
+  const tables = Array.from(SYNCABLE_TABLES).filter((t) => t !== 'settings')
 
   for (const table of tables) {
     try {
@@ -887,17 +884,36 @@ export function reconcilePendingOutbox(): number {
       const hasSyncStatus = tableInfo.some((col) => col.name === 'sync_status')
       if (!hasSyncStatus) continue
 
+      // 1. Auto-heal stale legacy pending markers:
+      // If a row has sync_status = 'pending' but its updated_at is older than last_sync_time,
+      // and it is NOT currently in sync_queue, it was touched by an old migration or DDL default.
+      // Mark it 'synced' to prevent phantom outbox flooding.
+      if (lastSyncIso) {
+        db.prepare(
+          `UPDATE ${table} 
+           SET sync_status = 'synced' 
+           WHERE sync_status = 'pending' 
+             AND (updated_at <= ? OR (updated_at IS NULL AND created_at <= ?))
+             AND id NOT IN (
+               SELECT record_id FROM sync_queue 
+               WHERE table_name = ? AND status IN ('pending', 'error', 'quarantined', 'failed')
+             )`
+        ).run(lastSyncIso, lastSyncIso, table)
+      }
+
+      // 2. Only discover genuinely recent offline modifications:
       const pendingRows = db
         .prepare(
           `SELECT * FROM ${table} 
            WHERE sync_status = 'pending' 
+             AND (? IS NULL OR updated_at > ? OR (updated_at IS NULL AND created_at > ?))
              AND id NOT IN (
                SELECT record_id FROM sync_queue 
                WHERE table_name = ? AND status IN ('pending', 'error', 'quarantined', 'failed')
              )
-           LIMIT 150`
+           LIMIT 50`
         )
-        .all(table) as any[]
+        .all(lastSyncIso, lastSyncIso || '2000-01-01', lastSyncIso || '2000-01-01', table) as any[]
 
       for (const row of pendingRows) {
         const action = row.deleted ? 'delete' : 'update'
@@ -912,7 +928,7 @@ export function reconcilePendingOutbox(): number {
   }
 
   if (enqueuedCount > 0) {
-    console.log(`[Auto-Heal Outbox] Discovered and enqueued ${enqueuedCount} unqueued pending record(s) for cloud synchronization.`)
+    console.log(`[Auto-Heal Outbox] Discovered and enqueued ${enqueuedCount} genuine pending record(s) for cloud synchronization.`)
   }
   return enqueuedCount
 }
@@ -1145,9 +1161,6 @@ export async function syncWithCloud(forceFullSync: boolean = false) {
   isSyncing = true
 
   try {
-    // Auto-heal: Ensure any row with sync_status = 'pending' across all local tables is enqueued
-    reconcilePendingOutbox()
-
     const queueStatus = getSyncQueueStatus()
     broadcastProgress({
       phase: 'checking',
@@ -1174,10 +1187,31 @@ export async function syncWithCloud(forceFullSync: boolean = false) {
       return { success: false, error: health.error }
     }
 
-    // PULL FIRST: Get remote changes from cloud first to absorb any remote deletions/updates
+    // 1. PULL FIRST: Get remote changes from cloud first to absorb fresh changes from other workstations
     await pullRemoteChanges(forceFullSync)
 
-    // PUSH: Send local changes to cloud
+    // 2. SAFEGUARD: If full recovery was forced by user, STOP HERE!
+    // Full recovery is strictly unidirectional (Cloud -> Local). Never push during a forced full recovery!
+    if (forceFullSync) {
+      isSyncing = false
+      const finalStatus = getSyncQueueStatus()
+      broadcastProgress({
+        phase: 'success',
+        current: 100,
+        total: 100,
+        percent: 100,
+        message: 'Récupération complète terminée avec succès depuis le Cloud',
+        lastSync: finalStatus.lastSyncTime || new Date().toISOString(),
+        pendingCount: 0,
+        errorCount: 0
+      })
+      return { success: true }
+    }
+
+    // 3. Auto-heal Outbox: Scan for genuine unqueued offline modifications AFTER pull has refreshed local DB
+    reconcilePendingOutbox()
+
+    // 4. PUSH: Send genuine local changes to cloud with Anti-Regression Guard
     await pushLocalChanges()
 
     // Flush any pending error/sync telemetry to Supabase audit_logs
@@ -1264,7 +1298,7 @@ const TABLE_DEPENDENCIES: Record<string, string[]> = {
   custom_deductions: ['personnel'],
   grades: ['students', 'subjects', 'class_subjects'],
   time_tracking: ['personnel'],
-  daily_attendance: ['students'],
+  daily_attendance: ['personnel'],
   student_payments: ['students', 'student_fees'],
   cash_journal: ['students', 'student_payments'],
   event_payments: ['students', 'parent_events'],
@@ -1649,6 +1683,34 @@ async function pushLocalChanges() {
     const unattemptedItems = queue.filter((item) => !attemptedIds.has(item.id))
     if (unattemptedItems.length === 0) break
 
+    // ESN PERFORMANCE OPTIMIZATION: Pre-fetch remote states in 1 query per table instead of 50 sequential roundtrips
+    const remoteCache = new Map<string, any>()
+    const itemsByTable = new Map<string, string[]>()
+    for (const item of unattemptedItems) {
+      if (item.table_name !== 'settings') {
+        const ids = itemsByTable.get(item.table_name) || []
+        ids.push(item.record_id)
+        itemsByTable.set(item.table_name, ids)
+      }
+    }
+
+    for (const [tName, rIds] of itemsByTable.entries()) {
+      try {
+        const uniqueIds = Array.from(new Set(rIds))
+        const { data: rows } = await supabase
+          .from(tName)
+          .select('id, updated_at, deleted, receipt_number, print_count, last_printed_at, last_printed_by')
+          .in('id', uniqueIds)
+        if (rows) {
+          for (const r of rows) {
+            remoteCache.set(`${tName}:${r.id}`, r)
+          }
+        }
+      } catch {
+        // Non-blocking fallback to individual lookup
+      }
+    }
+
     for (const item of unattemptedItems) {
       attemptedIds.add(item.id)
 
@@ -1712,6 +1774,61 @@ async function pushLocalChanges() {
         if (item.action === 'create' || item.action === 'update') {
           let upsertError: any = null
 
+          // ── ANTI-REGRESSION SAFEGUARD (LAST-WRITE-WINS) & ANTI-RESURRECTION ──
+          if (item.table_name !== 'settings') {
+            try {
+              let remoteRow = remoteCache.get(`${item.table_name}:${item.record_id}`)
+              if (remoteRow === undefined) {
+                const { data: singleRow } = await supabase
+                  .from(item.table_name)
+                  .select('updated_at, deleted, receipt_number, print_count, last_printed_at, last_printed_by')
+                  .eq('id', item.record_id)
+                  .maybeSingle()
+                remoteRow = singleRow
+              }
+
+              if (remoteRow) {
+                // 1. Anti-Resurrection: If remote is deleted, keep deleted on local and skip overwrite
+                if (remoteRow.deleted && !payload.deleted) {
+                  db.prepare(`UPDATE ${item.table_name} SET deleted = 1, sync_status = 'synced' WHERE id = ?`).run(item.record_id)
+                  db.prepare("UPDATE sync_queue SET status = 'completed', error_message = NULL WHERE id = ?").run(item.id)
+                  processedCount++
+                  continue
+                }
+
+                // 2. Preserve print tracking: Cloud impressions always take precedence
+                if (item.table_name === 'student_payments' || item.table_name === 'cash_journal') {
+                  if ((remoteRow.print_count || 0) > (payload.print_count || 0)) {
+                    payload.print_count = remoteRow.print_count
+                    payload.last_printed_at = remoteRow.last_printed_at || payload.last_printed_at
+                    payload.last_printed_by = remoteRow.last_printed_by || payload.last_printed_by
+                  }
+                }
+
+                // 3. Anti-Regression: If remote record is strictly newer than local payload (1s tolerance buffer)
+                if (remoteRow.updated_at) {
+                  const remoteDate = new Date(remoteRow.updated_at).getTime()
+                  const localDate = new Date(payload.updated_at || item.created_at || '1970-01-01').getTime()
+                  if (remoteDate > localDate + 1000) {
+                    console.warn(
+                      `[Anti-Regression LWW] Refusing to push older local record for ${item.table_name}:${item.record_id}. ` +
+                      `Cloud (${remoteRow.updated_at}) is newer than Local (${payload.updated_at || item.created_at}).`
+                    )
+                    db.prepare("UPDATE sync_queue SET status = 'synced', synced_at = CURRENT_TIMESTAMP, error_message = NULL WHERE id = ?").run(item.id)
+                    try {
+                      db.prepare(`UPDATE ${item.table_name} SET sync_status = 'synced' WHERE id = ?`).run(item.record_id)
+                    } catch {}
+                    processedCount++
+                    continue
+                  }
+                }
+              }
+            } catch (lwwErr) {
+              if (isNetworkOrOfflineError(lwwErr)) throw lwwErr
+              console.warn(`[Anti-Regression Check] Non-blocking warning for ${item.table_name}:${item.record_id}:`, lwwErr)
+            }
+          }
+
           if (item.table_name === 'settings') {
             const settingPayload = {
               key: payload.key,
@@ -1763,25 +1880,6 @@ async function pushLocalChanges() {
               .upsert(payload, { onConflict: 'student_id,school_year' })
             upsertError = error
           } else {
-            // ANTI-RESURRECTION SAFEGUARD:
-            // If the cloud already marked this record as deleted, an offline update must NOT overwrite deleted=true with deleted=false
-            if (payload && (payload.deleted === 0 || payload.deleted === false || payload.deleted === undefined)) {
-              try {
-                const { data: remoteCheck } = await supabase
-                  .from(item.table_name)
-                  .select('deleted')
-                  .eq('id', item.record_id)
-                  .maybeSingle()
-                if (remoteCheck?.deleted) {
-                  db.prepare(`UPDATE ${item.table_name} SET deleted = 1, sync_status = 'synced' WHERE id = ?`).run(item.record_id)
-                  db.prepare("UPDATE sync_queue SET status = 'completed', error_message = NULL WHERE id = ?").run(item.id)
-                  continue
-                }
-              } catch {
-                // Non-blocking fallback
-              }
-            }
-
             const { error } = await supabase.from(item.table_name).upsert(payload)
             upsertError = error
           }
@@ -2763,10 +2861,61 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
 }
 
 /**
+ * Assainissement intelligent et unique de l'outbox (v2.3.7):
+ * S'exécute une seule fois par poste pour aligner les marqueurs 'pending' résiduels
+ * sans jamais perdre de vraies modifications hors-ligne.
+ */
+export async function oneTimeSanitizeSyncQueue(): Promise<void> {
+  try {
+    const done = db
+      .prepare("SELECT value FROM settings WHERE key = 'v237_sync_outbox_healed'")
+      .get() as { value: string } | undefined
+    if (done && done.value === 'true') {
+      return
+    }
+
+    console.log('[Sanitize Outbox] Exécution de la sanitisation unique de l\'Outbox...')
+
+    // 1. Purger les anciens éléments 'synced' de plus de 7 jours et tables structurelles
+    db.prepare("DELETE FROM sync_queue WHERE status = 'synced' AND synced_at < datetime('now', '-7 days')").run()
+    db.prepare("DELETE FROM sync_queue WHERE table_name IN ('class_subjects', 'subjects')").run()
+
+    // 2. Aligner les tables métiers : si une ligne est en 'pending' mais n'a pas d'écriture en attente dans sync_queue
+    const tables = Array.from(SYNCABLE_TABLES).filter((t) => t !== 'settings' && t !== 'assessments')
+    for (const t of tables) {
+      try {
+        db.prepare(`
+          UPDATE ${t} 
+          SET sync_status = 'synced' 
+          WHERE sync_status = 'pending' 
+            AND id NOT IN (
+              SELECT record_id FROM sync_queue 
+              WHERE table_name = ? AND status IN ('pending', 'error', 'failed', 'quarantined')
+            )
+        `).run(t)
+      } catch {}
+    }
+
+    // 3. Compacter et dédoublonner la file sync_queue
+    compactSyncQueue()
+
+    // 4. Enregistrer la marque d'exécution
+    db.prepare(
+      "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('v237_sync_outbox_healed', 'true', CURRENT_TIMESTAMP)"
+    ).run()
+
+    console.log('[Sanitize Outbox] Sanitisation unique terminée avec succès.')
+  } catch (err) {
+    console.warn('[Sanitize Outbox] Erreur lors de la sanitisation unique:', err)
+  }
+}
+
+/**
  * Start periodic sync loop with safety checks
  */
 export function startPeriodicSync() {
   setTimeout(async () => {
+    await oneTimeSanitizeSyncQueue().catch(() => {})
     await syncWithCloud()
   }, 2000)
 
