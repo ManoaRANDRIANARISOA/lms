@@ -5,6 +5,23 @@ Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/)
 
 ---
 
+## [2.3.8] - 2026-10-10
+
+### 📊 Alertes Impayés : Filtrage Mensuel Précis & Export Modulaire Standard
+- **Filtre par Mois Spécifique (`PaymentAlerts.tsx`)** :
+  - Ajout d'un sélecteur déroulant de mois généré dynamiquement pour l'année scolaire en cours (Septembre à Juillet).
+  - Possibilité d'isoler précisément les retards d'écolage, de transport ou de cantine pour un mois donné (ex: *Février 2026*).
+  - Isolation automatique des montants : recalcul du montant dû strictement sur le mois sélectionné, avec mention claire de la dette totale si applicable.
+  - Désactivation intelligente du filtre « Mois minimum » lors d'un ciblage mensuel pour ne masquer aucun retardataire du mois.
+- **Module d'Export Standard Intégré (`DataExportModal.tsx`)** :
+  - Bouton d'export direct dans l'en-tête permettant d'exporter les listes filtrées aux formats Excel (.xlsx), CSV, PDF et JSON.
+  - Préréglages adaptés au recouvrement mensuel (*Élève, Classe, Type d'impayé, Mois concerné, Montant dû sélection, Dette totale globale*).
+  - Nom de fichier d'export horodaté et contextualisé selon les filtres actifs.
+- **Enrichissement des Données Backend (`PaymentRepository.getUnpaidAlerts`)** :
+  - Ajout du champ explicite `month?: string` (`YYYY-MM`) sur tous les arriérés de services mensuels pour un filtrage direct et performant.
+
+---
+
 ## [2.3.7] - 2026-10-08
 
 ### 🛡️ Sécurisation Industrielle de Synchronisation & Protection Anti-Régression LWW

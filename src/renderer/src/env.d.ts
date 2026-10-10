@@ -263,7 +263,12 @@ interface APIType {
         first_name: string
         last_name: string
         class_name: string
-        unpaid_items: Array<{ type: string; description: string; amount: number }>
+        unpaid_items: Array<{
+          type: string
+          description: string
+          amount: number
+          month?: string
+        }>
         total_due: number
       }>
       error?: string

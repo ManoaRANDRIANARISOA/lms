@@ -1052,7 +1052,12 @@ export class PaymentRepository {
         const studentMonths = isTerminale ? terminaleMonths : months
 
         let totalDue = 0
-        const unpaidItems: Array<{ type: string; description: string; amount: number }> = []
+        const unpaidItems: Array<{
+          type: string
+          description: string
+          amount: number
+          month?: string
+        }> = []
 
         // Helper to check monthly subscriptions (threshold at 100 Ar to prevent fractional/1 Ar residue)
         const checkMonthlyService = (
@@ -1071,7 +1076,8 @@ export class PaymentRepository {
               unpaidItems.push({
                 type,
                 description: `${labelPrefix} (${m})`,
-                amount: balance
+                amount: balance,
+                month: m
               })
               totalDue += balance
             }
