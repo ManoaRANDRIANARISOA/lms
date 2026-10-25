@@ -100,7 +100,7 @@ export class StudentRepository {
     return false
   }
 
-  static generateRegistrationNumber(): string {
+  static generateRegistrationNumber(maxHint?: number): string {
     const year = new Date().getFullYear()
     // Better: Get MAX number for current year
     const result = db
@@ -113,7 +113,9 @@ export class StudentRepository {
       )
       .get(`${year}-%`) as { max_num: number | null }
 
-    const nextNum = (result.max_num || 0) + 1
+    const localMax = result?.max_num || 0
+    const effectiveMax = Math.max(localMax, maxHint || 0)
+    const nextNum = effectiveMax + 1
     return `${year}-${String(nextNum).padStart(5, '0')}`
   }
 
@@ -290,7 +292,7 @@ export class StudentRepository {
     return className.trim().replace(/\s+/g, ' ') // Trim and single spaces
   }
 
-  static create(studentData: Record<string, unknown>): {
+  static create(studentData: Record<string, unknown>, maxHint?: number): {
     success: boolean
     id?: string
     registration_number?: string
@@ -304,7 +306,7 @@ export class StudentRepository {
     const createTransaction = db.transaction((data) => {
       const id = uuidv4()
       // Ensure registration number is generated if not provided (it shouldn't be provided by UI usually)
-      const registration_number = this.generateRegistrationNumber()
+      const registration_number = (data.registration_number as string) || this.generateRegistrationNumber(maxHint)
 
       // Extract fee fields
       const feeData: Record<string, unknown> = {}

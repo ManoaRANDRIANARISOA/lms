@@ -9,13 +9,25 @@ import { LoggerService } from './logger.service'
 import { TelemetryService, isNetworkOrOfflineError } from './telemetry.service'
 
 const isDev = !app.isPackaged
-const envPath = isDev ? path.join(process.cwd(), '.env') : path.join(process.resourcesPath, '.env')
+const candidateEnvPaths = [
+  isDev ? path.join(process.cwd(), '.env') : path.join(process.resourcesPath, '.env'),
+  path.join(process.cwd(), '.env'),
+  path.join(process.resourcesPath || '', '.env'),
+  path.join(app.getAppPath ? app.getAppPath() : process.cwd(), '.env')
+]
 
-dotenv.config({ path: envPath })
+for (const p of candidateEnvPaths) {
+  try {
+    if (p && fs.existsSync(p)) {
+      dotenv.config({ path: p })
+      break
+    }
+  } catch {}
+}
 
 // Supabase credentials MUST be provided by the .env file
-const supabaseUrl = process.env.SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_ANON_KEY
+const supabaseUrl = (process.env.SUPABASE_URL || '').trim()
+const supabaseKey = (process.env.SUPABASE_ANON_KEY || '').trim()
 
 let supabaseClient: any = null
 
@@ -156,12 +168,38 @@ export async function checkCloudHealth(timeoutMs: number = 15000): Promise<{ ok:
       clearTimeout(timeoutId)
 
       if (error) {
+        // Direct fetch fallback in case PostgREST abort signal had an edge case
+        try {
+          const directRes = await fetch(`${supabaseUrl}/rest/v1/settings?select=key&limit=1`, {
+            headers: {
+              apikey: supabaseKey,
+              Authorization: `Bearer ${supabaseKey}`
+            },
+            signal: AbortSignal.timeout(6000)
+          })
+          if (directRes.ok) {
+            return { ok: true, latencyMs: Date.now() - start }
+          }
+        } catch {}
         return { ok: false, error: error.message || 'Erreur retournée par Supabase' }
       }
 
       return { ok: true, latencyMs: Date.now() - start }
     } catch (err: unknown) {
       clearTimeout(timeoutId)
+      // Direct fetch fallback on caught error
+      try {
+        const directRes = await fetch(`${supabaseUrl}/rest/v1/settings?select=key&limit=1`, {
+          headers: {
+            apikey: supabaseKey,
+            Authorization: `Bearer ${supabaseKey}`
+          },
+          signal: AbortSignal.timeout(6000)
+        })
+        if (directRes.ok) {
+          return { ok: true, latencyMs: Date.now() - start }
+        }
+      } catch {}
       const msg = err instanceof Error ? err.message : String(err)
       return { ok: false, error: msg }
     }
@@ -902,18 +940,23 @@ export function reconcilePendingOutbox(): number {
       }
 
       // 2. Only discover genuinely recent offline modifications:
+      // When lastSyncIso is missing (first run or reset), default to a safe 48-hour window
+      // instead of NULL (which would match every historical record in the table).
+      const fallbackThreshold = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
+      const effectiveThreshold = lastSyncIso || fallbackThreshold
+
       const pendingRows = db
         .prepare(
           `SELECT * FROM ${table} 
            WHERE sync_status = 'pending' 
-             AND (? IS NULL OR updated_at > ? OR (updated_at IS NULL AND created_at > ?))
+             AND (updated_at > ? OR (updated_at IS NULL AND created_at > ?))
              AND id NOT IN (
                SELECT record_id FROM sync_queue 
                WHERE table_name = ? AND status IN ('pending', 'error', 'quarantined', 'failed')
              )
            LIMIT 50`
         )
-        .all(lastSyncIso, lastSyncIso || '2000-01-01', lastSyncIso || '2000-01-01', table) as any[]
+        .all(effectiveThreshold, effectiveThreshold, table) as any[]
 
       for (const row of pendingRows) {
         const action = row.deleted ? 'delete' : 'update'
@@ -1013,6 +1056,49 @@ export async function runDeepConvergence(): Promise<{
             const { search_text, ...recordToSave } = st
             recordToSave.sync_status = 'synced'
             recordToSave.deleted = 0
+
+            // Anti-collision check for registration_number in Deep Convergence
+            if (recordToSave.registration_number) {
+              const existingWithReg = db
+                .prepare('SELECT id, first_name, last_name, registration_number FROM students WHERE registration_number = ? AND id != ?')
+                .get(recordToSave.registration_number, st.id) as any
+
+              if (existingWithReg) {
+                const sameName =
+                  (existingWithReg.first_name || '').trim().toLowerCase() === (recordToSave.first_name || '').trim().toLowerCase() &&
+                  (existingWithReg.last_name || '').trim().toLowerCase() === (recordToSave.last_name || '').trim().toLowerCase()
+
+                if (sameName) {
+                  const oldId = existingWithReg.id
+                  const newId = st.id
+                  db.prepare('UPDATE student_fees SET student_id = ? WHERE student_id = ?').run(newId, oldId)
+                  db.prepare('UPDATE student_payments SET student_id = ? WHERE student_id = ?').run(newId, oldId)
+                  db.prepare('UPDATE cash_journal SET related_student_id = ? WHERE related_student_id = ?').run(newId, oldId)
+                  db.prepare('UPDATE grades SET student_id = ? WHERE student_id = ?').run(newId, oldId)
+                  db.prepare('UPDATE bus_attendance SET student_id = ? WHERE student_id = ?').run(newId, oldId)
+                  db.prepare('UPDATE canteen_attendance SET student_id = ? WHERE student_id = ?').run(newId, oldId)
+                  db.prepare('DELETE FROM sync_queue WHERE table_name = "students" AND record_id = ?').run(oldId)
+                  db.prepare('DELETE FROM students WHERE id = ?').run(oldId)
+                } else {
+                  const yearPrefix = (recordToSave.registration_number.match(/^(\d{4})/) || [null, new Date().getFullYear().toString()])[1]
+                  const maxLocal = db.prepare(`
+                    SELECT MAX(CAST(SUBSTR(registration_number, 6) AS INTEGER)) as max_num 
+                    FROM students 
+                    WHERE registration_number LIKE ?
+                  `).get(`${yearPrefix}-%`) as { max_num: number | null } | undefined
+                  const nextNum = (maxLocal?.max_num || 0) + 1
+                  const newRegNum = `${yearPrefix}-${String(nextNum).padStart(5, '0')}`
+                  db.prepare('UPDATE students SET registration_number = ?, sync_status = "pending", updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                    .run(newRegNum, existingWithReg.id)
+                  addToSyncQueue('students', existingWithReg.id, 'update', {
+                    ...existingWithReg,
+                    registration_number: newRegNum,
+                    updated_at: new Date().toISOString()
+                  })
+                }
+              }
+            }
+
             const cols = Object.keys(recordToSave)
             const placeholders = cols.map(() => '?').join(', ')
             const values = cols.map((k) => {
@@ -1342,6 +1428,7 @@ function sanitizeRowPayload(tableName: string, action: string, rawData: any, rec
   // UUID foreign key fields that must be null instead of empty string "" to satisfy Postgres uuid syntax
   // ONLY format if the column exists on the record to prevent injecting alien columns into tables
   const uuidFields = [
+    'id',
     'parent_personnel_id',
     'related_student_id',
     'related_personnel_id',
@@ -1350,12 +1437,17 @@ function sanitizeRowPayload(tableName: string, action: string, rawData: any, rec
     'personnel_id',
     'subject_id',
     'event_id',
-    'parent_id'
+    'parent_id',
+    'user_id'
   ]
   for (const field of uuidFields) {
     if (Object.prototype.hasOwnProperty.call(payload, field)) {
       if (payload[field] === '' || payload[field] === 'null' || payload[field] === undefined) {
-        payload[field] = null
+        if (field === 'id') {
+          payload.id = recordId || uuidv4()
+        } else {
+          payload[field] = null
+        }
       }
     }
   }
@@ -2493,6 +2585,8 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
         for (const record of records) {
           const local = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(record.id) as any
           const { search_text, ...recordToSave } = record
+          delete recordToSave.sync_status
+          delete recordToSave.last_synced_at
 
           for (const key in recordToSave) {
             const val = recordToSave[key]
@@ -2549,12 +2643,14 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
                 // Table might not be in sync_queue
               }
             } else {
+              recordToSave.sync_status = 'synced'
+              recordToSave.last_synced_at = new Date().toISOString()
               const fields = Object.keys(recordToSave).join(', ')
               const placeholders = Object.keys(recordToSave)
                 .map(() => '?')
                 .join(', ')
               db.prepare(
-                `INSERT INTO ${table} (${fields}, sync_status) VALUES (${placeholders}, 'synced')`
+                `INSERT INTO ${table} (${fields}) VALUES (${placeholders})`
               ).run(...Object.values(recordToSave))
             }
             continue
@@ -2629,14 +2725,81 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
             }
           }
 
+          // Intelligent collision resolution for students on registration_number during PULL
+          if (table === 'students' && recordToSave.registration_number) {
+            const collision = db
+              .prepare('SELECT * FROM students WHERE registration_number = ? AND id != ?')
+              .get(recordToSave.registration_number, record.id) as any
+
+            if (collision) {
+              const sameLastName =
+                (collision.last_name || '').trim().toLowerCase() === (recordToSave.last_name || '').trim().toLowerCase()
+              const sameFirstName =
+                (collision.first_name || '').trim().toLowerCase() === (recordToSave.first_name || '').trim().toLowerCase()
+
+              if (sameLastName && sameFirstName) {
+                // CAS A : Même élève créé sous 2 UUIDs distincts (panne de synchronisation inter-postes).
+                // L'UUID Cloud fait autorité : on réaligne l'historique local sur l'UUID Cloud
+                const oldId = collision.id
+                const newId = record.id
+                console.warn(
+                  `[Pull Sync] Duplicate student detected for registration_number '${recordToSave.registration_number}' (${collision.last_name} ${collision.first_name}). Aligning local ${oldId} -> cloud ${newId}`
+                )
+
+                db.prepare('UPDATE student_fees SET student_id = ? WHERE student_id = ?').run(newId, oldId)
+                db.prepare('UPDATE student_payments SET student_id = ? WHERE student_id = ?').run(newId, oldId)
+                db.prepare('UPDATE cash_journal SET related_student_id = ? WHERE related_student_id = ?').run(newId, oldId)
+                db.prepare('UPDATE grades SET student_id = ? WHERE student_id = ?').run(newId, oldId)
+                db.prepare('UPDATE bus_attendance SET student_id = ? WHERE student_id = ?').run(newId, oldId)
+                db.prepare('UPDATE canteen_attendance SET student_id = ? WHERE student_id = ?').run(newId, oldId)
+                db.prepare('DELETE FROM sync_queue WHERE table_name = "students" AND record_id = ?').run(oldId)
+                db.prepare('DELETE FROM students WHERE id = ?').run(oldId)
+              } else {
+                // CAS B : Deux enfants réels différents ayant reçu le même matricule par deux caisses hors-ligne.
+                // L'élève distant conserve son matricule officiel issu du Cloud.
+                // L'élève local conserve son identité et ses paiements, et reçoit le prochain matricule libre non conflictuel.
+                const yearPrefix = (recordToSave.registration_number.match(/^(\d{4})/) || [null, new Date().getFullYear().toString()])[1]
+                const maxLocal = db.prepare(`
+                  SELECT MAX(CAST(SUBSTR(registration_number, 6) AS INTEGER)) as max_num 
+                  FROM students 
+                  WHERE registration_number LIKE ?
+                `).get(`${yearPrefix}-%`) as { max_num: number | null } | undefined
+
+                const nextNum = (maxLocal?.max_num || 0) + 1
+                const newRegNum = `${yearPrefix}-${String(nextNum).padStart(5, '0')}`
+                console.warn(
+                  `[Pull Sync] Matricule collision on ${recordToSave.registration_number} between local [${collision.last_name} ${collision.first_name}] and cloud [${recordToSave.last_name} ${recordToSave.first_name}]. Reassigning local student to ${newRegNum}`
+                )
+
+                db.prepare('UPDATE students SET registration_number = ?, sync_status = "pending", updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                  .run(newRegNum, collision.id)
+
+                addToSyncQueue('students', collision.id, 'update', {
+                  ...collision,
+                  registration_number: newRegNum,
+                  updated_at: new Date().toISOString()
+                })
+
+                try {
+                  db.prepare(`
+                    INSERT INTO settings_history (key, old_value, new_value, changed_by, created_at)
+                    VALUES (?, ?, ?, 'sync_matricule_reassign', CURRENT_TIMESTAMP)
+                  `).run(`matricule_collision:${collision.id}`, collision.registration_number, newRegNum)
+                } catch {}
+              }
+            }
+          }
+
           try {
             if (!local) {
+              recordToSave.sync_status = 'synced'
+              recordToSave.last_synced_at = new Date().toISOString()
               const fields = Object.keys(recordToSave).join(', ')
               const placeholders = Object.keys(recordToSave)
                 .map(() => '?')
                 .join(', ')
               db.prepare(
-                `INSERT INTO ${table} (${fields}, sync_status) VALUES (${placeholders}, 'synced')`
+                `INSERT INTO ${table} (${fields}) VALUES (${placeholders})`
               ).run(...Object.values(recordToSave))
             } else {
               // Local record exists: check if there are pending unpushed changes
@@ -2660,16 +2823,22 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
                   (recordToSave.print_count || 0) > (local.print_count || 0)
 
                 if (localDate <= cloudDate || forceFullSync || hasNewerPrint) {
+                  delete recordToSave.id
+                  delete recordToSave.sync_status
+                  delete recordToSave.last_synced_at
+
                   const updates = Object.entries(recordToSave)
-                    .filter(([k]) => colNames.has(k) && k !== 'id')
+                    .filter(([k]) => colNames.has(k))
                     .map(([key]) => `${key} = ?`)
                     .join(', ')
                   const vals = Object.entries(recordToSave)
-                    .filter(([k]) => colNames.has(k) && k !== 'id')
+                    .filter(([k]) => colNames.has(k))
                     .map(([, v]) => v)
 
-                  db.prepare(`UPDATE ${table} SET ${updates}, sync_status = 'synced' WHERE id = ?`).run(
+                  const nowIso = new Date().toISOString()
+                  db.prepare(`UPDATE ${table} SET ${updates}, sync_status = 'synced', last_synced_at = ? WHERE id = ?`).run(
                     ...vals,
+                    nowIso,
                     record.id
                   )
 
@@ -2907,6 +3076,37 @@ export async function oneTimeSanitizeSyncQueue(): Promise<void> {
     console.log('[Sanitize Outbox] Sanitisation unique terminée avec succès.')
   } catch (err) {
     console.warn('[Sanitize Outbox] Erreur lors de la sanitisation unique:', err)
+  }
+
+  // Sanitisation v2.3.9: Purge les faux pending fantômes accumulés par l'ancienne faille d'insertion PULL
+  try {
+    const doneV239 = db
+      .prepare("SELECT value FROM settings WHERE key = 'v239_sync_outbox_healed'")
+      .get() as { value: string } | undefined
+    if (!doneV239 || doneV239.value !== 'true') {
+      console.log('[Sanitize Outbox v239] Élimination des faux résidus d\'envois fantômes...')
+      const tables = Array.from(SYNCABLE_TABLES).filter((t) => t !== 'settings')
+      for (const t of tables) {
+        try {
+          db.prepare(`
+            UPDATE ${t} 
+            SET sync_status = 'synced' 
+            WHERE sync_status = 'pending' 
+              AND id NOT IN (
+                SELECT record_id FROM sync_queue 
+                WHERE table_name = ? AND status IN ('error', 'failed', 'quarantined')
+              )
+          `).run(t)
+        } catch {}
+      }
+      compactSyncQueue()
+      db.prepare(
+        "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('v239_sync_outbox_healed', 'true', CURRENT_TIMESTAMP)"
+      ).run()
+      console.log('[Sanitize Outbox v239] Sanitisation v239 terminée.')
+    }
+  } catch (err239) {
+    console.warn('[Sanitize Outbox v239] Notice:', err239)
   }
 }
 

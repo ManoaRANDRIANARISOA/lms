@@ -16,7 +16,7 @@
 import { ipcMain } from 'electron'
 import { canRead, canWrite } from '../auth/rbac.service'
 import { StudentRepository } from '../database/repositories/student.repository'
-import { syncWithCloud } from '../services/sync.service'
+import { syncWithCloud, supabase } from '../services/sync.service'
 import { logAction } from '../auth/audit.service'
 import { getCurrentUser } from '../auth/rbac.service'
 import { uploadToStorage } from '../services/storage.service'
@@ -35,12 +35,27 @@ export function registerStudentHandlers(): void {
       console.warn('Background sync before creation failed, proceeding anyway:', e)
     })
 
+    // Fetch remote max hint if online to prevent cross-workstation sequence collisions
+    let remoteMaxHint = 0
+    try {
+      const currentYearPrefix = new Date().getFullYear().toString()
+      const { data: remoteRows } = await supabase
+        .from('students')
+        .select('registration_number')
+        .ilike('registration_number', `${currentYearPrefix}-%`)
+        .order('registration_number', { ascending: false })
+        .limit(1)
+      if (remoteRows && remoteRows.length > 0 && remoteRows[0].registration_number) {
+        remoteMaxHint = parseInt(remoteRows[0].registration_number.split('-')[1]) || 0
+      }
+    } catch {}
+
     // Upload photo if present
     if (studentData.photo_path) {
       studentData.photo_path = await uploadToStorage(studentData.photo_path as string, 'students')
     }
 
-    const result = StudentRepository.create(studentData) as {
+    const result = StudentRepository.create(studentData, remoteMaxHint) as {
       success: boolean
       id?: string
       registration_number?: string

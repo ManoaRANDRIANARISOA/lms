@@ -833,6 +833,7 @@ interface APIType {
       isSyncing: boolean
       isOnline: boolean
       latencyMs?: number
+      healthError?: string
       pendingCount: number
       errorCount: number
       failedCount?: number

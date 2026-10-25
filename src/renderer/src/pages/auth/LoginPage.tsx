@@ -29,14 +29,21 @@ export default function LoginPage(): React.JSX.Element {
   const clearError = useAuthStore((s) => s.clearError)
   const appVersion = useSyncStore((s) => s.appVersion)
 
+  const [cloudError, setCloudError] = useState<string | null>(null)
+  const [cloudLatency, setCloudLatency] = useState<number | null>(null)
+
   const checkConnectivity = async () => {
     if (window.api?.sync?.getStatus) {
       setIsCheckingCloud(true)
       try {
         const res = await window.api.sync.getStatus()
         setIsCloudOnline(Boolean(res.isOnline))
-      } catch {
+        setCloudError(res.healthError || null)
+        setCloudLatency(res.latencyMs || null)
+      } catch (err: unknown) {
         setIsCloudOnline(false)
+        const msg = err instanceof Error ? err.message : String(err)
+        setCloudError(msg)
       } finally {
         setIsCheckingCloud(false)
       }
@@ -47,10 +54,12 @@ export default function LoginPage(): React.JSX.Element {
     if (!window.api?.sync?.start) return
     setSyncingAccounts(true)
     try {
+      await checkConnectivity()
       const res = await window.api.sync.start(false)
       if (res.success) {
         toast.success('Comptes et données synchronisés avec succès depuis le Cloud !')
         setIsCloudOnline(true)
+        setCloudError(null)
       } else {
         toast.error(`Échec synchronisation : ${res.error || 'Vérifiez la connexion Internet'}`)
       }
@@ -69,6 +78,13 @@ export default function LoginPage(): React.JSX.Element {
       })
     }
     checkConnectivity()
+
+    // Auto-poll connectivity every 10s on the login page so changes in network state update automatically
+    const pollInterval = setInterval(() => {
+      checkConnectivity()
+    }, 10000)
+
+    return () => clearInterval(pollInterval)
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,23 +118,33 @@ export default function LoginPage(): React.JSX.Element {
                   Vérification...
                 </span>
               ) : isCloudOnline === true ? (
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
+                <button
+                  type="button"
+                  onClick={checkConnectivity}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full hover:bg-emerald-100 transition-colors cursor-pointer"
+                  title={`Connecté au Cloud (${cloudLatency ? `${cloudLatency}ms` : 'actif'}) — Cliquez pour retester`}
+                >
                   <Cloud className="w-3 h-3 text-emerald-600" />
                   Connecté Cloud
-                </span>
+                </button>
               ) : isCloudOnline === false ? (
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
+                <button
+                  type="button"
+                  onClick={checkConnectivity}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full hover:bg-amber-100 transition-colors cursor-pointer"
+                  title={cloudError ? `Hors-ligne : ${cloudError} — Cliquez pour retester` : 'Mode Hors-Ligne — Cliquez pour retester la connexion'}
+                >
                   <CloudOff className="w-3 h-3 text-amber-600" />
                   Mode Hors-Ligne
-                </span>
+                </button>
               ) : null}
 
               <button
                 type="button"
                 onClick={handleSyncAccounts}
                 disabled={syncingAccounts || isCheckingCloud}
-                className="p-1 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors"
-                title="Synchroniser les comptes depuis le Cloud"
+                className="p-1 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                title="Synchroniser les comptes et retester la connexion"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${syncingAccounts ? 'animate-spin text-primary' : ''}`} />
               </button>

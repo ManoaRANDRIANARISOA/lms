@@ -3,6 +3,28 @@
 Toutes les modifications notables apportées à ce projet sont documentées dans ce fichier.
 Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/) et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [2.3.9] - 2026-10-25
+
+### 🛡️ Étanchéité de Synchronisation Multi-Postes & Résolution Déterministe des Collisions
+- **Élimination Définitive des Envois Fantômes (Étanchéité du PULL)** :
+  - Éradication de la double colonne `sync_status` dans les requêtes SQLite d'insertion lors de la récupération Cloud.
+  - Nettoyage rigoureux des enregistrements entrants : `sync_status` est systématiquement forcé à `'synced'` et `last_synced_at` est horodaté lors du PULL, coupant court à la boucle de ré-enfilage dans l'Outbox.
+  - Verrouillage de `reconcilePendingOutbox()` : lorsqu'aucun horodatage antérieur n'est connu, application d'une fenêtre de sécurité de 48 heures au lieu d'un parcours aveugle de toute la base.
+  - Routine d'auto-nettoyage unique v2.3.9 (`v239_sync_outbox_healed`) purgeant les reliquats d'envois fantômes sur chaque poste client.
+- **Résolution Intelligente & Déterministe des Collisions de Matricules au PULL** :
+  - Prise en charge transparente des conflits sur `students.registration_number` :
+    - *Même élève créé sur deux postes distincts hors-ligne* : détection par identité stricte (nom, prénom), adoption de l'UUID Cloud maître et réassociation atomique de tous les paiements, frais et écritures de journal associés sans aucune perte.
+    - *Deux enfants réels différents ayant reçu le même numéro de séquence* : l'élève local conserve son identité et ses encaissements, et reçoit automatiquement le prochain numéro séquentiel libre non conflictuel.
+    - Élimination des crashes fatals SQLite `UNIQUE constraint failed: students.registration_number`.
+- **Immunisation des Payloads PUSH (Protection Anti-Erreur 22P02)** :
+  - Conversion systématique des chaînes vides `""` en `null` pour l'ensemble des clés UUID (`id`, `parent_personnel_id`, etc.), empêchant tout rejet Postgres SQL `22P02`.
+- **Sécurisation de la Génération des Matricules à la Création** :
+  - Dans `student:create`, interrogation du MAX global Cloud en amont pour attribuer un matricule frais garanti non conflictuel lorsque le poste est en ligne, avec repli local autonome en cas de travail hors-ligne.
+- **Résilience Connectivité & Détection Temps Réel sur l'Écran de Connexion (`LoginPage.tsx`)** :
+  - Sondage automatique en arrière-plan toutes les 10 secondes : bascule dynamique et instantanée de « Mode Hors-Ligne » à « Connecté Cloud » dès que la machine retrouve Internet, sans nécessiter de redémarrage.
+  - Badge cliquable interactif permettant de forcer immédiatement un test de connectivité avec affichage de la latence ou du message d'erreur précis au survol/clic.
+  - Ajout d'un repli `fetch` direct dans `checkCloudHealth()` pour confirmer la joignabilité Cloud même en cas de latence DNS ou de micro-coupure du client PostgREST.
+
 ---
 
 ## [2.3.8] - 2026-10-10
