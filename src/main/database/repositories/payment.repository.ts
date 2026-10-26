@@ -1140,10 +1140,17 @@ export class PaymentRepository {
 
         let tuitionCost = 0
         if (!isPersonnelChild) {
-          const level = student.tuition_level || resolvedClass
-          const tuitionConfig = StudentRepository.resolveTuitionConfig(level)
-          tuitionCost =
-            tuitionConfig.price > 0 ? tuitionConfig.price : Number(student.monthly_tuition) || 0
+          if (
+            student.monthly_tuition !== null &&
+            student.monthly_tuition !== undefined &&
+            student.monthly_tuition !== ''
+          ) {
+            tuitionCost = Number(student.monthly_tuition) || 0
+          } else {
+            const level = student.tuition_level || resolvedClass
+            const tuitionConfig = StudentRepository.resolveTuitionConfig(level)
+            tuitionCost = tuitionConfig.price || 0
+          }
         }
         checkMonthlyService('tuition', tuitionCost, 'Écolage')
 

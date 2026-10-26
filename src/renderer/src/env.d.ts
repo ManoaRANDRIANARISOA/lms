@@ -903,13 +903,7 @@ interface APIType {
     ) => Promise<{ success: boolean; message?: string; error?: string }>
     runDeepConvergence: () => Promise<{
       success: boolean
-      aligned?: {
-        deletedStudents: number
-        deletedPayments: number
-        deletedCash: number
-        deletedSubjects: number
-        missingStudentsInserted: number
-      }
+      aligned?: Record<string, any>
       error?: string
     }>
     onProgress: (

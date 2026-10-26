@@ -91,8 +91,11 @@ export const WorkstationMonitor: React.FC = () => {
       // 3. Inform user
       if (localResult && localResult.success) {
         const details = localResult.aligned
+        const sInfo = `${details?.studentsDeleted || 0} del / ${details?.studentsCreated || 0} créés`
+        const pInfo = `${details?.paymentsImported || 0} importés / ${details?.paymentsDeleted || 0} del`
+        const cInfo = `${details?.cashImported || 0} importés / ${details?.cashDeleted || 0} del`
         toast.success(
-          `Convergence locale réussie (${details?.deletedStudents || 0} tombstones élèves alignés). Ordre de réparation diffusé à distance aux postes C1, C4, C5...`
+          `Convergence locale réussie (Élèves: ${sInfo}, Paiements: ${pInfo}, Caisse: ${cInfo}). Ordre de réparation diffusé à distance aux postes C1, C2, C3...`
         )
       } else {
         toast.success('Ordre de convergence et réconciliation multi-postes diffusé avec succès !')
@@ -525,6 +528,11 @@ export const WorkstationMonitor: React.FC = () => {
                           }`}
                         >
                           {sCount}
+                          {!sMatch && cloudCounts.students !== undefined && (
+                            <span className="text-[10px] ml-1 font-bold text-amber-900">
+                              ({sCount - cloudCounts.students > 0 ? `+${sCount - cloudCounts.students}` : sCount - cloudCounts.students})
+                            </span>
+                          )}
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-center">
@@ -534,6 +542,11 @@ export const WorkstationMonitor: React.FC = () => {
                           }`}
                         >
                           {pCount}
+                          {!pMatch && cloudCounts.student_payments !== undefined && (
+                            <span className="text-[10px] ml-1 font-bold text-amber-900">
+                              ({pCount - cloudCounts.student_payments > 0 ? `+${pCount - cloudCounts.student_payments}` : pCount - cloudCounts.student_payments})
+                            </span>
+                          )}
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-center">
@@ -543,6 +556,11 @@ export const WorkstationMonitor: React.FC = () => {
                           }`}
                         >
                           {cCount}
+                          {!cMatch && cloudCounts.cash_journal !== undefined && (
+                            <span className="text-[10px] ml-1 font-bold text-amber-900">
+                              ({cCount - cloudCounts.cash_journal > 0 ? `+${cCount - cloudCounts.cash_journal}` : cCount - cloudCounts.cash_journal})
+                            </span>
+                          )}
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-center">

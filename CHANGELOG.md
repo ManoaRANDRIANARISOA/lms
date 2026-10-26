@@ -3,6 +3,31 @@
 Toutes les modifications notables apportées à ce projet sont documentées dans ce fichier.
 Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/) et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [2.3.10] - 2026-10-26
+
+### 🛡️ Moteur de Convergence Non-Destructif, Parité des Tombstones & Réconciliation Financière Multi-Postes
+- **Parité Définitive des Tombstones au PULL (`pullRemoteChanges`)** :
+  - Synchronisation systématique de l'état de suppression (`deleted = 1`) depuis Supabase pour les tables clés (`students`, `student_payments`, `cash_journal`, `users`, `subjects`).
+  - Éradication des « élèves fantômes ressuscités » sur les postes clients n'ayant pas capté les suppressions dans leur fenêtre PULL de 5 minutes : le nombre d'élèves actifs s'aligne immédiatement sur les 787 élèves officiels.
+  - Protection des modifications locales non encore envoyées : si un enregistrement est en attente dans `sync_queue`, la mise à jour locale est préservée.
+- **Moteur de Convergence Globale & Auto-Guérison Outbox Sécurisée (`runDeepConvergence`)** :
+  - **Rattrapage sélectif paginé des écritures manquantes** : téléchargement par lots de 1 000 enregistrements des paiements et écritures de caisse absents localement avec insertion `INSERT OR IGNORE` (rattrape instantanément les 293 paiements et 427 écritures manquants sur C2).
+  - **Captive Outbox Healer non-destructif** : détection algorithmique des enregistrements financiers créés localement hors-ligne mais absents du Cloud (les 76 paiements et 119 lignes de caisse de C3). Ils sont enfilés dans `sync_queue` sous l'action `'create'` afin d'être officiellement reçus et acquittés par Supabase.
+  - **Interdiction stricte des faux `'synced'` et purges cosmétiques** : suppression totale des marquages aveugles `sync_status = 'synced'` sans réponse HTTP 200/201 formelle de Supabase.
+  - **Auto-convergence au démarrage v2.3.10** : exécution automatique unique de la convergence au premier lancement de la version 2.3.10 sur chaque machine cliente.
+- **Réattribution Sémantique des Paiements et Protection Anti-Orphelinat** :
+  - Réattribution déterministe par UUID exact de 10 cas d'historique où d'anciens paiements avaient été rattachés à tort à d'autres élèves suite à des renommages manuels de doublons.
+  - Soft-delete des 43 paiements et 26 lignes de caisse fictifs associés aux comptes de test historiques (`One RA`, `Pascal Rakoto`, etc.), ramenant les paiements orphelins dans Supabase à exactement zéro.
+  - **Sécurisation de la fusion de doublons (`duplicate.handler.ts`)** : réassociation atomique de `student_payments`, `cash_journal` et `student_fees` vers le profil conservé avec inscription immédiate dans `sync_queue`.
+- **Règles Métier & Alertes Financières** :
+  - **Protection des élèves exonérés (`payment.repository.ts`)** : respect strict de `monthly_tuition = 0`, éliminant les fausses alertes d'arriérés pour les 50 élèves bénéficiant d'une gratuité.
+  - **Visibilité universelle des événements scolaires (`event.repository.ts`)** : prise en compte des événements ayant `school_year IS NULL` (ex: `FETES DE NOEL`).
+- **Supervision Multi-Postes Avancée (`WorkstationMonitor.tsx`)** :
+  - Badges d'écarts colorés en direct (`(+1)`, `(-7)`) comparant chaque caisse à la référence Supabase.
+  - Bouton Superadmin `⚡ Convergence Multi-Postes` permettant de déclencher localement la convergence et de diffuser l'ordre à distance `reconcile_all` à l'ensemble du parc.
+
+---
+
 ## [2.3.9] - 2026-10-25
 
 ### 🛡️ Étanchéité de Synchronisation Multi-Postes & Résolution Déterministe des Collisions

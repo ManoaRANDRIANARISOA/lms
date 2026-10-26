@@ -61,7 +61,7 @@ export class EventRepository {
       const params: any[] = []
 
       if (schoolYear) {
-        query += ' AND school_year = ?'
+        query += ' AND (school_year = ? OR school_year IS NULL)'
         params.push(schoolYear)
       }
 
@@ -363,7 +363,7 @@ export class EventRepository {
       const params = [...eventIds]
 
       if (schoolYear) {
-        eventQuery += ` AND school_year = ?`
+        eventQuery += ` AND (school_year = ? OR school_year IS NULL)`
         params.push(schoolYear)
       }
 

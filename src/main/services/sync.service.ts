@@ -901,19 +901,6 @@ export function reconcilePendingOutbox(): number {
     console.warn('[Auto-Heal Outbox] Could not reset failed queue items:', resetErr)
   }
 
-  let lastSyncIso: string | null = null
-  try {
-    const lastSyncRow = db
-      .prepare("SELECT value FROM settings WHERE key = 'last_sync_time'")
-      .get() as { value: string } | undefined
-    if (lastSyncRow?.value) {
-      const parsed = JSON.parse(lastSyncRow.value)
-      if (typeof parsed === 'string' && parsed.length > 5) {
-        lastSyncIso = parsed
-      }
-    }
-  } catch {}
-
   const tables = Array.from(SYNCABLE_TABLES).filter((t) => t !== 'settings')
 
   for (const table of tables) {
@@ -922,41 +909,18 @@ export function reconcilePendingOutbox(): number {
       const hasSyncStatus = tableInfo.some((col) => col.name === 'sync_status')
       if (!hasSyncStatus) continue
 
-      // 1. Auto-heal stale legacy pending markers:
-      // If a row has sync_status = 'pending' but its updated_at is older than last_sync_time,
-      // and it is NOT currently in sync_queue, it was touched by an old migration or DDL default.
-      // Mark it 'synced' to prevent phantom outbox flooding.
-      if (lastSyncIso) {
-        db.prepare(
-          `UPDATE ${table} 
-           SET sync_status = 'synced' 
-           WHERE sync_status = 'pending' 
-             AND (updated_at <= ? OR (updated_at IS NULL AND created_at <= ?))
-             AND id NOT IN (
-               SELECT record_id FROM sync_queue 
-               WHERE table_name = ? AND status IN ('pending', 'error', 'quarantined', 'failed')
-             )`
-        ).run(lastSyncIso, lastSyncIso, table)
-      }
-
-      // 2. Only discover genuinely recent offline modifications:
-      // When lastSyncIso is missing (first run or reset), default to a safe 48-hour window
-      // instead of NULL (which would match every historical record in the table).
-      const fallbackThreshold = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
-      const effectiveThreshold = lastSyncIso || fallbackThreshold
-
+      // Discover genuine unqueued pending modifications without cosmetic 'synced' forcing
       const pendingRows = db
         .prepare(
           `SELECT * FROM ${table} 
            WHERE sync_status = 'pending' 
-             AND (updated_at > ? OR (updated_at IS NULL AND created_at > ?))
              AND id NOT IN (
                SELECT record_id FROM sync_queue 
                WHERE table_name = ? AND status IN ('pending', 'error', 'quarantined', 'failed')
              )
-           LIMIT 50`
+           LIMIT 100`
         )
-        .all(effectiveThreshold, effectiveThreshold, table) as any[]
+        .all(table) as any[]
 
       for (const row of pendingRows) {
         const action = row.deleted ? 'delete' : 'update'
@@ -990,9 +954,14 @@ export async function runDeepConvergence(): Promise<{
     studentsDeleted: number
     paymentsDeleted: number
     cashDeleted: number
+    usersDeleted: number
     studentsCreated: number
     subjectsAligned: number
     queueCompacted: number
+    paymentsImported: number
+    cashImported: number
+    captivePaymentsEnqueued: number
+    captiveCashEnqueued: number
   }
   error?: string
 }> {
@@ -1000,9 +969,14 @@ export async function runDeepConvergence(): Promise<{
     studentsDeleted: 0,
     paymentsDeleted: 0,
     cashDeleted: 0,
+    usersDeleted: 0,
     studentsCreated: 0,
     subjectsAligned: 0,
-    queueCompacted: 0
+    queueCompacted: 0,
+    paymentsImported: 0,
+    cashImported: 0,
+    captivePaymentsEnqueued: 0,
+    captiveCashEnqueued: 0
   }
 
   if (!supabaseUrl || !supabaseKey) {
@@ -1015,11 +989,12 @@ export async function runDeepConvergence(): Promise<{
     result.queueCompacted = compRes.deletedCount
 
     // 1. Align deleted tombstones from Supabase
-    const [delStudentsRes, delPaymentsRes, delCashRes, delSubsRes] = await Promise.all([
+    const [delStudentsRes, delPaymentsRes, delCashRes, delSubsRes, delUsersRes] = await Promise.all([
       supabase.from('students').select('id, updated_at').eq('deleted', true),
       supabase.from('student_payments').select('id, updated_at').eq('deleted', true),
       supabase.from('cash_journal').select('id, updated_at').eq('deleted', true),
-      supabase.from('subjects').select('id, updated_at').eq('deleted', true)
+      supabase.from('subjects').select('id, updated_at').eq('deleted', true),
+      supabase.from('users').select('id, updated_at').eq('deleted', true)
     ])
 
     const applyTombstones = db.transaction(() => {
@@ -1038,6 +1013,10 @@ export async function runDeepConvergence(): Promise<{
       for (const sub of delSubsRes.data || []) {
         const info = db.prepare('UPDATE subjects SET deleted = 1, sync_status = "synced", updated_at = ? WHERE id = ? AND deleted = 0').run(sub.updated_at || new Date().toISOString(), sub.id)
         result.subjectsAligned += info.changes
+      }
+      for (const u of delUsersRes.data || []) {
+        const info = db.prepare('UPDATE users SET deleted = 1, sync_status = "synced", updated_at = ? WHERE id = ? AND deleted = 0').run(u.updated_at || new Date().toISOString(), u.id)
+        result.usersDeleted += info.changes
       }
     })
     applyTombstones()
@@ -1143,6 +1122,167 @@ export async function runDeepConvergence(): Promise<{
         }
       })
       alignSubjectsTx()
+    }
+
+    // 2.6 Deep Pull: Fetch missing active payments from Supabase (deleted = false) that do not exist locally
+    let pPage = 0
+    let hasMorePayments = true
+    const pColsInfo = db.prepare('PRAGMA table_info(student_payments)').all() as any[]
+    const pColNames = new Set(pColsInfo.map((c) => c.name))
+
+    while (hasMorePayments) {
+      const from = pPage * 1000
+      const to = from + 999
+      const { data: remotePayments, error: pErr } = await supabase
+        .from('student_payments')
+        .select('*')
+        .eq('deleted', false)
+        .order('id', { ascending: true })
+        .range(from, to)
+
+      if (pErr || !remotePayments || remotePayments.length === 0) {
+        hasMorePayments = false
+        break
+      }
+
+      const insertMissingPaymentsTx = db.transaction((pList: any[]) => {
+        for (const p of pList) {
+          const local = db.prepare('SELECT id FROM student_payments WHERE id = ?').get(p.id)
+          if (!local) {
+            const pToSave: any = { ...p, sync_status: 'synced', deleted: 0 }
+            for (const k of Object.keys(pToSave)) {
+              if (!pColNames.has(k)) {
+                delete pToSave[k]
+                continue
+              }
+              const v = pToSave[k]
+              if (typeof v === 'boolean') pToSave[k] = v ? 1 : 0
+              else if (typeof v === 'object' && v !== null) pToSave[k] = JSON.stringify(v)
+            }
+            const cols = Object.keys(pToSave)
+            const placeholders = cols.map(() => '?').join(', ')
+            db.prepare(`INSERT OR IGNORE INTO student_payments (${cols.join(', ')}) VALUES (${placeholders})`).run(...Object.values(pToSave))
+            result.paymentsImported++
+          }
+        }
+      })
+      insertMissingPaymentsTx(remotePayments)
+      if (remotePayments.length < 1000) {
+        hasMorePayments = false
+      } else {
+        pPage++
+      }
+    }
+
+    // 2.7 Deep Pull: Fetch missing active cash journal from Supabase (deleted = false) that do not exist locally
+    let cPage = 0
+    let hasMoreCash = true
+    const cColsInfo = db.prepare('PRAGMA table_info(cash_journal)').all() as any[]
+    const cColNames = new Set(cColsInfo.map((c) => c.name))
+
+    while (hasMoreCash) {
+      const from = cPage * 1000
+      const to = from + 999
+      const { data: remoteCash, error: cErr } = await supabase
+        .from('cash_journal')
+        .select('*')
+        .eq('deleted', false)
+        .order('id', { ascending: true })
+        .range(from, to)
+
+      if (cErr || !remoteCash || remoteCash.length === 0) {
+        hasMoreCash = false
+        break
+      }
+
+      const insertMissingCashTx = db.transaction((cList: any[]) => {
+        for (const c of cList) {
+          const local = db.prepare('SELECT id FROM cash_journal WHERE id = ?').get(c.id)
+          if (!local) {
+            const cToSave: any = { ...c, sync_status: 'synced', deleted: 0 }
+            for (const k of Object.keys(cToSave)) {
+              if (!cColNames.has(k)) {
+                delete cToSave[k]
+                continue
+              }
+              const v = cToSave[k]
+              if (typeof v === 'boolean') cToSave[k] = v ? 1 : 0
+              else if (typeof v === 'object' && v !== null) cToSave[k] = JSON.stringify(v)
+            }
+            const cols = Object.keys(cToSave)
+            const placeholders = cols.map(() => '?').join(', ')
+            db.prepare(`INSERT OR IGNORE INTO cash_journal (${cols.join(', ')}) VALUES (${placeholders})`).run(...Object.values(cToSave))
+            result.cashImported++
+          }
+        }
+      })
+      insertMissingCashTx(remoteCash)
+      if (remoteCash.length < 1000) {
+        hasMoreCash = false
+      } else {
+        cPage++
+      }
+    }
+
+    // 2.8 Captive Outbox Healer: Discover genuine captive local financial records never received by Supabase (e.g. C3 unpushed records)
+    try {
+      const allCloudPaymentIds = new Set<string>()
+      let pageP = 0
+      while (true) {
+        const { data: cData } = await supabase
+          .from('student_payments')
+          .select('id')
+          .order('id', { ascending: true })
+          .range(pageP * 1000, pageP * 1000 + 999)
+        if (!cData || cData.length === 0) break
+        for (const r of cData) allCloudPaymentIds.add(r.id)
+        if (cData.length < 1000) break
+        pageP++
+      }
+
+      const localActivePayments = db.prepare('SELECT * FROM student_payments WHERE deleted = 0').all() as any[]
+      for (const p of localActivePayments) {
+        if (!allCloudPaymentIds.has(p.id)) {
+          const inQueue = db.prepare("SELECT 1 FROM sync_queue WHERE table_name = 'student_payments' AND record_id = ?").get(p.id)
+          if (!inQueue) {
+            const payload = { ...p }
+            delete payload.sync_status
+            addToSyncQueue('student_payments', p.id, 'create', payload)
+            db.prepare("UPDATE student_payments SET sync_status = 'pending' WHERE id = ?").run(p.id)
+            result.captivePaymentsEnqueued++
+          }
+        }
+      }
+
+      const allCloudCashIds = new Set<string>()
+      let pageC = 0
+      while (true) {
+        const { data: cData } = await supabase
+          .from('cash_journal')
+          .select('id')
+          .order('id', { ascending: true })
+          .range(pageC * 1000, pageC * 1000 + 999)
+        if (!cData || cData.length === 0) break
+        for (const r of cData) allCloudCashIds.add(r.id)
+        if (cData.length < 1000) break
+        pageC++
+      }
+
+      const localActiveCash = db.prepare('SELECT * FROM cash_journal WHERE deleted = 0').all() as any[]
+      for (const c of localActiveCash) {
+        if (!allCloudCashIds.has(c.id)) {
+          const inQueue = db.prepare("SELECT 1 FROM sync_queue WHERE table_name = 'cash_journal' AND record_id = ?").get(c.id)
+          if (!inQueue) {
+            const payload = { ...c }
+            delete payload.sync_status
+            addToSyncQueue('cash_journal', c.id, 'create', payload)
+            db.prepare("UPDATE cash_journal SET sync_status = 'pending' WHERE id = ?").run(c.id)
+            result.captiveCashEnqueued++
+          }
+        }
+      }
+    } catch (captiveErr) {
+      console.warn('[Deep Convergence] Notice on captive check:', captiveErr)
     }
 
     // 3. Purge structural tables (class_subjects, subjects) from sync_queue and ensure synced status
@@ -2517,6 +2657,44 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
   db.pragma('foreign_keys = OFF')
 
   try {
+    // 0. Tombstone Parity Guard: Align all deleted records from Supabase across all workstations
+    try {
+      const [delStudents, delPayments, delCash, delUsers, delSubjects] = await Promise.all([
+        supabase.from('students').select('id, updated_at').eq('deleted', true),
+        supabase.from('student_payments').select('id, updated_at').eq('deleted', true),
+        supabase.from('cash_journal').select('id, updated_at').eq('deleted', true),
+        supabase.from('users').select('id, updated_at').eq('deleted', true),
+        supabase.from('subjects').select('id, updated_at').eq('deleted', true)
+      ])
+
+      const applyTombstonesTx = db.transaction(() => {
+        const alignTableTombstones = (tbl: string, records: any[]) => {
+          for (const r of records) {
+            const hasPending = db.prepare(
+              `SELECT 1 FROM sync_queue WHERE table_name = ? AND record_id = ? AND status IN ('pending', 'error') AND action != 'delete'`
+            ).get(tbl, r.id)
+            if (!hasPending) {
+              db.prepare(
+                `UPDATE ${tbl} SET deleted = 1, sync_status = 'synced', updated_at = ? WHERE id = ? AND deleted = 0`
+              ).run(r.updated_at || new Date().toISOString(), r.id)
+              try {
+                db.prepare(`DELETE FROM sync_queue WHERE table_name = ? AND record_id = ? AND action != 'delete'`).run(tbl, r.id)
+              } catch {}
+            }
+          }
+        }
+
+        if (delStudents.data) alignTableTombstones('students', delStudents.data)
+        if (delPayments.data) alignTableTombstones('student_payments', delPayments.data)
+        if (delCash.data) alignTableTombstones('cash_journal', delCash.data)
+        if (delUsers.data) alignTableTombstones('users', delUsers.data)
+        if (delSubjects.data) alignTableTombstones('subjects', delSubjects.data)
+      })
+      applyTombstonesTx()
+    } catch (tombErr) {
+      console.warn('[Sync] Non-blocking warning aligning tombstones:', tombErr)
+    }
+
     for (let i = 0; i < tables.length; i++) {
       const table = tables[i]
       if (!SYNCABLE_TABLES.has(table)) continue
@@ -3078,35 +3256,11 @@ export async function oneTimeSanitizeSyncQueue(): Promise<void> {
     console.warn('[Sanitize Outbox] Erreur lors de la sanitisation unique:', err)
   }
 
-  // Sanitisation v2.3.9: Purge les faux pending fantômes accumulés par l'ancienne faille d'insertion PULL
+  // Sanitisation: Compactage propre de la file sans forçage de sync_status
   try {
-    const doneV239 = db
-      .prepare("SELECT value FROM settings WHERE key = 'v239_sync_outbox_healed'")
-      .get() as { value: string } | undefined
-    if (!doneV239 || doneV239.value !== 'true') {
-      console.log('[Sanitize Outbox v239] Élimination des faux résidus d\'envois fantômes...')
-      const tables = Array.from(SYNCABLE_TABLES).filter((t) => t !== 'settings')
-      for (const t of tables) {
-        try {
-          db.prepare(`
-            UPDATE ${t} 
-            SET sync_status = 'synced' 
-            WHERE sync_status = 'pending' 
-              AND id NOT IN (
-                SELECT record_id FROM sync_queue 
-                WHERE table_name = ? AND status IN ('error', 'failed', 'quarantined')
-              )
-          `).run(t)
-        } catch {}
-      }
-      compactSyncQueue()
-      db.prepare(
-        "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('v239_sync_outbox_healed', 'true', CURRENT_TIMESTAMP)"
-      ).run()
-      console.log('[Sanitize Outbox v239] Sanitisation v239 terminée.')
-    }
+    compactSyncQueue()
   } catch (err239) {
-    console.warn('[Sanitize Outbox v239] Notice:', err239)
+    console.warn('[Sanitize Outbox] Notice:', err239)
   }
 }
 
@@ -3115,6 +3269,26 @@ export async function oneTimeSanitizeSyncQueue(): Promise<void> {
  */
 export function startPeriodicSync() {
   setTimeout(async () => {
+    try {
+      const row = db
+        .prepare("SELECT value FROM settings WHERE key = 'v2310_deep_convergence_done'")
+        .get() as { value: string } | undefined
+      if (!row || !row.value) {
+        console.log('[Sync] Launching automatic initial deep convergence for v2.3.10...')
+        const convRes = await runDeepConvergence().catch((e) => {
+          console.warn('[Sync] Auto deep convergence note:', e)
+          return null
+        })
+        if (convRes && convRes.success) {
+          db.prepare(
+            "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('v2310_deep_convergence_done', 'true', CURRENT_TIMESTAMP)"
+          ).run()
+        }
+      }
+    } catch (errInit) {
+      console.warn('[Sync] v2310 check note:', errInit)
+    }
+
     await oneTimeSanitizeSyncQueue().catch(() => {})
     await syncWithCloud()
   }, 2000)

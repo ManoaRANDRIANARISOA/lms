@@ -14,3 +14,8 @@ Ce document régit les directives fondamentales pour tout agent IA (Antigravity,
 ## 3. TRAÇABILITÉ ET REÇUS
 - Toute modification de paramètre est historisée dans `settings_history`.
 - Les reçus financiers respectent strictement la norme de numérotation par station `REC-YYYY-C<station>-XXXXX`.
+
+## 4. INTERDICTION STRICTE DES FAUX 'SYNCED' ET DES PURGES COSMÉTIQUES
+- **Zéro camouflage de blocage :** Il est formellement interdit de forcer `sync_status = 'synced'` ou de purger la file d'attente (`sync_queue` / quarantaine) pour faire disparaître artificiellement les compteurs d'erreur sans que la ligne n'ait été réellement reçue et confirmée par le Cloud Supabase.
+- **Analyse d'impact non-destructive obligatoire :** Toute mesure corrective doit être rigoureusement analysée pour garantir qu'elle ne détruit aucune donnée, n'isole aucune écriture en local et ne coupe pas le flux de synchronisation futur.
+- **Résolution intelligente au cas par cas :** Identifier la cause racine exacte de chaque blocage (collision de matricule, clé étrangère élève orpheline, anomalie de type, doublon de reçu) et n'appliquer que des remédiations déterministes, prouvées et validées, sans jamais forcer ou inventer.

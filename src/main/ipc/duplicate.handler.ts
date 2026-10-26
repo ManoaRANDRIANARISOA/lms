@@ -166,27 +166,84 @@ export function registerDuplicateHandlers(): void {
         }
 
         const mergeTx = db.transaction(() => {
-          // Re-point child records
-          db.prepare('UPDATE student_payments SET student_id = ? WHERE student_id = ?').run(
-            keepId,
-            removeId
-          )
-          db.prepare('UPDATE grades SET student_id = ? WHERE student_id = ?').run(keepId, removeId)
-          db.prepare('UPDATE bus_attendance SET student_id = ? WHERE student_id = ?').run(
-            keepId,
-            removeId
-          )
-          db.prepare('UPDATE canteen_attendance SET student_id = ? WHERE student_id = ?').run(
-            keepId,
-            removeId
-          )
+          // 1. Re-point student_payments and enqueue each updated payment into sync_queue
+          const movedPayments = db
+            .prepare('SELECT * FROM student_payments WHERE student_id = ?')
+            .all(removeId) as any[]
 
-          // Soft delete duplicate
+          db.prepare(
+            'UPDATE student_payments SET student_id = ?, updated_at = CURRENT_TIMESTAMP, sync_status = "pending" WHERE student_id = ?'
+          ).run(keepId, removeId)
+
+          for (const p of movedPayments) {
+            addToSyncQueue('student_payments', p.id, 'update', {
+              ...p,
+              student_id: keepId,
+              updated_at: new Date().toISOString()
+            })
+          }
+
+          // 2. Re-point cash_journal linked to the removed student
+          const movedCash = db
+            .prepare('SELECT * FROM cash_journal WHERE related_student_id = ?')
+            .all(removeId) as any[]
+
+          db.prepare(
+            'UPDATE cash_journal SET related_student_id = ?, updated_at = CURRENT_TIMESTAMP, sync_status = "pending" WHERE related_student_id = ?'
+          ).run(keepId, removeId)
+
+          for (const cj of movedCash) {
+            addToSyncQueue('cash_journal', cj.id, 'update', {
+              ...cj,
+              related_student_id: keepId,
+              updated_at: new Date().toISOString()
+            })
+          }
+
+          // 3. Re-point student_fees (handling existing fees on keepId to prevent duplicate school_year collision)
+          const removedFees = db
+            .prepare('SELECT * FROM student_fees WHERE student_id = ?')
+            .all(removeId) as any[]
+
+          for (const fee of removedFees) {
+            const existingTargetFee = db
+              .prepare('SELECT id FROM student_fees WHERE student_id = ? AND school_year = ?')
+              .get(keepId, fee.school_year) as any
+
+            if (existingTargetFee) {
+              db.prepare(
+                'UPDATE student_fees SET deleted = 1, updated_at = CURRENT_TIMESTAMP, sync_status = "pending" WHERE id = ?'
+              ).run(fee.id)
+              addToSyncQueue('student_fees', fee.id, 'delete', { id: fee.id, deleted: true })
+            } else {
+              db.prepare(
+                'UPDATE student_fees SET student_id = ?, updated_at = CURRENT_TIMESTAMP, sync_status = "pending" WHERE id = ?'
+              ).run(keepId, fee.id)
+              addToSyncQueue('student_fees', fee.id, 'update', {
+                ...fee,
+                student_id: keepId,
+                updated_at: new Date().toISOString()
+              })
+            }
+          }
+
+          // 4. Re-point grades, attendance
+          db.prepare(
+            'UPDATE grades SET student_id = ?, updated_at = CURRENT_TIMESTAMP, sync_status = "pending" WHERE student_id = ?'
+          ).run(keepId, removeId)
+          db.prepare(
+            'UPDATE bus_attendance SET student_id = ?, updated_at = CURRENT_TIMESTAMP, sync_status = "pending" WHERE student_id = ?'
+          ).run(keepId, removeId)
+          db.prepare(
+            'UPDATE canteen_attendance SET student_id = ?, updated_at = CURRENT_TIMESTAMP, sync_status = "pending" WHERE student_id = ?'
+          ).run(keepId, removeId)
+
+          // 5. Soft delete duplicate student and queue deletion
           db.prepare(
             `UPDATE students SET deleted = 1, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ?`
           ).run(removeId)
 
-          addToSyncQueue('students', removeId, 'delete', { id: removeId })
+          addToSyncQueue('students', removeId, 'delete', { id: removeId, deleted: true })
         })
 
         mergeTx()
