@@ -3,6 +3,23 @@
 Toutes les modifications notables apportées à ce projet sont documentées dans ce fichier.
 Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/) et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [2.3.11] - 2026-10-26
+
+### 🧠 Assistant Visuel Intelligent de Réconciliation, Auto-Guérison Complète de l'Outbox & Parité C3
+- **Assistant de Décision Intelligent (`ReconciliationModal.tsx`)** :
+  - **Suggestion Sémantique Automatisée (💡 1-Clic)** : Analyse intelligente des libellés (`description`, `notes`) et détection automatique par reconnaissance de tokens du nom de l'élève correspondant dans la base locale (ex: "Ecolage Janvier RANDRIA...").
+  - **Détection des Doublons Réels (⚠️ 1-Clic)** : Comparaison instantanée avec les reçus déjà enregistrés (`amount`, `payment_date`/`month`, `payment_type`) avec bouton d'archivage immédiat et traçabilité complète dans l'audit.
+  - **Traitement des Écritures Orphelines Irrémédiables** : Détection des écritures dont l'élève n'existe nulle part (élève supprimé définitivement dans le passé) avec option d'archivage ou de conversion comptable en caisse générale autonome (recette diverse).
+  - **Correction du Schéma de Création d'Élève** : Correction du bug d'insertion SQL où `class_name` était utilisé au lieu de la colonne réelle SQLite `class` (`table students has no column named class_name`).
+  - **Résolution d'Affichage des Classes** : Affichage transparent de la classe résolue (`resolved_class || class_name || class`) dans la liste de sélection d'élèves.
+  - **Propagation des Suppressions au Cloud** : En cas d'annulation ou de conversion d'une écriture orpheline, l'ordre de suppression (`action: 'delete'`) est immédiatement transmis à Supabase afin d'éliminer toute divergence fantôme distante.
+- **Auto-Guérison Complète de l'Outbox Captive (`runDeepConvergence` v2.3.11)** :
+  - **Dépistage & Guérison des Élèves Captifs** : Détection des élèves créés hors-ligne sur les postes (ex: C3) et absents du Cloud avec enfilage prioritaire avant toute transaction dépendante.
+  - **Déblocage des Écritures Captives Masquées** : Élimination des faux positifs dans l'inspection de la file d'attente (purge des reliquats `status = 'synced'` non-pending dans `sync_queue` qui empêchaient la réémission des 119 paiements et 145 écritures de C3).
+  - **Enfilage des Dépendances Parent-Enfant** : Si un paiement fait référence à un élève local non encore synchronisé sur Supabase, l'élève parent est automatiquement inscrit et poussé en premier afin de garantir le respect des contraintes de clés étrangères Postgres.
+  - **Règle d'Or n°4 Sanctuarisée** : Suppression intégrale de tout passage forcé cosmétique à `sync_status = 'synced'` dans `oneTimeSanitizeSyncQueue()`. Remplacement par le ré-enfilage systématique et transparent via `reconcilePendingOutbox()`.
+  - **Déclenchement Automatique v2.3.11** : Exécution automatique de la convergence profonde au premier démarrage de la version 2.3.11 sur l'ensemble des machines du réseau scolaire.
+
 ## [2.3.10] - 2026-10-26
 
 ### 🛡️ Moteur de Convergence Non-Destructif, Parité des Tombstones & Réconciliation Financière Multi-Postes

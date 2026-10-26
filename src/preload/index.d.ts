@@ -875,6 +875,9 @@ interface APIType {
         retry_count: number
         created_at: string
         updated_at: string
+        suggested_student?: any
+        duplicate_warning?: any
+        is_orphan_unrecoverable?: boolean
       }>
       error?: string
     }>

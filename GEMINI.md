@@ -18,3 +18,10 @@
    - Interdiction formelle de forcer `sync_status = 'synced'` ou de purger la file d'attente/quarantaine sans confirmation formelle HTTP 200 du Cloud Supabase pour l'enregistrement concerné.
    - Toute mesure corrective doit être analysée pour prouver son caractère non-destructif.
    - Traitement intelligent au cas par cas : comprendre la cause racine réelle de chaque blocage avant toute remédiation.
+
+5. **SYNTAXE SHELL POWERSHELL WINDOWS** :
+   - Ne jamais utiliser `&&` dans les commandes powershell. Utiliser exclusivement `;` pour séparer les instructions.
+
+6. **VALIDATIONS ET DIAGNOSTICS AUTONOMES** :
+   - Exécution autorisée sans demande d'aval préalable pour les scripts de vérification en lecture seule, diagnostics, typechecks et builds.
+

@@ -19,3 +19,10 @@ Ce document régit les directives fondamentales pour tout agent IA (Antigravity,
 - **Zéro camouflage de blocage :** Il est formellement interdit de forcer `sync_status = 'synced'` ou de purger la file d'attente (`sync_queue` / quarantaine) pour faire disparaître artificiellement les compteurs d'erreur sans que la ligne n'ait été réellement reçue et confirmée par le Cloud Supabase.
 - **Analyse d'impact non-destructive obligatoire :** Toute mesure corrective doit être rigoureusement analysée pour garantir qu'elle ne détruit aucune donnée, n'isole aucune écriture en local et ne coupe pas le flux de synchronisation futur.
 - **Résolution intelligente au cas par cas :** Identifier la cause racine exacte de chaque blocage (collision de matricule, clé étrangère élève orpheline, anomalie de type, doublon de reçu) et n'appliquer que des remédiations déterministes, prouvées et validées, sans jamais forcer ou inventer.
+
+## 5. ENVIRONNEMENT POWERSHELL WINDOWS
+- **Syntaxe de commande :** Ne jamais utiliser `&&` dans les commandes shell. Utiliser exclusivement `;` comme séparateur d'instructions PowerShell valide.
+
+## 6. VALIDATIONS TECHNIQUES ET DIAGNOSTICS AUTONOMES
+- **Autonomie d'exécution :** L'agent a l'aval du développeur pour exécuter directement, sans confirmation préalable répétée, les scripts d'inspection, d'audit en lecture seule, les vérifications de types (`typecheck`) et les builds de validation.
+

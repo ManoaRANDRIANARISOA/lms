@@ -22,7 +22,9 @@ import {
   CheckCircle,
   RefreshCw,
   Info,
-  Calendar
+  Calendar,
+  Sparkles,
+  ShieldAlert
 } from 'lucide-react'
 
 interface ReconciliationItem {
@@ -36,6 +38,22 @@ interface ReconciliationItem {
   retry_count: number
   created_at: string
   updated_at: string
+  suggested_student?: {
+    id: string
+    first_name: string
+    last_name: string
+    class_name?: string
+    registration_number?: string
+    confidence: 'high' | 'medium'
+    reason: string
+  }
+  duplicate_warning?: {
+    is_duplicate: boolean
+    existing_receipt?: string
+    existing_id?: string
+    reason: string
+  }
+  is_orphan_unrecoverable?: boolean
 }
 
 interface StudentOption {
@@ -43,6 +61,8 @@ interface StudentOption {
   first_name: string
   last_name: string
   class_name?: string
+  class?: string
+  resolved_class?: string
   registration_number?: string
 }
 
@@ -343,6 +363,147 @@ export const ReconciliationModal: React.FC = () => {
                     </div>
                   )}
 
+                  {/* 💡 Smart Assistant Suggestion */}
+                  {item.suggested_student && (
+                    <div className="p-2.5 bg-gradient-to-r from-amber-50 to-amber-100/60 border border-amber-300 rounded-lg flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+                        <div>
+                          <div className="font-semibold text-amber-950 flex items-center gap-1.5">
+                            <span>Élève suggéré :</span>
+                            <span className="underline font-bold">
+                              {item.suggested_student.last_name} {item.suggested_student.first_name}
+                            </span>
+                            {item.suggested_student.class_name && (
+                              <span className="text-[10px] bg-amber-200/80 text-amber-900 px-1.5 py-0.2 rounded font-medium">
+                                {item.suggested_student.class_name}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-amber-800 block">
+                            {item.suggested_student.reason} {item.suggested_student.registration_number ? `(Matricule: ${item.suggested_student.registration_number})` : ''}
+                          </span>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="text-xs h-7 bg-amber-600 hover:bg-amber-700 text-white shrink-0 font-medium shadow-xs"
+                        disabled={processingId === item.id}
+                        onClick={async () => {
+                          setProcessingId(item.id)
+                          try {
+                            const res = await window.api.sync.reconcileAttachStudent(item.id, item.suggested_student!.id)
+                            if (res.success) {
+                              toast.success(res.message || 'Écriture rattachée automatiquement avec succès !')
+                              await fetchItems()
+                              startSync(false)
+                            } else {
+                              toast.error(res.error || 'Échec du rattachement')
+                            }
+                          } catch (err: unknown) {
+                            const msg = err instanceof Error ? err.message : String(err)
+                            toast.error(`Erreur : ${msg}`)
+                          } finally {
+                            setProcessingId(null)
+                          }
+                        }}
+                      >
+                        <UserCheck className="w-3.5 h-3.5 mr-1" />
+                        Assigner à cet élève
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* ⚠️ Duplicate Detected Warning */}
+                  {item.duplicate_warning && (
+                    <div className="p-2.5 bg-rose-50 border border-rose-300 rounded-lg flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+                        <div>
+                          <div className="font-bold text-rose-950 flex items-center gap-1.5">
+                            <span>Doublon potentiel détecté</span>
+                            {item.duplicate_warning.existing_receipt && (
+                              <span className="font-mono text-[11px] bg-rose-200/70 text-rose-900 px-1.5 rounded">
+                                Reçu existant: {item.duplicate_warning.existing_receipt}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-rose-800 block">
+                            {item.duplicate_warning.reason}
+                          </span>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="text-xs h-7 shrink-0 font-medium"
+                        disabled={processingId === item.id}
+                        onClick={async () => {
+                          if (!confirm(`Confirmez-vous l'annulation et l'archivage de ce doublon (${item.duplicate_warning?.existing_receipt || 'reçu existant'}) ?`)) return
+                          setProcessingId(item.id)
+                          try {
+                            const reason = `Doublon confirmé avec reçu ${item.duplicate_warning?.existing_receipt || 'existant'}`
+                            const res = await window.api.sync.reconcileDiscardOrphan(item.id, reason)
+                            if (res.success) {
+                              toast.success('Doublon archivé avec succès dans l’audit')
+                              await fetchItems()
+                              startSync(false)
+                            } else {
+                              toast.error(res.error || 'Échec de l’archivage')
+                            }
+                          } catch (err: unknown) {
+                            const msg = err instanceof Error ? err.message : String(err)
+                            toast.error(`Erreur : ${msg}`)
+                          } finally {
+                            setProcessingId(null)
+                          }
+                        }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5 mr-1" />
+                        Archiver comme doublon
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* ℹ️ Unrecoverable Orphan Notice */}
+                  {item.is_orphan_unrecoverable && !item.duplicate_warning && !item.suggested_student && (
+                    <div className="p-2.5 bg-gray-50 border border-gray-200 rounded-lg flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <Info className="w-4 h-4 text-gray-500 shrink-0" />
+                        <span className="text-[11px] text-gray-600">
+                          L'élève référencé n'existe sur aucun poste ni dans le Cloud. Vous pouvez archiver cette transaction ou la basculer en caisse générale.
+                        </span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7 text-gray-700 hover:bg-gray-100 shrink-0"
+                        disabled={processingId === item.id}
+                        onClick={async () => {
+                          if (!confirm('Voulez-vous archiver cette transaction orpheline (élève supprimé définitivement dans le passé) ?')) return
+                          setProcessingId(item.id)
+                          try {
+                            const res = await window.api.sync.reconcileDiscardOrphan(item.id, 'Élève supprimé définitivement / introuvable')
+                            if (res.success) {
+                              toast.success('Écriture orpheline archivée dans l’audit')
+                              await fetchItems()
+                              startSync(false)
+                            } else {
+                              toast.error(res.error || 'Échec de l’archivage')
+                            }
+                          } catch (err: unknown) {
+                            const msg = err instanceof Error ? err.message : String(err)
+                            toast.error(`Erreur : ${msg}`)
+                          } finally {
+                            setProcessingId(null)
+                          }
+                        }}
+                      >
+                        Archiver (Élève supprimé)
+                      </Button>
+                    </div>
+                  )}
+
                   {/* Action Buttons Group */}
                   <div className="flex flex-wrap items-center gap-2 pt-1">
                     <Button
@@ -446,7 +607,10 @@ export const ReconciliationModal: React.FC = () => {
                               }`}
                             >
                               <span>
-                                {s.last_name} {s.first_name} {s.class_name ? `(${s.class_name})` : ''}
+                                {s.last_name} {s.first_name}{' '}
+                                {s.resolved_class || s.class_name || s.class
+                                  ? `(${s.resolved_class || s.class_name || s.class})`
+                                  : ''}
                               </span>
                               <span className="text-[10px] text-gray-400 font-mono">
                                 {s.registration_number || s.id.slice(0, 8)}

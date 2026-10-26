@@ -388,10 +388,25 @@ export interface ReconciliationItem {
   class_name?: string
   description?: string
   created_at: string
+  suggested_student?: {
+    id: string
+    name: string
+    class_name: string
+    registration_number?: string
+    confidence: 'high' | 'medium'
+  }
+  duplicate_warning?: {
+    existing_receipt?: string
+    existing_date?: string
+    existing_amount?: number
+    existing_id?: string
+  }
+  is_orphan_unrecoverable?: boolean
 }
 
 /**
  * Retrieve all items in error, failed, or quarantined status for visual human reconciliation
+ * with integrated Smart Decision Engine (auto-matches by student name & duplicate detection).
  */
 export function getReconciliationItems(): ReconciliationItem[] {
   try {
@@ -416,6 +431,19 @@ export function getReconciliationItems(): ReconciliationItem[] {
 
     const items: ReconciliationItem[] = []
 
+    // Cache active students for fast name matching and suggestions
+    const activeStudents = db
+      .prepare('SELECT id, first_name, last_name, class, registration_number FROM students WHERE deleted = 0')
+      .all() as Array<{ id: string; first_name: string; last_name: string; class: string; registration_number: string }>
+
+    const normalize = (str: string) =>
+      (str || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, ' ')
+        .trim()
+
     for (const r of rows) {
       let parsedData: any = {}
       try {
@@ -437,7 +465,7 @@ export function getReconciliationItems(): ReconciliationItem[] {
       if (r.table_name === 'student_payments') {
         const localPay = db
           .prepare(
-            'SELECT receipt_number, amount, payment_date, created_by, student_id FROM student_payments WHERE id = ?'
+            'SELECT receipt_number, amount, payment_date, created_by, student_id, description FROM student_payments WHERE id = ?'
           )
           .get(r.record_id) as any
         if (localPay) {
@@ -446,6 +474,7 @@ export function getReconciliationItems(): ReconciliationItem[] {
           date = date || localPay.payment_date
           createdBy = createdBy || localPay.created_by
           studentId = studentId || localPay.student_id
+          description = description || localPay.description
         }
       } else if (r.table_name === 'cash_journal') {
         const localCj = db
@@ -463,17 +492,72 @@ export function getReconciliationItems(): ReconciliationItem[] {
         }
       }
 
+      let studentExists = false
       if (studentId) {
         const localStudent = db
           .prepare('SELECT first_name, last_name, class FROM students WHERE id = ?')
           .get(studentId) as any
         if (localStudent) {
+          studentExists = true
           studentName = `${localStudent.first_name || ''} ${localStudent.last_name || ''}`.trim()
           className = localStudent.class
         } else {
           studentName = `Élève ID: ${studentId} (Introuvable)`
         }
       }
+
+      // --- SMART DECISION ENGINE ---
+      // 1. Suggest matching student by analyzing description text
+      let suggestedStudent: ReconciliationItem['suggested_student'] | undefined
+      const normDesc = normalize(description || '')
+      if (normDesc.length >= 4) {
+        for (const st of activeStudents) {
+          const normFirst = normalize(st.first_name || '')
+          const normLast = normalize(st.last_name || '')
+          const firstTokens = normFirst.split(' ').filter((t) => t.length >= 3)
+          const lastTokens = normLast.split(' ').filter((t) => t.length >= 3)
+
+          const firstMatch = firstTokens.length > 0 && firstTokens.some((t) => normDesc.includes(t))
+          const lastMatch = lastTokens.length > 0 && lastTokens.some((t) => normDesc.includes(t))
+
+          if (firstMatch && lastMatch) {
+            suggestedStudent = {
+              id: st.id,
+              name: `${st.last_name} ${st.first_name}`.trim(),
+              class_name: st.class,
+              registration_number: st.registration_number,
+              confidence: 'high'
+            }
+            break
+          }
+        }
+      }
+
+      // 2. Duplicate Detection: Check if identical payment already exists
+      let duplicateWarning: ReconciliationItem['duplicate_warning'] | undefined
+      if (r.table_name === 'student_payments' && amount) {
+        try {
+          const dup = db
+            .prepare(
+              `SELECT id, receipt_number, payment_date, amount
+               FROM student_payments
+               WHERE id != ? AND amount = ? AND deleted = 0 AND (payment_date = ? OR month = ?)
+               LIMIT 1`
+            )
+            .get(r.record_id, amount, date, parsedData.month || '') as any
+          if (dup) {
+            duplicateWarning = {
+              existing_receipt: dup.receipt_number,
+              existing_date: dup.payment_date,
+              existing_amount: dup.amount,
+              existing_id: dup.id
+            }
+          }
+        } catch {}
+      }
+
+      // 3. Mark unrecoverable orphan if student missing everywhere and no suggestion found
+      const isOrphanUnrecoverable = (!studentId || !studentExists) && !suggestedStudent
 
       items.push({
         id: r.id,
@@ -490,7 +574,10 @@ export function getReconciliationItems(): ReconciliationItem[] {
         student_name: studentName,
         class_name: className,
         description,
-        created_at: r.created_at
+        created_at: r.created_at,
+        suggested_student: suggestedStudent,
+        duplicate_warning: duplicateWarning,
+        is_orphan_unrecoverable: isOrphanUnrecoverable
       })
     }
 
@@ -507,7 +594,7 @@ export function getReconciliationItems(): ReconciliationItem[] {
 export function reconcileAttachStudent(
   queueId: number,
   targetStudentId: string
-): { success: boolean; error?: string } {
+): { success: boolean; message?: string; error?: string } {
   try {
     const queueItem = db
       .prepare('SELECT * FROM sync_queue WHERE id = ?')
@@ -517,7 +604,7 @@ export function reconcileAttachStudent(
     }
 
     const student = db
-      .prepare('SELECT id, first_name, last_name FROM students WHERE id = ? AND deleted = 0')
+      .prepare('SELECT id, first_name, last_name, class FROM students WHERE id = ? AND deleted = 0')
       .get(targetStudentId) as any
     if (!student) {
       return { success: false, error: 'Élève cible introuvable' }
@@ -561,6 +648,21 @@ export function reconcileAttachStudent(
        WHERE id = ?`
     ).run(JSON.stringify(parsedData), queueId)
 
+    // Ensure the target student is also in sync_queue to prevent foreign key errors on push
+    try {
+      const studentInQueue = db
+        .prepare("SELECT 1 FROM sync_queue WHERE table_name = 'students' AND record_id = ?")
+        .get(targetStudentId)
+      if (!studentInQueue) {
+        const fullStudent = db.prepare('SELECT * FROM students WHERE id = ?').get(targetStudentId) as any
+        if (fullStudent) {
+          const sPayload = { ...fullStudent }
+          delete sPayload.sync_status
+          addToSyncQueue('students', targetStudentId, 'create', sPayload)
+        }
+      }
+    } catch {}
+
     // Audit log in settings_history
     try {
       db.prepare(
@@ -576,7 +678,7 @@ export function reconcileAttachStudent(
     // Immediately trigger sync
     syncWithCloud().catch((e) => console.error('Auto sync after attach error:', e))
 
-    return { success: true }
+    return { success: true, message: 'Écriture rattachée avec succès à l’élève !' }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     return { success: false, error: msg }
@@ -594,7 +696,7 @@ export function reconcileCreateMissingStudent(
     class_name: string
     registration_number?: string
   }
-): { success: boolean; error?: string } {
+): { success: boolean; message?: string; error?: string } {
   try {
     const queueItem = db.prepare('SELECT * FROM sync_queue WHERE id = ?').get(queueId) as any
     if (!queueItem) {
@@ -605,11 +707,12 @@ export function reconcileCreateMissingStudent(
     const nowIso = new Date().toISOString()
     const currentYear = new Date().getFullYear().toString()
     const regNum = studentData.registration_number || `${currentYear}-${Math.floor(10000 + Math.random() * 90000)}`
+    const studentClass = (studentData.class_name || (studentData as any).class || '').trim()
 
-    // 1. Insert new student locally
+    // 1. Insert new student locally (Note: table column is 'class', not 'class_name')
     db.prepare(`
       INSERT INTO students (
-        id, registration_number, first_name, last_name, class_name,
+        id, registration_number, first_name, last_name, class,
         enrollment_date, status, active, deleted, sync_status, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, date('now'), 'active', 1, 0, 'pending', ?, ?)
     `).run(
@@ -617,7 +720,7 @@ export function reconcileCreateMissingStudent(
       regNum,
       studentData.first_name.trim(),
       studentData.last_name.trim(),
-      studentData.class_name.trim(),
+      studentClass,
       nowIso,
       nowIso
     )
@@ -628,7 +731,7 @@ export function reconcileCreateMissingStudent(
       registration_number: regNum,
       first_name: studentData.first_name.trim(),
       last_name: studentData.last_name.trim(),
-      class_name: studentData.class_name.trim(),
+      class: studentClass,
       enrollment_date: nowIso.split('T')[0],
       status: 'active',
       active: 1,
@@ -637,7 +740,11 @@ export function reconcileCreateMissingStudent(
     })
 
     // 3. Attach orphan payment/cash to this new student
-    return reconcileAttachStudent(queueId, newStudentId)
+    const attachRes = reconcileAttachStudent(queueId, newStudentId)
+    if (attachRes.success) {
+      return { success: true, message: 'Fiche élève créée et écriture réconciliée avec succès !' }
+    }
+    return attachRes
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     return { success: false, error: msg }
@@ -649,7 +756,7 @@ export function reconcileCreateMissingStudent(
  */
 export function reconcileConvertToGeneralCash(
   queueId: number
-): { success: boolean; error?: string } {
+): { success: boolean; message?: string; error?: string } {
   try {
     const queueItem = db.prepare('SELECT * FROM sync_queue WHERE id = ?').get(queueId) as any
     if (!queueItem) {
@@ -685,7 +792,7 @@ export function reconcileConvertToGeneralCash(
         const cashId = uuidv4()
         db.prepare(`
           INSERT INTO cash_journal (
-            id, transaction_date, amount, transaction_type, category,
+            id, transaction_date, amount, type, category,
             description, created_by, department, receipt_number, sync_status, created_at, updated_at
           ) VALUES (?, ?, ?, 'income', 'divers', ?, ?, 'general', ?, 'pending', ?, ?)
         `).run(
@@ -703,7 +810,7 @@ export function reconcileConvertToGeneralCash(
           id: cashId,
           transaction_date: localPay.payment_date || nowIso.split('T')[0],
           amount: localPay.amount,
-          transaction_type: 'income',
+          type: 'income',
           category: 'divers',
           description: `Recette diverse réconciliée (Reçu: ${localPay.receipt_number || 'N/A'})`,
           created_by: localPay.created_by || 'Système',
@@ -712,11 +819,16 @@ export function reconcileConvertToGeneralCash(
           updated_at: nowIso
         })
 
-        // Soft-delete orphan payment
-        db.prepare('UPDATE student_payments SET deleted = 1, sync_status = "synced", updated_at = ? WHERE id = ?').run(
+        // Soft-delete orphan payment locally and enqueue deletion for Supabase
+        db.prepare('UPDATE student_payments SET deleted = 1, sync_status = "pending", updated_at = ? WHERE id = ?').run(
           nowIso,
           queueItem.record_id
         )
+        addToSyncQueue('student_payments', queueItem.record_id, 'delete', {
+          id: queueItem.record_id,
+          deleted: true,
+          updated_at: nowIso
+        })
       }
 
       // Mark queue item completed/synced
@@ -726,7 +838,7 @@ export function reconcileConvertToGeneralCash(
     }
 
     syncWithCloud().catch((e) => console.error('Auto sync after convert to general cash error:', e))
-    return { success: true }
+    return { success: true, message: 'Écriture convertie en opération de caisse générale autonome !' }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     return { success: false, error: msg }
@@ -739,12 +851,14 @@ export function reconcileConvertToGeneralCash(
 export function reconcileDiscardOrphan(
   queueId: number,
   reason: string
-): { success: boolean; error?: string } {
+): { success: boolean; message?: string; error?: string } {
   try {
     const queueItem = db.prepare('SELECT * FROM sync_queue WHERE id = ?').get(queueId) as any
     if (!queueItem) {
       return { success: false, error: 'Enregistrement introuvable' }
     }
+
+    const nowIso = new Date().toISOString()
 
     // Save into settings_history
     try {
@@ -754,21 +868,28 @@ export function reconcileDiscardOrphan(
       ).run(
         `reconciliation:discarded:${queueItem.table_name}:${queueItem.record_id}`,
         queueItem.data,
-        JSON.stringify({ reason, timestamp: new Date().toISOString() })
+        JSON.stringify({ reason, timestamp: nowIso })
       )
     } catch {}
 
-    // Mark deleted in local table
+    // Mark deleted in local table and enqueue deletion for Supabase
     try {
-      db.prepare(`UPDATE ${queueItem.table_name} SET deleted = 1, sync_status = 'synced' WHERE id = ?`).run(
+      db.prepare(`UPDATE ${queueItem.table_name} SET deleted = 1, sync_status = 'pending', updated_at = ? WHERE id = ?`).run(
+        nowIso,
         queueItem.record_id
       )
+      addToSyncQueue(queueItem.table_name, queueItem.record_id, 'delete', {
+        id: queueItem.record_id,
+        deleted: true,
+        updated_at: nowIso
+      })
     } catch {}
 
-    // Remove from sync_queue
-    db.prepare('DELETE FROM sync_queue WHERE id = ?').run(queueId)
+    // Mark completed in sync_queue
+    db.prepare("UPDATE sync_queue SET status = 'synced', error_message = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(queueId)
 
-    return { success: true }
+    syncWithCloud().catch((e) => console.error('Auto sync after discard error:', e))
+    return { success: true, message: 'Écriture orpheline annulée et archivée avec succès !' }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     return { success: false, error: msg }
@@ -1224,8 +1345,40 @@ export async function runDeepConvergence(): Promise<{
       }
     }
 
-    // 2.8 Captive Outbox Healer: Discover genuine captive local financial records never received by Supabase (e.g. C3 unpushed records)
+    // 2.8 Captive Outbox Healer: Discover genuine captive local records never received by Supabase (e.g. C3 unpushed records)
     try {
+      // 1. Fetch all cloud student IDs
+      const allCloudStudentIds = new Set<string>()
+      let pageS = 0
+      while (true) {
+        const { data: sData } = await supabase
+          .from('students')
+          .select('id')
+          .order('id', { ascending: true })
+          .range(pageS * 1000, pageS * 1000 + 999)
+        if (!sData || sData.length === 0) break
+        for (const r of sData) allCloudStudentIds.add(r.id)
+        if (sData.length < 1000) break
+        pageS++
+      }
+
+      // Check and heal captive local active students
+      const localActiveStudents = db.prepare('SELECT * FROM students WHERE deleted = 0').all() as any[]
+      for (const s of localActiveStudents) {
+        if (!allCloudStudentIds.has(s.id)) {
+          db.prepare("DELETE FROM sync_queue WHERE table_name = 'students' AND record_id = ? AND status != 'pending'").run(s.id)
+          const activePending = db.prepare("SELECT 1 FROM sync_queue WHERE table_name = 'students' AND record_id = ? AND status = 'pending'").get(s.id)
+          if (!activePending) {
+            const payload = { ...s }
+            delete payload.sync_status
+            addToSyncQueue('students', s.id, 'create', payload)
+            db.prepare("UPDATE students SET sync_status = 'pending' WHERE id = ?").run(s.id)
+            result.studentsCreated++
+          }
+        }
+      }
+
+      // 2. Fetch all cloud payment IDs
       const allCloudPaymentIds = new Set<string>()
       let pageP = 0
       while (true) {
@@ -1243,8 +1396,25 @@ export async function runDeepConvergence(): Promise<{
       const localActivePayments = db.prepare('SELECT * FROM student_payments WHERE deleted = 0').all() as any[]
       for (const p of localActivePayments) {
         if (!allCloudPaymentIds.has(p.id)) {
-          const inQueue = db.prepare("SELECT 1 FROM sync_queue WHERE table_name = 'student_payments' AND record_id = ?").get(p.id)
-          if (!inQueue) {
+          // Purge stale non-pending items from queue so they don't block healing
+          db.prepare("DELETE FROM sync_queue WHERE table_name = 'student_payments' AND record_id = ? AND status != 'pending'").run(p.id)
+
+          // If the student doesn't exist in cloud, make sure local student is queued first
+          if (p.student_id && !allCloudStudentIds.has(p.student_id)) {
+            const localStudent = db.prepare('SELECT * FROM students WHERE id = ?').get(p.student_id) as any
+            if (localStudent && !localStudent.deleted) {
+              const studentInQueue = db.prepare("SELECT id FROM sync_queue WHERE table_name = 'students' AND record_id = ? AND status = 'pending'").get(localStudent.id)
+              if (!studentInQueue) {
+                const sPayload = { ...localStudent }
+                delete sPayload.sync_status
+                addToSyncQueue('students', localStudent.id, 'create', sPayload)
+                db.prepare("UPDATE students SET sync_status = 'pending' WHERE id = ?").run(localStudent.id)
+              }
+            }
+          }
+
+          const activePending = db.prepare("SELECT 1 FROM sync_queue WHERE table_name = 'student_payments' AND record_id = ? AND status = 'pending'").get(p.id)
+          if (!activePending) {
             const payload = { ...p }
             delete payload.sync_status
             addToSyncQueue('student_payments', p.id, 'create', payload)
@@ -1254,6 +1424,7 @@ export async function runDeepConvergence(): Promise<{
         }
       }
 
+      // 3. Fetch all cloud cash journal IDs
       const allCloudCashIds = new Set<string>()
       let pageC = 0
       while (true) {
@@ -1271,8 +1442,11 @@ export async function runDeepConvergence(): Promise<{
       const localActiveCash = db.prepare('SELECT * FROM cash_journal WHERE deleted = 0').all() as any[]
       for (const c of localActiveCash) {
         if (!allCloudCashIds.has(c.id)) {
-          const inQueue = db.prepare("SELECT 1 FROM sync_queue WHERE table_name = 'cash_journal' AND record_id = ?").get(c.id)
-          if (!inQueue) {
+          // Purge stale non-pending items from queue so they don't block healing
+          db.prepare("DELETE FROM sync_queue WHERE table_name = 'cash_journal' AND record_id = ? AND status != 'pending'").run(c.id)
+
+          const activePending = db.prepare("SELECT 1 FROM sync_queue WHERE table_name = 'cash_journal' AND record_id = ? AND status = 'pending'").get(c.id)
+          if (!activePending) {
             const payload = { ...c }
             delete payload.sync_status
             addToSyncQueue('cash_journal', c.id, 'create', payload)
@@ -3227,21 +3401,8 @@ export async function oneTimeSanitizeSyncQueue(): Promise<void> {
     db.prepare("DELETE FROM sync_queue WHERE status = 'synced' AND synced_at < datetime('now', '-7 days')").run()
     db.prepare("DELETE FROM sync_queue WHERE table_name IN ('class_subjects', 'subjects')").run()
 
-    // 2. Aligner les tables métiers : si une ligne est en 'pending' mais n'a pas d'écriture en attente dans sync_queue
-    const tables = Array.from(SYNCABLE_TABLES).filter((t) => t !== 'settings' && t !== 'assessments')
-    for (const t of tables) {
-      try {
-        db.prepare(`
-          UPDATE ${t} 
-          SET sync_status = 'synced' 
-          WHERE sync_status = 'pending' 
-            AND id NOT IN (
-              SELECT record_id FROM sync_queue 
-              WHERE table_name = ? AND status IN ('pending', 'error', 'failed', 'quarantined')
-            )
-        `).run(t)
-      } catch {}
-    }
+    // 2. Ré-enfiler proprement les écritures 'pending' orphelines de la file (Règle n°4 : pas de faux 'synced')
+    reconcilePendingOutbox()
 
     // 3. Compacter et dédoublonner la file sync_queue
     compactSyncQueue()
@@ -3271,22 +3432,22 @@ export function startPeriodicSync() {
   setTimeout(async () => {
     try {
       const row = db
-        .prepare("SELECT value FROM settings WHERE key = 'v2310_deep_convergence_done'")
+        .prepare("SELECT value FROM settings WHERE key = 'v2311_deep_convergence_done'")
         .get() as { value: string } | undefined
       if (!row || !row.value) {
-        console.log('[Sync] Launching automatic initial deep convergence for v2.3.10...')
+        console.log('[Sync] Launching automatic initial deep convergence for v2.3.11...')
         const convRes = await runDeepConvergence().catch((e) => {
           console.warn('[Sync] Auto deep convergence note:', e)
           return null
         })
         if (convRes && convRes.success) {
           db.prepare(
-            "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('v2310_deep_convergence_done', 'true', CURRENT_TIMESTAMP)"
+            "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('v2311_deep_convergence_done', 'true', CURRENT_TIMESTAMP)"
           ).run()
         }
       }
     } catch (errInit) {
-      console.warn('[Sync] v2310 check note:', errInit)
+      console.warn('[Sync] v2311 check note:', errInit)
     }
 
     await oneTimeSanitizeSyncQueue().catch(() => {})
