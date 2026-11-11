@@ -1,0 +1,1 @@
+Get-ChildItem $env:APPDATA -Directory | Where-Object Name -match 'study|agent' | Select-Object Name, LastWriteTime
