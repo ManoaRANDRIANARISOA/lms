@@ -44,6 +44,7 @@ interface EmailLog {
 
 let transporter: nodemailer.Transporter | null = null
 let schedulerInterval: ReturnType<typeof setInterval> | null = null
+let isSendingDailyReport = false
 
 function getConfig(): EmailConfig | null {
   try {
@@ -494,50 +495,57 @@ export class EmailService {
     targetDate?: string,
     customPdfPath?: string
   ): Promise<{ success: boolean; error?: string; message?: string }> {
-    const config = getConfig()
-    if (!config?.recipient_email) {
-      return { success: false, error: 'Email destinataire non configuré' }
+    if (isSendingDailyReport) {
+      console.warn('[EmailService] Un envoi de rapport est déjà en cours. Requête ignorée.')
+      return { success: false, message: 'Envoi déjà en cours.' }
     }
+    isSendingDailyReport = true
 
-    const dateStr = targetDate || new Date().toISOString().split('T')[0]
-
-    // 1. Sync with cloud first so we gather transactions from all workstations
     try {
-      await syncWithCloud()
-    } catch (syncErr) {
-      console.warn('[EmailService] Pre-report cloud sync warning:', syncErr)
-    }
-
-    // 2. Distributed Cloud Lock: check if ANY workstation has already sent the report for dateStr
-    if (supabase) {
-      try {
-        const { data: existingReport } = await supabase
-          .from('audit_logs')
-          .select('id, record_id, created_at')
-          .eq('action', 'daily_report_sent')
-          .eq('record_id', dateStr)
-          .limit(1)
-          .maybeSingle()
-
-        if (existingReport) {
-          console.log(`[EmailService] Rapport du ${dateStr} déjà envoyé au cloud par un autre poste.`)
-          // Mark locally as sent
-          try {
-            db.prepare(`
-              INSERT INTO settings (key, value, updated_at)
-              VALUES ('email_last_sent_date', ?, CURRENT_TIMESTAMP)
-              ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
-            `).run(JSON.stringify(dateStr))
-          } catch {}
-          return {
-            success: true,
-            message: `Le rapport du ${dateStr} a déjà été transmis avec succès par un autre poste.`
-          }
-        }
-      } catch (lockCheckErr) {
-        console.warn('[EmailService] Cloud lock check warning:', lockCheckErr)
+      const config = getConfig()
+      if (!config?.recipient_email) {
+        return { success: false, error: 'Email destinataire non configuré' }
       }
-    }
+
+      const dateStr = targetDate || new Date().toISOString().split('T')[0]
+
+      // 1. Sync with cloud first so we gather transactions from all workstations
+      try {
+        await syncWithCloud()
+      } catch (syncErr) {
+        console.warn('[EmailService] Pre-report cloud sync warning:', syncErr)
+      }
+
+      // 2. Distributed Cloud Lock: check if ANY workstation has already sent the report for dateStr
+      if (supabase) {
+        try {
+          const { data: existingReport } = await supabase
+            .from('audit_logs')
+            .select('id, record_id, timestamp')
+            .eq('action', 'daily_report_sent')
+            .eq('record_id', dateStr)
+            .limit(1)
+            .maybeSingle()
+
+          if (existingReport) {
+            console.log(`[EmailService] Rapport du ${dateStr} déjà envoyé au cloud par un autre poste.`)
+            // Mark locally as sent
+            try {
+              db.prepare(`
+                INSERT INTO settings (key, value, updated_at)
+                VALUES ('email_last_sent_date', ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+              `).run(JSON.stringify(dateStr))
+            } catch {}
+            return {
+              success: true,
+              message: `Le rapport du ${dateStr} a déjà été transmis avec succès par un autre poste.`
+            }
+          }
+        } catch (lockCheckErr) {
+          console.warn('[EmailService] Cloud lock check warning:', lockCheckErr)
+        }
+      }
 
     const dateObj = new Date(dateStr)
     const formattedDate = dateObj.toLocaleDateString('fr-FR', {
@@ -859,7 +867,10 @@ export class EmailService {
       } catch {}
     }
 
-    return sendRes
+      return sendRes
+    } finally {
+      isSendingDailyReport = false
+    }
   }
 
   /**

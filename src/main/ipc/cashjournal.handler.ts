@@ -233,15 +233,46 @@ export function registerCashJournalHandlers(): void {
   })
 
   // GET CLOSURE
-  ipcMain.handle('cashjournal:getClosure', async (_, date: string, cashier?: string) => {
+  ipcMain.handle('cashjournal:getClosure', async (_, date: string, cashier?: string, stationCode?: string) => {
     if (!canRead('cash_journal')) {
       return { success: false, error: 'Accès refusé' }
     }
     try {
-      const closure = CashJournalRepository.getClosure(date, cashier)
+      const closure = CashJournalRepository.getClosure(date, cashier, stationCode)
       return { success: true, closure }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Erreur de lecture de clôture'
+      return { success: false, error: message }
+    }
+  })
+
+  // UNLOCK CLOSURE (Requires admin or direction)
+  ipcMain.handle('cashjournal:unlockClosure', async (_, closureId: string, reason?: string) => {
+    const user = getCurrentUser()
+    if (!user || (user.role !== 'admin' && user.role !== 'direction')) {
+      return {
+        success: false,
+        error: 'Accès refusé: Seule la Direction ou un Administrateur peut déverrouiller une caisse clôturée.'
+      }
+    }
+    try {
+      const result = CashJournalRepository.unlockClosure(closureId, user.username, reason)
+      if (result.success) {
+        logAction(
+          user.id || null,
+          'unlock_closure',
+          'cash_journal',
+          closureId,
+          null,
+          JSON.stringify({
+            reason: reason || 'Déverrouillage manuel direction',
+            unlocked_by: user.username
+          })
+        )
+      }
+      return result
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erreur lors du déverrouillage'
       return { success: false, error: message }
     }
   })

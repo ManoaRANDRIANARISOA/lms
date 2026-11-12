@@ -41,10 +41,11 @@ interface CashJournalState {
     cashier?: string,
     stationCode?: string
   ) => Promise<CashierDailySummary | null>
-  fetchClosure: (date: string, cashier?: string) => Promise<CashClosure | null>
+  fetchClosure: (date: string, cashier?: string, stationCode?: string) => Promise<CashClosure | null>
   createClosure: (
     input: CashClosureInput
-  ) => Promise<{ success: boolean; id?: string; error?: string }>
+  ) => Promise<{ success: boolean; id?: string; closure_number?: string; error?: string }>
+  unlockClosure: (closureId: string, reason?: string) => Promise<{ success: boolean; error?: string }>
   printTicketZ: (data: TicketZData, copies?: number) => Promise<{ success: boolean; error?: string }>
 }
 
@@ -164,9 +165,9 @@ export const useCashJournalStore = create<CashJournalState>((set) => ({
     }
   },
 
-  fetchClosure: async (date: string, cashier?: string) => {
+  fetchClosure: async (date: string, cashier?: string, stationCode?: string) => {
     try {
-      const result = await window.api.cashJournal.getClosure(date, cashier)
+      const result = await window.api.cashJournal.getClosure(date, cashier, stationCode)
       if (result.success) {
         set({ currentClosure: result.closure || null })
         return result.closure || null
@@ -184,7 +185,8 @@ export const useCashJournalStore = create<CashJournalState>((set) => ({
         // Refresh current closure
         const updated = await window.api.cashJournal.getClosure(
           input.closure_date,
-          input.cashier_username
+          input.cashier_username,
+          input.station_code
         )
         if (updated.success) {
           set({ currentClosure: updated.closure || null })
@@ -193,6 +195,16 @@ export const useCashJournalStore = create<CashJournalState>((set) => ({
       return result
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Erreur de clôture'
+      return { success: false, error: message }
+    }
+  },
+
+  unlockClosure: async (closureId: string, reason?: string) => {
+    try {
+      const result = await window.api.cashJournal.unlockClosure(closureId, reason)
+      return result
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erreur de déverrouillage'
       return { success: false, error: message }
     }
   },

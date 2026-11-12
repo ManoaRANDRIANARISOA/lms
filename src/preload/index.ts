@@ -285,8 +285,10 @@ const api = {
       ipcRenderer.invoke('cashjournal:getCashierDailySummary', date, cashier, stationCode),
     createClosure: (input: Record<string, unknown>) =>
       ipcRenderer.invoke('cashjournal:createClosure', input),
-    getClosure: (date: string, cashier?: string) =>
-      ipcRenderer.invoke('cashjournal:getClosure', date, cashier),
+    getClosure: (date: string, cashier?: string, stationCode?: string) =>
+      ipcRenderer.invoke('cashjournal:getClosure', date, cashier, stationCode),
+    unlockClosure: (closureId: string, reason?: string) =>
+      ipcRenderer.invoke('cashjournal:unlockClosure', closureId, reason),
     listClosures: (schoolYear?: string) =>
       ipcRenderer.invoke('cashjournal:listClosures', schoolYear),
     printTicketZ: (data: Record<string, unknown>, copies?: number) =>

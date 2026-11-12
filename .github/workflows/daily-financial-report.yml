@@ -1,0 +1,44 @@
+name: Bilan Financier Quotidien Consolidé
+
+on:
+  schedule:
+    # 15:00 UTC = 18:00 UTC+3 (Heure de Madagascar), du Lundi au Samedi (1-6)
+    - cron: '0 15 * * 1-6'
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Date cible (YYYY-MM-DD, ex: 2026-11-11)'
+        required: false
+      force:
+        description: 'Forcer le renvoi même si déjà envoyé (true/false)'
+        required: false
+        default: 'false'
+
+jobs:
+  send-daily-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code source
+        uses: actions/checkout@v4
+
+      - name: Configurer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Installer les dépendances
+        run: |
+          npm install nodemailer
+
+      - name: Exécuter la consolidation et l'envoi du bilan
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://onxnctfgxxgxipehmfqb.supabase.co' }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_ANON_KEY }}
+          BREVO_SMTP_KEY: ${{ secrets.BREVO_SMTP_KEY }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL || 'christineanjarasoa36@gmail.com' }}
+          TARGET_DATE: ${{ github.event.inputs.date }}
+          FORCE_SEND: ${{ github.event.inputs.force || 'false' }}
+        run: |
+          node tools/daily-report-runner.mjs
+

@@ -11,6 +11,8 @@
 import db from '../db'
 import { v4 as uuidv4 } from 'uuid'
 import { addToSyncQueue } from '../../services/sync.service'
+import { normalizeStationCode, PaymentRepository } from './payment.repository'
+import { SettingsRepository } from './settings.repository'
 
 export interface CashJournalEntry {
   id: string
@@ -96,8 +98,68 @@ export function getCashierAliases(cashierIdentifier: string): string[] {
   return Array.from(aliases).map((a) => a.trim()).filter(Boolean)
 }
 
+/**
+ * Extracts official Ticket Z number from notes (e.g., "[Z-2026-C1-00045] Notes text")
+ * or falls back deterministically to Z-YYYY-C<station>-<id_slice>
+ */
+export function parseClosureNumber(
+  notes: string | null | undefined,
+  fallback: { year: string; station: string; id: string }
+): { closureNumber: string; cleanNotes?: string } {
+  if (notes) {
+    const match = notes.match(/^\[(Z-\d{4}-[A-Z0-9]+-\d{5}|Z-\d{4}-\d{5})\]\s*(.*)$/s)
+    if (match) {
+      return { closureNumber: match[1], cleanNotes: match[2].trim() || undefined }
+    }
+  }
+  const cleanStation = normalizeStationCode(fallback.station)
+  const idSuffix = fallback.id ? fallback.id.replace(/-/g, '').slice(0, 5).toUpperCase() : '00001'
+  return {
+    closureNumber: `Z-${fallback.year}-${cleanStation}-${idSuffix}`,
+    cleanNotes: notes || undefined
+  }
+}
+
 export class CashJournalRepository {
-  static create(entry: Omit<CashJournalEntry, 'id' | 'created_at' | 'updated_at'>) {
+  static create(
+    entry: Omit<CashJournalEntry, 'id' | 'created_at' | 'updated_at'> & {
+      allow_post_closure_override?: boolean
+      receipt_number?: string
+      station_code?: string
+    }
+  ) {
+    const rawStation = entry.station_code || (SettingsRepository.get('pos_station_code') as string)
+    const currentStation = normalizeStationCode(rawStation)
+
+    // Strict post-closure lock check
+    const closure = db
+      .prepare(
+        `
+      SELECT id, station_code, notes FROM cash_closures
+      WHERE closure_date = ? 
+        AND (station_code = ? OR station_code = 'CONSOLIDÉ')
+        AND is_locked = 1
+      LIMIT 1
+    `
+      )
+      .get(entry.transaction_date, currentStation) as
+      | { id: string; station_code: string; notes?: string }
+      | undefined
+
+    if (closure && !entry.allow_post_closure_override) {
+      const zMatch = closure.notes ? closure.notes.match(/\[(Z-[^\]]+)\]/) : null
+      const zLabel = zMatch ? zMatch[1] : `Z-${closure.station_code}`
+      return {
+        success: false,
+        error: `La caisse du poste ${currentStation} est clôturée et scellée pour le ${entry.transaction_date} (${zLabel}). Saisie verrouillée. Déverrouillage Direction requis.`
+      }
+    }
+
+    let receiptNumber = entry.receipt_number || null
+    if (entry.type === 'income' && !receiptNumber) {
+      receiptNumber = PaymentRepository.generateReceiptNumber(undefined, currentStation)
+    }
+
     const id = uuidv4()
     try {
       db.prepare(
@@ -105,8 +167,8 @@ export class CashJournalRepository {
         INSERT INTO cash_journal (
           id, transaction_date, type, department, category, subcategory,
           amount, description, payment_method,
-          related_student_id, related_personnel_id, created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          related_student_id, related_personnel_id, created_by, receipt_number
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
       ).run(
         id,
@@ -120,15 +182,17 @@ export class CashJournalRepository {
         entry.payment_method || 'cash',
         entry.related_student_id || null,
         entry.related_personnel_id || null,
-        (entry as any).created_by || null
+        (entry as any).created_by || null,
+        receiptNumber
       )
 
       addToSyncQueue('cash_journal', id, 'create', {
         ...entry,
         id,
-        created_by: (entry as any).created_by || null
+        created_by: (entry as any).created_by || null,
+        receipt_number: receiptNumber
       })
-      return { success: true, id }
+      return { success: true, id, receipt_number: receiptNumber || undefined }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Erreur inconnue'
       return { success: false, error: message }
@@ -478,12 +542,20 @@ export class CashJournalRepository {
     }
 
     if (stationCode && stationCode !== 'all') {
-      if (stationCode.toUpperCase() === 'C1') {
-        whereClause += " AND (COALESCE(cj.receipt_number, sp.receipt_number) LIKE ? OR (COALESCE(cj.receipt_number, sp.receipt_number) LIKE 'REC-%' AND COALESCE(cj.receipt_number, sp.receipt_number) NOT LIKE 'REC-%-%-%'))"
+      const cleanStation = normalizeStationCode(stationCode)
+      if (cleanStation === 'C1') {
+        whereClause += ` AND (
+          COALESCE(cj.receipt_number, sp.receipt_number) LIKE ? 
+          OR (COALESCE(cj.receipt_number, sp.receipt_number) LIKE 'REC-%' AND COALESCE(cj.receipt_number, sp.receipt_number) NOT LIKE 'REC-%-%-%')
+          OR (COALESCE(cj.receipt_number, sp.receipt_number) IS NULL)
+        )`
         params.push(`%-C1-%`)
       } else {
-        whereClause += ' AND (COALESCE(cj.receipt_number, sp.receipt_number) LIKE ?)'
-        params.push(`%-${stationCode}-%`)
+        whereClause += ` AND (
+          COALESCE(cj.receipt_number, sp.receipt_number) LIKE ?
+          OR (COALESCE(cj.receipt_number, sp.receipt_number) IS NULL)
+        )`
+        params.push(`%-${cleanStation}-%`)
       }
     }
 
@@ -593,17 +665,74 @@ export class CashJournalRepository {
   }
 
   /**
+   * Generates sequential official Ticket Z number: Z-YYYY-C<station>-XXXXX
+   */
+  static generateClosureNumber(stationCode?: string, closureDate?: string): string {
+    const year = closureDate ? closureDate.substring(0, 4) : new Date().getFullYear().toString()
+    const cleanStation = normalizeStationCode(stationCode)
+
+    try {
+      // Find highest sequence number for this station and year
+      const prefix = `[Z-${year}-${cleanStation}-`
+      const maxRows = db
+        .prepare(
+          `
+        SELECT notes FROM cash_closures 
+        WHERE notes LIKE ?
+        ORDER BY closure_datetime DESC
+      `
+        )
+        .all(`${prefix}%`) as { notes?: string }[]
+
+      let maxSeq = 0
+      for (const r of maxRows) {
+        if (!r.notes) continue
+        const m = r.notes.match(new RegExp(`\\[Z-${year}-${cleanStation}-(\\d{5})\\]`))
+        if (m) {
+          const num = parseInt(m[1], 10)
+          if (num > maxSeq) maxSeq = num
+        }
+      }
+
+      // If no tag found, also check total count for that station & year as base
+      if (maxSeq === 0) {
+        const countRow = db
+          .prepare(
+            `
+          SELECT COUNT(*) as cnt FROM cash_closures
+          WHERE closure_date LIKE ? AND (station_code = ? OR station_code = ?)
+        `
+          )
+          .get(`${year}%`, cleanStation, stationCode || cleanStation) as { cnt: number } | undefined
+        maxSeq = countRow?.cnt || 0
+      }
+
+      const nextNum = (maxSeq + 1).toString().padStart(5, '0')
+      return `Z-${year}-${cleanStation}-${nextNum}`
+    } catch {
+      return `Z-${year}-${cleanStation}-00001`
+    }
+  }
+
+  /**
    * Persists a cash closure record with billetage and accounting lock
    */
   static createClosure(input: CashClosureInput): {
     success: boolean
     id?: string
+    closure_number?: string
     error?: string
   } {
     const id = uuidv4()
     try {
       const breakdownStr = JSON.stringify(input.counted_breakdown)
       const status = input.cash_difference === 0 ? 'closed' : 'discrepancy'
+
+      const closureNumber =
+        input.closure_number ||
+        CashJournalRepository.generateClosureNumber(input.station_code, input.closure_date)
+
+      const fullNotes = `[${closureNumber}]${input.notes ? ` ${input.notes.trim()}` : ''}`
 
       db.prepare(
         `
@@ -628,7 +757,7 @@ export class CashJournalRepository {
         breakdownStr,
         input.cash_difference,
         status,
-        input.notes || null
+        fullNotes
       )
 
       addToSyncQueue('cash_closures', id, 'create', {
@@ -646,11 +775,11 @@ export class CashJournalRepository {
         counted_breakdown: breakdownStr,
         cash_difference: input.cash_difference,
         status,
-        notes: input.notes || null,
+        notes: fullNotes,
         is_locked: 1
       })
 
-      return { success: true, id }
+      return { success: true, id, closure_number: closureNumber }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       return { success: false, error: msg }
@@ -658,9 +787,9 @@ export class CashJournalRepository {
   }
 
   /**
-   * Retrieves closure record for a specific date and cashier
+   * Retrieves closure record for a specific date, cashier and station
    */
-  static getClosure(date: string, cashier?: string): CashClosure | null {
+  static getClosure(date: string, cashier?: string, stationCode?: string): CashClosure | null {
     try {
       let query = 'SELECT * FROM cash_closures WHERE closure_date = ?'
       const params: string[] = [date]
@@ -671,16 +800,33 @@ export class CashJournalRepository {
           params.push(...aliases)
         }
       }
+      if (stationCode && stationCode !== 'all') {
+        const cleanStation = normalizeStationCode(stationCode)
+        query += ` AND (station_code = ? OR station_code = 'CONSOLIDÉ')`
+        params.push(cleanStation)
+      }
       query += ' ORDER BY closure_datetime DESC LIMIT 1'
-      const row = db.prepare(query).get(...params) as CashClosure | undefined
-      return row || null
+      const row = db.prepare(query).get(...params) as any
+      if (!row) return null
+
+      const { closureNumber, cleanNotes } = parseClosureNumber(row.notes, {
+        year: (row.closure_date || '').substring(0, 4) || new Date().getFullYear().toString(),
+        station: row.station_code || 'C1',
+        id: row.id
+      })
+
+      return {
+        ...row,
+        closure_number: closureNumber,
+        notes: cleanNotes
+      }
     } catch {
       return null
     }
   }
 
   /**
-   * Lists past cash closures
+   * Lists past cash closures with parsed official closure numbers
    */
   static listClosures(schoolYear?: string): CashClosure[] {
     try {
@@ -692,9 +838,53 @@ export class CashJournalRepository {
         params.push(`${startYear}-08-01`)
       }
       query += ' ORDER BY closure_date DESC, closure_datetime DESC'
-      return db.prepare(query).all(...params) as CashClosure[]
+      const rows = db.prepare(query).all(...params) as any[]
+      return rows.map((r) => {
+        const { closureNumber, cleanNotes } = parseClosureNumber(r.notes, {
+          year: (r.closure_date || '').substring(0, 4) || new Date().getFullYear().toString(),
+          station: r.station_code || 'C1',
+          id: r.id
+        })
+        return {
+          ...r,
+          closure_number: closureNumber,
+          notes: cleanNotes
+        }
+      })
     } catch {
       return []
+    }
+  }
+
+  /**
+   * Unlocks a cash closure by Direction / Administrator with mandatory audit trail
+   */
+  static unlockClosure(
+    closureId: string,
+    unlockedBy: string,
+    reason?: string
+  ): { success: boolean; error?: string } {
+    try {
+      const existing = db
+        .prepare('SELECT id, notes FROM cash_closures WHERE id = ?')
+        .get(closureId) as { id: string; notes?: string } | undefined
+      if (!existing) {
+        return { success: false, error: 'Clôture introuvable' }
+      }
+      const noteAppend = ` [DÉVERROUILLÉ par ${unlockedBy} le ${new Date().toISOString()}${reason ? ` - Motif: ${reason}` : ''}]`
+      db.prepare(
+        `UPDATE cash_closures SET is_locked = 0, status = 'unlocked', notes = notes || ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+      ).run(noteAppend, closureId)
+
+      addToSyncQueue('cash_closures', closureId, 'update', {
+        id: closureId,
+        is_locked: 0,
+        status: 'unlocked',
+        notes: (existing.notes || '') + noteAppend
+      })
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
     }
   }
 }

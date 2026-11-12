@@ -351,8 +351,38 @@ export class PaymentRepository {
   }
 
   static create(
-    payment: Omit<Payment, 'id' | 'created_at' | 'updated_at'>
+    payment: Omit<Payment, 'id' | 'created_at' | 'updated_at'> & {
+      allow_post_closure_override?: boolean
+      station_code?: string
+    }
   ): { success: boolean; id?: string; receipt_number?: string; error?: string } {
+    const rawStation = payment.station_code || (SettingsRepository.get('pos_station_code') as string)
+    const currentStation = normalizeStationCode(rawStation)
+
+    // Strict post-closure lock check
+    const closure = db
+      .prepare(
+        `
+      SELECT id, station_code, notes FROM cash_closures
+      WHERE closure_date = ? 
+        AND (station_code = ? OR station_code = 'CONSOLIDÉ')
+        AND is_locked = 1
+      LIMIT 1
+    `
+      )
+      .get(payment.payment_date, currentStation) as
+      | { id: string; station_code: string; notes?: string }
+      | undefined
+
+    if (closure && !payment.allow_post_closure_override) {
+      const zMatch = closure.notes ? closure.notes.match(/\[(Z-[^\]]+)\]/) : null
+      const zLabel = zMatch ? zMatch[1] : `Z-${closure.station_code}`
+      return {
+        success: false,
+        error: `La caisse du poste ${currentStation} est clôturée et scellée pour le ${payment.payment_date} (${zLabel}). Saisie verrouillée. Déverrouillage Direction requis.`
+      }
+    }
+
     const id = uuidv4()
     const cleanSchoolYear = (
       payment.school_year ||
@@ -416,7 +446,8 @@ export class PaymentRepository {
       }
     }
 
-    const receiptNumber = payment.receipt_number || this.generateReceiptNumber(cleanSchoolYear)
+    const receiptNumber =
+      payment.receipt_number || this.generateReceiptNumber(cleanSchoolYear, currentStation)
     const cashierUser = payment.created_by || null
 
     const stmt = db.prepare(`
@@ -460,6 +491,7 @@ export class PaymentRepository {
           canteen: 'cantine',
           uniform: 'uniforme',
           event: 'événement',
+          fram: 'fram',
           other: 'divers'
         }
         const cashCategory = cashCategories[payment.payment_type] || 'divers'

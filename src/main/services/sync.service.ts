@@ -105,6 +105,14 @@ const SYNCABLE_TABLES = new Set([
   'cash_closures'
 ])
 
+export const ALWAYS_FULL_PULL_TABLES = new Set([
+  'parent_events',
+  'subjects',
+  'class_subjects',
+  'cash_closures',
+  'users'
+])
+
 export const LOCAL_ONLY_SETTINGS = new Set([
   'pos_station_code',
   'printer_name',
@@ -1243,6 +1251,34 @@ export async function runDeepConvergence(): Promise<{
         }
       })
       alignSubjectsTx()
+    }
+
+    // 2.55 Deep Pull: Fetch and align parent_events from Supabase (e.g. Fêtes de Noël)
+    const { data: remoteParentEvents } = await supabase
+      .from('parent_events')
+      .select('*')
+      .eq('deleted', false)
+
+    if (remoteParentEvents && remoteParentEvents.length > 0) {
+      const peColsInfo = db.prepare('PRAGMA table_info(parent_events)').all() as any[]
+      const peColNames = new Set(peColsInfo.map((c) => c.name))
+      const alignEventsTx = db.transaction(() => {
+        for (const ev of remoteParentEvents) {
+          const local = db.prepare('SELECT id FROM parent_events WHERE id = ?').get(ev.id)
+          if (!local) {
+            const evToSave: any = { ...ev, sync_status: 'synced', deleted: 0 }
+            for (const k of Object.keys(evToSave)) {
+              if (!peColNames.has(k)) delete evToSave[k]
+              else if (typeof evToSave[k] === 'boolean') evToSave[k] = evToSave[k] ? 1 : 0
+              else if (typeof evToSave[k] === 'object' && evToSave[k] !== null) evToSave[k] = JSON.stringify(evToSave[k])
+            }
+            const cols = Object.keys(evToSave)
+            const placeholders = cols.map(() => '?').join(', ')
+            db.prepare(`INSERT OR REPLACE INTO parent_events (${cols.join(', ')}) VALUES (${placeholders})`).run(...Object.values(evToSave))
+          }
+        }
+      })
+      alignEventsTx()
     }
 
     // 2.6 Deep Pull: Fetch missing active payments from Supabase (deleted = false) that do not exist locally
@@ -2893,13 +2929,16 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
         const from = page * pageSize
         const to = from + pageSize - 1
         const pkCol = table === 'settings' ? 'key' : 'id'
-        const { data, error } = await supabase
-          .from(table)
-          .select('*')
-          .gt('updated_at', fetchThreshold)
+        let query = supabase.from(table).select('*')
+        // Tables de catalogue/référence critiques (parent_events, subjects, etc.) : toujours téléchargées intégralement
+        if (!ALWAYS_FULL_PULL_TABLES.has(table)) {
+          query = query.gt('updated_at', fetchThreshold)
+        }
+        query = query
           .order('updated_at', { ascending: true })
           .order(pkCol, { ascending: true })
           .range(from, to)
+        const { data, error } = await (query as any)
 
         if (error) {
           if (error.code === 'PGRST205') {
@@ -3445,6 +3484,19 @@ export function startPeriodicSync() {
             "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('v2311_deep_convergence_done', 'true', CURRENT_TIMESTAMP)"
           ).run()
         }
+      }
+
+      // Volumetric Parity Self-Healing: Si un retard volumétrique de paiements est détecté (ex: PC3), rattrapage automatique
+      try {
+        const payCountRes = await supabase.from('student_payments').select('id', { count: 'exact', head: true }).eq('deleted', false)
+        const localPayRow = db.prepare('SELECT count(*) as c FROM student_payments WHERE deleted = 0').get() as { c: number }
+        const remoteCount = payCountRes.count ?? 0
+        if (remoteCount > 0 && localPayRow.c < remoteCount - 5) {
+          console.log(`[Sync] Écart volumétrique détecté : local (${localPayRow.c}) < cloud (${remoteCount}). Rattrapage automatique de convergence...`)
+          await runDeepConvergence().catch((e) => console.warn('[Sync] Auto deep convergence note:', e))
+        }
+      } catch (parityErr) {
+        console.warn('[Sync] Parity check note:', parityErr)
       }
     } catch (errInit) {
       console.warn('[Sync] v2311 check note:', errInit)

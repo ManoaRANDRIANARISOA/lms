@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Lock,
+  Unlock,
   Receipt,
   Banknote,
   Coins,
@@ -55,6 +56,7 @@ export default function CashClosureModal({
     fetchCashierDailySummary,
     createClosure,
     fetchClosure,
+    unlockClosure,
     printTicketZ,
     cashiers,
     fetchCashiers
@@ -65,19 +67,20 @@ export default function CashClosureModal({
 
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [unlocking, setUnlocking] = useState(false)
   const [printing, setPrinting] = useState(false)
   const [summary, setSummary] = useState<CashierDailySummary | null>(null)
   const [existingClosure, setExistingClosure] = useState<CashClosure | null>(null)
 
   // Paramètres sélectionnables pour la Direction et l'Admin
-  const [modalStation, setModalStation] = useState<string>(isAccounting ? 'all' : (stationCode || 'all'))
+  const [modalStation, setModalStation] = useState<string>(stationCode || 'C1')
   const [modalCashier, setModalCashier] = useState<string>(isAccounting ? (user?.username || 'admin') : (selectedCashier || 'all'))
   const [isConsolidated, setIsConsolidated] = useState<boolean>(false)
 
   // Synchronisation lors de l'ouverture du modal
   useEffect(() => {
     if (isOpen) {
-      setModalStation(isAccounting ? 'all' : (stationCode || 'all'))
+      setModalStation(stationCode || 'C1')
       setModalCashier(isAccounting ? (user?.username || 'admin') : (selectedCashier || 'all'))
       setIsConsolidated(false)
       fetchCashiers()
@@ -104,11 +107,10 @@ export default function CashClosureModal({
   }, [isConsolidated, isSupervisor, isAccounting, modalCashier, selectedCashier, user])
 
   const effectiveStation = useMemo(() => {
-    if (isConsolidated && isSupervisor) return 'all'
+    if (isConsolidated) return 'all'
     if (isSupervisor) return modalStation
-    if (isAccounting) return 'all'
     return stationCode || 'C1'
-  }, [isConsolidated, isSupervisor, isAccounting, modalStation, stationCode])
+  }, [isConsolidated, isSupervisor, modalStation, stationCode])
 
   // Chargement des données à l'ouverture ou au changement des filtres
   useEffect(() => {
@@ -122,7 +124,7 @@ export default function CashClosureModal({
 
     Promise.all([
       fetchCashierDailySummary(selectedDate, qCashier, qStation),
-      fetchClosure(selectedDate, qCashier)
+      fetchClosure(selectedDate, qCashier, qStation)
     ]).then(([sum, closure]) => {
       if (!isMounted) return
       setSummary(sum)
@@ -228,19 +230,22 @@ export default function CashClosureModal({
 
     toast.success('Clôture enregistrée avec succès')
 
-    // Impression automatique du Ticket Z
-    await handlePrintTicketZ()
+    // Impression automatique du Ticket Z avec le numéro officiel généré
+    await handlePrintTicketZ(res.closure_number)
 
     setSubmitting(false)
     if (onClosureSuccess) onClosureSuccess()
   }
 
   // Impression Ticket Z
-  const handlePrintTicketZ = async () => {
+  const handlePrintTicketZ = async (overrideClosureNumber?: string) => {
     if (!summary) return
     setPrinting(true)
 
+    const zNumber = overrideClosureNumber || existingClosure?.closure_number
+
     const zData: TicketZData = {
+      closure_number: zNumber,
       closure_date: selectedDate,
       cashier: activeCashier === 'all' ? 'Bilan Consolidé' : activeCashier,
       station_code: effectiveStation === 'all' ? 'Toutes stations' : effectiveStation,
@@ -262,11 +267,40 @@ export default function CashClosureModal({
 
     const res = await printTicketZ(zData, 1)
     if (res.success) {
-      toast.success('Ticket Z imprimé avec succès sur imprimante 80 mm')
+      toast.success(
+        zNumber
+          ? `Ticket Z N° ${zNumber} imprimé avec succès sur imprimante 80 mm`
+          : 'Ticket Z imprimé avec succès sur imprimante 80 mm'
+      )
     } else {
       toast.error("Erreur lors de l'impression du Ticket Z", { description: res.error })
     }
     setPrinting(false)
+  }
+
+  // Déverrouillage par la Direction / Superviseur
+  const handleUnlockClosure = async () => {
+    if (!existingClosure) return
+    const reason = window.prompt(
+      'Veuillez indiquer le motif du déverrouillage de cette caisse (obligatoire pour traçabilité) :'
+    )
+    if (!reason || !reason.trim()) {
+      toast.error('Motif obligatoire pour déverrouiller une caisse')
+      return
+    }
+
+    setUnlocking(true)
+    const res = await unlockClosure(existingClosure.id, reason.trim())
+    if (res.success) {
+      toast.success('Caisse déverrouillée avec succès par la Direction')
+      const qCashier = activeCashier !== 'all' ? activeCashier : undefined
+      const qStation = effectiveStation !== 'all' ? effectiveStation : undefined
+      const updated = await fetchClosure(selectedDate, qCashier, qStation)
+      setExistingClosure(updated)
+    } else {
+      toast.error('Erreur de déverrouillage', { description: res.error })
+    }
+    setUnlocking(false)
   }
 
   return (
@@ -277,21 +311,34 @@ export default function CashClosureModal({
       maxWidth="max-w-2xl"
       footer={
         <div className="flex items-center justify-between w-full">
-          <Button variant="outline" onClick={onClose} disabled={submitting || printing}>
+          <Button variant="outline" onClick={onClose} disabled={submitting || printing || unlocking}>
             Fermer
           </Button>
 
           <div className="flex items-center gap-2">
             {isLocked ? (
-              <Button
-                variant="default"
-                onClick={handlePrintTicketZ}
-                disabled={printing}
-                className="bg-primary text-white hover:bg-primary/90 flex items-center gap-2"
-              >
-                <Printer className="w-4 h-4" />
-                {printing ? 'Impression en cours...' : 'Réimprimer Ticket Z (80 mm)'}
-              </Button>
+              <div className="flex items-center gap-2">
+                {isSupervisor && (
+                  <Button
+                    variant="outline"
+                    onClick={handleUnlockClosure}
+                    disabled={unlocking || printing}
+                    className="border-amber-400 text-amber-700 hover:bg-amber-50 flex items-center gap-1.5 text-xs font-semibold"
+                  >
+                    <Unlock className="w-3.5 h-3.5" />
+                    {unlocking ? 'Déverrouillage...' : 'Déverrouiller (Direction)'}
+                  </Button>
+                )}
+                <Button
+                  variant="default"
+                  onClick={() => handlePrintTicketZ()}
+                  disabled={printing || unlocking}
+                  className="bg-primary text-white hover:bg-primary/90 flex items-center gap-2"
+                >
+                  <Printer className="w-4 h-4" />
+                  {printing ? 'Impression en cours...' : 'Réimprimer Ticket Z (80 mm)'}
+                </Button>
+              </div>
             ) : (
               <Button
                 variant="default"
@@ -412,9 +459,16 @@ export default function CashClosureModal({
           </div>
 
           {isLocked ? (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-full font-bold text-xs border border-emerald-300">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              JOURNÉE CLÔTURÉE
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-full font-bold text-xs border border-emerald-300">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                JOURNÉE CLÔTURÉE
+              </div>
+              {existingClosure?.closure_number && (
+                <span className="text-[11px] font-mono font-bold text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  {existingClosure.closure_number}
+                </span>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 text-amber-800 rounded-full font-bold text-xs border border-amber-300">

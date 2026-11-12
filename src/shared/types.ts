@@ -541,6 +541,7 @@ export interface CashClosure {
   cash_difference: number
   status: 'closed' | 'locked' | 'discrepancy'
   notes?: string
+  closure_number?: string
   is_locked: number
   created_at?: string
   updated_at?: string
@@ -560,9 +561,11 @@ export interface CashClosureInput {
   counted_breakdown: CashBilletageBreakdown
   cash_difference: number
   notes?: string
+  closure_number?: string
 }
 
 export interface TicketZData {
+  closure_number?: string
   closure_date: string
   closure_datetime?: string
   cashier: string

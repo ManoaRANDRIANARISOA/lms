@@ -1196,7 +1196,8 @@ if ($res) { Write-Output "SUCCESS" } else { Write-Output "FAILED" }
     // Titre Officiel Ticket Z
     buffers.push(Buffer.from([0x1b, 0x45, 0x01])) // Bold ON
     buffers.push(Buffer.from([0x1d, 0x21, 0x01])) // Double height
-    buffers.push(this.encodeText('*** TICKET Z — CLÔTURE DE CAISSE ***\n'))
+    const zTitle = data.closure_number ? `*** TICKET Z N° ${data.closure_number} ***\n` : '*** TICKET Z — CLÔTURE DE CAISSE ***\n'
+    buffers.push(this.encodeText(zTitle))
     buffers.push(Buffer.from([0x1d, 0x21, 0x00])) // Normal size
     buffers.push(Buffer.from([0x1b, 0x45, 0x00])) // Bold OFF
     buffers.push(this.encodeText(this.separatorLine('=')))

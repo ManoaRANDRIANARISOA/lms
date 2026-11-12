@@ -577,11 +577,16 @@ interface APIType {
     ) => Promise<{ success: boolean; summary?: CashierDailySummary; error?: string }>
     createClosure: (
       input: CashClosureInput
-    ) => Promise<{ success: boolean; id?: string; error?: string }>
+    ) => Promise<{ success: boolean; id?: string; closure_number?: string; error?: string }>
     getClosure: (
       date: string,
-      cashier?: string
+      cashier?: string,
+      stationCode?: string
     ) => Promise<{ success: boolean; closure?: CashClosure | null; error?: string }>
+    unlockClosure: (
+      closureId: string,
+      reason?: string
+    ) => Promise<{ success: boolean; error?: string }>
     listClosures: (
       schoolYear?: string
     ) => Promise<{ success: boolean; closures?: CashClosure[]; error?: string }>
