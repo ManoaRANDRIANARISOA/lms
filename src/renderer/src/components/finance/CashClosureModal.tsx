@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { useCashJournalStore } from '@/store/useCashJournalStore'
 import { useAuthStore } from '@/store/useAuthStore'
+import { useAppStore } from '@/store/useAppStore'
 import type { CashBilletageBreakdown, CashierDailySummary, CashClosure, TicketZData } from '@shared/types'
 import {
   Printer,
@@ -64,6 +65,7 @@ export default function CashClosureModal({
 
   const isSupervisor = user?.role === 'admin' || user?.role === 'direction'
   const isAccounting = user?.role === 'accounting'
+  const appStation = useAppStore((s) => s.stationCode)
 
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -109,8 +111,9 @@ export default function CashClosureModal({
   const effectiveStation = useMemo(() => {
     if (isConsolidated) return 'all'
     if (isSupervisor) return modalStation
+    if (isAccounting) return appStation || 'C1'
     return stationCode || 'C1'
-  }, [isConsolidated, isSupervisor, modalStation, stationCode])
+  }, [isConsolidated, isSupervisor, isAccounting, modalStation, stationCode, appStation])
 
   // Chargement des données à l'ouverture ou au changement des filtres
   useEffect(() => {

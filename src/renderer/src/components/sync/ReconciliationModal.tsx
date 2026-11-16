@@ -40,18 +40,16 @@ interface ReconciliationItem {
   updated_at: string
   suggested_student?: {
     id: string
-    first_name: string
-    last_name: string
+    name: string
     class_name?: string
     registration_number?: string
     confidence: 'high' | 'medium'
-    reason: string
   }
   duplicate_warning?: {
-    is_duplicate: boolean
     existing_receipt?: string
     existing_id?: string
-    reason: string
+    existing_date?: string
+    existing_amount?: number
   }
   is_orphan_unrecoverable?: boolean
 }
@@ -372,7 +370,7 @@ export const ReconciliationModal: React.FC = () => {
                           <div className="font-semibold text-amber-950 flex items-center gap-1.5">
                             <span>Élève suggéré :</span>
                             <span className="underline font-bold">
-                              {item.suggested_student.last_name} {item.suggested_student.first_name}
+                              {item.suggested_student.name}
                             </span>
                             {item.suggested_student.class_name && (
                               <span className="text-[10px] bg-amber-200/80 text-amber-900 px-1.5 py-0.2 rounded font-medium">
@@ -381,7 +379,7 @@ export const ReconciliationModal: React.FC = () => {
                             )}
                           </div>
                           <span className="text-[11px] text-amber-800 block">
-                            {item.suggested_student.reason} {item.suggested_student.registration_number ? `(Matricule: ${item.suggested_student.registration_number})` : ''}
+                            Correspondance {item.suggested_student.confidence === 'high' ? 'forte' : 'partielle'} nom/prénom dans le libellé {item.suggested_student.registration_number ? `(Matricule: ${item.suggested_student.registration_number})` : ''}
                           </span>
                         </div>
                       </div>
@@ -429,7 +427,8 @@ export const ReconciliationModal: React.FC = () => {
                             )}
                           </div>
                           <span className="text-[11px] text-rose-800 block">
-                            {item.duplicate_warning.reason}
+                            Même élève, même montant ({item.duplicate_warning.existing_amount?.toLocaleString('fr-FR')} Ar)
+                            {item.duplicate_warning.existing_date ? ` à la date du ${item.duplicate_warning.existing_date}` : ''} — vérifier avant d'archiver.
                           </span>
                         </div>
                       </div>

@@ -372,18 +372,14 @@ export class TelemetryService {
       // Count local active records
       const counts: Record<string, number> = {
         students: (db.prepare('SELECT count(*) as c FROM students WHERE deleted = 0').get() as any)?.c || 0,
+        student_fees: (db.prepare('SELECT count(*) as c FROM student_fees WHERE deleted = 0').get() as any)?.c || 0,
         student_payments: (db.prepare('SELECT count(*) as c FROM student_payments WHERE deleted = 0').get() as any)?.c || 0,
         cash_journal: (db.prepare('SELECT count(*) as c FROM cash_journal WHERE deleted = 0').get() as any)?.c || 0,
         users: (db.prepare('SELECT count(*) as c FROM users WHERE deleted = 0').get() as any)?.c || 0
       }
 
-      // Auto-purge structural tables and false quarantines from sync_queue
-      try {
-        db.prepare("DELETE FROM sync_queue WHERE table_name IN ('class_subjects', 'subjects')").run()
-        db.prepare("UPDATE class_subjects SET sync_status = 'synced'").run()
-        db.prepare("UPDATE subjects SET sync_status = 'synced'").run()
-        db.prepare("DELETE FROM sync_queue WHERE status = 'quarantined' AND table_name NOT IN ('student_payments', 'cash_journal')").run()
-      } catch {}
+      // Aucune purge cosmétique de la file : les quarantaines/blocages doivent rester
+      // visibles pour analyse cas par cas (AGENTS.md §4). Le heartbeat rapporte l'état réel.
 
       // Count sync_queue states
       const queueCounts = db.prepare(`
@@ -459,8 +455,9 @@ export class TelemetryService {
   }> {
     try {
       // 1. Fetch Cloud active counts
-      const [stRes, payRes, cjRes, usrRes] = await Promise.all([
+      const [stRes, feeRes, payRes, cjRes, usrRes] = await Promise.all([
         supabase.from('students').select('*', { count: 'exact', head: true }).eq('deleted', false),
+        supabase.from('student_fees').select('*', { count: 'exact', head: true }).eq('deleted', false),
         supabase.from('student_payments').select('*', { count: 'exact', head: true }).eq('deleted', false),
         supabase.from('cash_journal').select('*', { count: 'exact', head: true }).eq('deleted', false),
         supabase.from('users').select('*', { count: 'exact', head: true }).eq('deleted', false)
@@ -468,6 +465,7 @@ export class TelemetryService {
 
       const cloudCounts: Record<string, number> = {
         students: stRes.count ?? 0,
+        student_fees: feeRes.count ?? 0,
         student_payments: payRes.count ?? 0,
         cash_journal: cjRes.count ?? 0,
         users: usrRes.count ?? 0

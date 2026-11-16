@@ -18,6 +18,8 @@ import {
   reconcileDiscardOrphan,
   runDeepConvergence
 } from '../services/sync.service'
+import { scanStationInconsistencies, applyRemediation } from '../services/remediation.service'
+import { getCurrentUser } from '../auth/auth.service'
 import { TelemetryService } from '../services/telemetry.service'
 
 export function registerSyncHandlers(): void {
@@ -174,5 +176,29 @@ export function registerSyncHandlers(): void {
 
   ipcMain.handle('sync:reconcileDiscardOrphan', async (_, queueId: number, reason: string) => {
     return reconcileDiscardOrphan(queueId, reason)
+  })
+
+  // --------------------------------------------
+  // ASSISTANT DE REMÉDIATION INTERACTIF (SCAN + APPLICATION CONTRÔLÉE)
+  // --------------------------------------------
+  ipcMain.handle('sync:scanInconsistencies', async () => {
+    const role = getCurrentUser()?.role
+    if (role !== 'admin' && role !== 'direction') {
+      return { success: false, error: 'Accès refusé : scan réservé à la Direction / Admin.' }
+    }
+    try {
+      return await scanStationInconsistencies()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return { success: false, error: msg }
+    }
+  })
+
+  ipcMain.handle('sync:applyRemediation', async (_, action: string, params: Record<string, unknown>) => {
+    const role = getCurrentUser()?.role
+    if (role !== 'admin' && role !== 'direction') {
+      return { success: false, error: 'Accès refusé : remédiation réservée à la Direction / Admin.' }
+    }
+    return applyRemediation(action, params || {})
   })
 }

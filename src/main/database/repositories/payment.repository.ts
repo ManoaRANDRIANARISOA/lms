@@ -383,6 +383,31 @@ export class PaymentRepository {
       }
     }
 
+    // Le code station doit être configuré : un défaut silencieux sur C1 provoquerait
+    // des collisions de numéros de reçu avec la vraie caisse C1 (norme REC-YYYY-C<station>-XXXXX).
+    if (!rawStation || !String(rawStation).trim()) {
+      return {
+        success: false,
+        error:
+          'Code station non configuré sur ce poste. Configurez-le dans les Paramètres (ex. C1, C2…) avant toute saisie de paiement — norme de numérotation REC-YYYY-C<station>-XXXXX.'
+      }
+    }
+
+    // Interdire les paiements sur un élève supprimé/fusionné : ils doivent suivre la fiche active
+    const targetStudent = db
+      .prepare('SELECT id, deleted FROM students WHERE id = ?')
+      .get(payment.student_id) as { id: string; deleted: number } | undefined
+    if (!targetStudent) {
+      return { success: false, error: 'Élève introuvable : paiement impossible.' }
+    }
+    if (targetStudent.deleted === 1) {
+      return {
+        success: false,
+        error:
+          'Cette fiche élève est supprimée/fusionnée. Utilisez la fiche active (recherche par nom ou matricule) pour saisir le paiement.'
+      }
+    }
+
     const id = uuidv4()
     const cleanSchoolYear = (
       payment.school_year ||
@@ -432,10 +457,7 @@ export class PaymentRepository {
       if (isPC) {
         expectedMonthlyFee = 0
       } else {
-        const level = feeRow?.tuition_level || studentRow?.class || ''
-        const tuitionConfig = StudentRepository.resolveTuitionConfig(level)
-        expectedMonthlyFee =
-          tuitionConfig.price > 0 ? tuitionConfig.price : Number(feeRow?.monthly_tuition || 0)
+        expectedMonthlyFee = this.resolveEffectiveTuition(studentRow?.class, feeRow, false).price
       }
 
       if (expectedMonthlyFee > 0 && totalPaid >= expectedMonthlyFee) {
@@ -655,6 +677,7 @@ export class PaymentRepository {
           `
         SELECT * FROM student_payments 
         WHERE student_id = ? 
+          AND deleted = 0
           AND (
             REPLACE(REPLACE(school_year, '"', ''), '''', '') = ?
             OR (
@@ -684,6 +707,7 @@ export class PaymentRepository {
         `
       SELECT * FROM student_payments 
       WHERE student_id = ? 
+        AND deleted = 0
       ORDER BY payment_date DESC, created_at DESC
     `
       )
@@ -732,6 +756,133 @@ export class PaymentRepository {
       last_name?: string
       class_name?: string
     })[]
+  }
+
+  /**
+   * Traçabilité complète des paiements (direction/admin) : actifs ET supprimés,
+   * poste d'origine via le reçu, opérateur, statut sync + file, miroir caisse,
+   * et nombre d'entrées d'audit. Permet de distinguer une erreur de manipulation
+   * (suppression, antidate, mois décalé) d'une erreur logiciel (sync bloquée, collision).
+   */
+  static getTraceability(
+    filters: {
+      startDate?: string
+      endDate?: string
+      type?: string
+      station?: string
+      search?: string
+      includeDeleted?: boolean
+      syncStatus?: string
+      schoolYear?: string
+      limit?: number
+      offset?: number
+    } = {}
+  ): { rows: Record<string, unknown>[]; total: number } {
+    const conditions: string[] = []
+    const params: unknown[] = []
+
+    if (!filters.includeDeleted) conditions.push('sp.deleted = 0')
+    if (filters.startDate) {
+      conditions.push('date(sp.payment_date) >= ?')
+      params.push(filters.startDate)
+    }
+    if (filters.endDate) {
+      conditions.push('date(sp.payment_date) <= ?')
+      params.push(filters.endDate)
+    }
+    if (filters.type && filters.type !== 'all') {
+      conditions.push('sp.payment_type = ?')
+      params.push(filters.type)
+    }
+    if (filters.station && filters.station !== 'all') {
+      conditions.push("sp.receipt_number LIKE ('%-' || ? || '-%')")
+      params.push(filters.station)
+    }
+    if (filters.syncStatus && filters.syncStatus !== 'all') {
+      conditions.push('sp.sync_status = ?')
+      params.push(filters.syncStatus)
+    }
+    if (filters.schoolYear) {
+      conditions.push("REPLACE(REPLACE(sp.school_year,'\"',''),'''','') = ?")
+      params.push(filters.schoolYear)
+    }
+    if (filters.search) {
+      const t = `%${filters.search.toLowerCase()}%`
+      conditions.push(
+        '(lower(s.first_name) LIKE ? OR lower(s.last_name) LIKE ? OR lower(s.registration_number) LIKE ? OR lower(sp.receipt_number) LIKE ? OR lower(sp.description) LIKE ? OR lower(sp.created_by) LIKE ?)'
+      )
+      params.push(t, t, t, t, t, t)
+    }
+
+    const where = conditions.length ? ' WHERE ' + conditions.join(' AND ') : ''
+    const totalRow = db
+      .prepare(`SELECT COUNT(*) as c FROM student_payments sp LEFT JOIN students s ON sp.student_id = s.id${where}`)
+      .get(...params) as { c: number } | undefined
+    const total = totalRow?.c || 0
+
+    const limit = Math.min(Math.max(Number(filters.limit) || 200, 1), 2000)
+    const offset = Math.max(Number(filters.offset) || 0, 0)
+
+    const rows = db
+      .prepare(
+        `
+        SELECT sp.*, s.first_name, s.last_name, s.registration_number, s.class as class_name,
+          sq.status as queue_status, sq.error_message as queue_error,
+          COALESCE(sq.updated_at, sq.created_at) as queue_updated_at,
+          (SELECT COUNT(*) FROM audit_logs al WHERE al.table_name = 'student_payments' AND al.record_id = sp.id) as audit_count,
+          (SELECT COUNT(*) FROM cash_journal cj WHERE cj.related_payment_id = sp.id) as cash_mirror_count,
+          (SELECT COUNT(*) FROM cash_journal cj WHERE cj.related_payment_id = sp.id AND cj.deleted = 1) as cash_mirror_deleted_count
+        FROM student_payments sp
+        LEFT JOIN students s ON sp.student_id = s.id
+        LEFT JOIN sync_queue sq ON sq.id = (
+          SELECT MAX(id) FROM sync_queue WHERE table_name = 'student_payments' AND record_id = sp.id
+        )
+        ${where}
+        ORDER BY sp.payment_date DESC, sp.created_at DESC
+        LIMIT ? OFFSET ?
+      `
+      )
+      .all(...params, limit, offset) as Record<string, unknown>[]
+
+    for (const r of rows) {
+      const m = String(r.receipt_number || '').match(/^REC-\d{4}-([A-Z0-9]+)-/)
+      r.origin_station = m ? m[1] : ''
+    }
+    return { rows, total }
+  }
+
+  /** Piste d'audit complète d'un paiement (création, modifications, suppressions). */
+  static getPaymentAuditTrail(paymentId: string): Record<string, unknown>[] {
+    return db
+      .prepare(
+        `
+        SELECT al.id, al.action, al.user_id, al.old_value, al.new_value, al.timestamp, u.username as user_name
+        FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id
+        WHERE al.table_name = 'student_payments' AND al.record_id = ?
+        ORDER BY al.id ASC
+      `
+      )
+      .all(paymentId) as Record<string, unknown>[]
+  }
+
+  /**
+   * Source de vérité unique de l'écolage : la configuration centralisée (finance_prices)
+   * de la classe actuelle de l'élève fait foi ; la fiche student_fees n'est qu'un repli.
+   */
+  private static resolveEffectiveTuition(
+    studentClass: string | null | undefined,
+    feeRecord: Record<string, unknown> | null | undefined,
+    isPersonnelChild: boolean
+  ): { price: number; level: string } {
+    const feeLevel = (feeRecord?.tuition_level as string) || ''
+    const feeClass = (feeRecord?.class_name as string) || ''
+    if (isPersonnelChild) return { price: 0, level: feeLevel || studentClass || '' }
+    const candidates = [studentClass, feeLevel, feeClass].filter(Boolean) as string[]
+    for (const candidate of candidates) {
+      const config = StudentRepository.resolveTuitionConfig(candidate)
+      if (config.price > 0) return { price: config.price, level: config.key || candidate }
+    }
+    return { price: Number(feeRecord?.monthly_tuition) || 0, level: feeLevel || feeClass }
   }
 
   static getTuitionStatus(studentId: string, schoolYear: string): Record<string, unknown> {
@@ -799,51 +950,37 @@ export class PaymentRepository {
     const startYear = parseInt(startYearStr) || 2026
     const endYear = parseInt(endYearStr) || 2027
 
-    // 2. Get Tuition Payments
+    // 2. Get Tuition Payments (actifs uniquement, fenêtre stricte de l'année scolaire)
     const payments = db
       .prepare(
         `
       SELECT * FROM student_payments 
       WHERE student_id = ? 
         AND payment_type = 'tuition'
+        AND deleted = 0
         AND (
           REPLACE(REPLACE(school_year, '"', ''), '''', '') = ?
-          OR month LIKE ?
-          OR month LIKE ?
+          OR (month >= ? AND month <= ?)
         )
     `
       )
-      .all(studentId, cleanYear, `${startYear}-%`, `${endYear}-%`) as { month: string; amount: number }[]
+      .all(studentId, cleanYear, `${startYear}-09`, `${endYear}-07`) as {
+      month: string
+      amount: number
+    }[]
 
-    // Track whether student is personnel child
-    let isPersonnelChild = false
-    try {
-      const studentObj = db
-        .prepare('SELECT is_personnel_child FROM students WHERE id = ?')
-        .get(studentId) as { is_personnel_child?: unknown } | undefined
-      const rawPC = studentObj?.is_personnel_child
-      isPersonnelChild =
-        rawPC == 1 || rawPC === '1' || rawPC === '1.0' || rawPC === true || rawPC === 'true'
-    } catch {
-      // Ignore
-    }
+    const studentObj = db
+      .prepare(
+        'SELECT class, is_personnel_child, departure_date FROM students WHERE id = ? AND deleted = 0'
+      )
+      .get(studentId) as
+      | { class?: string; is_personnel_child?: unknown; departure_date?: string | null }
+      | undefined
+    const rawPC = studentObj?.is_personnel_child
+    const isPersonnelChild =
+      rawPC == 1 || rawPC === '1' || rawPC === '1.0' || rawPC === true || rawPC === 'true'
 
-    // Fetch global settings for dynamic pricing
-    let globalMonthlyTuition: number | null = null
-    try {
-      if (feeRecord && feeRecord.tuition_level) {
-        if (isPersonnelChild) {
-          globalMonthlyTuition = 0
-        } else {
-          const config = StudentRepository.resolveTuitionConfig(feeRecord.tuition_level as string)
-          if (config && config.price > 0) {
-            globalMonthlyTuition = config.price
-          }
-        }
-      }
-    } catch (e) {
-      console.error('Error fetching dynamic tuition prices:', e)
-    }
+    const effective = this.resolveEffectiveTuition(studentObj?.class, feeRecord, isPersonnelChild)
 
     // 3. Calculate Status for each month
     const className = (feeRecord?.class_name as string) || ''
@@ -863,15 +1000,12 @@ export class PaymentRepository {
       ...(isTerminale ? [{ name: 'Juillet', key: `${endYear}-07` }] : [])
     ]
 
-    // Use global price if available, otherwise fallback to stored record
-    const monthlyTuition =
-      globalMonthlyTuition !== null
-        ? globalMonthlyTuition
-        : (feeRecord?.monthly_tuition as number) || 0
+    // Tarif effectif : configuration centralisée prioritaire (même source que la liste impayés)
+    const monthlyTuition = effective.price
 
     const status = months.map((m) => {
       const paidForMonth = payments
-        .filter((p) => p.month === m.key || (p.month && p.month.slice(5) === m.key.slice(5)))
+        .filter((p) => p.month === m.key)
         .reduce((sum, p) => sum + p.amount, 0)
 
       let status = 'unpaid'
@@ -962,10 +1096,10 @@ export class PaymentRepository {
                   AND REPLACE(REPLACE(sf_past.school_year, '"', ''), '''', '') < ?
                   AND sf_past.deleted = 0) as past_years_count
         FROM students s
-        JOIN student_fees sf ON sf.student_id = s.id
-        WHERE REPLACE(REPLACE(sf.school_year, '"', ''), '''', '') = ? 
-          AND s.deleted = 0 
+        LEFT JOIN student_fees sf ON sf.student_id = s.id
+          AND REPLACE(REPLACE(sf.school_year, '"', ''), '''', '') = ?
           AND sf.deleted = 0
+        WHERE s.deleted = 0
       `
         )
         .all(targetYear, targetYear) as Array<Record<string, any>>
@@ -985,7 +1119,7 @@ export class PaymentRepository {
           AND (
             REPLACE(REPLACE(school_year, '"', ''), '''', '') = ?
             OR (
-              school_year IS NULL 
+              (school_year IS NULL OR REPLACE(REPLACE(school_year, '"', ''), '''', '') = '')
               AND (
                 month LIKE ? OR month LIKE ?
                 OR payment_date BETWEEN ? AND ?
@@ -1024,7 +1158,7 @@ export class PaymentRepository {
           AND (
             REPLACE(REPLACE(school_year, '"', ''), '''', '') = ?
             OR (
-              school_year IS NULL 
+              (school_year IS NULL OR REPLACE(REPLACE(school_year, '"', ''), '''', '') = '')
               AND payment_date BETWEEN ? AND ?
             )
           )
@@ -1078,7 +1212,7 @@ export class PaymentRepository {
       const alerts: Array<Record<string, unknown>> = []
 
       students.forEach((student) => {
-        const resolvedClass = student.class_name || student.class || ''
+        const resolvedClass = student.class || student.class_name || ''
         const isTerminale =
           resolvedClass === 'TA' || resolvedClass === 'TD' || resolvedClass === 'Terminale'
         const studentMonths = isTerminale ? terminaleMonths : months
@@ -1172,17 +1306,15 @@ export class PaymentRepository {
 
         let tuitionCost = 0
         if (!isPersonnelChild) {
-          if (
-            student.monthly_tuition !== null &&
-            student.monthly_tuition !== undefined &&
-            student.monthly_tuition !== ''
-          ) {
-            tuitionCost = Number(student.monthly_tuition) || 0
-          } else {
-            const level = student.tuition_level || resolvedClass
-            const tuitionConfig = StudentRepository.resolveTuitionConfig(level)
-            tuitionCost = tuitionConfig.price || 0
-          }
+          tuitionCost = this.resolveEffectiveTuition(
+            student.class,
+            {
+              tuition_level: student.tuition_level,
+              class_name: student.class_name,
+              monthly_tuition: student.monthly_tuition
+            },
+            false
+          ).price
         }
         checkMonthlyService('tuition', tuitionCost, 'Écolage')
 

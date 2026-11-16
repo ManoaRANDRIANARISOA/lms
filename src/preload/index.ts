@@ -86,7 +86,10 @@ const api = {
     getExpectedRevenue: (schoolYear: string) =>
       ipcRenderer.invoke('payment:getExpectedRevenue', schoolYear),
     checkFramFratrie: (studentId: string, schoolYear: string) =>
-      ipcRenderer.invoke('payment:checkFramFratrie', studentId, schoolYear)
+      ipcRenderer.invoke('payment:checkFramFratrie', studentId, schoolYear),
+    getTraceability: (filters?: Record<string, unknown>) =>
+      ipcRenderer.invoke('payment:getTraceability', filters),
+    getAuditTrail: (paymentId: string) => ipcRenderer.invoke('payment:getAuditTrail', paymentId)
   },
 
   // --------------------------------------------
@@ -425,6 +428,9 @@ const api = {
     reconcileDiscardOrphan: (queueId: number, reason: string) =>
       ipcRenderer.invoke('sync:reconcileDiscardOrphan', queueId, reason),
     runDeepConvergence: () => ipcRenderer.invoke('sync:runDeepConvergence'),
+    scanInconsistencies: () => ipcRenderer.invoke('sync:scanInconsistencies'),
+    applyRemediation: (action: string, params: Record<string, unknown>) =>
+      ipcRenderer.invoke('sync:applyRemediation', action, params),
     onProgress: (callback: (data: any) => void) => {
       const listener = (_event: IpcRendererEvent, data: any) => callback(data)
       ipcRenderer.on('sync:progress', listener)

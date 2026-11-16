@@ -3,6 +3,32 @@
 Toutes les modifications notables apportées à ce projet sont documentées dans ce fichier.
 Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/) et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [2.4.0] - 2026-11-16
+
+### 🛡️ Fiabilité Synchronisation Multi-Postes, Cohérence Impayés, Clôture par Poste & Protection des Tarifs
+
+- **Déblocage de la synchronisation inter-postes (cause racine)** :
+  - Guérison de schéma **additive et idempotente** (`last_synced_at` / `sync_status` sur les tables génériques du PULL, `sync_status` sur `assessments`) + gardes de colonnes défensives dans `pullRemoteChanges`.
+  - Élimine l'erreur SQLite par ligne qui maintenait `hasPullErrors = true` et figeait le curseur de pull : **reprise intégrale du flux inter-postes** après des mois de stall silencieux.
+- **Module impayés unifié** :
+  - Résolution tarifaire unique (`resolveEffectiveTuition`) partagée entre la fiche élève et la liste des alertes, fenêtre scolaire stricte (sept→juil), correspondance mensuelle exacte (`p.month === m.key`).
+  - **Correction d'un crash bloquant** de `getUnpaidAlerts` (paramètres SQL restaurés : 2 marqueurs `?` = 2 liaisons) qui faisait planter la page *Finance > Alertes impayés*.
+- **Protection des tarifs d'écolage (Règle d'or §1)** :
+  - **Suppression de tout écrasement silencieux** de `student_fees.monthly_tuition` à la consultation : `getTuitionStatus` est désormais une **lecture pure** (plus d'`UPDATE` ni de push Cloud à l'ouverture de l'onglet Finance).
+  - Préserve les **tarifs négociés/personnalisés** et les **gratuités à 0 Ar** qui étaient réécrits par la grille standard.
+  - Les écarts fiche ↔ grille deviennent des **cas « à décider » par élève** dans l'assistant, avec conseil et choix explicite *Appliquer la grille* / *Conserver le tarif* (tracé, propagé uniquement sur décision).
+- **Clôture de caisse journalière par poste ET par compte** :
+  - Le comptable clôture sur le **poste réel du PC** (`pos_station_code` via `useAppStore`), son compte du jour ; direction/admin conservent le **filtre libre**. Retrait du forçage CONSOLIDÉ pour la comptabilité.
+  - **Rattachement des écritures sans reçu au caissier** (`created_by`) : les dépenses sans reçu ne disparaissent plus de la clôture par poste ; les reçus des autres postes restent exclus.
+  - Verrou de clôture par date, Ticket Z `Z-YYYY-C<poste>-XXXXX`.
+- **Garde verrou Z dans la remédiation** : `merge_to_twin`, `reassign_orphan_group` et `archive_orphan_group` **refusent** toute écriture appartenant à une journée scellée par Ticket Z sans déverrouillage formel (`closureLockForDate`).
+- **Reçus** : historique préservé (aucune renumérotation), affichage verbatim, norme `REC-YYYY-C<station>-XXXXX` pour les générations futures.
+- **Traçabilité & supervision** : onglet *Traçabilité paiements* (`PaymentTraceability.tsx`, SQL paramétré borné), dashboard de cohérence inter-postes (`WorkstationMonitor`).
+- **Assistant de remédiation interactif** (`remediation.service.ts` + `DataConsistencyAssistant.tsx`) : scan en **lecture seule**, conseil logiciel, application contrôlée (cas évidents auto / cas ambigus soumis à décision), chaque action historisée (`settings_history`), **non-destructive** (soft-delete + `sync_queue`).
+- **Sécurité & déploiement** :
+  - Secrets du rapport quotidien externalisés (JWT/URL en dur retirés de `daily-report-runner.mjs` et du workflow) ; pagination `Range` stable pour l'exactitude du solde cumulé.
+  - **Prérequis** : `pos_station_code` configuré sur chaque PC ; secrets GitHub (`SUPABASE_URL`, `SUPABASE_*_KEY`, `RECIPIENT_EMAIL`, `BREVO_SMTP_KEY`) renseignés.
+
 ## [2.3.11] - 2026-10-26
 
 ### 🧠 Assistant Visuel Intelligent de Réconciliation, Auto-Guérison Complète de l'Outbox & Parité C3

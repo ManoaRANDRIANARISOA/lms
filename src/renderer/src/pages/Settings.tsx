@@ -13,6 +13,7 @@ import EmailSettings from '@/pages/settings/EmailSettings'
 import AssessmentSettings from '@/pages/settings/AssessmentSettings'
 import { DuplicateManager } from '@/components/settings/DuplicateManager'
 import { WorkstationMonitor } from '@/components/settings/WorkstationMonitor'
+import { DataConsistencyAssistant } from '@/components/settings/DataConsistencyAssistant'
 
 function normalizeStationCode(raw?: string | null): string {
   if (!raw) return 'C1'
@@ -1069,6 +1070,7 @@ export default function Settings() {
         <AssessmentSettings />
         <DuplicateManager />
         <WorkstationMonitor />
+        <DataConsistencyAssistant />
 
         <div className="bg-white p-6 rounded-xl shadow-sm w-full border-red-100 border">
           <h2 className="text-lg font-semibold mb-4 text-red-600">Zone de Danger</h2>

@@ -9,8 +9,14 @@
 
 import nodemailer from 'nodemailer'
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://onxnctfgxxgxipehmfqb.supabase.co'
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ueG5jdGZneHhneGlwZWhtZnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3ODg3NjUsImV4cCI6MjA4NjM2NDc2NX0.WuVMhj07pbkuuWFfG-AsOrVJM-LrWmvts0vhvfwVWdc'
+const SUPABASE_URL = process.env.SUPABASE_URL
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  throw new Error(
+    'SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY (ou SUPABASE_ANON_KEY) doivent être définis dans les secrets GitHub Actions. Aucune clé ne doit être codée en dur dans le dépôt.'
+  )
+}
 
 const headers = {
   apikey: SUPABASE_KEY,
@@ -34,6 +40,42 @@ async function fetchFromSupabase(endpoint, maxRetries = 3) {
       await new Promise(r => setTimeout(r, 1000 * attempt))
     }
   }
+}
+
+async function fetchAllFromSupabase(endpoint, maxRetries = 3) {
+  // PostgREST plafonne chaque réponse à 1000 lignes : on pagine via Range pour
+  // récupérer TOUTES les lignes (sinon le solde cumulé historique est tronqué/faux).
+  const hasOrder = /[?&]order=/.test(endpoint)
+  const sep = endpoint.includes('?') ? '&' : '?'
+  const base = hasOrder ? endpoint : `${endpoint}${sep}order=id.asc`
+  const pageSize = 1000
+  const all = []
+  let from = 0
+  for (;;) {
+    const url = `${SUPABASE_URL}/rest/v1/${base}`
+    let batch = null
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const res = await fetch(url, {
+          headers: { ...headers, Range: `${from}-${from + pageSize - 1}`, 'Range-Unit': 'items' }
+        })
+        if (!res.ok) {
+          const text = await res.text()
+          throw new Error(`Supabase GET ${base} error (${res.status}): ${text}`)
+        }
+        batch = await res.json()
+        break
+      } catch (err) {
+        if (attempt === maxRetries) throw err
+        console.warn(`[RETRY] Tentative ${attempt}/${maxRetries} échouée sur ${base} (${err.message}). Nouvelle tentative dans 1s...`)
+        await new Promise(r => setTimeout(r, 1000 * attempt))
+      }
+    }
+    all.push(...batch)
+    if (batch.length < pageSize) break
+    from += pageSize
+  }
+  return all
 }
 
 async function postToSupabase(endpoint, data, maxRetries = 3) {
@@ -120,8 +162,8 @@ async function main() {
 
   // 3. Extraire les mouvements de caisse consolidés pour la journée cible
   console.log(`Extraction des mouvements de caisse pour le ${targetDate}...`)
-  const entries = await fetchFromSupabase(
-    `cash_journal?transaction_date=eq.${targetDate}&deleted=eq.false&order=created_at.asc`
+  const entries = await fetchAllFromSupabase(
+    `cash_journal?transaction_date=eq.${targetDate}&deleted=eq.false&order=created_at.asc,id.asc`
   )
 
   let totalIncome = 0
@@ -155,8 +197,8 @@ async function main() {
   const netBalance = totalIncome - totalExpense
 
   // 4. Calculer le solde de clôture cumulé historique
-  const historicalRows = await fetchFromSupabase(
-    `cash_journal?transaction_date=lte.${targetDate}&deleted=eq.false&select=type,amount`
+  const historicalRows = await fetchAllFromSupabase(
+    `cash_journal?transaction_date=lte.${targetDate}&deleted=eq.false&select=id,type,amount&order=id.asc`
   )
   let cumulativeBalance = 0
   for (const r of historicalRows) {

@@ -24,6 +24,7 @@ import EventsPage from '@/pages/EventsPage'
 import FinanceJournal from '@/pages/finance/FinanceJournal'
 import PaymentAlerts from '@/pages/finance/PaymentAlerts'
 import FinanceConfig from '@/pages/finance/FinanceConfig'
+import PaymentTraceability from '@/pages/finance/PaymentTraceability'
 import ReportsPage from '@/pages/reports/ReportsPage'
 import DashboardPage from '@/pages/DashboardPage'
 import PersonnelList from '@/pages/personnel/PersonnelList'
@@ -149,6 +150,14 @@ export default function MainLayout(): React.JSX.Element {
               element={
                 <ProtectedRoute resource="payments" allowedRoles={['admin', 'direction']}>
                   <FinanceConfig />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/finance/tracabilite"
+              element={
+                <ProtectedRoute resource="payments" allowedRoles={['admin', 'direction']}>
+                  <PaymentTraceability />
                 </ProtectedRoute>
               }
             />

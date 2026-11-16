@@ -280,8 +280,7 @@ export default function FinanceJournal() {
     fetchClosure
   } = useCashJournalStore()
   const { canWrite } = usePermissions()
-  const { currentYear, stationCode } = useAppStore()
-  const activeStation = stationCode || 'C1'
+  const { currentYear } = useAppStore()
 
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -564,9 +563,7 @@ export default function FinanceJournal() {
         detail: e.description,
         payment_type: e.category,
         month: extractedMonth,
-        receipt_number: (e as any).receipt_number
-          ? (e as any).receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, `REC-$1-${activeStation}-$2`)
-          : undefined,
+        receipt_number: (e as any).receipt_number || undefined,
         is_duplicate: isItemDup,
         duplicate_count: isItemDup ? ((e as any).print_count || 1) : 1
       }
@@ -583,14 +580,10 @@ export default function FinanceJournal() {
     const studentNumber = (selected[0] as any)?.registration_number || ''
 
     const validNums = selected
-      .map((e) =>
-        (e as any).receipt_number
-          ? (e as any).receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, `REC-$1-${activeStation}-$2`)
-          : ''
-      )
+      .map((e) => ((e as any).receipt_number || '').trim())
       .filter(Boolean)
 
-    let groupedNum = `REC-${new Date().getFullYear()}-${activeStation}-${Date.now().toString().slice(-5)}`
+    let groupedNum = ''
     if (validNums.length === 1) {
       groupedNum = validNums[0]
     } else if (validNums.length > 1) {
@@ -1508,12 +1501,7 @@ export default function FinanceJournal() {
                                 onClick={() => {
                                   const monthMatch = entry.description?.match(/\(([^)]+)\)/)
                                   const extractedMonth = monthMatch ? monthMatch[1] : undefined
-                                  const rNum = (entry as any).receipt_number
-                                    ? (entry as any).receipt_number.replace(
-                                        /^REC-(\d{4})-(\d{5})$/,
-                                        `REC-$1-${activeStation}-$2`
-                                      )
-                                    : `REC-${currentYear ? currentYear.slice(0, 4) : new Date().getFullYear()}-${activeStation}-${(entry.id || Date.now().toString()).slice(-5).toUpperCase()}`
+                                  const rNum = (entry as any).receipt_number || ''
                                   const pCount = (entry as any).print_count || 0
                                   const pData = {
                                     id: (entry as any).related_payment_id || entry.id,
@@ -1561,12 +1549,7 @@ export default function FinanceJournal() {
 
                                   const monthMatch = entry.description?.match(/\(([^)]+)\)/)
                                   const extractedMonth = monthMatch ? monthMatch[1] : undefined
-                                  const rNum = (entry as any).receipt_number
-                                    ? (entry as any).receipt_number.replace(
-                                        /^REC-(\d{4})-(\d{5})$/,
-                                        `REC-$1-${activeStation}-$2`
-                                      )
-                                    : `REC-${currentYear ? currentYear.slice(0, 4) : new Date().getFullYear()}-${activeStation}-${(entry.id || Date.now().toString()).slice(-5).toUpperCase()}`
+                                  const rNum = (entry as any).receipt_number || ''
                                   const pCount = (entry as any).print_count || 0
                                   const isDup = pCount >= 1
                                   const paymentId = (entry as any).related_payment_id || entry.id

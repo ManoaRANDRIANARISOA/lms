@@ -74,6 +74,33 @@ export function registerPaymentHandlers(): void {
   })
 
   // --------------------------------------------
+  // PAYMENT TRACEABILITY (Direction / Admin)
+  // --------------------------------------------
+  ipcMain.handle('payment:getTraceability', async (_, filters) => {
+    const role = getCurrentUser()?.role
+    if (role !== 'admin' && role !== 'direction') {
+      return { success: false, error: 'Accès refusé : traçabilité réservée à la Direction / Admin.' }
+    }
+    try {
+      return { success: true, ...PaymentRepository.getTraceability(filters || {}) }
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  ipcMain.handle('payment:getAuditTrail', async (_, paymentId: string) => {
+    const role = getCurrentUser()?.role
+    if (role !== 'admin' && role !== 'direction') {
+      return { success: false, error: 'Accès refusé : traçabilité réservée à la Direction / Admin.' }
+    }
+    try {
+      return { success: true, rows: PaymentRepository.getPaymentAuditTrail(paymentId) }
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  // --------------------------------------------
   // GET TUITION STATUS
   // --------------------------------------------
   ipcMain.handle('payment:getTuitionStatus', async (_, studentId, schoolYear) => {

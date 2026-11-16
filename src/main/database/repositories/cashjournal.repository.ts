@@ -121,6 +121,33 @@ export function parseClosureNumber(
 }
 
 export class CashJournalRepository {
+  /**
+   * Verrou de clôture Z pour une date donnée : une clôture scellée du poste
+   * (ou consolidée) interdit toute modification/suppression d'écriture ce jour-là.
+   */
+  static closureLockForDate(
+    date: string,
+    receiptNumber?: string | null
+  ): { locked: boolean; label?: string } {
+    const day = (date || '').slice(0, 10)
+    if (!day) return { locked: false }
+    const stationMatch = (receiptNumber || '').match(/^REC-\d{4}-([A-Z0-9]+)-/)
+    const station = stationMatch
+      ? stationMatch[1]
+      : normalizeStationCode(SettingsRepository.get('pos_station_code') as string)
+    const closure = db
+      .prepare(
+        `SELECT station_code, notes FROM cash_closures
+         WHERE date(closure_date) = ? AND is_locked = 1
+           AND (station_code = ? OR station_code = 'CONSOLIDÉ')
+         LIMIT 1`
+      )
+      .get(day, station) as { station_code: string; notes?: string } | undefined
+    if (!closure) return { locked: false }
+    const zMatch = closure.notes ? closure.notes.match(/\[(Z-[^\]]+)\]/) : null
+    return { locked: true, label: zMatch ? zMatch[1] : `Z-${closure.station_code}` }
+  }
+
   static create(
     entry: Omit<CashJournalEntry, 'id' | 'created_at' | 'updated_at'> & {
       allow_post_closure_override?: boolean
@@ -328,6 +355,28 @@ export class CashJournalRepository {
   }
 
   static update(id: string, updates: Partial<CashJournalEntry>) {
+    const existingEntry = db
+      .prepare('SELECT transaction_date, receipt_number FROM cash_journal WHERE id = ? AND deleted = 0')
+      .get(id) as { transaction_date: string; receipt_number?: string } | undefined
+    if (!existingEntry) return { success: false, error: 'Entrée non trouvée' }
+
+    const lockOriginal = this.closureLockForDate(existingEntry.transaction_date, existingEntry.receipt_number)
+    if (lockOriginal.locked) {
+      return {
+        success: false,
+        error: `Caisse clôturée et scellée (${lockOriginal.label}) pour le ${existingEntry.transaction_date}. Modification verrouillée — déverrouillage Direction requis.`
+      }
+    }
+    if (updates.transaction_date && updates.transaction_date !== existingEntry.transaction_date) {
+      const lockTarget = this.closureLockForDate(updates.transaction_date, existingEntry.receipt_number)
+      if (lockTarget.locked) {
+        return {
+          success: false,
+          error: `Caisse clôturée et scellée (${lockTarget.label}) pour le ${updates.transaction_date}. Déplacement de date verrouillé — déverrouillage Direction requis.`
+        }
+      }
+    }
+
     const fields: string[] = []
     const values: (string | number | null)[] = []
 
@@ -385,6 +434,17 @@ export class CashJournalRepository {
 
   static delete(id: string) {
     try {
+      const existingEntry = db
+        .prepare('SELECT transaction_date, receipt_number FROM cash_journal WHERE id = ? AND deleted = 0')
+        .get(id) as { transaction_date: string; receipt_number?: string } | undefined
+      if (!existingEntry) return { success: false, error: 'Entrée non trouvée' }
+      const lock = this.closureLockForDate(existingEntry.transaction_date, existingEntry.receipt_number)
+      if (lock.locked) {
+        return {
+          success: false,
+          error: `Caisse clôturée et scellée (${lock.label}) pour le ${existingEntry.transaction_date}. Suppression verrouillée — déverrouillage Direction requis.`
+        }
+      }
       const result = db
         .prepare(
           `
@@ -533,7 +593,8 @@ export class CashJournalRepository {
     let whereClause = "WHERE cj.deleted = 0 AND date(cj.transaction_date) = ?"
     const params: (string | number)[] = [date]
 
-    if (cashier && cashier !== 'all') {
+    const cashierFiltered = !!(cashier && cashier !== 'all')
+    if (cashierFiltered) {
       const aliases = getCashierAliases(cashier)
       if (aliases.length > 0) {
         whereClause += ` AND TRIM(LOWER(COALESCE(NULLIF(cj.created_by, ''), NULLIF(sp.created_by, ''), 'admin'))) IN (${aliases.map(() => 'TRIM(LOWER(?))').join(',')})`
@@ -543,18 +604,16 @@ export class CashJournalRepository {
 
     if (stationCode && stationCode !== 'all') {
       const cleanStation = normalizeStationCode(stationCode)
+      // Sans reçu = pas de poste encodé : on rattache au caissier filtré, sinon ses dépenses disparaissent de sa clôture.
+      const nullReceipt = cashierFiltered ? ' OR COALESCE(cj.receipt_number, sp.receipt_number) IS NULL' : ''
       if (cleanStation === 'C1') {
         whereClause += ` AND (
           COALESCE(cj.receipt_number, sp.receipt_number) LIKE ? 
-          OR (COALESCE(cj.receipt_number, sp.receipt_number) LIKE 'REC-%' AND COALESCE(cj.receipt_number, sp.receipt_number) NOT LIKE 'REC-%-%-%')
-          OR (COALESCE(cj.receipt_number, sp.receipt_number) IS NULL)
+          OR (COALESCE(cj.receipt_number, sp.receipt_number) LIKE 'REC-%' AND COALESCE(cj.receipt_number, sp.receipt_number) NOT LIKE 'REC-%-%-%')${nullReceipt}
         )`
         params.push(`%-C1-%`)
       } else {
-        whereClause += ` AND (
-          COALESCE(cj.receipt_number, sp.receipt_number) LIKE ?
-          OR (COALESCE(cj.receipt_number, sp.receipt_number) IS NULL)
-        )`
+        whereClause += ` AND (COALESCE(cj.receipt_number, sp.receipt_number) LIKE ?${nullReceipt})`
         params.push(`%-${cleanStation}-%`)
       }
     }
@@ -873,7 +932,7 @@ export class CashJournalRepository {
       }
       const noteAppend = ` [DÉVERROUILLÉ par ${unlockedBy} le ${new Date().toISOString()}${reason ? ` - Motif: ${reason}` : ''}]`
       db.prepare(
-        `UPDATE cash_closures SET is_locked = 0, status = 'unlocked', notes = notes || ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+        `UPDATE cash_closures SET is_locked = 0, status = 'unlocked', notes = COALESCE(notes, '') || ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
       ).run(noteAppend, closureId)
 
       addToSyncQueue('cash_closures', closureId, 'update', {

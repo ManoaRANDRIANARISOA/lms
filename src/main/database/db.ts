@@ -234,6 +234,36 @@ ensureTableColumns('cash_journal', [
 ])
 ensureTableColumns('sync_queue', ['updated_at', 'retry_count'])
 
+// SCHEMA HEALING: every table processed by the generic pull loop must carry
+// last_synced_at AND sync_status, because the pull writes both on INSERT/UPDATE.
+// A missing column => each row throws => hasPullErrors stays true => pull cursor
+// never advances => silent inter-station stall (root cause found in v2.4.0).
+const GENERIC_PULL_TABLES = [
+  'users',
+  'students',
+  'student_fees',
+  'student_payments',
+  'personnel',
+  'time_tracking',
+  'daily_attendance',
+  'personnel_absences',
+  'salary_advances',
+  'custom_deductions',
+  'cash_journal',
+  'subjects',
+  'grades',
+  'class_subjects',
+  'assessments',
+  'parent_events',
+  'event_payments',
+  'bus_attendance',
+  'canteen_attendance',
+  'cash_closures'
+]
+for (const t of GENERIC_PULL_TABLES) {
+  ensureTableColumns(t, ['last_synced_at', 'sync_status'])
+}
+
 // SCHEMA HEALING: Ensure personnel sub-tables have soft-delete columns
 // (Migration 007 was previously malformed as a single-line comment on some DBs.)
 function ensureDeletedColumn(tableName: string): void {

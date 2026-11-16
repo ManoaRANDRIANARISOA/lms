@@ -422,6 +422,9 @@ export const WorkstationMonitor: React.FC = () => {
             Élèves : <strong className="text-white">{cloudCounts.students ?? '-'}</strong>
           </span>
           <span className="bg-indigo-900/80 px-2 py-0.5 rounded text-[11px] border border-indigo-700/50">
+            Frais : <strong className="text-white">{cloudCounts.student_fees ?? '-'}</strong>
+          </span>
+          <span className="bg-indigo-900/80 px-2 py-0.5 rounded text-[11px] border border-indigo-700/50">
             Paiements : <strong className="text-white">{cloudCounts.student_payments ?? '-'}</strong>
           </span>
           <span className="bg-indigo-900/80 px-2 py-0.5 rounded text-[11px] border border-indigo-700/50">
@@ -441,6 +444,7 @@ export const WorkstationMonitor: React.FC = () => {
                 <th className="py-2.5 px-3">Hôte / Version</th>
                 <th className="py-2.5 px-3">État Connexion</th>
                 <th className="py-2.5 px-3 text-center">Élèves</th>
+                <th className="py-2.5 px-3 text-center">Frais</th>
                 <th className="py-2.5 px-3 text-center">Paiements</th>
                 <th className="py-2.5 px-3 text-center">Caisse</th>
                 <th className="py-2.5 px-3 text-center">File Locale</th>
@@ -451,17 +455,19 @@ export const WorkstationMonitor: React.FC = () => {
             <tbody className="divide-y divide-gray-100">
               {heartbeats.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-6 text-center text-gray-400">
+                  <td colSpan={10} className="py-6 text-center text-gray-400">
                     Aucun bilan reçu. Lancez une synchronisation sur chaque poste pour faire remonter leur état.
                   </td>
                 </tr>
               ) : (
                 heartbeats.map((hb) => {
                   const sCount = hb.counts?.students ?? 0
+                  const fCount = hb.counts?.student_fees ?? 0
                   const pCount = hb.counts?.student_payments ?? 0
                   const cCount = hb.counts?.cash_journal ?? 0
 
                   const sMatch = !cloudCounts.students || sCount === cloudCounts.students
+                  const fMatch = !cloudCounts.student_fees || fCount === cloudCounts.student_fees
                   const pMatch = !cloudCounts.student_payments || pCount === cloudCounts.student_payments
                   const cMatch = !cloudCounts.cash_journal || cCount === cloudCounts.cash_journal
 
@@ -469,7 +475,7 @@ export const WorkstationMonitor: React.FC = () => {
                   const failed = (hb.queue?.failed ?? 0) + (hb.queue?.errors ?? 0) + (hb.queue_failed ?? 0)
                   const quarantined = hb.queue?.quarantined ?? hb.queue_quarantined ?? 0
 
-                  const isFullySynced = sMatch && pMatch && cMatch && pending === 0 && failed === 0 && quarantined === 0
+                  const isFullySynced = sMatch && fMatch && pMatch && cMatch && pending === 0 && failed === 0 && quarantined === 0
 
                   // Calculate online state
                   const lastSeenTime = hb.last_seen || hb.last_sync
@@ -531,6 +537,20 @@ export const WorkstationMonitor: React.FC = () => {
                           {!sMatch && cloudCounts.students !== undefined && (
                             <span className="text-[10px] ml-1 font-bold text-amber-900">
                               ({sCount - cloudCounts.students > 0 ? `+${sCount - cloudCounts.students}` : sCount - cloudCounts.students})
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span
+                          className={`font-semibold px-2 py-0.5 rounded text-[11px] ${
+                            fMatch ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-100 text-amber-800 font-bold'
+                          }`}
+                        >
+                          {fCount}
+                          {!fMatch && cloudCounts.student_fees !== undefined && (
+                            <span className="text-[10px] ml-1 font-bold text-amber-900">
+                              ({fCount - cloudCounts.student_fees > 0 ? `+${fCount - cloudCounts.student_fees}` : fCount - cloudCounts.student_fees})
                             </span>
                           )}
                         </span>

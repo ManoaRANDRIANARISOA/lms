@@ -131,7 +131,6 @@ interface FinanceTabProps {
 }
 
 export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: FinanceTabProps) {
-  const stationCode = useAppStore((state) => state.stationCode) || 'C1'
   const [status, setStatus] = useState<TuitionStatusResult | null>(null)
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
@@ -444,9 +443,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           month: payment.month || undefined,
           payment_method: payment.payment_method,
           description: payment.description || undefined,
-          receipt_number: payment.receipt_number
-            ? payment.receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, `REC-$1-${stationCode}-$2`)
-            : `REC-${new Date().getFullYear()}-${stationCode}-${(payment.id || Date.now().toString()).slice(-5).toUpperCase()}`,
+          receipt_number: payment.receipt_number || undefined,
           is_duplicate: isDuplicate,
           duplicate_count: isDuplicate ? (payment.print_count || 1) : 1
         },
@@ -545,19 +542,13 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     const anyDuplicate = selectedPayments.some((p) => (p.print_count || 0) >= 1)
     const maxCount = Math.max(0, ...selectedPayments.map((p) => p.print_count || 0))
 
-    // Helper to normalize receipt numbers with station code
-    const normalizeReceiptNumber = (num?: string): string => {
-      if (!num) return ''
-      return num.replace(/^REC-(\d{4})-(\d{5})$/, `REC-$1-${stationCode}-$2`)
-    }
-
-    // Clean grouped receipt number format: if all have same receipt_number use that, otherwise use range
+    // Reçu groupé = agrégat de paiements existants : on référence leurs numéros stockés,
+    // jamais un numéro fabriqué (norme REC-YYYY-C<station>-XXXXX).
     const validReceiptNums = selectedPayments
-      .map((p) => normalizeReceiptNumber(p.receipt_number))
-      .filter((r): r is string => Boolean(r && r.trim()))
+      .map((p) => (p.receipt_number || '').trim())
+      .filter((r): r is string => Boolean(r))
 
-    const currentYear = new Date().getFullYear().toString()
-    let groupedReceiptNum = `REC-${currentYear}-${stationCode}-${Date.now().toString().slice(-5)}`
+    let groupedReceiptNum = ''
     if (validReceiptNums.length === 1) {
       groupedReceiptNum = validReceiptNums[0]
     } else if (validReceiptNums.length > 1) {
@@ -803,10 +794,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
 
     if (monthData.status === 'paid') {
       const payment = payments.find(
-        (p) =>
-          p.payment_type === type &&
-          (p.month === monthData.key ||
-            (p.month && monthData.key && p.month.slice(5) === monthData.key.slice(5)))
+        (p) => p.payment_type === type && p.month === monthData.key
       )
       if (payment) {
         setSelectedPayment(payment)
@@ -835,10 +823,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     return status.status.map((month: MonthStatus) => {
       // Find payments for this service and month
       const monthPayments = payments.filter(
-        (p) =>
-          p.payment_type === type &&
-          (p.month === month.key ||
-            (p.month && month.key && p.month.slice(5) === month.key.slice(5)))
+        (p) => p.payment_type === type && p.month === month.key
       )
 
       const paidAmount = monthPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
@@ -1692,9 +1677,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                       </td>
                       <td className="px-4 py-3 text-foreground">
                         <div className="font-mono text-xs font-semibold text-primary">
-                          {payment.receipt_number
-                            ? payment.receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, `REC-$1-${stationCode}-$2`)
-                            : '—'}
+                          {payment.receipt_number || '—'}
                         </div>
                         <div className="text-[11px] text-muted-foreground">
                           {format(new Date(payment.payment_date), 'dd MMM yyyy', { locale: fr })}

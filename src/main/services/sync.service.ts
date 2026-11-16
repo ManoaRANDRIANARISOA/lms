@@ -541,18 +541,20 @@ export function getReconciliationItems(): ReconciliationItem[] {
         }
       }
 
-      // 2. Duplicate Detection: Check if identical payment already exists
+      // 2. Duplicate Detection: same student only (un montant/date identique entre
+      // deux élèves différents n'est pas un doublon)
       let duplicateWarning: ReconciliationItem['duplicate_warning'] | undefined
-      if (r.table_name === 'student_payments' && amount) {
+      if (r.table_name === 'student_payments' && amount && studentId) {
         try {
           const dup = db
             .prepare(
               `SELECT id, receipt_number, payment_date, amount
                FROM student_payments
-               WHERE id != ? AND amount = ? AND deleted = 0 AND (payment_date = ? OR month = ?)
+               WHERE id != ? AND student_id = ? AND amount = ? AND deleted = 0
+                 AND (payment_date = ? OR (month IS NOT NULL AND month = ?))
                LIMIT 1`
             )
-            .get(r.record_id, amount, date, parsedData.month || '') as any
+            .get(r.record_id, studentId, amount, date, parsedData.month || '') as any
           if (dup) {
             duplicateWarning = {
               existing_receipt: dup.receipt_number,
@@ -1002,6 +1004,167 @@ export function addToSyncQueue(
 }
 
 /**
+ * Fusion sécurisée de deux UUIDs d'un même élève (CAS A), commune au pull et à la convergence.
+ * À appeler DANS une db.transaction(). Garanties :
+ * - aucune violation UNIQUE (fees, grades, attendance) : déduplication déterministe ;
+ * - les paiements identiques déjà présents sur la cible sont tombstonés avec leur miroir
+ *   cash_journal (pas de double comptage), les autres sont réattribués et propagés ;
+ * - event_payments réattribués (montants cumulés si collision sur le même événement) ;
+ * - l'élève source est tombstoné et mis en file, jamais supprimé physiquement en local.
+ */
+export function mergeStudentRecordsSafe(oldId: string, newId: string): void {
+  const nowIso = new Date().toISOString()
+  const tombstone = (table: string, id: string): void => {
+    db.prepare(
+      `UPDATE ${table} SET deleted = 1, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ?`
+    ).run(id)
+    addToSyncQueue(table, id, 'delete', { id, deleted: true })
+  }
+  const moveRow = (table: string, row: any, fkCol: string): void => {
+    db.prepare(
+      `UPDATE ${table} SET ${fkCol} = ?, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ?`
+    ).run(newId, row.id)
+    addToSyncQueue(table, row.id, 'update', { ...row, [fkCol]: newId, updated_at: nowIso })
+  }
+
+  // 1. Paiements + miroirs cash_journal
+  const oldPayments = db
+    .prepare('SELECT * FROM student_payments WHERE student_id = ? AND deleted = 0')
+    .all(oldId) as any[]
+  for (const p of oldPayments) {
+    const twin = db
+      .prepare(
+        `SELECT id FROM student_payments
+         WHERE student_id = ? AND deleted = 0 AND payment_type = ? AND amount = ?
+           AND payment_date = ? AND COALESCE(month, '') = COALESCE(? , '') AND id != ?`
+      )
+      .get(newId, p.payment_type, p.amount, p.payment_date, p.month, p.id) as any
+    const mirrors = db
+      .prepare('SELECT * FROM cash_journal WHERE related_payment_id = ? AND deleted = 0')
+      .all(p.id) as any[]
+    if (twin) {
+      tombstone('student_payments', p.id)
+      for (const m of mirrors) tombstone('cash_journal', m.id)
+    } else {
+      moveRow('student_payments', p, 'student_id')
+      for (const m of mirrors) moveRow('cash_journal', m, 'related_student_id')
+    }
+  }
+  const oldCash = db
+    .prepare(
+      `SELECT * FROM cash_journal WHERE related_student_id = ? AND deleted = 0
+       AND (related_payment_id IS NULL OR related_payment_id = '')`
+    )
+    .all(oldId) as any[]
+  for (const m of oldCash) moveRow('cash_journal', m, 'related_student_id')
+
+  // 2. Fiches de frais : UNIQUE(student_id, school_year) — la cible conserve sa fiche
+  const oldFees = db
+    .prepare('SELECT * FROM student_fees WHERE student_id = ? AND deleted = 0')
+    .all(oldId) as any[]
+  for (const f of oldFees) {
+    const target = db
+      .prepare(
+        'SELECT id FROM student_fees WHERE student_id = ? AND school_year = ? AND deleted = 0 AND id != ?'
+      )
+      .get(newId, f.school_year, f.id) as any
+    if (target) tombstone('student_fees', f.id)
+    else moveRow('student_fees', f, 'student_id')
+  }
+
+  // 3. Notes : UNIQUE(student_id, subject_id, school_year, term) — LWW, perdant tombstoné
+  const oldGrades = db
+    .prepare('SELECT * FROM grades WHERE student_id = ? AND deleted = 0')
+    .all(oldId) as any[]
+  for (const g of oldGrades) {
+    const target = db
+      .prepare(
+        'SELECT id, updated_at FROM grades WHERE student_id = ? AND subject_id = ? AND school_year = ? AND term = ? AND deleted = 0 AND id != ?'
+      )
+      .get(newId, g.subject_id, g.school_year, g.term, g.id) as any
+    if (target) {
+      if (new Date(g.updated_at || 0).getTime() > new Date(target.updated_at || 0).getTime()) {
+        tombstone('grades', target.id)
+        moveRow('grades', g, 'student_id')
+      } else {
+        tombstone('grades', g.id)
+      }
+    } else {
+      moveRow('grades', g, 'student_id')
+    }
+  }
+
+  // 4. Présences bus/cantine : UNIQUE(student_id, attendance_date) — pas de colonne deleted,
+  // la valeur la plus récente est conservée sur la ligne cible, le doublon est retiré et propagé.
+  for (const tbl of ['bus_attendance', 'canteen_attendance']) {
+    const rows = db
+      .prepare(`SELECT * FROM ${tbl} WHERE student_id = ?`)
+      .all(oldId) as any[]
+    for (const a of rows) {
+      const target = db
+        .prepare(
+          `SELECT id, updated_at, present FROM ${tbl} WHERE student_id = ? AND attendance_date = ? AND id != ?`
+        )
+        .get(newId, a.attendance_date, a.id) as any
+      if (target) {
+        if (new Date(a.updated_at || 0).getTime() > new Date(target.updated_at || 0).getTime()) {
+          db.prepare(
+            `UPDATE ${tbl} SET present = ?, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ?`
+          ).run(a.present, target.id)
+          addToSyncQueue(tbl, target.id, 'update', {
+            ...target,
+            present: a.present,
+            updated_at: nowIso
+          })
+        }
+        db.prepare(`DELETE FROM ${tbl} WHERE id = ?`).run(a.id)
+        addToSyncQueue(tbl, a.id, 'delete', { id: a.id })
+      } else {
+        moveRow(tbl, a, 'student_id')
+      }
+    }
+  }
+
+  // 5. event_payments : réattribution, cumul des montants si collision sur le même événement
+  const oldEp = db
+    .prepare('SELECT * FROM event_payments WHERE student_id = ?')
+    .all(oldId) as any[]
+  for (const ep of oldEp) {
+    const target = db
+      .prepare('SELECT * FROM event_payments WHERE student_id = ? AND event_id = ? AND id != ?')
+      .get(newId, ep.event_id, ep.id) as any
+    if (target) {
+      const paidSum = Number(target.amount_paid || 0) + Number(ep.amount_paid || 0)
+      const dueMax = Math.max(Number(target.amount_due || 0), Number(ep.amount_due || 0))
+      const paidFlag = paidSum >= dueMax ? 1 : 0
+      db.prepare(
+        `UPDATE event_payments SET amount_paid = ?, amount_due = ?, paid = ?, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ?`
+      ).run(paidSum, dueMax, paidFlag, target.id)
+      addToSyncQueue('event_payments', target.id, 'update', {
+        ...target,
+        amount_paid: paidSum,
+        amount_due: dueMax,
+        paid: paidFlag,
+        updated_at: nowIso
+      })
+      db.prepare('DELETE FROM event_payments WHERE id = ?').run(ep.id)
+      addToSyncQueue('event_payments', ep.id, 'delete', { id: ep.id })
+    } else {
+      moveRow('event_payments', ep, 'student_id')
+    }
+  }
+
+  // 6. Élève source : tombstone propagée (jamais de DELETE physique local)
+  db.prepare(
+    `UPDATE students SET deleted = 1, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ?`
+  ).run(oldId)
+  addToSyncQueue('students', oldId, 'delete', { id: oldId, deleted: true })
+  db.prepare(
+    `DELETE FROM sync_queue WHERE table_name = 'students' AND record_id = ? AND action != 'delete' AND status IN ('pending', 'error')`
+  ).run(oldId)
+}
+
+/**
  * Auto-Heal Outbox: Scans local tables for records marked sync_status = 'pending'
  * that do not have an active entry in sync_queue. This self-healing routine ensures
  * that any record modified offline, in older versions, or during unqueued transactions
@@ -1128,6 +1291,10 @@ export async function runDeepConvergence(): Promise<{
 
     const applyTombstones = db.transaction(() => {
       for (const s of delStudentsRes.data || []) {
+        const activeChildren = db
+          .prepare('SELECT COUNT(*) as c FROM student_payments WHERE student_id = ? AND deleted = 0')
+          .get(s.id) as { c: number }
+        if (activeChildren.c > 0) continue
         const info = db.prepare('UPDATE students SET deleted = 1, sync_status = "synced", updated_at = ? WHERE id = ? AND deleted = 0').run(s.updated_at || new Date().toISOString(), s.id)
         result.studentsDeleted += info.changes
       }
@@ -1159,7 +1326,7 @@ export async function runDeepConvergence(): Promise<{
     if (remoteActiveStudents && remoteActiveStudents.length > 0) {
       const insertMissingStudents = db.transaction(() => {
         for (const st of remoteActiveStudents) {
-          const local = db.prepare('SELECT id, deleted FROM students WHERE id = ?').get(st.id) as any
+          const local = db.prepare('SELECT id, deleted, updated_at FROM students WHERE id = ?').get(st.id) as any
           if (!local) {
             const { search_text, ...recordToSave } = st
             recordToSave.sync_status = 'synced'
@@ -1179,14 +1346,7 @@ export async function runDeepConvergence(): Promise<{
                 if (sameName) {
                   const oldId = existingWithReg.id
                   const newId = st.id
-                  db.prepare('UPDATE student_fees SET student_id = ? WHERE student_id = ?').run(newId, oldId)
-                  db.prepare('UPDATE student_payments SET student_id = ? WHERE student_id = ?').run(newId, oldId)
-                  db.prepare('UPDATE cash_journal SET related_student_id = ? WHERE related_student_id = ?').run(newId, oldId)
-                  db.prepare('UPDATE grades SET student_id = ? WHERE student_id = ?').run(newId, oldId)
-                  db.prepare('UPDATE bus_attendance SET student_id = ? WHERE student_id = ?').run(newId, oldId)
-                  db.prepare('UPDATE canteen_attendance SET student_id = ? WHERE student_id = ?').run(newId, oldId)
-                  db.prepare('DELETE FROM sync_queue WHERE table_name = "students" AND record_id = ?').run(oldId)
-                  db.prepare('DELETE FROM students WHERE id = ?').run(oldId)
+                  mergeStudentRecordsSafe(oldId, newId)
                 } else {
                   const yearPrefix = (recordToSave.registration_number.match(/^(\d{4})/) || [null, new Date().getFullYear().toString()])[1]
                   const maxLocal = db.prepare(`
@@ -1218,8 +1378,14 @@ export async function runDeepConvergence(): Promise<{
             db.prepare(`INSERT OR REPLACE INTO students (${cols.join(', ')}) VALUES (${placeholders})`).run(...values)
             result.studentsCreated++
           } else if (local.deleted === 1) {
-            db.prepare('UPDATE students SET deleted = 0, sync_status = "synced" WHERE id = ?').run(st.id)
-            result.studentsCreated++
+            // LWW : ne ressusciter que si la version cloud est au moins aussi récente
+            // que la tombstone locale (une suppression locale plus récente fait foi).
+            const localTs = new Date(local.updated_at || '2000-01-01').getTime()
+            const remoteTs = new Date(st.updated_at || '2000-01-01').getTime()
+            if (remoteTs >= localTs) {
+              db.prepare('UPDATE students SET deleted = 0, sync_status = "synced" WHERE id = ?').run(st.id)
+              result.studentsCreated++
+            }
           }
         }
       })
@@ -1495,20 +1661,9 @@ export async function runDeepConvergence(): Promise<{
       console.warn('[Deep Convergence] Notice on captive check:', captiveErr)
     }
 
-    // 3. Purge structural tables (class_subjects, subjects) from sync_queue and ensure synced status
-    db.prepare(`
-      DELETE FROM sync_queue 
-      WHERE table_name IN ('class_subjects', 'subjects')
-    `).run()
-    db.prepare(`UPDATE class_subjects SET sync_status = 'synced'`).run()
-    db.prepare(`UPDATE subjects SET sync_status = 'synced'`).run()
-
-    // 3.5 Purge any non-financial items mistakenly quarantined
-    db.prepare(`
-      DELETE FROM sync_queue 
-      WHERE status = 'quarantined' 
-        AND table_name NOT IN ('student_payments', 'cash_journal')
-    `).run()
+    // 3. Pull intégral de toutes les tables (forceFullSync) : rattrape les lignes manquées
+    // par le curseur incrémental (fiches de frais, élèves, etc.) sur tous les postes.
+    await pullRemoteChanges(true)
 
     // 4. Publish heartbeat immediately to reflect clean counts on the matrix dashboard
     await TelemetryService.publishWorkstationHeartbeat().catch(() => {})
@@ -2869,36 +3024,73 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
   try {
     // 0. Tombstone Parity Guard: Align all deleted records from Supabase across all workstations
     try {
+      const fetchAllDeleted = async (tbl: string) => {
+        let out: any[] = []
+        let page = 0
+        while (true) {
+          const { data, error } = await supabase
+            .from(tbl)
+            .select('id, updated_at')
+            .eq('deleted', true)
+            .order('id', { ascending: true })
+            .range(page * 1000, page * 1000 + 999)
+          if (error || !data) break
+          out = out.concat(data)
+          if (data.length < 1000) break
+          page++
+        }
+        return out
+      }
       const [delStudents, delPayments, delCash, delUsers, delSubjects] = await Promise.all([
-        supabase.from('students').select('id, updated_at').eq('deleted', true),
-        supabase.from('student_payments').select('id, updated_at').eq('deleted', true),
-        supabase.from('cash_journal').select('id, updated_at').eq('deleted', true),
-        supabase.from('users').select('id, updated_at').eq('deleted', true),
-        supabase.from('subjects').select('id, updated_at').eq('deleted', true)
+        fetchAllDeleted('students'),
+        fetchAllDeleted('student_payments'),
+        fetchAllDeleted('cash_journal'),
+        fetchAllDeleted('users'),
+        fetchAllDeleted('subjects')
       ])
 
       const applyTombstonesTx = db.transaction(() => {
         const alignTableTombstones = (tbl: string, records: any[]) => {
           for (const r of records) {
-            const hasPending = db.prepare(
-              `SELECT 1 FROM sync_queue WHERE table_name = ? AND record_id = ? AND status IN ('pending', 'error') AND action != 'delete'`
+            // Une intention locale non résolue (y compris quarantaine/échec) prime :
+            // elle sera examinée cas par cas, jamais purgée silencieusement.
+            const hasUnresolved = db.prepare(
+              `SELECT 1 FROM sync_queue WHERE table_name = ? AND record_id = ? AND status IN ('pending', 'error', 'quarantined', 'failed') AND action != 'delete'`
             ).get(tbl, r.id)
-            if (!hasPending) {
-              db.prepare(
-                `UPDATE ${tbl} SET deleted = 1, sync_status = 'synced', updated_at = ? WHERE id = ? AND deleted = 0`
-              ).run(r.updated_at || new Date().toISOString(), r.id)
-              try {
-                db.prepare(`DELETE FROM sync_queue WHERE table_name = ? AND record_id = ? AND action != 'delete'`).run(tbl, r.id)
-              } catch {}
+            if (hasUnresolved) continue
+
+            // LWW : ne supprimer que si la version locale n'est pas plus récente que la tombstone cloud
+            const localRow = db
+              .prepare(`SELECT updated_at FROM ${tbl} WHERE id = ? AND deleted = 0`)
+              .get(r.id) as { updated_at?: string } | undefined
+            if (!localRow) continue
+            const localTs = new Date(localRow.updated_at || '2000-01-01').getTime()
+            const remoteTs = new Date(r.updated_at || '2000-01-01').getTime()
+            if (localTs > remoteTs) continue
+
+            if (tbl === 'students') {
+              const activeChildren = db
+                .prepare(
+                  'SELECT COUNT(*) as c FROM student_payments WHERE student_id = ? AND deleted = 0'
+                )
+                .get(r.id) as { c: number }
+              if (activeChildren.c > 0) continue
             }
+
+            db.prepare(
+              `UPDATE ${tbl} SET deleted = 1, sync_status = 'synced', updated_at = ? WHERE id = ? AND deleted = 0`
+            ).run(r.updated_at || new Date().toISOString(), r.id)
+            try {
+              db.prepare(`DELETE FROM sync_queue WHERE table_name = ? AND record_id = ? AND action != 'delete' AND status IN ('pending', 'error')`).run(tbl, r.id)
+            } catch {}
           }
         }
 
-        if (delStudents.data) alignTableTombstones('students', delStudents.data)
-        if (delPayments.data) alignTableTombstones('student_payments', delPayments.data)
-        if (delCash.data) alignTableTombstones('cash_journal', delCash.data)
-        if (delUsers.data) alignTableTombstones('users', delUsers.data)
-        if (delSubjects.data) alignTableTombstones('subjects', delSubjects.data)
+        alignTableTombstones('students', delStudents)
+        alignTableTombstones('student_payments', delPayments)
+        alignTableTombstones('cash_journal', delCash)
+        alignTableTombstones('users', delUsers)
+        alignTableTombstones('subjects', delSubjects)
       })
       applyTombstonesTx()
     } catch (tombErr) {
@@ -2971,6 +3163,10 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
 
       if (allRecords.length === 0) continue
 
+      const tableCols = db.prepare(`PRAGMA table_info(${table})`).all() as any[]
+      const colNames = new Set<string>(tableCols.map((c) => c.name))
+      const hasLastSyncedAt = colNames.has('last_synced_at')
+
       // Wrap in SQLite transaction for maximum speed and atomic consistency
       const applyTableBatch = db.transaction((records: any[]) => {
         for (const record of records) {
@@ -3035,7 +3231,10 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
               }
             } else {
               recordToSave.sync_status = 'synced'
-              recordToSave.last_synced_at = new Date().toISOString()
+              if (hasLastSyncedAt) recordToSave.last_synced_at = new Date().toISOString()
+              for (const k of Object.keys(recordToSave)) {
+                if (!colNames.has(k)) delete recordToSave[k]
+              }
               const fields = Object.keys(recordToSave).join(', ')
               const placeholders = Object.keys(recordToSave)
                 .map(() => '?')
@@ -3088,9 +3287,6 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
             time_tracking: ['personnel_id', 'month']
           }
 
-          const cols = db.prepare(`PRAGMA table_info(${table})`).all() as any[]
-          const colNames = new Set(cols.map((c) => c.name))
-
           for (const k of Object.keys(recordToSave)) {
             if (!colNames.has(k)) {
               delete recordToSave[k]
@@ -3137,14 +3333,7 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
                   `[Pull Sync] Duplicate student detected for registration_number '${recordToSave.registration_number}' (${collision.last_name} ${collision.first_name}). Aligning local ${oldId} -> cloud ${newId}`
                 )
 
-                db.prepare('UPDATE student_fees SET student_id = ? WHERE student_id = ?').run(newId, oldId)
-                db.prepare('UPDATE student_payments SET student_id = ? WHERE student_id = ?').run(newId, oldId)
-                db.prepare('UPDATE cash_journal SET related_student_id = ? WHERE related_student_id = ?').run(newId, oldId)
-                db.prepare('UPDATE grades SET student_id = ? WHERE student_id = ?').run(newId, oldId)
-                db.prepare('UPDATE bus_attendance SET student_id = ? WHERE student_id = ?').run(newId, oldId)
-                db.prepare('UPDATE canteen_attendance SET student_id = ? WHERE student_id = ?').run(newId, oldId)
-                db.prepare('DELETE FROM sync_queue WHERE table_name = "students" AND record_id = ?').run(oldId)
-                db.prepare('DELETE FROM students WHERE id = ?').run(oldId)
+                db.transaction(() => mergeStudentRecordsSafe(oldId, newId))()
               } else {
                 // CAS B : Deux enfants réels différents ayant reçu le même matricule par deux caisses hors-ligne.
                 // L'élève distant conserve son matricule officiel issu du Cloud.
@@ -3184,7 +3373,7 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
           try {
             if (!local) {
               recordToSave.sync_status = 'synced'
-              recordToSave.last_synced_at = new Date().toISOString()
+              if (hasLastSyncedAt) recordToSave.last_synced_at = new Date().toISOString()
               const fields = Object.keys(recordToSave).join(', ')
               const placeholders = Object.keys(recordToSave)
                 .map(() => '?')
@@ -3214,6 +3403,25 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
                   (recordToSave.print_count || 0) > (local.print_count || 0)
 
                 if (localDate <= cloudDate || forceFullSync || hasNewerPrint) {
+                  // Un élève supprimé dans le cloud mais ayant encore des paiements actifs locaux
+                  // ne doit pas être tombstoné silencieusement : divergence à réconcilier cas par cas.
+                  if (
+                    table === 'students' &&
+                    (recordToSave.deleted === 1 || recordToSave.deleted === true) &&
+                    (local.deleted === 0 || local.deleted === false)
+                  ) {
+                    const activeChildren = db
+                      .prepare(
+                        'SELECT COUNT(*) as c FROM student_payments WHERE student_id = ? AND deleted = 0'
+                      )
+                      .get(record.id) as { c: number }
+                    if (activeChildren.c > 0) {
+                      console.warn(
+                        `[Pull Sync] Élève ${record.id} supprimé dans le cloud mais ${activeChildren.c} paiement(s) actif(s) en local — tombstone suspendue, à réconcilier.`
+                      )
+                      continue
+                    }
+                  }
                   delete recordToSave.id
                   delete recordToSave.sync_status
                   delete recordToSave.last_synced_at
@@ -3227,11 +3435,18 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
                     .map(([, v]) => v)
 
                   const nowIso = new Date().toISOString()
-                  db.prepare(`UPDATE ${table} SET ${updates}, sync_status = 'synced', last_synced_at = ? WHERE id = ?`).run(
-                    ...vals,
-                    nowIso,
-                    record.id
-                  )
+                  if (hasLastSyncedAt) {
+                    db.prepare(`UPDATE ${table} SET ${updates}, sync_status = 'synced', last_synced_at = ? WHERE id = ?`).run(
+                      ...vals,
+                      nowIso,
+                      record.id
+                    )
+                  } else {
+                    db.prepare(`UPDATE ${table} SET ${updates}, sync_status = 'synced' WHERE id = ?`).run(
+                      ...vals,
+                      record.id
+                    )
+                  }
 
                   if (table === 'student_payments') {
                     try {
@@ -3486,14 +3701,44 @@ export function startPeriodicSync() {
         }
       }
 
-      // Volumetric Parity Self-Healing: Si un retard volumétrique de paiements est détecté (ex: PC3), rattrapage automatique
+      // Volumetric Parity Self-Healing (v2.4.0) : couvre paiements, élèves ET fiches de frais.
+      // Un écart persistant déclenche une convergence complète (pull intégral), au plus une
+      // fois toutes les 6 heures pour éviter les boucles de rattrapage à chaque démarrage.
       try {
-        const payCountRes = await supabase.from('student_payments').select('id', { count: 'exact', head: true }).eq('deleted', false)
-        const localPayRow = db.prepare('SELECT count(*) as c FROM student_payments WHERE deleted = 0').get() as { c: number }
-        const remoteCount = payCountRes.count ?? 0
-        if (remoteCount > 0 && localPayRow.c < remoteCount - 5) {
-          console.log(`[Sync] Écart volumétrique détecté : local (${localPayRow.c}) < cloud (${remoteCount}). Rattrapage automatique de convergence...`)
-          await runDeepConvergence().catch((e) => console.warn('[Sync] Auto deep convergence note:', e))
+        const lastParityRow = db
+          .prepare("SELECT value FROM settings WHERE key = 'v240_last_parity_convergence'")
+          .get() as { value: string } | undefined
+        const lastParity = lastParityRow ? new Date(lastParityRow.value).getTime() : 0
+        const cooldownOk = Date.now() - lastParity > 6 * 60 * 60 * 1000
+
+        if (cooldownOk) {
+          const parityTables: Array<{ table: string; tolerance: number }> = [
+            { table: 'student_payments', tolerance: 5 },
+            { table: 'students', tolerance: 2 },
+            { table: 'student_fees', tolerance: 5 }
+          ]
+          let gapDetected: string | null = null
+          for (const { table, tolerance } of parityTables) {
+            const remoteRes = await supabase
+              .from(table)
+              .select('id', { count: 'exact', head: true })
+              .eq('deleted', false)
+            const remoteCount = remoteRes.count ?? 0
+            const localRow = db
+              .prepare(`SELECT count(*) as c FROM ${table} WHERE deleted = 0`)
+              .get() as { c: number }
+            if (remoteCount > 0 && localRow.c < remoteCount - tolerance) {
+              gapDetected = `${table}: local (${localRow.c}) < cloud (${remoteCount})`
+              break
+            }
+          }
+          if (gapDetected) {
+            console.log(`[Sync] Écart volumétrique détecté (${gapDetected}). Rattrapage automatique de convergence...`)
+            db.prepare(
+              `INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('v240_last_parity_convergence', ?, CURRENT_TIMESTAMP)`
+            ).run(new Date().toISOString())
+            await runDeepConvergence().catch((e) => console.warn('[Sync] Auto deep convergence note:', e))
+          }
         }
       } catch (parityErr) {
         console.warn('[Sync] Parity check note:', parityErr)

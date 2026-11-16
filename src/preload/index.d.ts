@@ -273,6 +273,28 @@ interface APIType {
       studentId: string,
       schoolYear: string
     ) => Promise<{ success: boolean; isPaid: boolean; by?: string; error?: string }>
+    getTraceability: (filters?: {
+      startDate?: string
+      endDate?: string
+      type?: string
+      station?: string
+      search?: string
+      includeDeleted?: boolean
+      syncStatus?: string
+      schoolYear?: string
+      limit?: number
+      offset?: number
+    }) => Promise<{
+      success: boolean
+      rows?: Array<Record<string, unknown>>
+      total?: number
+      error?: string
+    }>
+    getAuditTrail: (paymentId: string) => Promise<{
+      success: boolean
+      rows?: Array<Record<string, unknown>>
+      error?: string
+    }>
   }
   attendance: {
     recordBus: (
@@ -911,6 +933,39 @@ interface APIType {
       success: boolean
       aligned?: Record<string, any>
       error?: string
+    }>
+    scanInconsistencies: () => Promise<{
+      success: boolean
+      stationCode?: string
+      schoolYear?: string
+      scannedAt?: string
+      cloudAvailable?: boolean
+      autoCount?: number
+      decisionCount?: number
+      findings?: Array<{
+        id: string
+        category: string
+        classification: 'auto' | 'decision'
+        severity: 'high' | 'medium' | 'low'
+        title: string
+        detail: string
+        recommendation: string
+        action: string
+        params: Record<string, any>
+        affectedCount: number
+        amountImpact?: number
+        evidence?: Record<string, any>
+      }>
+      error?: string
+    }>
+    applyRemediation: (
+      action: string,
+      params: Record<string, any>
+    ) => Promise<{
+      success: boolean
+      message?: string
+      error?: string
+      details?: Record<string, any>
     }>
     onProgress: (
       callback: (data: {

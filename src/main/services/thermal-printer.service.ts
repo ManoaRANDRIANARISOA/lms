@@ -384,19 +384,9 @@ export class ThermalPrinterService {
 
     buffers.push(Buffer.from([0x1b, 0x61, 0x00])) // Left align
 
-    const currentYear = new Date().getFullYear().toString()
-    const stationCode = normalizeStationCode(
-      SettingsRepository.get('pos_station_code') as string
-    )
-    const fallbackReceiptNum = `REC-${currentYear}-${stationCode}-${Date.now().toString().slice(-5)}`
-    let receiptNum = (data.receipt_number || fallbackReceiptNum).trim()
-    // Normalize legacy format: REC-2026-00019 -> REC-2026-C1-00019
-    receiptNum = receiptNum.replace(/^REC-(\d{4})-(\d{5})$/, `REC-$1-${stationCode}-$2`)
-    // Also normalize legacy range: REC-2026-00019 — 00021 -> REC-2026-C1-00019 — 00021
-    receiptNum = receiptNum.replace(
-      /^REC-(\d{4})-(\d{5}) — (\d{5})$/,
-      `REC-$1-${stationCode}-$2 — $3`
-    )
+    // Numéro de reçu : toujours celui stocké en base (traçabilité). Aucun numéro fabriqué,
+    // aucune réétiquetage avec le code station du poste qui imprime.
+    const receiptNum = (data.receipt_number || '—').trim()
 
     buffers.push(this.encodeText(this.formatLine(`N° Reçu  : ${receiptNum}`, '')))
     buffers.push(this.encodeText(this.formatLine(`Date     : ${dateFormatted} à ${timeFormatted}`, '')))

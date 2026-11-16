@@ -32,11 +32,11 @@ jobs:
 
       - name: Exécuter la consolidation et l'envoi du bilan
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://onxnctfgxxgxipehmfqb.supabase.co' }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_ANON_KEY }}
           BREVO_SMTP_KEY: ${{ secrets.BREVO_SMTP_KEY }}
-          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL || 'christineanjarasoa36@gmail.com' }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
           TARGET_DATE: ${{ github.event.inputs.date }}
           FORCE_SEND: ${{ github.event.inputs.force || 'false' }}
         run: |

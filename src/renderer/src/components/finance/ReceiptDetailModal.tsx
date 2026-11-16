@@ -38,15 +38,12 @@ export default function ReceiptDetailModal({
 }: ReceiptDetailModalProps) {
   const [printing, setPrinting] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
-  const stationCode = useAppStore((s) => s.stationCode) || 'C1'
 
   if (!isOpen || !payment) return null
 
   const printCount = payment.print_count || 0
   const isDuplicate = printCount >= 1
-  const receiptNum = payment.receipt_number
-    ? payment.receipt_number.replace(/^REC-(\d{4})-(\d{5})$/, `REC-$1-${stationCode}-$2`)
-    : `REC-${new Date().getFullYear()}-${stationCode}-${(payment.id || Date.now().toString()).slice(-5).toUpperCase()}`
+  const receiptNum = payment.receipt_number || '—'
 
   const copyReceiptNumber = () => {
     navigator.clipboard.writeText(receiptNum)
