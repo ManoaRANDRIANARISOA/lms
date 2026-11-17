@@ -34,6 +34,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [wipeCloud, setWipeCloud] = useState(false)
+  const [isPackaged, setIsPackaged] = useState(true)
 
   const [schoolName, setSchoolName] = useState('')
   const [currentYear, setCurrentYear] = useState(useAppStore.getState().currentYear)
@@ -73,6 +74,13 @@ export default function Settings() {
   const [draggedClass, setDraggedClass] = useState<string | null>(null)
   const [targetSectionKey, setTargetSectionKey] = useState<string | null>(null)
 
+
+  useEffect(() => {
+    window.api?.app
+      ?.isPackaged?.()
+      .then((p) => setIsPackaged(!!p))
+      .catch(() => {})
+  }, [])
 
   // If user cannot read settings at all, show access denied
   if (!canRead('settings')) {
@@ -1075,8 +1083,8 @@ export default function Settings() {
         <div className="bg-white p-6 rounded-xl shadow-sm w-full border-red-100 border">
           <h2 className="text-lg font-semibold mb-4 text-red-600">Zone de Danger</h2>
           <p className="text-gray-600 mb-4">
-            Utilisez ces outils pour réparer la synchronisation avec le cloud ou pour réinitialiser
-            la base de données.
+            Utilisez ces outils pour réparer la synchronisation avec le cloud. La réinitialisation
+            complète de la base n'est disponible qu'en environnement de développement.
           </p>
 
           <div className="mb-8 p-4 bg-orange-50 border border-orange-200 rounded-lg">
@@ -1118,28 +1126,32 @@ export default function Settings() {
             </Button>
           </div>
 
-          <h3 className="font-semibold text-red-600 mb-2">Réinitialisation Complète</h3>
+          {!isPackaged && (
+            <>
+              <h3 className="font-semibold text-red-600 mb-2">Réinitialisation Complète (DEV uniquement)</h3>
 
-          <div className="flex items-center gap-2 mb-4">
-            <input
-              type="checkbox"
-              id="wipeCloud"
-              checked={wipeCloud}
-              onChange={(e) => setWipeCloud(e.target.checked)}
-              className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
-            />
-            <label htmlFor="wipeCloud" className="text-sm font-medium text-gray-700">
-              Effacer également les données sur le Cloud (Supabase)
-            </label>
-          </div>
+              <div className="flex items-center gap-2 mb-4">
+                <input
+                  type="checkbox"
+                  id="wipeCloud"
+                  checked={wipeCloud}
+                  onChange={(e) => setWipeCloud(e.target.checked)}
+                  className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                />
+                <label htmlFor="wipeCloud" className="text-sm font-medium text-gray-700">
+                  Effacer également les données sur le Cloud (Supabase)
+                </label>
+              </div>
 
-          <Button variant="destructive" onClick={handleReset} disabled={loading}>
-            {loading
-              ? 'Réinitialisation...'
-              : wipeCloud
-                ? 'TOUT EFFACER (Local + Cloud)'
-                : 'Réinitialiser Localement'}
-          </Button>
+              <Button variant="destructive" onClick={handleReset} disabled={loading}>
+                {loading
+                  ? 'Réinitialisation...'
+                  : wipeCloud
+                    ? 'TOUT EFFACER (Local + Cloud)'
+                    : 'Réinitialiser Localement'}
+              </Button>
+            </>
+          )}
           {message && <p className="mt-4 font-medium p-3 bg-gray-50 rounded border">{message}</p>}
         </div>
 

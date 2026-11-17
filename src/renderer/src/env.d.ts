@@ -853,6 +853,7 @@ interface APIType {
   dialog: DialogAPI
   app: {
     getVersion: () => Promise<string>
+    isPackaged: () => Promise<boolean>
   }
   sync: {
     getStatus: () => Promise<{

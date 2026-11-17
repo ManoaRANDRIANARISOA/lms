@@ -156,7 +156,8 @@ const runMigrations = (): void => {
     '048_add_performance_indexes.sql',
     '049_align_student_fees_with_finance_prices.sql',
     '050_realign_errant_2028_payments_and_fees.sql',
-    '051_heal_and_align_sync_outbox.sql'
+    '051_heal_and_align_sync_outbox.sql',
+    '052_add_deleted_to_event_payments.sql'
   ]
   migrations.forEach(applyMigration)
 }
@@ -230,8 +231,12 @@ ensureTableColumns('cash_journal', [
   'last_printed_by',
   'related_payment_id',
   'receipt_number',
-  'created_by'
+  'created_by',
+  'original_receipt_number'
 ])
+// Référence du reçu d'origine préservée lors d'une renumérotation validée
+// (collision de numéro entre paiements distincts). Additif, idempotent.
+ensureTableColumns('student_payments', ['original_receipt_number'])
 ensureTableColumns('sync_queue', ['updated_at', 'retry_count'])
 
 // SCHEMA HEALING: every table processed by the generic pull loop must carry
@@ -284,6 +289,9 @@ ensureDeletedColumn('personnel_absences')
 ensureDeletedColumn('salary_advances')
 ensureDeletedColumn('custom_deductions')
 ensureDeletedColumn('daily_attendance')
+// v2.4.1 : soft-delete event_payments. Le DDL Cloud (tools/supabase_event_payments_deleted.sql)
+// est appliqué globalement ; cette colonne est ajoutée au démarrage sur chaque poste via la mise à jour.
+ensureDeletedColumn('event_payments')
 
 // AUTO-CLEANUP: Soft-delete corrupted students (empty registration_number) on startup
 try {

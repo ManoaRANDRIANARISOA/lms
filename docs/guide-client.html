@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guide Client — LMS École · Mise à jour v2.4.1 &amp; exploitation multi-postes</title>
+<style>
+  :root{
+    --indigo:#4f46e5; --indigo-d:#3730a3; --ink:#1f2937; --muted:#6b7280;
+    --bg:#f6f7fb; --card:#ffffff; --line:#e5e7eb;
+    --ok:#059669; --ok-bg:#ecfdf5; --warn:#b45309; --warn-bg:#fffbeb; --bad:#b91c1c; --bad-bg:#fef2f2;
+    --info:#1d4ed8; --info-bg:#eff6ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6}
+  header{background:linear-gradient(135deg,var(--indigo-d),var(--indigo));color:#fff;padding:38px 24px;text-align:center}
+  header h1{margin:0 0 6px;font-size:26px}
+  header p{margin:0;opacity:.92;font-size:14px}
+  .wrap{max-width:960px;margin:0 auto;padding:24px 18px 60px}
+  nav.toc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin-bottom:24px}
+  nav.toc strong{display:block;margin-bottom:8px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  nav.toc ol{margin:0;padding-left:20px;columns:2;column-gap:32px;font-size:14px}
+  nav.toc a{color:var(--indigo);text-decoration:none}
+  nav.toc a:hover{text-decoration:underline}
+  section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:22px 24px;margin-bottom:22px}
+  h2{font-size:19px;margin:0 0 14px;padding-bottom:8px;border-bottom:2px solid var(--line);color:var(--indigo-d)}
+  h3{font-size:15px;margin:18px 0 8px}
+  p{margin:8px 0}
+  ul,ol{margin:8px 0;padding-left:22px}
+  li{margin:5px 0}
+  code{background:#f3f4f6;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-family:Consolas,monospace;font-size:13px}
+  .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;vertical-align:middle}
+  .b-ok{background:var(--ok-bg);color:var(--ok);border:1px solid #a7f3d0}
+  .b-warn{background:var(--warn-bg);color:var(--warn);border:1px solid #fde68a}
+  .b-bad{background:var(--bad-bg);color:var(--bad);border:1px solid #fecaca}
+  .b-info{background:var(--info-bg);color:var(--info);border:1px solid #bfdbfe}
+  .callout{border-radius:10px;padding:12px 16px;margin:14px 0;font-size:14px;border-left:4px solid}
+  .c-ok{background:var(--ok-bg);border-color:var(--ok)}
+  .c-warn{background:var(--warn-bg);border-color:var(--warn)}
+  .c-bad{background:var(--bad-bg);border-color:var(--bad)}
+  .c-info{background:var(--info-bg);border-color:var(--info)}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:#f3f4f6;font-weight:700}
+  tr:nth-child(even) td{background:#fafafa}
+  .steps{counter-reset:step;list-style:none;padding:0}
+  .steps>li{position:relative;padding:12px 14px 12px 52px;border:1px solid var(--line);border-radius:10px;margin-bottom:10px;background:#fcfcfd}
+  .steps>li::before{counter-increment:step;content:counter(step);position:absolute;left:14px;top:12px;width:26px;height:26px;border-radius:50%;background:var(--indigo);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px}
+  .path{font-size:13px;color:var(--muted)}
+  .path b{color:var(--ink)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .mini{border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .mini h4{margin:0 0 6px;font-size:14px}
+  footer{text-align:center;color:var(--muted);font-size:12.5px;padding:20px}
+  .check{list-style:none;padding:0}
+  .check li{padding-left:28px;position:relative}
+  .check li::before{content:"☐";position:absolute;left:0;font-size:16px;color:var(--indigo)}
+  @media(max-width:720px){nav.toc ol{columns:1}.grid{grid-template-columns:1fr}}
+  @media print{body{background:#fff}section,nav.toc{border:none;break-inside:avoid}header{background:var(--indigo-d)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Guide Client — LMS École</h1>
+  <p>Mise à jour v2.4.1 · Exploitation multi-postes (C1 à C5) · Synchronisation, caisse &amp; cohérence des données</p>
+</header>
+
+<div class="wrap">
+
+<nav class="toc">
+  <strong>Sommaire</strong>
+  <ol>
+    <li><a href="#auto">Ce que la mise à jour fait automatiquement</a></li>
+    <li><a href="#etapes">Les 5 étapes à faire sur chaque PC</a></li>
+    <li><a href="#poste">Régler l'identifiant du poste de caisse</a></li>
+    <li><a href="#matrice">Lire la matrice de convergence</a></li>
+    <li><a href="#assistant">Assistant de cohérence &amp; file bloquée</a></li>
+    <li><a href="#impayes">Alertes impayés</a></li>
+    <li><a href="#caisse">Reçus &amp; clôture de caisse</a></li>
+    <li><a href="#auto-manuel">Automatique vs manuel</a></li>
+    <li><a href="#astuces">Astuces &amp; bonnes pratiques</a></li>
+    <li><a href="#depannage">Dépannage rapide</a></li>
+    <li><a href="#checklist">Checklist de mise en service</a></li>
+  </ol>
+</nav>
+
+<section id="auto">
+  <h2>1. Ce que la mise à jour v2.4.1 fait automatiquement</h2>
+  <p>La mise à jour s'installe toute seule au démarrage de l'application (auto-update). Une fois installée, <b>aucune manipulation technique de base de données n'est nécessaire</b> : tout est intégré.</p>
+  <table>
+    <tr><th>Nouveauté</th><th>Effet concret</th><th>Action client</th></tr>
+    <tr><td>Colonne <code>deleted</code> sur les paiements d'événements</td><td>Les participations supprimées ne réapparaissent plus ; parité local/Cloud correcte.</td><td><span class="badge b-ok">Automatique</span> au démarrage</td></tr>
+    <tr><td>Filtrage des événements supprimés dans le dossier élève</td><td>Plus de carte événement « sans titre » (doublons supprimés) dans le dossier.</td><td><span class="badge b-ok">Automatique</span></td></tr>
+    <tr><td>Année scolaire des événements renseignée</td><td>Chaque événement est rattaché à sa bonne année (ex. FETES DE NOEL → 2026-2027).</td><td><span class="badge b-ok">Automatique</span> (déjà propagé au Cloud)</td></tr>
+    <tr><td>Matrice de convergence étendue</td><td>Deux nouvelles colonnes : <b>Événements</b> et <b>Paiements év.</b>, avec écarts affichés.</td><td><span class="badge b-info">À consulter</span></td></tr>
+    <tr><td>Parité dans les deux sens</td><td>Détecte le manque local <i>et</i> les envois possiblement perdus (local &gt; Cloud).</td><td><span class="badge b-ok">Automatique</span></td></tr>
+    <tr><td>Cœur unique de calcul des impayés</td><td>Alertes, fiche élève et finance utilisent le même calcul : plus de faux positifs.</td><td><span class="badge b-ok">Automatique</span></td></tr>
+    <tr><td>File de synchronisation regroupée dans l'Assistant</td><td>Un seul endroit pour traiter les écritures bloquées / orphelines.</td><td><span class="badge b-info">À utiliser si besoin</span></td></tr>
+  </table>
+  <div class="callout c-ok"><b>État vérifié côté Cloud :</b> parité exacte (0 écart) sur les 7 tables — élèves 790, frais 840, paiements 5173, caisse 5636, comptes 7, événements 1, paiements d'événements 2355. File de synchronisation 100&nbsp;% envoyée, aucun blocage. Aucune commande SQL supplémentaire n'est requise.</div>
+</section>
+
+<section id="etapes">
+  <h2>2. Les 5 étapes à faire sur chaque PC (une seule fois)</h2>
+  <ol class="steps">
+    <li><b>Laisser la mise à jour s'installer.</b> Ouvrir l'application, accepter la mise à jour si elle est proposée, puis laisser redémarrer. <span class="path">La migration de la base se fait toute seule au démarrage.</span></li>
+    <li><b>Régler l'identifiant du poste de caisse</b> (C1, C2, C3…). <span class="path">Voir section 3 — c'est l'intervention la plus importante.</span></li>
+    <li><b>Lancer une synchronisation complète.</b> <span class="path">Bouton de synchronisation → « Lancer la synchronisation maintenant ». Attendre la fin du bilan.</span></li>
+    <li><b>Vérifier la matrice de convergence.</b> <span class="path">Paramètres → Moniteur des postes : toutes les pastilles doivent être vertes, écarts à 0, file locale à 0.</span></li>
+    <li><b>Ouvrir l'Assistant de cohérence.</b> <span class="path">Paramètres → Assistant : lancer le scan, traiter les éventuels doublons « certains » et les écritures orphelines.</span></li>
+  </ol>
+  <div class="callout c-info"><b>Pourquoi sur chaque PC ?</b> L'identifiant du poste est un réglage <b>local à chaque machine</b> (il ne se synchronise pas). Il garantit des reçus uniques par caisse et une télémétrie lisible par poste. Un PC non réglé remonte sous son nom d'hôte (ex. <code>FA606-PIQD835</code>) au lieu de <code>C3</code>.</div>
+</section>
+
+<section id="poste">
+  <h2>3. Régler l'identifiant du poste de caisse</h2>
+  <p class="path"><b>Paramètres</b> → section <b>Imprimante Thermique / Poste</b> → champ <b>« Identifiant du Poste de Caisse (Multi-Postes) »</b> → choisir la caisse correspondant à ce PC → enregistrer.</p>
+  <table>
+    <tr><th>Choix</th><th>Usage type</th><th>Exemple de reçu</th></tr>
+    <tr><td><code>C1</code></td><td>Direction / Caisse principale</td><td><code>REC-2026-C1-00062</code></td></tr>
+    <tr><td><code>C2</code></td><td>Secrétariat / Caisse 2</td><td><code>REC-2026-C2-00001</code></td></tr>
+    <tr><td><code>C3</code></td><td>Comptabilité / Bureau 3</td><td><code>REC-2026-C3-00001</code></td></tr>
+    <tr><td><code>C4</code> / <code>C5</code></td><td>Guichets 4 / 5</td><td><code>REC-2026-C4-00001</code></td></tr>
+  </table>
+  <div class="callout c-warn"><b>Règle d'or :</b> deux PC ne doivent <b>jamais</b> porter le même code caisse. Le code est actif immédiatement et reste permanent sur ce PC. Il détermine la numérotation des reçus <code>REC-ANNÉE-C&lt;poste&gt;-XXXXX</code> et l'identité du poste dans le moniteur.</div>
+</section>
+
+<section id="matrice">
+  <h2>4. Lire la matrice de convergence</h2>
+  <p class="path"><b>Paramètres</b> → <b>Moniteur des postes</b> (réservé administrateur). Compare chaque PC au Cloud Supabase.</p>
+  <h3>Les colonnes</h3>
+  <table>
+    <tr><th>Colonne</th><th>Signification</th></tr>
+    <tr><td>Poste / Hôte-Version</td><td>Code caisse (C1…) + nom du PC + version de l'app.</td></tr>
+    <tr><td>État connexion</td><td><span class="badge b-ok">Connecté</span> vu il y a ≤ 10 min · <span class="badge b-warn">Vu il y a X min/h</span> · <span class="badge b-bad">Hors-ligne</span> &gt; 24 h.</td></tr>
+    <tr><td>Élèves · Frais · Paiements · Caisse · Événements · Paiements év.</td><td>Nombre de lignes actives locales. Pastille <b>verte</b> = égal au Cloud ; <b>orange</b> = écart, avec le delta affiché (ex. <code>-3</code> = 3 de moins que le Cloud, <code>+2</code> = 2 de plus).</td></tr>
+    <tr><td>File locale</td><td>Écritures en attente / bloquées / en quarantaine sur ce PC.</td></tr>
+    <tr><td>Statut convergence</td><td><span class="badge b-ok">Synchronisé</span> si tous les comptes matchent et file à 0 ; sinon <span class="badge b-warn">Écart</span>.</td></tr>
+  </table>
+  <h3>Interpréter un écart</h3>
+  <ul>
+    <li><b>Delta négatif (local &lt; Cloud)</b> : ce PC n'a pas encore tout reçu → lancer une synchronisation complète. La parité automatique déclenche aussi un rattrapage (au plus une fois toutes les 6 h).</li>
+    <li><b>Delta positif (local &gt; Cloud)</b> : envois possiblement perdus/non confirmés → ouvrir l'Assistant / la file bloquée (section 5). <b>Ne jamais forcer</b> le statut « envoyé ».</li>
+    <li><b>Poste hors-ligne</b> : normal si le PC est éteint ou sans internet. Les données restent en local et partiront à la reconnexion.</li>
+  </ul>
+  <div class="callout c-info"><b>Limite à connaître :</b> la matrice est une <b>photo à la dernière synchronisation</b>, pas un temps réel. Un PC éteint affiche son dernier bilan connu. Les compteurs mesurent le volume, pas la qualité ligne à ligne — d'où l'intérêt de l'Assistant.</div>
+</section>
+
+<section id="assistant">
+  <h2>5. Assistant de cohérence &amp; file de synchronisation bloquée</h2>
+  <p class="path"><b>Paramètres</b> → <b>Assistant de cohérence</b> (administrateur). Regroupe le scan multi-classes, les doublons et la file bloquée.</p>
+  <h3>a) Doublons « certains »</h3>
+  <p>Le bouton <b>« Unifier les certains »</b> fusionne en un clic uniquement les doublons <b>prouvés à 100&nbsp;%</b> (même élève, même paiement, mêmes montants). Les reçus papier déjà imprimés sont préservés. Les cas ambigus restent proposés <b>au cas par cas</b> avec preuve et niveau de confiance — vous décidez.</p>
+  <h3>b) File bloquée / écritures orphelines</h3>
+  <p>Une écriture « orpheline » = un paiement/caisse sans élève correspondant. Actions proposées :</p>
+  <table>
+    <tr><th>Action</th><th>Quand l'utiliser</th></tr>
+    <tr><td>Rattacher à un élève</td><td>Le bon élève est suggéré ou retrouvé : le paiement lui est réattribué.</td></tr>
+    <tr><td>Créer l'élève manquant</td><td>L'élève n'existe pas encore mais la fiche est connue.</td></tr>
+    <tr><td>Convertir en caisse générale</td><td>Recette réelle sans élève identifiable (ex. don, vente diverse).</td></tr>
+    <tr><td>Écarter</td><td>Écriture réellement invalide/doublon avéré. <b>À utiliser avec prudence.</b></td></tr>
+  </table>
+  <div class="callout c-bad"><b>Interdictions absolues :</b> ne jamais forcer une ligne en « envoyé/synced » ni purger la file pour faire disparaître un compteur d'erreur sans confirmation réelle du Cloud. Toute correction doit être prouvée, au cas par cas, et ne détruire aucune donnée. En cas de doute : <b>ne pas écarter</b>, demander de l'aide.</div>
+</section>
+
+<section id="impayes">
+  <h2>6. Alertes impayés</h2>
+  <p>Le calcul est désormais <b>unique et centralisé</b> : la liste des impayés, la fiche de paiement de l'élève et le module finance utilisent exactement la même logique (même année scolaire, mêmes mois dus, même tarif résolu, seuil de solde, mois courant, élèves partis, cas Terminale). </p>
+  <div class="callout c-ok"><b>Vérifié empiriquement :</b> sur 790 élèves et 2365 mois dus, 329 mois signalés impayés — <b>0 faux positif, 0 écart avec la fiche, 0 alerte manquée</b>. Si un mois apparaît impayé, c'est qu'aucun paiement correspondant n'existe en finance pour ce mois.</div>
+  <p>Un élève « enfant du personnel » est exonéré (tuition 0) : il n'apparaît pas en impayé. Les tarifs personnalisés (transport, uniformes, écolage) sont <b>toujours préservés</b> lors des synchronisations.</p>
+</section>
+
+<section id="caisse">
+  <h2>7. Reçus &amp; clôture de caisse</h2>
+  <h3>Numérotation des reçus</h3>
+  <p>Norme stricte par poste : <code>REC-ANNÉE-C&lt;poste&gt;-XXXXX</code> (ex. <code>REC-2026-C3-00012</code>). L'impression thermique 80 mm sort un double exemplaire (Parent + Caisse). Le compteur d'impressions distingue les reçus légalement imprimés.</p>
+  <h3>Clôture de caisse</h3>
+  <ul>
+    <li><b>Journalière</b>, par <b>compte caissier</b> ET par <b>poste</b>.</li>
+    <li>Une écriture « sans reçu » est rattachée au caissier qui l'a saisie.</li>
+    <li>La clôture consolidée « toutes stations » est une vue de synthèse, pas une clôture de poste.</li>
+  </ul>
+  <div class="callout c-warn"><b>Bonne pratique :</b> clôturer chaque caisse en fin de journée sur son PC, après vérification que la file locale est à 0. Ne jamais clôturer pour « masquer » un écart : l'écart doit d'abord être expliqué via l'Assistant.</div>
+</section>
+
+<section id="auto-manuel">
+  <h2>8. Automatique vs manuel</h2>
+  <div class="grid">
+    <div class="mini">
+      <h4><span class="badge b-ok">Automatique</span></h4>
+      <ul>
+        <li>Mise à jour de l'application au démarrage</li>
+        <li>Migration de la base (colonne <code>deleted</code>, année des événements)</li>
+        <li>Synchronisation toutes les 5 minutes + au démarrage</li>
+        <li>Rattrapage de convergence si manque local (toutes les 6 h max)</li>
+        <li>Préservation des tarifs &amp; configurations personnalisées</li>
+        <li>Calcul unique des impayés</li>
+      </ul>
+    </div>
+    <div class="mini">
+      <h4><span class="badge b-info">Manuel (client)</span></h4>
+      <ul>
+        <li>Régler le code poste <b>une fois par PC</b></li>
+        <li>Lancer une sync complète après la mise à jour</li>
+        <li>Consulter la matrice / le moniteur</li>
+        <li>Traiter les doublons ambigus &amp; orphelins dans l'Assistant</li>
+        <li>Clôture de caisse journalière par poste</li>
+        <li>Décider des cas financiers sensibles</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="astuces">
+  <h2>9. Astuces &amp; bonnes pratiques</h2>
+  <ul>
+    <li><b>Hors-ligne : tout continue de fonctionner.</b> Les saisies sont enregistrées en local et partiront automatiquement à la reconnexion. Pas besoin d'attendre internet pour encaisser.</li>
+    <li><b>Un PC = un code caisse.</b> Vérifiez le code après chaque réinstallation ou changement de PC.</li>
+    <li><b>Sync complète après mise à jour.</b> Elle garantit que ce PC récupère tout le catalogue (événements, frais, paiements) avant de comparer.</li>
+    <li><b>Ne jamais forcer « synced » ni purger la file.</b> Un compteur d'erreur est un signal, pas une gêne à masquer.</li>
+    <li><b>Préserver les reçus papier.</b> En cas de doublon, on garde l'ancien reçu imprimé (keep-old) ; on ne réimprime pas par-dessus un reçu légal.</li>
+    <li><b>Pas de réinitialisation d'usine.</b> Les axes de transport (ex. <code>ambodivodava B</code>, <code>Tsilazaina</code>), uniformes et tarifs personnalisés ne sont jamais écrasés.</li>
+    <li><b>Avant un appel au support :</b> notez le code poste, la version, l'écart affiché et le message d'erreur exact — cela accélère le diagnostic.</li>
+  </ul>
+</section>
+
+<section id="depannage">
+  <h2>10. Dépannage rapide</h2>
+  <table>
+    <tr><th>Symptôme</th><th>Cause probable</th><th>Action</th></tr>
+    <tr><td>Carte événement « sans titre » dans un dossier</td><td>Ancienne version (avant v2.4.1)</td><td>Installer la mise à jour ; le filtrage est automatique.</td></tr>
+    <tr><td>Poste affiché sous un nom d'hôte bizarre</td><td>Code poste non réglé</td><td>Paramètres → Identifiant du poste de caisse → choisir Cx.</td></tr>
+    <tr><td>Pastille orange avec delta négatif</td><td>PC n'a pas tout reçu</td><td>Lancer une synchronisation complète ; attendre le rattrapage auto.</td></tr>
+    <tr><td>Pastille orange avec delta positif</td><td>Envois perdus / non confirmés</td><td>Ouvrir l'Assistant → file bloquée ; traiter au cas par cas.</td></tr>
+    <tr><td>File locale « bloqués / quarantaine » &gt; 0</td><td>Écriture orpheline ou collision</td><td>Assistant → file bloquée → rattacher / créer / convertir / écarter (prudence).</td></tr>
+    <tr><td>Un mois marqué impayé à tort (doute)</td><td>—</td><td>Vérifier la fiche élève + finance : le calcul est unique et vérifié. Si paiement réel existant, le signaler (ne pas forcer).</td></tr>
+    <tr><td>Poste « Hors-ligne » depuis &gt; 24 h</td><td>PC éteint / sans internet</td><td>Vérifier alimentation + connexion ; la sync repartira seule.</td></tr>
+    <tr><td>Reçu avec mauvais code caisse</td><td>Code poste erroné au moment de la saisie</td><td>Corriger le code poste ; ne pas réimprimer par-dessus un reçu légal sans validation.</td></tr>
+  </table>
+</section>
+
+<section id="checklist">
+  <h2>11. Checklist de mise en service (par poste)</h2>
+  <p>À cocher pour chaque PC (C1 à C5). Imprimable.</p>
+  <ul class="check">
+    <li>Mise à jour v2.4.1 installée et application redémarrée</li>
+    <li>Identifiant du poste de caisse réglé sur le bon code (Cx) — unique par PC</li>
+    <li>Synchronisation complète lancée et terminée</li>
+    <li>Matrice : toutes pastilles vertes, écarts à 0</li>
+    <li>File locale à 0 (attente / bloqués / quarantaine)</li>
+    <li>Assistant : scan lancé, doublons « certains » unifiés, orphelins traités</li>
+    <li>Impression test d'un reçu : bon code caisse dans le numéro</li>
+    <li>Clôture de caisse journalière effectuée par ce poste</li>
+  </ul>
+  <div class="callout c-ok"><b>Poste prêt.</b> Répéter sur les 5 PC. En cas de blocage persistant après ces étapes, relever le code poste + version + message exact et contacter le support.</div>
+</section>
+
+<footer>
+  LMS École · Guide client v2.4.1 · Document autonome (ouvrable dans tout navigateur, imprimable).<br>
+  Les interventions techniques de schéma Cloud ont déjà été appliquées ; ce guide couvre l'exploitation côté client.
+</footer>
+
+</div>
+</body>
+</html>

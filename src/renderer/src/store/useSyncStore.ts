@@ -37,7 +37,6 @@ interface SyncState {
   progress: SyncProgressData
   errors: SyncErrorItem[]
   isModalOpen: boolean
-  isReconciliationOpen: boolean
   appVersion: string
 
   // Actions
@@ -48,8 +47,6 @@ interface SyncState {
   quarantineAndUnblock: () => Promise<boolean>
   openModal: () => void
   closeModal: () => void
-  openReconciliation: () => void
-  closeReconciliation: () => void
   init: () => () => void
 }
 
@@ -75,7 +72,6 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   },
   errors: [],
   isModalOpen: false,
-  isReconciliationOpen: false,
 
   openModal: () => {
     set({ isModalOpen: true })
@@ -85,16 +81,6 @@ export const useSyncStore = create<SyncState>((set, get) => ({
 
   closeModal: () => {
     set({ isModalOpen: false })
-  },
-
-  openReconciliation: () => {
-    set({ isReconciliationOpen: true })
-  },
-
-  closeReconciliation: () => {
-    set({ isReconciliationOpen: false })
-    get().fetchStatus()
-    get().fetchErrors()
   },
 
   fetchStatus: async () => {

@@ -406,7 +406,8 @@ const api = {
   // App
   // --------------------------------------------
   app: {
-    getVersion: () => ipcRenderer.invoke('app:getVersion')
+    getVersion: () => ipcRenderer.invoke('app:getVersion'),
+    isPackaged: () => ipcRenderer.invoke('app:isPackaged')
   },
 
   // --------------------------------------------

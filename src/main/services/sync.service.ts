@@ -624,16 +624,16 @@ export function reconcileAttachStudent(
 
     if (queueItem.table_name === 'student_payments') {
       db.prepare(
-        'UPDATE student_payments SET student_id = ?, sync_status = "pending", updated_at = ? WHERE id = ?'
+        "UPDATE student_payments SET student_id = ?, sync_status = 'pending', updated_at = ? WHERE id = ?"
       ).run(targetStudentId, nowIso, queueItem.record_id)
 
       // Also update linked cash_journal if exists
       db.prepare(
-        'UPDATE cash_journal SET related_student_id = ?, sync_status = "pending", updated_at = ? WHERE related_payment_id = ?'
+        "UPDATE cash_journal SET related_student_id = ?, sync_status = 'pending', updated_at = ? WHERE related_payment_id = ?"
       ).run(targetStudentId, nowIso, queueItem.record_id)
     } else if (queueItem.table_name === 'cash_journal') {
       db.prepare(
-        'UPDATE cash_journal SET related_student_id = ?, sync_status = "pending", updated_at = ? WHERE id = ?'
+        "UPDATE cash_journal SET related_student_id = ?, sync_status = 'pending', updated_at = ? WHERE id = ?"
       ).run(targetStudentId, nowIso, queueItem.record_id)
     }
 
@@ -830,7 +830,7 @@ export function reconcileConvertToGeneralCash(
         })
 
         // Soft-delete orphan payment locally and enqueue deletion for Supabase
-        db.prepare('UPDATE student_payments SET deleted = 1, sync_status = "pending", updated_at = ? WHERE id = ?').run(
+        db.prepare("UPDATE student_payments SET deleted = 1, sync_status = 'pending', updated_at = ? WHERE id = ?").run(
           nowIso,
           queueItem.record_id
         )
@@ -1295,23 +1295,23 @@ export async function runDeepConvergence(): Promise<{
           .prepare('SELECT COUNT(*) as c FROM student_payments WHERE student_id = ? AND deleted = 0')
           .get(s.id) as { c: number }
         if (activeChildren.c > 0) continue
-        const info = db.prepare('UPDATE students SET deleted = 1, sync_status = "synced", updated_at = ? WHERE id = ? AND deleted = 0').run(s.updated_at || new Date().toISOString(), s.id)
+        const info = db.prepare("UPDATE students SET deleted = 1, sync_status = 'synced', updated_at = ? WHERE id = ? AND deleted = 0").run(s.updated_at || new Date().toISOString(), s.id)
         result.studentsDeleted += info.changes
       }
       for (const p of delPaymentsRes.data || []) {
-        const info = db.prepare('UPDATE student_payments SET deleted = 1, sync_status = "synced", updated_at = ? WHERE id = ? AND deleted = 0').run(p.updated_at || new Date().toISOString(), p.id)
+        const info = db.prepare("UPDATE student_payments SET deleted = 1, sync_status = 'synced', updated_at = ? WHERE id = ? AND deleted = 0").run(p.updated_at || new Date().toISOString(), p.id)
         result.paymentsDeleted += info.changes
       }
       for (const cj of delCashRes.data || []) {
-        const info = db.prepare('UPDATE cash_journal SET deleted = 1, sync_status = "synced", updated_at = ? WHERE id = ? AND deleted = 0').run(cj.updated_at || new Date().toISOString(), cj.id)
+        const info = db.prepare("UPDATE cash_journal SET deleted = 1, sync_status = 'synced', updated_at = ? WHERE id = ? AND deleted = 0").run(cj.updated_at || new Date().toISOString(), cj.id)
         result.cashDeleted += info.changes
       }
       for (const sub of delSubsRes.data || []) {
-        const info = db.prepare('UPDATE subjects SET deleted = 1, sync_status = "synced", updated_at = ? WHERE id = ? AND deleted = 0').run(sub.updated_at || new Date().toISOString(), sub.id)
+        const info = db.prepare("UPDATE subjects SET deleted = 1, sync_status = 'synced', updated_at = ? WHERE id = ? AND deleted = 0").run(sub.updated_at || new Date().toISOString(), sub.id)
         result.subjectsAligned += info.changes
       }
       for (const u of delUsersRes.data || []) {
-        const info = db.prepare('UPDATE users SET deleted = 1, sync_status = "synced", updated_at = ? WHERE id = ? AND deleted = 0').run(u.updated_at || new Date().toISOString(), u.id)
+        const info = db.prepare("UPDATE users SET deleted = 1, sync_status = 'synced', updated_at = ? WHERE id = ? AND deleted = 0").run(u.updated_at || new Date().toISOString(), u.id)
         result.usersDeleted += info.changes
       }
     })
@@ -1356,7 +1356,7 @@ export async function runDeepConvergence(): Promise<{
                   `).get(`${yearPrefix}-%`) as { max_num: number | null } | undefined
                   const nextNum = (maxLocal?.max_num || 0) + 1
                   const newRegNum = `${yearPrefix}-${String(nextNum).padStart(5, '0')}`
-                  db.prepare('UPDATE students SET registration_number = ?, sync_status = "pending", updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                  db.prepare("UPDATE students SET registration_number = ?, sync_status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = ?")
                     .run(newRegNum, existingWithReg.id)
                   addToSyncQueue('students', existingWithReg.id, 'update', {
                     ...existingWithReg,
@@ -1383,7 +1383,7 @@ export async function runDeepConvergence(): Promise<{
             const localTs = new Date(local.updated_at || '2000-01-01').getTime()
             const remoteTs = new Date(st.updated_at || '2000-01-01').getTime()
             if (remoteTs >= localTs) {
-              db.prepare('UPDATE students SET deleted = 0, sync_status = "synced" WHERE id = ?').run(st.id)
+              db.prepare("UPDATE students SET deleted = 0, sync_status = 'synced' WHERE id = ?").run(st.id)
               result.studentsCreated++
             }
           }
@@ -1408,10 +1408,10 @@ export async function runDeepConvergence(): Promise<{
             const oldId = localSameName.id
             const newId = remSub.id
             console.log(`[Deep Convergence] Remapping local subject '${localSameName.name}' from ${oldId} to ${newId}`)
-            db.prepare('UPDATE subjects SET id = ?, sync_status = "synced" WHERE id = ?').run(newId, oldId)
+            db.prepare("UPDATE subjects SET id = ?, sync_status = 'synced' WHERE id = ?").run(newId, oldId)
             db.prepare('UPDATE class_subjects SET subject_id = ? WHERE subject_id = ?').run(newId, oldId)
             db.prepare('UPDATE grades SET subject_id = ? WHERE subject_id = ?').run(newId, oldId)
-            db.prepare('DELETE FROM sync_queue WHERE table_name = "subjects" AND record_id = ?').run(oldId)
+            db.prepare("DELETE FROM sync_queue WHERE table_name = 'subjects' AND record_id = ?").run(oldId)
             result.subjectsAligned++
           }
         }
@@ -1989,9 +1989,6 @@ function sanitizeRowPayload(tableName: string, action: string, rawData: any, rec
   if (tableName === 'personnel') {
     delete payload.payroll_start_date
   }
-  if (tableName === 'parent_events' && 'school_year' in payload) {
-    delete payload.school_year
-  }
 
   const dateFields = [
     'date_of_birth',
@@ -2338,31 +2335,17 @@ async function pushLocalChanges() {
           continue
         }
 
-        // Photo upload handling (Offline-first)
+        // Photo upload handling (Offline-first) — bucket 'lms_files' via le helper
+        // partagé (même dossier/nommage que le flux principal student.handler).
+        // Import dynamique pour éviter une dépendance circulaire statique sync ↔ storage.
         if (
           item.table_name === 'students' &&
           payload.photo_path &&
-          !payload.photo_path.startsWith('http')
+          !String(payload.photo_path).startsWith('http')
         ) {
           try {
-            const localPath = payload.photo_path
-            if (fs.existsSync(localPath)) {
-              const fileBuffer = fs.readFileSync(localPath)
-              const fileExt = path.extname(localPath)
-              const fileName = `${payload.id}${fileExt}`
-
-              const { error: uploadError } = await supabase.storage
-                .from('photos')
-                .upload(fileName, fileBuffer, {
-                  contentType: `image/${fileExt.replace('.', '')}`,
-                  upsert: true
-                })
-
-              if (!uploadError) {
-                const { data } = supabase.storage.from('photos').getPublicUrl(fileName)
-                payload.photo_path = data.publicUrl
-              }
-            }
+            const { uploadToStorage } = await import('./storage.service')
+            payload.photo_path = await uploadToStorage(String(payload.photo_path), 'students')
           } catch (e) {
             console.error('Failed to upload photo for student:', payload.id, e)
           }
@@ -2593,7 +2576,7 @@ async function pushLocalChanges() {
             ) {
               // Same student created under different UUID across stations: adopt cloud ID locally
               console.warn(`[Auto-healing sync] Matching student found in cloud (ID: ${cloudMatch.id}). Aligning local UUID...`)
-              db.prepare('UPDATE students SET id = ?, sync_status = "synced" WHERE id = ?').run(cloudMatch.id, item.record_id)
+              db.prepare("UPDATE students SET id = ?, sync_status = 'synced' WHERE id = ?").run(cloudMatch.id, item.record_id)
               db.prepare('UPDATE student_fees SET student_id = ? WHERE student_id = ?').run(cloudMatch.id, item.record_id)
               db.prepare('UPDATE student_payments SET student_id = ? WHERE student_id = ?').run(cloudMatch.id, item.record_id)
               db.prepare('UPDATE cash_journal SET related_student_id = ? WHERE related_student_id = ?').run(cloudMatch.id, item.record_id)
@@ -2756,11 +2739,11 @@ async function pushLocalChanges() {
                 .maybeSingle()
               if (remoteSub?.id) {
                 if (remoteSub.id !== item.record_id) {
-                  db.prepare('UPDATE subjects SET id = ?, sync_status = "synced" WHERE id = ?').run(remoteSub.id, item.record_id)
+                  db.prepare("UPDATE subjects SET id = ?, sync_status = 'synced' WHERE id = ?").run(remoteSub.id, item.record_id)
                   db.prepare('UPDATE class_subjects SET subject_id = ? WHERE subject_id = ?').run(remoteSub.id, item.record_id)
                   db.prepare('UPDATE grades SET subject_id = ? WHERE subject_id = ?').run(remoteSub.id, item.record_id)
                 }
-                db.prepare('UPDATE subjects SET sync_status = "synced" WHERE id = ?').run(remoteSub.id)
+                db.prepare("UPDATE subjects SET sync_status = 'synced' WHERE id = ?").run(remoteSub.id)
                 autoHealed = true
               }
             }
@@ -2778,7 +2761,7 @@ async function pushLocalChanges() {
               .eq('id', item.record_id)
               .maybeSingle()
             if (remoteCs?.id) {
-              db.prepare('UPDATE class_subjects SET sync_status = "synced" WHERE id = ?').run(item.record_id)
+              db.prepare("UPDATE class_subjects SET sync_status = 'synced' WHERE id = ?").run(item.record_id)
               autoHealed = true
             }
           } catch (csCheckErr) {
@@ -3351,7 +3334,7 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
                   `[Pull Sync] Matricule collision on ${recordToSave.registration_number} between local [${collision.last_name} ${collision.first_name}] and cloud [${recordToSave.last_name} ${recordToSave.first_name}]. Reassigning local student to ${newRegNum}`
                 )
 
-                db.prepare('UPDATE students SET registration_number = ?, sync_status = "pending", updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                db.prepare("UPDATE students SET registration_number = ?, sync_status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = ?")
                   .run(newRegNum, collision.id)
 
                 addToSyncQueue('students', collision.id, 'update', {
@@ -3632,6 +3615,15 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
       `INSERT OR REPLACE INTO settings (key, value, updated_at)
        VALUES ('last_sync_time', ?, CURRENT_TIMESTAMP)`
     ).run(JSON.stringify(new Date().toISOString()))
+
+    // Relève le plancher monotone des numéros de reçu au MAX local (lignes cloud
+    // rapatriées incluses) pour empêcher toute réutilisation future inter-postes.
+    try {
+      const { PaymentRepository } = await import('../database/repositories/payment.repository')
+      PaymentRepository.bumpReceiptHighWaterFromLocal()
+    } catch (e) {
+      console.warn('[Sync] receipt high-water bump skipped:', e)
+    }
   }
 }
 
@@ -3712,32 +3704,47 @@ export function startPeriodicSync() {
         const cooldownOk = Date.now() - lastParity > 6 * 60 * 60 * 1000
 
         if (cooldownOk) {
-          const parityTables: Array<{ table: string; tolerance: number }> = [
-            { table: 'student_payments', tolerance: 5 },
-            { table: 'students', tolerance: 2 },
-            { table: 'student_fees', tolerance: 5 }
+          // event_payments : colonne `deleted` ajoutée côté Cloud + local (migration tracée v2.4.1).
+          const parityTables: Array<{ table: string; tolerance: number; filterDeleted: boolean }> = [
+            { table: 'student_payments', tolerance: 5, filterDeleted: true },
+            { table: 'students', tolerance: 2, filterDeleted: true },
+            { table: 'student_fees', tolerance: 5, filterDeleted: true },
+            { table: 'parent_events', tolerance: 1, filterDeleted: true },
+            { table: 'event_payments', tolerance: 5, filterDeleted: true }
           ]
           let gapDetected: string | null = null
-          for (const { table, tolerance } of parityTables) {
-            const remoteRes = await supabase
-              .from(table)
-              .select('id', { count: 'exact', head: true })
-              .eq('deleted', false)
+          let gapDirection: 'missing' | 'extra' | null = null
+          for (const { table, tolerance, filterDeleted } of parityTables) {
+            let remoteQuery = supabase.from(table).select('id', { count: 'exact', head: true })
+            if (filterDeleted) remoteQuery = remoteQuery.eq('deleted', false)
+            const remoteRes = await remoteQuery
             const remoteCount = remoteRes.count ?? 0
             const localRow = db
-              .prepare(`SELECT count(*) as c FROM ${table} WHERE deleted = 0`)
+              .prepare(`SELECT count(*) as c FROM ${table}${filterDeleted ? ' WHERE deleted = 0' : ''}`)
               .get() as { c: number }
             if (remoteCount > 0 && localRow.c < remoteCount - tolerance) {
               gapDetected = `${table}: local (${localRow.c}) < cloud (${remoteCount})`
+              gapDirection = 'missing'
+              break
+            }
+            if (localRow.c > remoteCount + tolerance) {
+              // Lignes locales en trop = envois perdus/non confirmés. On le signale sans
+              // tirer le Cloud (un pull ne répare pas un push manquant) ; la matrice et la
+              // file de synchro exposent l'écart pour remédiation au cas par cas (AGENTS.md §4).
+              gapDetected = `${table}: local (${localRow.c}) > cloud (${remoteCount}) — envois possiblement perdus`
+              gapDirection = 'extra'
               break
             }
           }
           if (gapDetected) {
-            console.log(`[Sync] Écart volumétrique détecté (${gapDetected}). Rattrapage automatique de convergence...`)
+            console.log(`[Sync] Écart volumétrique détecté (${gapDetected}).`)
             db.prepare(
               `INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('v240_last_parity_convergence', ?, CURRENT_TIMESTAMP)`
             ).run(new Date().toISOString())
-            await runDeepConvergence().catch((e) => console.warn('[Sync] Auto deep convergence note:', e))
+            if (gapDirection === 'missing') {
+              console.log('[Sync] Rattrapage automatique de convergence (pull intégral)...')
+              await runDeepConvergence().catch((e) => console.warn('[Sync] Auto deep convergence note:', e))
+            }
           }
         }
       } catch (parityErr) {

@@ -1,13 +1,13 @@
 /**
- * ReconciliationModal.tsx — Visual Assistant for Orphaned & Blocked Records
+ * SyncQueuePanel.tsx — File de synchronisation bloquée (écritures orphelines / quarantaine)
  *
- * Provides a user-guided, financial-safe interface to resolve
- * student payments or cash journal entries that failed sync due to
- * missing foreign key dependencies (e.g. orphan student_id).
+ * Panneau inline intégré à l'Assistant de cohérence des données. Interface guidée et
+ * financièrement sûre pour résoudre les paiements / écritures de caisse bloqués en sync
+ * (clé étrangère élève manquante). Aucune action destructive : rattachement, création de
+ * fiche, conversion en caisse générale ou archivage tracé.
  */
 
 import React, { useState, useEffect } from 'react'
-import { Dialog } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useSyncStore } from '@/store/useSyncStore'
@@ -64,8 +64,8 @@ interface StudentOption {
   registration_number?: string
 }
 
-export const ReconciliationModal: React.FC = () => {
-  const { isReconciliationOpen, closeReconciliation, startSync } = useSyncStore()
+export const SyncQueuePanel: React.FC = () => {
+  const { startSync } = useSyncStore()
   const [items, setItems] = useState<ReconciliationItem[]>([])
   const [loading, setLoading] = useState(false)
   const [processingId, setProcessingId] = useState<number | null>(null)
@@ -109,11 +109,8 @@ export const ReconciliationModal: React.FC = () => {
   }
 
   useEffect(() => {
-    if (isReconciliationOpen) {
-      fetchItems()
-      setActiveAction(null)
-    }
-  }, [isReconciliationOpen])
+    fetchItems()
+  }, [])
 
   // Search students for attach action
   useEffect(() => {
@@ -234,22 +231,20 @@ export const ReconciliationModal: React.FC = () => {
   }
 
   return (
-    <Dialog
-      isOpen={isReconciliationOpen}
-      onClose={closeReconciliation}
-      title="Assistant Visuel de Réconciliation des Écritures"
-      maxWidth="max-w-3xl"
-      footer={
-        <div className="flex items-center justify-between w-full text-xs text-gray-500">
-          <span>{items.length} écriture(s) orpheline(s) en attente</span>
-          <Button variant="outline" size="sm" onClick={closeReconciliation}>
-            Fermer
+    <div className="space-y-4" id="sync-queue-section">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+          <ShieldAlert className="w-4 h-4 text-rose-600" />
+          File de synchronisation bloquée — écritures orphelines
+        </h3>
+        <div className="flex items-center gap-2 text-xs text-gray-500">
+          <span>{items.length} écriture(s) en attente</span>
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={fetchItems} disabled={loading}>
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Actualiser
           </Button>
         </div>
-      }
-    >
-      <div className="space-y-4">
-        {/* Intro Banner */}
+      </div>
+      {/* Intro Banner */}
         <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-lg flex items-start gap-3 text-xs text-indigo-900">
           <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
           <div className="space-y-1">
@@ -776,7 +771,6 @@ export const ReconciliationModal: React.FC = () => {
             })}
           </div>
         )}
-      </div>
-    </Dialog>
+    </div>
   )
 }

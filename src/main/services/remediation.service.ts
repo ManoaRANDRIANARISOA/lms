@@ -24,6 +24,7 @@ import {
 import { StudentRepository } from '../database/repositories/student.repository'
 import { SettingsRepository } from '../database/repositories/settings.repository'
 import { CashJournalRepository } from '../database/repositories/cashjournal.repository'
+import { PaymentRepository } from '../database/repositories/payment.repository'
 import { getCurrentUser } from '../auth/auth.service'
 
 export interface RemediationFinding {
@@ -429,6 +430,516 @@ export async function scanStationInconsistencies(): Promise<RemediationScanResul
     console.warn('[Remediation] cloud parity scan skipped:', e)
   }
 
+  // --- E. Collisions de numéro de reçu entre paiements DISTINCTS (classe A) ---
+  // Deux vrais encaissements partageant le même n° de reçu : NE JAMAIS fusionner.
+  // On présente la collision ; la renumérotation du plus récent est une décision
+  // humaine, avec préservation de la référence d'origine (document légal).
+  try {
+    const collisions = db
+      .prepare(
+        `SELECT receipt_number, COUNT(*) AS c, COUNT(DISTINCT student_id) AS distinct_students, SUM(amount) AS total
+         FROM student_payments
+         WHERE deleted = 0 AND receipt_number IS NOT NULL AND receipt_number != ''
+         GROUP BY receipt_number
+         HAVING COUNT(*) > 1 AND COUNT(DISTINCT student_id) > 1`
+      )
+      .all() as Array<{ receipt_number: string; c: number; distinct_students: number; total: number }>
+
+    for (const col of collisions) {
+      const lines = db
+        .prepare(
+          `SELECT sp.id, sp.student_id, sp.amount, sp.payment_type, sp.payment_date, sp.created_at,
+                  sp.created_by, sp.print_count, sp.school_year, s.first_name, s.last_name
+           FROM student_payments sp LEFT JOIN students s ON s.id = sp.student_id
+           WHERE sp.deleted = 0 AND sp.receipt_number = ?
+           ORDER BY sp.created_at ASC, sp.id ASC`
+        )
+        .all(col.receipt_number) as Array<{
+        id: string
+        student_id: string
+        amount: number
+        payment_type: string
+        payment_date: string
+        created_at: string
+        created_by: string | null
+        print_count: number | null
+        school_year: string | null
+        first_name: string | null
+        last_name: string | null
+      }>
+      if (lines.length < 2) continue
+      const later = lines[lines.length - 1]
+      const laterPrinted = (later.print_count || 0) > 0
+      findings.push({
+        id: `receipt_collision:${col.receipt_number}`,
+        category: 'receipt_collision',
+        classification: 'decision',
+        severity: 'high',
+        title: `Collision de reçu ${col.receipt_number} — ${col.distinct_students} élèves distincts`,
+        detail: `${col.c} paiements réels (${(col.total || 0).toLocaleString('fr-FR')} Ar au total) partagent le même numéro de reçu. Ce sont des encaissements DISTINCTS : aucune fusion ne doit être faite. Le plus récent est ${col.receipt_number} (${later.last_name || ''} ${later.first_name || ''}, ${later.payment_date}).`,
+        recommendation: laterPrinted
+          ? `Le reçu le plus récent a DÉJÀ été imprimé (document légal détenu par le parent). Par défaut : CONSERVER les deux tel quel. Une renumérotation n'est possible qu'avec validation explicite et préservation de la référence d'origine.`
+          : `Le reçu le plus récent n'a jamais été imprimé (aucun document papier émis). Vous pouvez le renuméroter proprement (référence d'origine conservée) pour lever la collision, ou conserver les deux.`,
+        action: 'resolve_receipt_collision',
+        params: {
+          receiptNumber: col.receipt_number,
+          laterPaymentId: later.id,
+          laterPrinted,
+          schoolYear: later.school_year || year
+        },
+        affectedCount: col.c,
+        amountImpact: col.total || 0,
+        evidence: {
+          receiptNumber: col.receipt_number,
+          laterPrinted,
+          lines: lines.map((l) => ({
+            id: l.id,
+            student: `${l.last_name || ''} ${l.first_name || ''}`.trim(),
+            studentId: l.student_id,
+            amount: l.amount,
+            type: l.payment_type,
+            date: l.payment_date,
+            createdAt: l.created_at,
+            createdBy: l.created_by || '',
+            printCount: l.print_count || 0
+          }))
+        }
+      })
+    }
+  } catch (e) {
+    console.warn('[Remediation] receipt collision scan failed:', e)
+  }
+
+  // --- F. Candidats doublons (classe B) — JAMAIS de fusion automatique ---
+  // Même élève + type + mois + montant + date. Le critère sur-capture les achats
+  // multiples légitimes (ex. 2 articles d'uniforme au même prix le même jour).
+  // Chaque candidat est présenté avec un niveau de confiance ; l'humain décide.
+  try {
+    const dupGroups = db
+      .prepare(
+        `SELECT student_id, payment_type, month, amount, payment_date, COUNT(*) AS c
+         FROM student_payments
+         WHERE deleted = 0
+         GROUP BY student_id, payment_type, month, amount, payment_date
+         HAVING COUNT(*) > 1`
+      )
+      .all() as Array<{
+      student_id: string
+      payment_type: string
+      month: string | null
+      amount: number
+      payment_date: string
+      c: number
+    }>
+
+    const onceTypes = new Set(['enrollment', 'reenrollment', 'fram', 'tuition'])
+    for (const g of dupGroups) {
+      const lines = db
+        .prepare(
+          `SELECT sp.id, sp.receipt_number, sp.created_at, sp.created_by, sp.print_count, sp.payment_method,
+                  sp.description, s.first_name, s.last_name
+           FROM student_payments sp LEFT JOIN students s ON s.id = sp.student_id
+           WHERE sp.deleted = 0 AND sp.student_id = ? AND sp.payment_type = ?
+             AND sp.amount = ? AND sp.payment_date = ?
+             AND (sp.month IS ? OR sp.month = ?)
+           ORDER BY sp.created_at ASC, sp.id ASC`
+        )
+        .all(g.student_id, g.payment_type, g.amount, g.payment_date, g.month, g.month) as Array<{
+        id: string
+        receipt_number: string | null
+        created_at: string
+        created_by: string | null
+        print_count: number | null
+        payment_method: string | null
+        description: string | null
+        first_name: string | null
+        last_name: string | null
+      }>
+      if (lines.length < 2) continue
+      const oldest = lines[0]
+      const newer = lines.slice(1)
+      const creators = new Set(lines.map((l) => (l.created_by || '').trim()))
+      const times = lines.map((l) => Date.parse(l.created_at)).filter((t) => Number.isFinite(t))
+      const spreadSec = times.length >= 2 ? (Math.max(...times) - Math.min(...times)) / 1000 : Infinity
+      const sameCreator = creators.size === 1
+      const highConfidence = onceTypes.has(g.payment_type) && sameCreator && spreadSec <= 120
+      // « Certain à 100% » : sous-ensemble strict de highConfidence, unifiable sans risque.
+      // Aucun reçu papier distinct imprimé sur les plus récents + même mode + même description
+      // + journée non scellée (Ticket Z). Soft-delete réversible, reçu d'origine préservé.
+      const allNewerUnprinted = newer.every((l) => (l.print_count || 0) === 0)
+      const methods = new Set(lines.map((l) => (l.payment_method || '').trim()))
+      const descs = new Set(lines.map((l) => (l.description || '').trim().toLowerCase()))
+      const dayLock = CashJournalRepository.closureLockForDate(g.payment_date)
+      const certain =
+        highConfidence && allNewerUnprinted && methods.size === 1 && descs.size === 1 && !dayLock.locked
+      const name = `${oldest.last_name || ''} ${oldest.first_name || ''}`.trim() || `Élève ${g.student_id.slice(0, 8)}`
+      findings.push({
+        id: `duplicate_candidate:${g.student_id}:${g.payment_type}:${g.payment_date}:${g.amount}:${g.month || 'null'}`,
+        category: 'duplicate_candidate',
+        classification: 'decision',
+        severity: 'high',
+        title: `Candidat doublon — ${name} (${g.payment_type}, ${g.amount.toLocaleString('fr-FR')} Ar, ${g.payment_date})`,
+        detail: `${g.c} écritures identiques (élève, type, montant, date${g.month ? `, mois ${g.month}` : ''}). Reçus : ${lines.map((l) => l.receipt_number || 'sans').join(', ')}. Créateurs : ${[...creators].join(', ') || 'inconnu'}. Écart de création : ${Number.isFinite(spreadSec) ? Math.round(spreadSec) + ' s' : 'inconnu'}.`,
+        recommendation: certain
+          ? `DOUBLON CERTAIN : type unique par période, même caissier, mêmes secondes, même mode et libellé, et aucun reçu papier imprimé sur les plus récents. Unification automatique possible (soft-delete réversible du plus récent, reçu d'origine préservé, tracé). Journée non scellée.`
+          : highConfidence
+            ? `Fort indice de doublon : type unique par période, même caissier, créations à quelques secondes. Confirmer « garder l'ancien » (le plus récent sera archivé, reçu d'origine préservé). Vérifiez qu'aucun reçu papier distinct n'a été remis.`
+            : `AMBIGU — ne pas fusionner par défaut. Plusieurs articles d'uniforme au même prix le même jour, ou créateurs/heures différents, peuvent être légitimes. Examinez les articles et les heures avant de décider « garder l'ancien » ou « garder les deux ».`,
+        action: 'resolve_duplicate_candidate',
+        params: {
+          studentId: g.student_id,
+          keepId: oldest.id,
+          duplicateIds: newer.map((l) => l.id),
+          confidence: highConfidence ? 'high' : 'low',
+          certain
+        },
+        affectedCount: g.c,
+        amountImpact: g.amount * (g.c - 1),
+        evidence: {
+          confidence: highConfidence ? 'high' : 'low',
+          certain,
+          paymentType: g.payment_type,
+          month: g.month,
+          amount: g.amount,
+          date: g.payment_date,
+          lines: lines.map((l) => ({
+            id: l.id,
+            receipt: l.receipt_number || '',
+            createdAt: l.created_at,
+            createdBy: l.created_by || '',
+            printCount: l.print_count || 0,
+            method: l.payment_method || ''
+          }))
+        }
+      })
+    }
+  } catch (e) {
+    console.warn('[Remediation] duplicate candidate scan failed:', e)
+  }
+
+  // --- G. Reçus manquants / non conformes / année incohérente (classe C) ---
+  try {
+    const missing = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM student_payments WHERE deleted = 0 AND (receipt_number IS NULL OR receipt_number = '')`
+      )
+      .get() as { c: number }
+    const nonconf = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM student_payments
+         WHERE deleted = 0 AND receipt_number IS NOT NULL AND receipt_number != ''
+           AND receipt_number NOT GLOB 'REC-[0-9][0-9][0-9][0-9]-C*-[0-9][0-9][0-9][0-9][0-9]'`
+      )
+      .get() as { c: number }
+    const yearmis = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM student_payments
+         WHERE deleted = 0 AND receipt_number GLOB 'REC-[0-9][0-9][0-9][0-9]-*'
+           AND substr(receipt_number, 5, 4) != substr(payment_date, 1, 4)`
+      )
+      .get() as { c: number }
+    const total = (missing?.c || 0) + (nonconf?.c || 0) + (yearmis?.c || 0)
+    if (total > 0) {
+      const samples = db
+        .prepare(
+          `SELECT id, receipt_number, payment_date FROM student_payments
+           WHERE deleted = 0 AND (
+             receipt_number IS NULL OR receipt_number = ''
+             OR receipt_number NOT GLOB 'REC-[0-9][0-9][0-9][0-9]-C*-[0-9][0-9][0-9][0-9][0-9]'
+             OR (receipt_number GLOB 'REC-[0-9][0-9][0-9][0-9]-*' AND substr(receipt_number, 5, 4) != substr(payment_date, 1, 4))
+           ) LIMIT 8`
+        )
+        .all() as Array<{ id: string; receipt_number: string | null; payment_date: string }>
+      findings.push({
+        id: 'receipt_compliance',
+        category: 'receipt_compliance',
+        classification: 'decision',
+        severity: 'medium',
+        title: `Conformité des reçus : ${missing?.c || 0} manquant(s), ${nonconf?.c || 0} non conforme(s), ${yearmis?.c || 0} année incohérente(s)`,
+        detail: `Des paiements actifs ont un reçu absent, un format hors norme (legacy sans poste), ou une année de reçu différente de l'année de la date de paiement.`,
+        recommendation: `Examiner dans la Traçabilité (Finance) au cas par cas. La norme est REC-AAAA-C<poste>-XXXXX. Aucune renumérotation automatique : un reçu déjà remis est un document légal. Décision humaine par écriture.`,
+        action: 'review_only',
+        params: {},
+        affectedCount: total,
+        evidence: { missing: missing?.c || 0, nonconforming: nonconf?.c || 0, yearMismatch: yearmis?.c || 0, samples }
+      })
+    }
+  } catch (e) {
+    console.warn('[Remediation] receipt compliance scan failed:', e)
+  }
+
+  // --- H. Journal orphelin (classe D) — reçu sans paiement rattaché ---
+  try {
+    const orphanJournals = db
+      .prepare(
+        `SELECT cj.id, cj.receipt_number, cj.amount, cj.transaction_date, cj.related_payment_id,
+                cj.related_student_id, cj.created_by, cj.description
+         FROM cash_journal cj
+         LEFT JOIN student_payments sp ON sp.id = cj.related_payment_id AND sp.deleted = 0
+         WHERE cj.deleted = 0 AND cj.related_payment_id IS NOT NULL AND cj.related_payment_id != ''
+           AND sp.id IS NULL`
+      )
+      .all() as Array<{
+      id: string
+      receipt_number: string | null
+      amount: number
+      transaction_date: string
+      related_payment_id: string
+      related_student_id: string | null
+      created_by: string | null
+      description: string | null
+    }>
+    for (const j of orphanJournals) {
+      findings.push({
+        id: `orphan_journal:${j.id}`,
+        category: 'orphan_journal',
+        classification: 'decision',
+        severity: 'medium',
+        title: `Journal orphelin — ${j.receipt_number || j.id.slice(0, 8)} (${(j.amount || 0).toLocaleString('fr-FR')} Ar)`,
+        detail: `L'écriture de caisse du ${j.transaction_date} référence un paiement inexistant ou supprimé (${j.related_payment_id.slice(0, 12)}…). Créateur : ${j.created_by || 'inconnu'}.`,
+        recommendation: `Vérifier la traçabilité : rattacher à un paiement existant, ou archiver l'écriture si elle est résiduelle. Aucune suppression automatique. Archiver = soft-delete tracé et propagé.`,
+        action: 'resolve_orphan_journal',
+        params: { journalId: j.id },
+        affectedCount: 1,
+        amountImpact: j.amount || 0,
+        evidence: {
+          journalId: j.id,
+          receipt: j.receipt_number || '',
+          amount: j.amount,
+          date: j.transaction_date,
+          relatedPaymentId: j.related_payment_id,
+          relatedStudentId: j.related_student_id || '',
+          createdBy: j.created_by || '',
+          description: j.description || ''
+        }
+      })
+    }
+  } catch (e) {
+    console.warn('[Remediation] orphan journal scan failed:', e)
+  }
+
+  // --- I. Montants anormaux (classe E) — informationnel ---
+  try {
+    const neg = db
+      .prepare(`SELECT COUNT(*) AS c FROM student_payments WHERE deleted = 0 AND amount < 0`)
+      .get() as { c: number }
+    const zero = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM student_payments
+         WHERE deleted = 0 AND amount = 0 AND (payment_method IS NULL OR payment_method != 'discount')`
+      )
+      .get() as { c: number }
+    if ((neg?.c || 0) + (zero?.c || 0) > 0) {
+      findings.push({
+        id: 'abnormal_amounts',
+        category: 'abnormal_amount',
+        classification: 'decision',
+        severity: 'medium',
+        title: `Montants anormaux : ${neg?.c || 0} négatif(s), ${zero?.c || 0} nul(s) hors remise`,
+        detail: `Des paiements actifs ont un montant négatif, ou nul sans méthode 'discount'. Une remise légitime peut être à 0 Ar ; les autres cas méritent contrôle.`,
+        recommendation: `Contrôler dans la Traçabilité au cas par cas (erreur de saisie, remboursement, remise). Aucune correction automatique.`,
+        action: 'review_only',
+        params: {},
+        affectedCount: (neg?.c || 0) + (zero?.c || 0),
+        evidence: { negative: neg?.c || 0, zeroNonDiscount: zero?.c || 0 }
+      })
+    }
+  } catch (e) {
+    console.warn('[Remediation] abnormal amount scan failed:', e)
+  }
+
+  // --- J. Fiches de frais dupliquées / orphelines (classe G) ---
+  try {
+    const dupFees = db
+      .prepare(
+        `SELECT student_id, REPLACE(REPLACE(school_year, '"', ''), '''', '') AS sy, COUNT(*) AS c
+         FROM student_fees WHERE deleted = 0
+         GROUP BY student_id, sy HAVING COUNT(*) > 1`
+      )
+      .all() as Array<{ student_id: string; sy: string; c: number }>
+    for (const g of dupFees) {
+      const rows = db
+        .prepare(
+          `SELECT f.id, f.created_at, f.monthly_tuition, f.class_name, s.first_name, s.last_name
+           FROM student_fees f LEFT JOIN students s ON s.id = f.student_id
+           WHERE f.deleted = 0 AND f.student_id = ?
+             AND REPLACE(REPLACE(f.school_year, '"', ''), '''', '') = ?
+           ORDER BY f.created_at ASC, f.id ASC`
+        )
+        .all(g.student_id, g.sy) as Array<{
+        id: string
+        created_at: string
+        monthly_tuition: number
+        class_name: string | null
+        first_name: string | null
+        last_name: string | null
+      }>
+      if (rows.length < 2) continue
+      const name = `${rows[0].last_name || ''} ${rows[0].first_name || ''}`.trim() || `Élève ${g.student_id.slice(0, 8)}`
+      findings.push({
+        id: `duplicate_fee:${g.student_id}:${g.sy}`,
+        category: 'duplicate_fee',
+        classification: 'decision',
+        severity: 'medium',
+        title: `Fiches de frais dupliquées — ${name} (${g.sy})`,
+        detail: `${g.c} fiches actives pour le même élève et la même année scolaire (la norme est une fiche unique par élève/année). Tarifs : ${rows.map((r) => (r.monthly_tuition || 0).toLocaleString('fr-FR')).join(' / ')} Ar.`,
+        recommendation: `Conserver la fiche la plus ancienne (ou la plus complète) et archiver les autres. Vérifiez les tarifs négociés avant d'archiver. Décision humaine.`,
+        action: 'resolve_duplicate_fee',
+        params: { studentId: g.student_id, keepId: rows[0].id, duplicateIds: rows.slice(1).map((r) => r.id) },
+        affectedCount: g.c,
+        evidence: {
+          studentId: g.student_id,
+          schoolYear: g.sy,
+          lines: rows.map((r) => ({ id: r.id, createdAt: r.created_at, tuition: r.monthly_tuition, class: r.class_name || '' }))
+        }
+      })
+    }
+    const orphanFees = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM student_fees f
+         LEFT JOIN students s ON s.id = f.student_id
+         WHERE f.deleted = 0 AND (s.id IS NULL OR s.deleted = 1)`
+      )
+      .get() as { c: number }
+    if ((orphanFees?.c || 0) > 0) {
+      findings.push({
+        id: 'orphan_fees',
+        category: 'orphan_fee',
+        classification: 'decision',
+        severity: 'low',
+        title: `Fiches de frais orphelines : ${orphanFees.c}`,
+        detail: `${orphanFees.c} fiche(s) de frais active(s) rattachée(s) à un élève supprimé ou introuvable.`,
+        recommendation: `Examiner dans la Traçabilité : rattacher à un élève existant ou archiver si la suppression était volontaire. Aucune action automatique.`,
+        action: 'review_only',
+        params: {},
+        affectedCount: orphanFees.c,
+        evidence: { count: orphanFees.c }
+      })
+    }
+  } catch (e) {
+    console.warn('[Remediation] fee duplicate scan failed:', e)
+  }
+
+  // --- K. Souscriptions bus/cantine incohérentes (classe H) — informationnel ---
+  try {
+    const bus = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM student_fees f
+         JOIN students s ON s.id = f.student_id AND s.deleted = 0
+         WHERE f.deleted = 0 AND f.bus_subscribed = 1
+           AND (f.bus_route IS NULL OR f.bus_route = '' OR f.bus_monthly_fee <= 0)`
+      )
+      .get() as { c: number }
+    const cant = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM student_fees f
+         JOIN students s ON s.id = f.student_id AND s.deleted = 0
+         WHERE f.deleted = 0 AND f.canteen_subscribed = 1 AND f.canteen_daily_rate <= 0`
+      )
+      .get() as { c: number }
+    if ((bus?.c || 0) + (cant?.c || 0) > 0) {
+      findings.push({
+        id: 'subscription_incoherence',
+        category: 'subscription_incoherence',
+        classification: 'decision',
+        severity: 'low',
+        title: `Souscriptions incohérentes : ${bus?.c || 0} bus, ${cant?.c || 0} cantine`,
+        detail: `Des élèves sont marqués abonnés bus sans axe/tarif renseigné, ou abonnés cantine sans tarif journalier. Cela peut fausser les alertes d'impayés.`,
+        recommendation: `Vérifier la fiche de frais de chaque élève (axe de transport, tarif). Respecter les axes personnalisés et les tombstones existants. Aucune modification automatique.`,
+        action: 'review_only',
+        params: {},
+        affectedCount: (bus?.c || 0) + (cant?.c || 0),
+        evidence: { bus: bus?.c || 0, canteen: cant?.c || 0 }
+      })
+    }
+  } catch (e) {
+    console.warn('[Remediation] subscription scan failed:', e)
+  }
+
+  // --- L. Comptes créateurs dupliqués (classe I) — cause racine des collisions ---
+  try {
+    const activeUsers = db
+      .prepare(`SELECT id, username, role, full_name FROM users WHERE deleted = 0 AND active = 1`)
+      .all() as Array<{ id: string; username: string; role: string; full_name: string | null }>
+    const byNorm = new Map<string, typeof activeUsers>()
+    for (const u of activeUsers) {
+      const key = normalizeName(u.username)
+      if (!key) continue
+      const arr = byNorm.get(key) || []
+      arr.push(u)
+      byNorm.set(key, arr)
+    }
+    for (const [key, group] of byNorm) {
+      if (group.length < 2) continue
+      findings.push({
+        id: `creator_identity:${key}`,
+        category: 'creator_identity',
+        classification: 'decision',
+        severity: 'medium',
+        title: `Identités créateur dupliquées : ${group.map((u) => u.username).join(', ')}`,
+        detail: `${group.length} comptes actifs désignent probablement la même personne (${group.map((u) => `${u.username}/${u.role}`).join(', ')}). Ces identités concurrentes sont une cause racine des collisions de numéros de reçu.`,
+        recommendation: `Normaliser les identités via une migration tracée (cf. 043) après validation Direction : réattribuer l'activité puis désactiver les doublons. AUCUNE fusion automatique depuis l'assistant (impact financier/audit).`,
+        action: 'review_only',
+        params: {},
+        affectedCount: group.length,
+        evidence: { users: group.map((u) => ({ id: u.id, username: u.username, role: u.role, fullName: u.full_name || '' })) }
+      })
+    }
+  } catch (e) {
+    console.warn('[Remediation] creator identity scan failed:', e)
+  }
+
+  // --- M. Clôtures dupliquées / jours sans clôture (classe J) — informationnel ---
+  try {
+    const dupClosures = db
+      .prepare(
+        `SELECT station_code, date(closure_date) AS d, cashier_username, COUNT(*) AS c
+         FROM cash_closures
+         GROUP BY station_code, d, cashier_username HAVING COUNT(*) > 1`
+      )
+      .all() as Array<{ station_code: string; d: string; cashier_username: string | null; c: number }>
+    for (const dc of dupClosures) {
+      findings.push({
+        id: `duplicate_closure:${dc.station_code}:${dc.d}:${dc.cashier_username || ''}`,
+        category: 'duplicate_closure',
+        classification: 'decision',
+        severity: 'medium',
+        title: `Clôtures dupliquées — ${dc.station_code} ${dc.d} (${dc.cashier_username || 'compte inconnu'})`,
+        detail: `${dc.c} clôtures pour le même poste, la même journée et le même compte. La norme est une clôture journalière par poste ET par compte.`,
+        recommendation: `Examiner laquelle fait foi (verrou Z, totaux) et archiver les résiduelles via le module Caisse. Aucune suppression automatique depuis l'assistant.`,
+        action: 'review_only',
+        params: {},
+        affectedCount: dc.c,
+        evidence: { station: dc.station_code, date: dc.d, cashier: dc.cashier_username || '', count: dc.c }
+      })
+    }
+    const missingClosure = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM (
+           SELECT DISTINCT substr(payment_date, 1, 10) AS d FROM student_payments WHERE deleted = 0
+         ) p
+         WHERE NOT EXISTS (SELECT 1 FROM cash_closures cc WHERE date(cc.closure_date) = p.d)`
+      )
+      .get() as { c: number }
+    if ((missingClosure?.c || 0) > 0) {
+      findings.push({
+        id: 'missing_closures',
+        category: 'missing_closure',
+        classification: 'decision',
+        severity: 'low',
+        title: `Journées avec paiements sans clôture : ${missingClosure.c}`,
+        detail: `${missingClosure.c} journée(s) comportent des paiements actifs mais aucune clôture de caisse (tous postes confondus).`,
+        recommendation: `Vérifier le processus de clôture journalière par poste/compte dans le module Caisse. Informationnel : aucune action automatique.`,
+        action: 'review_only',
+        params: {},
+        affectedCount: missingClosure.c,
+        evidence: { count: missingClosure.c }
+      })
+    }
+  } catch (e) {
+    console.warn('[Remediation] closure scan failed:', e)
+  }
+
   const autoCount = findings.filter((f) => f.classification === 'auto').length
   const decisionCount = findings.filter((f) => f.classification === 'decision').length
 
@@ -684,6 +1195,228 @@ export async function applyRemediation(
           return { success: true, message: 'Version cloud active rapatriée en local.' }
         }
         return { success: false, error: 'Décision attendue : push_tombstone ou resurrect_local.' }
+      }
+
+      // --- Collision de reçu (classe A) : conserver OU renuméroter le plus récent ---
+      // Jamais de fusion : ce sont des encaissements distincts. La renumérotation
+      // préserve la référence d'origine (original_receipt_number) et est refusée
+      // si la journée est scellée Z ou si le reçu imprimé n'est pas explicitement confirmé.
+      case 'resolve_receipt_collision': {
+        const decision = String(params.decision || '')
+        const paymentId = String(params.laterPaymentId || '')
+        if (!paymentId) return { success: false, error: 'Paiement cible introuvable.' }
+        const p = db
+          .prepare('SELECT * FROM student_payments WHERE id = ? AND deleted = 0')
+          .get(paymentId) as Record<string, any> | undefined
+        if (!p) return { success: false, error: 'Paiement introuvable ou supprimé.' }
+
+        if (decision === 'keep_both') {
+          trace(`remediation:collision_keep:${p.receipt_number}`, { receipt_number: p.receipt_number }, { keptBothAt: nowIso }, user)
+          return { success: true, message: 'Collision conservée telle quel : les deux reçus (documents légaux) sont préservés.' }
+        }
+        if (decision !== 'renumber_later') {
+          return { success: false, error: 'Décision attendue : renumber_later ou keep_both.' }
+        }
+        const lock = CashJournalRepository.closureLockForDate(p.payment_date, p.receipt_number)
+        if (lock.locked) {
+          return { success: false, error: `Journée scellée par Ticket Z (${lock.label || 'Z'}). Déverrouillage formel requis.` }
+        }
+        const sealed = sealedClosureLabel(p.student_id)
+        if (sealed) {
+          return { success: false, error: `Journée scellée par Ticket Z (${sealed}). Déverrouillage formel requis.` }
+        }
+        if ((p.print_count || 0) > 0 && !params.confirmPrinted) {
+          return { success: false, error: "Ce reçu a déjà été imprimé (document légal détenu par le parent). Une renumérotation exige une confirmation explicite (confirmPrinted) et préserve la référence d'origine." }
+        }
+        const oldReceipt = String(p.receipt_number || '')
+        const stationMatch = oldReceipt.match(/^REC-\d{4}-([A-Z0-9]+)-/)
+        const station = stationMatch ? stationMatch[1] : undefined
+        const newReceipt = PaymentRepository.generateReceiptNumber(p.school_year || undefined, station)
+        if (!newReceipt || newReceipt === oldReceipt) {
+          return { success: false, error: 'Impossible de générer un nouveau numéro de reçu distinct.' }
+        }
+        db.transaction(() => {
+          db.prepare(
+            `UPDATE student_payments
+             SET original_receipt_number = COALESCE(original_receipt_number, ?),
+                 receipt_number = ?, sync_status = 'pending', updated_at = ?, version = version + 1
+             WHERE id = ?`
+          ).run(oldReceipt, newReceipt, nowIso, paymentId)
+          const updated = db.prepare('SELECT * FROM student_payments WHERE id = ?').get(paymentId)
+          addToSyncQueue('student_payments', paymentId, 'update', updated)
+          const mirrors = db
+            .prepare('SELECT id FROM cash_journal WHERE related_payment_id = ? AND deleted = 0')
+            .all(paymentId) as Array<{ id: string }>
+          for (const m of mirrors) {
+            db.prepare(
+              `UPDATE cash_journal
+               SET original_receipt_number = COALESCE(original_receipt_number, ?),
+                   receipt_number = ?, sync_status = 'pending', updated_at = ?
+               WHERE id = ?`
+            ).run(oldReceipt, newReceipt, nowIso, m.id)
+            const mu = db.prepare('SELECT * FROM cash_journal WHERE id = ?').get(m.id)
+            addToSyncQueue('cash_journal', m.id, 'update', mu)
+          }
+        })()
+        trace(
+          `remediation:renumber:${paymentId}`,
+          { receipt_number: oldReceipt },
+          { receipt_number: newReceipt, original_receipt_number: oldReceipt, at: nowIso },
+          user
+        )
+        syncWithCloud().catch((e) => console.error('[Remediation] sync after renumber:', e))
+        return {
+          success: true,
+          message: `Reçu renuméroté ${oldReceipt} → ${newReceipt}. Référence d'origine préservée et propagée.`,
+          details: { oldReceipt, newReceipt }
+        }
+      }
+
+      // --- Candidat doublon (classe B) : garder l'ancien / le choisi, ou les deux ---
+      // Aucune fusion automatique : l'humain a validé. Soft-delete des autres
+      // écritures du groupe exact (même élève/type/montant/date/mois), reçu conservé.
+      case 'resolve_duplicate_candidate': {
+        const decision = String(params.decision || '')
+        const keepId = String(params.keepId || params.chosenId || '')
+        if (decision === 'keep_both') {
+          trace(`remediation:duplicate_keep_both:${keepId}`, null, { keptBothAt: nowIso }, user)
+          return { success: true, message: 'Les écritures sont conservées (décision tracée, aucune donnée modifiée).' }
+        }
+        if (decision !== 'keep_old' && decision !== 'keep_chosen') {
+          return { success: false, error: 'Décision attendue : keep_old, keep_chosen ou keep_both.' }
+        }
+        if (!keepId) return { success: false, error: "Sélectionnez l'écriture à conserver." }
+        const keep = db
+          .prepare('SELECT * FROM student_payments WHERE id = ? AND deleted = 0')
+          .get(keepId) as Record<string, any> | undefined
+        if (!keep) return { success: false, error: "L'écriture à conserver est introuvable ou supprimée." }
+        const sealed = sealedClosureLabel(keep.student_id)
+        if (sealed) {
+          return { success: false, error: `Journée scellée par Ticket Z (${sealed}). Déverrouillage formel requis avant toute remédiation.` }
+        }
+        const targets = db
+          .prepare(
+            `SELECT id, receipt_number, print_count FROM student_payments
+             WHERE deleted = 0 AND student_id = ? AND payment_type = ? AND amount = ? AND payment_date = ?
+               AND (month IS ? OR month = ?) AND id != ?`
+          )
+          .all(keep.student_id, keep.payment_type, keep.amount, keep.payment_date, keep.month, keep.month, keepId) as Array<{
+          id: string
+          receipt_number: string | null
+          print_count: number | null
+        }>
+        if (targets.length === 0) {
+          return { success: false, error: 'Aucun doublon actif restant dans ce groupe (déjà traité ?).' }
+        }
+        if (targets.some((t) => (t.print_count || 0) > 0) && !params.confirmPrinted) {
+          return { success: false, error: "Au moins un doublon a déjà été imprimé (document légal). Archivage soumis à confirmation explicite (confirmPrinted)." }
+        }
+        db.transaction(() => {
+          for (const t of targets) {
+            db.prepare(
+              "UPDATE student_payments SET deleted = 1, sync_status = 'pending', updated_at = ? WHERE id = ?"
+            ).run(nowIso, t.id)
+            addToSyncQueue('student_payments', t.id, 'delete', { id: t.id, deleted: true, updated_at: nowIso })
+            const mirrors = db
+              .prepare('SELECT id FROM cash_journal WHERE related_payment_id = ? AND deleted = 0')
+              .all(t.id) as Array<{ id: string }>
+            for (const m of mirrors) {
+              db.prepare(
+                "UPDATE cash_journal SET deleted = 1, sync_status = 'pending', updated_at = ? WHERE id = ?"
+              ).run(nowIso, m.id)
+              addToSyncQueue('cash_journal', m.id, 'delete', { id: m.id, deleted: true, updated_at: nowIso })
+            }
+          }
+        })()
+        trace(
+          `remediation:duplicate_keep:${keepId}`,
+          { archived: targets.map((t) => ({ id: t.id, receipt: t.receipt_number })) },
+          { keptId: keepId, keptReceipt: keep.receipt_number, decision, at: nowIso },
+          user
+        )
+        syncWithCloud().catch((e) => console.error('[Remediation] sync after duplicate keep:', e))
+        return {
+          success: true,
+          message: `${targets.length} doublon(s) archivé(s). Écriture ${keep.receipt_number || keepId.slice(0, 8)} conservée (reçu d'origine préservé).`
+        }
+      }
+
+      // --- Journal orphelin (classe D) : archiver (soft-delete) ou consulter ---
+      case 'resolve_orphan_journal': {
+        const decision = String(params.decision || '')
+        const journalId = String(params.journalId || '')
+        if (!journalId) return { success: false, error: 'Écriture de caisse introuvable.' }
+        if (decision === 'review') {
+          trace(`remediation:orphan_journal_review:${journalId}`, null, { reviewedAt: nowIso }, user)
+          return { success: true, message: 'Constat marqué comme consulté (aucune donnée modifiée).' }
+        }
+        if (decision !== 'archive') return { success: false, error: 'Décision attendue : archive ou review.' }
+        const reason = String(params.reason || '').trim()
+        if (!reason) return { success: false, error: "Un motif d'archivage est requis pour l'audit." }
+        const j = db
+          .prepare('SELECT * FROM cash_journal WHERE id = ? AND deleted = 0')
+          .get(journalId) as Record<string, any> | undefined
+        if (!j) return { success: false, error: 'Écriture de caisse introuvable ou supprimée.' }
+        const lock = CashJournalRepository.closureLockForDate(j.transaction_date, j.receipt_number)
+        if (lock.locked) {
+          return { success: false, error: `Journée scellée par Ticket Z (${lock.label || 'Z'}). Déverrouillage formel requis.` }
+        }
+        db.transaction(() => {
+          db.prepare(
+            "UPDATE cash_journal SET deleted = 1, sync_status = 'pending', updated_at = ? WHERE id = ?"
+          ).run(nowIso, journalId)
+          addToSyncQueue('cash_journal', journalId, 'delete', { id: journalId, deleted: true, updated_at: nowIso })
+        })()
+        trace(
+          `remediation:orphan_journal_archive:${journalId}`,
+          { receipt: j.receipt_number, amount: j.amount },
+          { reason, archivedAt: nowIso },
+          user
+        )
+        syncWithCloud().catch((e) => console.error('[Remediation] sync after journal archive:', e))
+        return { success: true, message: 'Écriture de caisse orpheline archivée avec traçabilité.' }
+      }
+
+      // --- Fiches de frais dupliquées (classe G) : garder l'ancienne ou les deux ---
+      case 'resolve_duplicate_fee': {
+        const decision = String(params.decision || '')
+        const keepId = String(params.keepId || '')
+        if (decision === 'keep_both') {
+          trace(`remediation:fee_duplicate_keep_both:${keepId}`, null, { keptBothAt: nowIso }, user)
+          return { success: true, message: 'Les fiches sont conservées (décision tracée).' }
+        }
+        if (decision !== 'keep_old') return { success: false, error: 'Décision attendue : keep_old ou keep_both.' }
+        if (!keepId) return { success: false, error: 'Sélectionnez la fiche à conserver.' }
+        const keep = db
+          .prepare('SELECT id, student_id, school_year FROM student_fees WHERE id = ? AND deleted = 0')
+          .get(keepId) as { id: string; student_id: string; school_year: string } | undefined
+        if (!keep) return { success: false, error: 'Fiche à conserver introuvable ou supprimée.' }
+        const targets = db
+          .prepare(
+            `SELECT id FROM student_fees
+             WHERE deleted = 0 AND student_id = ? AND id != ?
+               AND REPLACE(REPLACE(school_year, '"', ''), '''', '') = REPLACE(REPLACE(?, '"', ''), '''', '')`
+          )
+          .all(keep.student_id, keepId, keep.school_year) as Array<{ id: string }>
+        if (targets.length === 0) {
+          return { success: false, error: 'Aucune fiche dupliquée active restante (déjà traitée ?).' }
+        }
+        db.transaction(() => {
+          for (const t of targets) {
+            db.prepare(
+              "UPDATE student_fees SET deleted = 1, sync_status = 'pending', updated_at = ? WHERE id = ?"
+            ).run(nowIso, t.id)
+            addToSyncQueue('student_fees', t.id, 'delete', { id: t.id, deleted: true, updated_at: nowIso })
+          }
+        })()
+        trace(
+          `remediation:fee_duplicate_keep:${keepId}`,
+          { archived: targets.map((t) => t.id) },
+          { keptId: keepId, at: nowIso },
+          user
+        )
+        syncWithCloud().catch((e) => console.error('[Remediation] sync after fee dedupe:', e))
+        return { success: true, message: `${targets.length} fiche(s) dupliquée(s) archivée(s). Fiche d'origine conservée.` }
       }
 
       // --- Simple marquage consulté (aucune modification de donnée) ---

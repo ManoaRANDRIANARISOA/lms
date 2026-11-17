@@ -337,7 +337,10 @@ export class EventRepository {
       const familyIds = [studentId, ...siblings]
       const placeholders = familyIds.map(() => '?').join(', ')
 
-      // Get all event payments for this family
+      // Get all event payments for this family (ignore those soft-deleted once the column exists)
+      const hasEpDeleted = (
+        db.prepare('PRAGMA table_info(event_payments)').all() as Array<{ name: string }>
+      ).some((c) => c.name === 'deleted')
       const payments = db
         .prepare(
           `
@@ -347,6 +350,7 @@ export class EventRepository {
         FROM event_payments ep
         JOIN students s ON ep.student_id = s.id
         WHERE ep.student_id IN (${placeholders})
+          ${hasEpDeleted ? 'AND ep.deleted = 0' : ''}
       `
         )
         .all(...familyIds) as any[]
@@ -358,8 +362,8 @@ export class EventRepository {
       const eventIds = [...new Set(payments.map((p) => p.event_id))]
       const eventPlaceholders = eventIds.map(() => '?').join(', ')
 
-      // Get event details
-      let eventQuery = `SELECT * FROM parent_events WHERE id IN (${eventPlaceholders})`
+      // Get event details (active events only — deleted duplicates must not appear in the dossier)
+      let eventQuery = `SELECT * FROM parent_events WHERE deleted = 0 AND id IN (${eventPlaceholders})`
       const params = [...eventIds]
 
       if (schoolYear) {

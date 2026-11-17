@@ -31,7 +31,6 @@ import type { Resource, UserRole } from '@shared/types'
 import { toast } from 'sonner'
 import { SyncStatusWidget } from '@/components/sync/SyncStatusWidget'
 import { SyncProgressModal } from '@/components/sync/SyncProgressModal'
-import { ReconciliationModal } from '@/components/sync/ReconciliationModal'
 import { useSyncStore } from '@/store/useSyncStore'
 
 // --------------------------------------------
@@ -323,9 +322,6 @@ export default function Sidebar(): React.JSX.Element {
 
       {/* Modal de progression et détails de synchronisation */}
       <SyncProgressModal />
-
-      {/* Assistant de réconciliation des écritures orphelines */}
-      <ReconciliationModal />
     </aside>
   )
 }

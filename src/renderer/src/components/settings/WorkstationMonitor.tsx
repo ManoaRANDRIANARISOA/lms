@@ -19,7 +19,6 @@ import {
   Zap
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useSyncStore } from '@/store/useSyncStore'
 
 export interface TelemetryReportItem {
   id: number
@@ -57,7 +56,6 @@ export interface StationHeartbeat {
 }
 
 export const WorkstationMonitor: React.FC = () => {
-  const { openReconciliation } = useSyncStore()
   const [reports, setReports] = useState<TelemetryReportItem[]>([])
   const [loading, setLoading] = useState(false)
   const [heartbeats, setHeartbeats] = useState<StationHeartbeat[]>([])
@@ -386,7 +384,11 @@ export const WorkstationMonitor: React.FC = () => {
             <Button
               size="sm"
               variant={quarantineCount > 0 ? 'destructive' : 'outline'}
-              onClick={openReconciliation}
+              onClick={() =>
+                document
+                  .getElementById('sync-queue-section')
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }
               className={`h-7 text-xs gap-1.5 font-medium ${
                 quarantineCount > 0
                   ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-xs'
@@ -433,6 +435,12 @@ export const WorkstationMonitor: React.FC = () => {
           <span className="bg-indigo-900/80 px-2 py-0.5 rounded text-[11px] border border-indigo-700/50">
             Comptes : <strong className="text-white">{cloudCounts.users ?? '-'}</strong>
           </span>
+          <span className="bg-indigo-900/80 px-2 py-0.5 rounded text-[11px] border border-indigo-700/50">
+            Événements : <strong className="text-white">{cloudCounts.parent_events ?? '-'}</strong>
+          </span>
+          <span className="bg-indigo-900/80 px-2 py-0.5 rounded text-[11px] border border-indigo-700/50">
+            Paiements év. : <strong className="text-white">{cloudCounts.event_payments ?? '-'}</strong>
+          </span>
         </div>
 
         {/* Stations Comparative Table */}
@@ -447,6 +455,8 @@ export const WorkstationMonitor: React.FC = () => {
                 <th className="py-2.5 px-3 text-center">Frais</th>
                 <th className="py-2.5 px-3 text-center">Paiements</th>
                 <th className="py-2.5 px-3 text-center">Caisse</th>
+                <th className="py-2.5 px-3 text-center">Événements</th>
+                <th className="py-2.5 px-3 text-center">Paiements év.</th>
                 <th className="py-2.5 px-3 text-center">File Locale</th>
                 <th className="py-2.5 px-3 text-center">Statut Convergence</th>
                 <th className="py-2.5 px-3 text-right">Actions</th>
@@ -455,7 +465,7 @@ export const WorkstationMonitor: React.FC = () => {
             <tbody className="divide-y divide-gray-100">
               {heartbeats.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-6 text-center text-gray-400">
+                  <td colSpan={12} className="py-6 text-center text-gray-400">
                     Aucun bilan reçu. Lancez une synchronisation sur chaque poste pour faire remonter leur état.
                   </td>
                 </tr>
@@ -465,17 +475,21 @@ export const WorkstationMonitor: React.FC = () => {
                   const fCount = hb.counts?.student_fees ?? 0
                   const pCount = hb.counts?.student_payments ?? 0
                   const cCount = hb.counts?.cash_journal ?? 0
+                  const eCount = hb.counts?.parent_events ?? 0
+                  const epCount = hb.counts?.event_payments ?? 0
 
                   const sMatch = !cloudCounts.students || sCount === cloudCounts.students
                   const fMatch = !cloudCounts.student_fees || fCount === cloudCounts.student_fees
                   const pMatch = !cloudCounts.student_payments || pCount === cloudCounts.student_payments
                   const cMatch = !cloudCounts.cash_journal || cCount === cloudCounts.cash_journal
+                  const eMatch = !cloudCounts.parent_events || eCount === cloudCounts.parent_events
+                  const epMatch = !cloudCounts.event_payments || epCount === cloudCounts.event_payments
 
                   const pending = hb.queue?.pending ?? hb.queue_pending ?? 0
                   const failed = (hb.queue?.failed ?? 0) + (hb.queue?.errors ?? 0) + (hb.queue_failed ?? 0)
                   const quarantined = hb.queue?.quarantined ?? hb.queue_quarantined ?? 0
 
-                  const isFullySynced = sMatch && fMatch && pMatch && cMatch && pending === 0 && failed === 0 && quarantined === 0
+                  const isFullySynced = sMatch && fMatch && pMatch && cMatch && eMatch && epMatch && pending === 0 && failed === 0 && quarantined === 0
 
                   // Calculate online state
                   const lastSeenTime = hb.last_seen || hb.last_sync
@@ -579,6 +593,34 @@ export const WorkstationMonitor: React.FC = () => {
                           {!cMatch && cloudCounts.cash_journal !== undefined && (
                             <span className="text-[10px] ml-1 font-bold text-amber-900">
                               ({cCount - cloudCounts.cash_journal > 0 ? `+${cCount - cloudCounts.cash_journal}` : cCount - cloudCounts.cash_journal})
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span
+                          className={`font-semibold px-2 py-0.5 rounded text-[11px] ${
+                            eMatch ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-100 text-amber-800 font-bold'
+                          }`}
+                        >
+                          {eCount}
+                          {!eMatch && cloudCounts.parent_events !== undefined && (
+                            <span className="text-[10px] ml-1 font-bold text-amber-900">
+                              ({eCount - cloudCounts.parent_events > 0 ? `+${eCount - cloudCounts.parent_events}` : eCount - cloudCounts.parent_events})
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span
+                          className={`font-semibold px-2 py-0.5 rounded text-[11px] ${
+                            epMatch ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-100 text-amber-800 font-bold'
+                          }`}
+                        >
+                          {epCount}
+                          {!epMatch && cloudCounts.event_payments !== undefined && (
+                            <span className="text-[10px] ml-1 font-bold text-amber-900">
+                              ({epCount - cloudCounts.event_payments > 0 ? `+${epCount - cloudCounts.event_payments}` : epCount - cloudCounts.event_payments})
                             </span>
                           )}
                         </span>

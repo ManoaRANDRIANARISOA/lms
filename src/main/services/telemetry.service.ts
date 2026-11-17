@@ -370,12 +370,17 @@ export class TelemetryService {
       } catch {}
 
       // Count local active records
+      const hasEpDeleted = (
+        db.prepare('PRAGMA table_info(event_payments)').all() as Array<{ name: string }>
+      ).some((c) => c.name === 'deleted')
       const counts: Record<string, number> = {
         students: (db.prepare('SELECT count(*) as c FROM students WHERE deleted = 0').get() as any)?.c || 0,
         student_fees: (db.prepare('SELECT count(*) as c FROM student_fees WHERE deleted = 0').get() as any)?.c || 0,
         student_payments: (db.prepare('SELECT count(*) as c FROM student_payments WHERE deleted = 0').get() as any)?.c || 0,
         cash_journal: (db.prepare('SELECT count(*) as c FROM cash_journal WHERE deleted = 0').get() as any)?.c || 0,
-        users: (db.prepare('SELECT count(*) as c FROM users WHERE deleted = 0').get() as any)?.c || 0
+        users: (db.prepare('SELECT count(*) as c FROM users WHERE deleted = 0').get() as any)?.c || 0,
+        parent_events: (db.prepare('SELECT count(*) as c FROM parent_events WHERE deleted = 0').get() as any)?.c || 0,
+        event_payments: (db.prepare(`SELECT count(*) as c FROM event_payments${hasEpDeleted ? ' WHERE deleted = 0' : ''}`).get() as any)?.c || 0
       }
 
       // Aucune purge cosmétique de la file : les quarantaines/blocages doivent rester
@@ -455,12 +460,14 @@ export class TelemetryService {
   }> {
     try {
       // 1. Fetch Cloud active counts
-      const [stRes, feeRes, payRes, cjRes, usrRes] = await Promise.all([
+      const [stRes, feeRes, payRes, cjRes, usrRes, evRes, epRes] = await Promise.all([
         supabase.from('students').select('*', { count: 'exact', head: true }).eq('deleted', false),
         supabase.from('student_fees').select('*', { count: 'exact', head: true }).eq('deleted', false),
         supabase.from('student_payments').select('*', { count: 'exact', head: true }).eq('deleted', false),
         supabase.from('cash_journal').select('*', { count: 'exact', head: true }).eq('deleted', false),
-        supabase.from('users').select('*', { count: 'exact', head: true }).eq('deleted', false)
+        supabase.from('users').select('*', { count: 'exact', head: true }).eq('deleted', false),
+        supabase.from('parent_events').select('*', { count: 'exact', head: true }).eq('deleted', false),
+        supabase.from('event_payments').select('*', { count: 'exact', head: true }).eq('deleted', false)
       ])
 
       const cloudCounts: Record<string, number> = {
@@ -468,7 +475,9 @@ export class TelemetryService {
         student_fees: feeRes.count ?? 0,
         student_payments: payRes.count ?? 0,
         cash_journal: cjRes.count ?? 0,
-        users: usrRes.count ?? 0
+        users: usrRes.count ?? 0,
+        parent_events: evRes.count ?? 0,
+        event_payments: epRes.count ?? 0
       }
 
       // 2. Fetch recent station_heartbeat entries from audit_logs

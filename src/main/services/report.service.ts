@@ -7,7 +7,7 @@
  */
 
 import db from '../database/db'
-import { StudentRepository } from '../database/repositories/student.repository'
+import { PaymentRepository } from '../database/repositories/payment.repository'
 
 export class ReportService {
   static generateMonthlyFinanceReport(year: number, month: number) {
@@ -69,75 +69,35 @@ export class ReportService {
   static generateUnpaidReport(schoolYear: string) {
     try {
       const targetYear = schoolYear.replace(/['"]/g, '').trim()
-      const fees = db
-        .prepare(
-          `
-        SELECT sf.class_name, sf.student_id, sf.monthly_tuition, sf.tuition_level,
-               s.first_name, s.last_name, s.is_personnel_child
-        FROM student_fees sf
-        JOIN students s ON sf.student_id = s.id
-        WHERE sf.school_year = ? AND sf.deleted = 0 AND s.deleted = 0
-      `
-        )
-        .all(targetYear) as Array<{
-        class_name: string
-        student_id: string
-        monthly_tuition: number
-        tuition_level?: string
+      // Source unique : le moteur d'alertes impayés (tarif centralisé, fenêtre année scolaire,
+      // mois exigibles, départ, Terminale, montants réels/partiels). Le rapport ne fait que
+      // reshaper les alertes par classe — plus de calcul divergent (binaire, sans année, etc.).
+      const result = PaymentRepository.getUnpaidAlerts(targetYear)
+      if (!result.success) {
+        throw new Error(result.error || 'Erreur de calcul des impayés')
+      }
+      const alerts = (result.alerts || []) as Array<{
         first_name: string
         last_name: string
-        is_personnel_child?: unknown
+        class_name: string
+        unpaid_items: Array<{ type: string; amount: number; month?: string }>
       }>
-
-      const [startYear] = targetYear.split('-').map(Number)
-      const months: string[] = []
-      for (let m = 9; m <= 12; m++) months.push(`${startYear}-${String(m).padStart(2, '0')}`)
-      for (let m = 1; m <= 6; m++) months.push(`${startYear + 1}-${String(m).padStart(2, '0')}`)
-      months.push(`${startYear + 1}-07`)
-
-      const placeholders = months.map(() => '?').join(', ')
-      const payments = db
-        .prepare(
-          `
-        SELECT student_id, month FROM student_payments
-        WHERE payment_type = 'tuition' AND deleted = 0 AND month IN (${placeholders})
-      `
-        )
-        .all(...months) as Array<{ student_id: string; month: string }>
 
       const byClass: Record<
         string,
         Array<{ student: string; unpaid: number; total_due: number }>
       > = {}
 
-      fees.forEach((fee) => {
-        const isPC =
-          fee.is_personnel_child == 1 ||
-          fee.is_personnel_child === '1' ||
-          fee.is_personnel_child === '1.0' ||
-          fee.is_personnel_child === true ||
-          fee.is_personnel_child === 'true'
-        if (isPC) return
-
-        const tuitionConfig = StudentRepository.resolveTuitionConfig(
-          fee.tuition_level || fee.class_name
-        )
-        const effectiveTuition =
-          tuitionConfig.price > 0 ? tuitionConfig.price : Number(fee.monthly_tuition) || 0
-        if (effectiveTuition <= 0) return
-
-        const paidMonths = payments
-          .filter((p) => p.student_id === fee.student_id)
-          .map((p) => p.month)
-        const unpaid = months.filter((m) => !paidMonths.includes(m))
-        if (unpaid.length > 0) {
-          if (!byClass[fee.class_name]) byClass[fee.class_name] = []
-          byClass[fee.class_name].push({
-            student: `${fee.last_name} ${fee.first_name}`,
-            unpaid: unpaid.length,
-            total_due: unpaid.length * effectiveTuition
-          })
-        }
+      alerts.forEach((a) => {
+        const tuitionItems = (a.unpaid_items || []).filter((i) => i.type === 'tuition')
+        if (tuitionItems.length === 0) return
+        const className = a.class_name || 'Non inscrit'
+        if (!byClass[className]) byClass[className] = []
+        byClass[className].push({
+          student: `${a.last_name} ${a.first_name}`,
+          unpaid: tuitionItems.length,
+          total_due: tuitionItems.reduce((s, i) => s + (i.amount || 0), 0)
+        })
       })
 
       return { school_year: targetYear, by_class: byClass }

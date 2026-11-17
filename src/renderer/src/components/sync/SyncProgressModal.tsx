@@ -1,4 +1,5 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Dialog } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { useSyncStore } from '@/store/useSyncStore'
@@ -36,10 +37,10 @@ export const SyncProgressModal: React.FC = () => {
     errors,
     startSync,
     retryErrors,
-    quarantineAndUnblock,
-    openReconciliation
+    quarantineAndUnblock
   } = useSyncStore()
 
+  const navigate = useNavigate()
   const [isUnblocking, setIsUnblocking] = React.useState(false)
 
   const handleQuarantineAndUnblock = async () => {
@@ -326,7 +327,14 @@ export const SyncProgressModal: React.FC = () => {
                 size="sm"
                 onClick={() => {
                   closeModal()
-                  openReconciliation()
+                  navigate('/settings')
+                  setTimeout(
+                    () =>
+                      document
+                        .getElementById('sync-queue-section')
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+                    350
+                  )
                 }}
                 className="shrink-0 bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs shadow-xs"
               >

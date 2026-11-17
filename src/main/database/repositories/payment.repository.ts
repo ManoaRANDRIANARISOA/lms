@@ -35,22 +35,14 @@ export function normalizeStationCode(raw?: string | null): string {
 }
 
 export class PaymentRepository {
-  static generateReceiptNumber(schoolYear?: string, customStationCode?: string): string {
-    let yearPrefix = new Date().getFullYear().toString()
-    if (schoolYear) {
-      const match = schoolYear.replace(/['"]/g, '').match(/^(\d{4})/)
-      if (match) {
-        yearPrefix = match[1]
-      }
-    }
-
-    const rawStation = customStationCode || (SettingsRepository.get('pos_station_code') as string)
-    const stationCode = normalizeStationCode(rawStation)
-
+  /**
+   * Plus haut numéro de séquence déjà présent EN LOCAL pour ce poste/année,
+   * tous reçus confondus (student_payments + cash_journal, y compris supprimés).
+   * Inclut le repli legacy 'REC-YYYY-XXXXX' (sans poste) pour C1.
+   */
+  private static localMaxReceiptSeq(stationCode: string, yearPrefix: string): number {
     const patternWithStation = `REC-${yearPrefix}-${stationCode}-%`
     const patternWithoutStation = `REC-${yearPrefix}-%`
-
-    // Find highest sequence number for this station across both student_payments and cash_journal
     const maxStationRecord = db
       .prepare(
         `
@@ -58,23 +50,23 @@ export class PaymentRepository {
         SELECT MAX(
           CAST(
             SUBSTR(
-              receipt_number, 
+              receipt_number,
               INSTR(receipt_number, '-' || ? || '-') + LENGTH(? || '-') + 1
             ) AS INTEGER
           )
-        ) as max_num 
-        FROM student_payments 
+        ) as max_num
+        FROM student_payments
         WHERE receipt_number LIKE ?
         UNION ALL
         SELECT MAX(
           CAST(
             SUBSTR(
-              receipt_number, 
+              receipt_number,
               INSTR(receipt_number, '-' || ? || '-') + LENGTH(? || '-') + 1
             ) AS INTEGER
           )
-        ) as max_num 
-        FROM cash_journal 
+        ) as max_num
+        FROM cash_journal
         WHERE receipt_number LIKE ?
       )
     `
@@ -88,29 +80,96 @@ export class PaymentRepository {
         patternWithStation
       ) as { max_num: number | null } | undefined
 
-    let nextNum = 1
-    if (maxStationRecord && maxStationRecord.max_num && maxStationRecord.max_num > 0) {
-      nextNum = maxStationRecord.max_num + 1
-    } else if (stationCode === 'C1') {
-      // Fallback for C1: check legacy receipts format 'REC-2026-00061' across both tables
+    let maxNum = maxStationRecord?.max_num || 0
+    if (maxNum <= 0 && stationCode === 'C1') {
       const legacyMax = db
         .prepare(
           `
         SELECT MAX(max_num) as max_num FROM (
-          SELECT MAX(CAST(SUBSTR(receipt_number, 10) AS INTEGER)) as max_num 
-          FROM student_payments 
+          SELECT MAX(CAST(SUBSTR(receipt_number, 10) AS INTEGER)) as max_num
+          FROM student_payments
           WHERE receipt_number LIKE ? AND receipt_number NOT LIKE 'REC-%-%-%'
           UNION ALL
-          SELECT MAX(CAST(SUBSTR(receipt_number, 10) AS INTEGER)) as max_num 
-          FROM cash_journal 
+          SELECT MAX(CAST(SUBSTR(receipt_number, 10) AS INTEGER)) as max_num
+          FROM cash_journal
           WHERE receipt_number LIKE ? AND receipt_number NOT LIKE 'REC-%-%-%'
         )
       `
         )
         .get(patternWithoutStation, patternWithoutStation) as { max_num: number | null } | undefined
-
-      nextNum = (legacyMax?.max_num || 0) + 1
+      maxNum = legacyMax?.max_num || 0
     }
+    return maxNum > 0 ? maxNum : 0
+  }
+
+  /**
+   * Plancher monotone local-only (non synchronisé, non historisé) des numéros de
+   * reçu déjà émis pour ce poste/année. Protège contre la réutilisation d'un
+   * numéro quand la vue locale est incomplète (synchro bloquée, restauration).
+   * Écrit directement dans settings pour éviter tout envoi cloud / spam d'historique.
+   */
+  private static readReceiptHighWater(stationCode: string, yearPrefix: string): number {
+    try {
+      const row = db
+        .prepare('SELECT value FROM settings WHERE key = ?')
+        .get(`receipt_hwm_${stationCode}_${yearPrefix}`) as { value: string } | undefined
+      const n = row ? parseInt(JSON.parse(row.value), 10) : 0
+      return Number.isFinite(n) && n > 0 ? n : 0
+    } catch {
+      return 0
+    }
+  }
+
+  private static writeReceiptHighWater(stationCode: string, yearPrefix: string, value: number): void {
+    try {
+      db.prepare(
+        `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`
+      ).run(`receipt_hwm_${stationCode}_${yearPrefix}`, JSON.stringify(value))
+    } catch (e) {
+      console.warn('[Receipt] high-water write failed:', e)
+    }
+  }
+
+  /**
+   * Après un pull réussi, relève le plancher local au MAX observé (les lignes
+   * cloud rapatriées incluses) afin qu'un numéro déjà émis ailleurs ne soit
+   * jamais réattribué, même si la ligne locale venait à manquer.
+   */
+  static bumpReceiptHighWaterFromLocal(schoolYear?: string, customStationCode?: string): void {
+    let yearPrefix = new Date().getFullYear().toString()
+    const sy = schoolYear || (SettingsRepository.get('school_year') as string)
+    if (sy) {
+      const match = String(sy).replace(/['"]/g, '').match(/^(\d{4})/)
+      if (match) yearPrefix = match[1]
+    }
+    const stationCode = normalizeStationCode(
+      customStationCode || (SettingsRepository.get('pos_station_code') as string)
+    )
+    const localMax = this.localMaxReceiptSeq(stationCode, yearPrefix)
+    const hwm = this.readReceiptHighWater(stationCode, yearPrefix)
+    if (localMax > hwm) this.writeReceiptHighWater(stationCode, yearPrefix, localMax)
+  }
+
+  static generateReceiptNumber(schoolYear?: string, customStationCode?: string): string {
+    let yearPrefix = new Date().getFullYear().toString()
+    if (schoolYear) {
+      const match = schoolYear.replace(/['"]/g, '').match(/^(\d{4})/)
+      if (match) {
+        yearPrefix = match[1]
+      }
+    }
+
+    const rawStation = customStationCode || (SettingsRepository.get('pos_station_code') as string)
+    const stationCode = normalizeStationCode(rawStation)
+
+    // Unicité future : MAX local (toutes lignes) ET plancher monotone local-only.
+    // Le plancher est relevé après chaque pull (bumpReceiptHighWaterFromLocal),
+    // ce qui intègre les numéros émis sur les autres postes une fois synchronisés.
+    const localMax = this.localMaxReceiptSeq(stationCode, yearPrefix)
+    const hwm = this.readReceiptHighWater(stationCode, yearPrefix)
+    const nextNum = Math.max(localMax, hwm) + 1
+    this.writeReceiptHighWater(stationCode, yearPrefix, nextNum)
 
     return `REC-${yearPrefix}-${stationCode}-${String(nextNum).padStart(5, '0')}`
   }
@@ -885,6 +944,33 @@ export class PaymentRepository {
     return { price: Number(feeRecord?.monthly_tuition) || 0, level: feeLevel || feeClass }
   }
 
+  /** Règle Terminale centralisée (TA/TD/Terminale) — partagée par alertes, fiche et rapports. */
+  private static isTerminaleClass(cls: string | null | undefined): boolean {
+    const c = (cls || '').trim()
+    return c === 'TA' || c === 'TD' || c === 'Terminale'
+  }
+
+  /** Clés de mois d'écolage centralisées (Sept→Juin, +Juillet si Terminale). */
+  private static tuitionMonthKeys(
+    startYear: number,
+    endYear: number,
+    isTerminale: boolean
+  ): string[] {
+    const keys = [
+      `${startYear}-09`,
+      `${startYear}-10`,
+      `${startYear}-11`,
+      `${startYear}-12`,
+      `${endYear}-01`,
+      `${endYear}-02`,
+      `${endYear}-03`,
+      `${endYear}-04`,
+      `${endYear}-05`,
+      `${endYear}-06`
+    ]
+    return isTerminale ? [...keys, `${endYear}-07`] : keys
+  }
+
   static getTuitionStatus(studentId: string, schoolYear: string): Record<string, unknown> {
     const cleanYear = schoolYear.replace(/['"]/g, '').trim()
 
@@ -950,21 +1036,38 @@ export class PaymentRepository {
     const startYear = parseInt(startYearStr) || 2026
     const endYear = parseInt(endYearStr) || 2027
 
-    // 2. Get Tuition Payments (actifs uniquement, fenêtre stricte de l'année scolaire)
+    // 2. Paiements d'écolage — même fenêtre canonique que la liste des impayés (getUnpaidAlerts)
+    //    pour garantir la cohérence fiche ↔ alertes : année scolaire exacte, repli uniquement
+    //    si school_year NULL/vide (mois de l'année OU date de paiement dans la fenêtre).
     const payments = db
       .prepare(
         `
-      SELECT * FROM student_payments 
-      WHERE student_id = ? 
+      SELECT month, SUM(amount) as amount
+      FROM student_payments
+      WHERE student_id = ?
         AND payment_type = 'tuition'
         AND deleted = 0
         AND (
           REPLACE(REPLACE(school_year, '"', ''), '''', '') = ?
-          OR (month >= ? AND month <= ?)
+          OR (
+            (school_year IS NULL OR REPLACE(REPLACE(school_year, '"', ''), '''', '') = '')
+            AND (
+              month LIKE ? OR month LIKE ?
+              OR payment_date BETWEEN ? AND ?
+            )
+          )
         )
+      GROUP BY month
     `
       )
-      .all(studentId, cleanYear, `${startYear}-09`, `${endYear}-07`) as {
+      .all(
+        studentId,
+        cleanYear,
+        `${startYear}-%`,
+        `${endYear}-%`,
+        `${startYear}-06-01`,
+        `${endYear}-08-31`
+      ) as {
       month: string
       amount: number
     }[]
@@ -983,30 +1086,34 @@ export class PaymentRepository {
     const effective = this.resolveEffectiveTuition(studentObj?.class, feeRecord, isPersonnelChild)
 
     // 3. Calculate Status for each month
-    const className = (feeRecord?.class_name as string) || ''
-    const isTerminale = className === 'TA' || className === 'TD' || className === 'Terminale'
+    //    Terminale déduit de la classe actuelle de l'élève (même source que les alertes),
+    //    repli sur la fiche — et clés de mois issues du helper centralisé.
+    const resolvedClass = (studentObj?.class as string) || (feeRecord?.class_name as string) || ''
+    const isTerminale = this.isTerminaleClass(resolvedClass)
 
-    const months = [
-      { name: 'Septembre', key: `${startYear}-09` },
-      { name: 'Octobre', key: `${startYear}-10` },
-      { name: 'Novembre', key: `${startYear}-11` },
-      { name: 'Décembre', key: `${startYear}-12` },
-      { name: 'Janvier', key: `${endYear}-01` },
-      { name: 'Février', key: `${endYear}-02` },
-      { name: 'Mars', key: `${endYear}-03` },
-      { name: 'Avril', key: `${endYear}-04` },
-      { name: 'Mai', key: `${endYear}-05` },
-      { name: 'Juin', key: `${endYear}-06` },
-      ...(isTerminale ? [{ name: 'Juillet', key: `${endYear}-07` }] : [])
-    ]
+    const monthLabels: Record<string, string> = {
+      '09': 'Septembre',
+      '10': 'Octobre',
+      '11': 'Novembre',
+      '12': 'Décembre',
+      '01': 'Janvier',
+      '02': 'Février',
+      '03': 'Mars',
+      '04': 'Avril',
+      '05': 'Mai',
+      '06': 'Juin',
+      '07': 'Juillet'
+    }
+    const months = this.tuitionMonthKeys(startYear, endYear, isTerminale).map((key) => ({
+      name: monthLabels[key.slice(5)] || key,
+      key
+    }))
 
     // Tarif effectif : configuration centralisée prioritaire (même source que la liste impayés)
     const monthlyTuition = effective.price
 
     const status = months.map((m) => {
-      const paidForMonth = payments
-        .filter((p) => p.month === m.key)
-        .reduce((sum, p) => sum + p.amount, 0)
+      const paidForMonth = payments.find((p) => p.month === m.key)?.amount || 0
 
       let status = 'unpaid'
       if (isPersonnelChild) {
@@ -1044,19 +1151,8 @@ export class PaymentRepository {
       const startYear = parseInt(startYearStr)
       const endYear = parseInt(endYearStr)
 
-      const months = [
-        `${startYear}-09`,
-        `${startYear}-10`,
-        `${startYear}-11`,
-        `${startYear}-12`,
-        `${endYear}-01`,
-        `${endYear}-02`,
-        `${endYear}-03`,
-        `${endYear}-04`,
-        `${endYear}-05`,
-        `${endYear}-06`
-      ]
-      const terminaleMonths = [...months, `${endYear}-07`]
+      const months = this.tuitionMonthKeys(startYear, endYear, false)
+      const terminaleMonths = this.tuitionMonthKeys(startYear, endYear, true)
 
       // 1. Fetch Finance Config (prices) with robust fallbacks
       let prices: Record<string, any> = {
@@ -1096,9 +1192,14 @@ export class PaymentRepository {
                   AND REPLACE(REPLACE(sf_past.school_year, '"', ''), '''', '') < ?
                   AND sf_past.deleted = 0) as past_years_count
         FROM students s
-        LEFT JOIN student_fees sf ON sf.student_id = s.id
-          AND REPLACE(REPLACE(sf.school_year, '"', ''), '''', '') = ?
-          AND sf.deleted = 0
+        LEFT JOIN student_fees sf ON sf.id = (
+          SELECT sf2.id FROM student_fees sf2
+          WHERE sf2.student_id = s.id
+            AND REPLACE(REPLACE(sf2.school_year, '"', ''), '''', '') = ?
+            AND sf2.deleted = 0
+          ORDER BY sf2.created_at ASC, sf2.id ASC
+          LIMIT 1
+        )
         WHERE s.deleted = 0
       `
         )
@@ -1213,8 +1314,7 @@ export class PaymentRepository {
 
       students.forEach((student) => {
         const resolvedClass = student.class || student.class_name || ''
-        const isTerminale =
-          resolvedClass === 'TA' || resolvedClass === 'TD' || resolvedClass === 'Terminale'
+        const isTerminale = this.isTerminaleClass(resolvedClass)
         const studentMonths = isTerminale ? terminaleMonths : months
 
         let totalDue = 0

@@ -30,6 +30,10 @@ export function registerSyncHandlers(): void {
     return app.getVersion() || '1.2.1'
   })
 
+  ipcMain.handle('app:isPackaged', () => {
+    return app.isPackaged
+  })
+
   // --------------------------------------------
   // SYNC STATUS
   // --------------------------------------------
