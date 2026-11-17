@@ -90,7 +90,7 @@ export class EventRepository {
           s.first_name, s.last_name, s.class
         FROM event_payments ep
         JOIN students s ON ep.student_id = s.id
-        WHERE ep.event_id = ?
+        WHERE ep.event_id = ? AND ep.deleted = 0
       `
         )
         .all(id)
@@ -149,20 +149,19 @@ export class EventRepository {
   static addParticipants(eventId: string, studentIds: string[], amountDue: number) {
     const transaction = db.transaction(() => {
       for (const studentId of studentIds) {
-        // Check if already exists
-        const exists = db
-          .prepare('SELECT id FROM event_payments WHERE event_id = ? AND student_id = ?')
-          .get(eventId, studentId)
-
-        if (!exists) {
-          const id = uuidv4()
-          db.prepare(
+        // INSERT OR IGNORE + index unique partiel (event_id, student_id) WHERE deleted=0 :
+        // un poste aux données périmées ne peut plus créer de doublon de participation.
+        const id = uuidv4()
+        const res = db
+          .prepare(
             `
-            INSERT INTO event_payments (id, event_id, student_id, amount_due, amount_paid, paid)
+            INSERT OR IGNORE INTO event_payments (id, event_id, student_id, amount_due, amount_paid, paid)
             VALUES (?, ?, ?, ?, 0, 0)
           `
-          ).run(id, eventId, studentId, amountDue)
+          )
+          .run(id, eventId, studentId, amountDue)
 
+        if (res.changes > 0) {
           addToSyncQueue('event_payments', id, 'create', {
             id,
             event_id: eventId,
@@ -182,6 +181,76 @@ export class EventRepository {
       const message = error instanceof Error ? error.message : String(error)
       return { success: false, error: message }
     }
+  }
+
+  // Healing idempotent au démarrage : un poste aux données périmées a ré-ajouté tous les
+  // participants d'un événement (vague du 27/10 : 772 doublons vides). Règle déterministe :
+  // on garde la ligne portant un paiement, sinon la plus ancienne ; seules les lignes VIDES
+  // sont tombstonées (deleted=1) et propagées via la file de sync — aucun montant touché.
+  static healDuplicateParticipants(): { duplicatesRemoved: number; departedRemoved: number } {
+    let duplicatesRemoved = 0
+    let departedRemoved = 0
+    try {
+      const tombstone = (id: string): void => {
+        db.prepare(
+          `UPDATE event_payments SET deleted = 1, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ?`
+        ).run(id)
+        addToSyncQueue('event_payments', id, 'delete', { deleted: true })
+      }
+
+      const dupGroups = db
+        .prepare(
+          `SELECT event_id, student_id FROM event_payments WHERE deleted = 0
+           GROUP BY event_id, student_id HAVING COUNT(*) > 1`
+        )
+        .all() as Array<{ event_id: string; student_id: string }>
+
+      db.transaction(() => {
+        for (const g of dupGroups) {
+          const rows = db
+            .prepare(
+              `SELECT id, amount_paid, paid FROM event_payments
+               WHERE event_id = ? AND student_id = ? AND deleted = 0
+               ORDER BY (amount_paid > 0) DESC, created_at ASC, id ASC`
+            )
+            .all(g.event_id, g.student_id) as Array<{
+            id: string
+            amount_paid: number
+            paid: number
+          }>
+          for (const row of rows.slice(1)) {
+            if (row.amount_paid > 0 || row.paid === 1) continue
+            tombstone(row.id)
+            duplicatesRemoved++
+          }
+        }
+
+        // Élèves partis avant la date de l'événement : participation vide tombstonée.
+        // Une participation payée est conservée (traçabilité) ; les alertes l'ignorent via la garde departure_date.
+        const departed = db
+          .prepare(
+            `SELECT ep.id FROM event_payments ep
+             JOIN parent_events e ON e.id = ep.event_id
+             JOIN students s ON s.id = ep.student_id
+             WHERE ep.deleted = 0 AND e.deleted = 0 AND ep.amount_paid = 0 AND ep.paid = 0
+               AND s.departure_date IS NOT NULL AND s.departure_date != ''
+               AND substr(s.departure_date, 1, 10) < e.event_date`
+          )
+          .all() as Array<{ id: string }>
+        for (const row of departed) {
+          tombstone(row.id)
+          departedRemoved++
+        }
+      })()
+
+      db.prepare(
+        `CREATE UNIQUE INDEX IF NOT EXISTS uq_event_payments_active
+         ON event_payments(event_id, student_id) WHERE deleted = 0`
+      ).run()
+    } catch (err) {
+      console.error('Event participant healing failed:', err)
+    }
+    return { duplicatesRemoved, departedRemoved }
   }
 
   static recordPayment(
@@ -248,7 +317,10 @@ export class EventRepository {
     const transaction = db.transaction(() => {
       // 1. Get or Create Event Payment Record
       let paymentRecord = db
-        .prepare('SELECT * FROM event_payments WHERE event_id = ? AND student_id = ?')
+        .prepare(
+          `SELECT * FROM event_payments WHERE event_id = ? AND student_id = ? AND deleted = 0
+           ORDER BY (amount_paid > 0) DESC, created_at ASC, id ASC LIMIT 1`
+        )
         .get(eventId, studentId) as Record<string, unknown> | undefined
 
       if (!paymentRecord) {

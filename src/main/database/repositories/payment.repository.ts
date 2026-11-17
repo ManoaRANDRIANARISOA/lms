@@ -1295,18 +1295,23 @@ export class PaymentRepository {
       const unpaidEvents = db
         .prepare(
           `
-        SELECT ep.student_id, e.name as event_name, ep.amount_due, ep.amount_paid
+        SELECT ep.id, ep.student_id, ep.event_id, e.name as event_name, e.event_date,
+               ep.amount_due, ep.amount_paid, ep.created_at
         FROM event_payments ep
         JOIN parent_events e ON ep.event_id = e.id
-        WHERE ep.paid = 0 AND e.deleted = 0
+        WHERE ep.paid = 0 AND ep.deleted = 0 AND e.deleted = 0
           AND (e.school_year = ? OR e.school_year IS NULL)
       `
         )
         .all(targetYear) as Array<{
+        id: string
         student_id: string
+        event_id: string
         event_name: string
+        event_date: string | null
         amount_due: number
         amount_paid: number
+        created_at: string
       }>
 
       const eventsMap = new Map<string, Array<Record<string, any>>>()
@@ -1314,6 +1319,31 @@ export class PaymentRepository {
         if (!eventsMap.has(ev.student_id)) eventsMap.set(ev.student_id, [])
         eventsMap.get(ev.student_id)!.push(ev)
       })
+      // Garde anti-double-facturation : une seule ligne par élève et par événement —
+      // celle portant un paiement, sinon la plus ancienne (déterministe, même règle que le healing).
+      for (const [sid, rows] of eventsMap) {
+        const byEvent = new Map<string, Record<string, any>>()
+        for (const row of rows) {
+          const prev = byEvent.get(row.event_id)
+          if (!prev) {
+            byEvent.set(row.event_id, row)
+            continue
+          }
+          const rowHasPayment = row.amount_paid > 0
+          const prevHasPayment = prev.amount_paid > 0
+          if (rowHasPayment !== prevHasPayment) {
+            if (rowHasPayment) byEvent.set(row.event_id, row)
+            continue
+          }
+          if (
+            row.created_at < prev.created_at ||
+            (row.created_at === prev.created_at && row.id < prev.id)
+          ) {
+            byEvent.set(row.event_id, row)
+          }
+        }
+        eventsMap.set(sid, Array.from(byEvent.values()))
+      }
 
       const now = new Date()
       const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -1456,6 +1486,14 @@ export class PaymentRepository {
         // --- Events ---
         const sEvents = eventsMap.get(student.id) || []
         sEvents.forEach((ev) => {
+          // Élève parti avant la date de l'événement : non facturable (aligné sur la garde scolarité)
+          if (
+            student.departure_date &&
+            ev.event_date &&
+            student.departure_date.substring(0, 10) < ev.event_date
+          ) {
+            return
+          }
           const balance = ev.amount_due - ev.amount_paid
           if (balance > 0) {
             unpaidItems.push({

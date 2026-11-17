@@ -15,6 +15,7 @@ import { registerSettingsHandlers } from './ipc/settings.handler'
 import { registerPaymentHandlers } from './ipc/payment.handler'
 import { registerAttendanceHandlers } from './ipc/attendance.handler'
 import { registerEventHandlers } from './ipc/event.handler'
+import { EventRepository } from './database/repositories/event.repository'
 import { registerAuthHandlers } from './ipc/auth.handler'
 import { registerDashboardHandlers } from './ipc/dashboard.handler'
 import { registerPersonnelHandlers } from './ipc/personnel.handler'
@@ -156,6 +157,15 @@ app.whenReady().then(() => {
       return new Response('Internal Server Error', { status: 500 })
     }
   })
+
+  // Healing participations événements : doublons vides (ré-ajouts multi-postes périmés)
+  // et élèves partis avant l'événement — tombstones déterministes propagés par la sync.
+  const healed = EventRepository.healDuplicateParticipants()
+  if (healed.duplicatesRemoved > 0 || healed.departedRemoved > 0) {
+    console.log(
+      `[EventHealing] ${healed.duplicatesRemoved} doublon(s) vide(s) et ${healed.departedRemoved} participation(s) d'élèves partis tombstonés (propagation sync).`
+    )
+  }
 
   // Start Sync
   startPeriodicSync()
