@@ -2,7 +2,8 @@ import db from '../db'
 import { v4 as uuidv4 } from 'uuid'
 import { addToSyncQueue } from '../../services/sync.service'
 import { StudentRepository } from './student.repository'
-import { PaymentRepository } from './payment.repository'
+import { PaymentRepository, normalizeStationCode } from './payment.repository'
+import { SettingsRepository } from './settings.repository'
 
 export interface ParentEvent {
   id: string
@@ -190,6 +191,60 @@ export class EventRepository {
     paymentMethod: string = 'cash',
     cashierName?: string
   ): { success: boolean; error?: string } {
+    // Mêmes normes que PaymentRepository.create : station configurée, caissier réel,
+    // élève actif, caisse non scellée — la norme REC-YYYY-C<station>-XXXXX ne souffre pas d'exception.
+    const rawStation = SettingsRepository.get('pos_station_code') as string
+    if (!rawStation || !String(rawStation).trim()) {
+      return {
+        success: false,
+        error:
+          'Code station non configuré sur ce poste. Configurez-le dans les Paramètres (ex. C1, C2…) avant toute saisie de paiement — norme de numérotation REC-YYYY-C<station>-XXXXX.'
+      }
+    }
+    const currentStation = normalizeStationCode(rawStation)
+
+    if (!cashierName || !cashierName.trim()) {
+      return { success: false, error: 'Session opérateur introuvable. Veuillez vous reconnecter.' }
+    }
+    const cashierUser = cashierName.trim()
+
+    const targetStudent = db
+      .prepare('SELECT id, deleted FROM students WHERE id = ?')
+      .get(studentId) as { id: string; deleted: number } | undefined
+    if (!targetStudent) {
+      return { success: false, error: 'Élève introuvable : paiement impossible.' }
+    }
+    if (targetStudent.deleted === 1) {
+      return {
+        success: false,
+        error:
+          'Cette fiche élève est supprimée/fusionnée. Utilisez la fiche active (recherche par nom ou matricule) pour saisir le paiement.'
+      }
+    }
+
+    const paymentDate = new Date().toISOString().split('T')[0]
+    const closure = db
+      .prepare(
+        `
+      SELECT id, station_code, notes FROM cash_closures
+      WHERE closure_date = ? 
+        AND (station_code = ? OR station_code = 'CONSOLIDÉ')
+        AND is_locked = 1
+      LIMIT 1
+    `
+      )
+      .get(paymentDate, currentStation) as
+      | { id: string; station_code: string; notes?: string }
+      | undefined
+    if (closure) {
+      const zMatch = closure.notes ? closure.notes.match(/\[(Z-[^\]]+)\]/) : null
+      const zLabel = zMatch ? zMatch[1] : `Z-${closure.station_code}`
+      return {
+        success: false,
+        error: `La caisse du poste ${currentStation} est clôturée et scellée pour le ${paymentDate} (${zLabel}). Saisie verrouillée. Déverrouillage Direction requis.`
+      }
+    }
+
     const transaction = db.transaction(() => {
       // 1. Get or Create Event Payment Record
       let paymentRecord = db
@@ -226,7 +281,6 @@ export class EventRepository {
       // 2. Update Event Payment Record
       const newAmountPaid = (paymentRecord.amount_paid as number) + amount
       const isPaid = newAmountPaid >= (paymentRecord.amount_due as number)
-      const paymentDate = new Date().toISOString().split('T')[0]
 
       db.prepare(
         `
@@ -245,8 +299,7 @@ export class EventRepository {
       // 3. Record in General Ledger (Student Payments)
       const ledgerId = uuidv4()
       const schoolYear = StudentRepository.getCurrentSchoolYear()
-      const receiptNumber = PaymentRepository.generateReceiptNumber(schoolYear)
-      const cashierUser = cashierName || 'Administrateur'
+      const receiptNumber = PaymentRepository.generateReceiptNumber(schoolYear, currentStation)
 
       db.prepare(
         `

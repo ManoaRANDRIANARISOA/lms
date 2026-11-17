@@ -925,8 +925,9 @@ export class PaymentRepository {
   }
 
   /**
-   * Source de vérité unique de l'écolage : la configuration centralisée (finance_prices)
-   * de la classe actuelle de l'élève fait foi ; la fiche student_fees n'est qu'un repli.
+   * Source de vérité unique de l'écolage : la fiche student_fees fait foi quand
+   * monthly_tuition est explicitement renseigné (y compris 0 = exonération accordée) ;
+   * la configuration centralisée (finance_prices) ne sert que de repli.
    */
   private static resolveEffectiveTuition(
     studentClass: string | null | undefined,
@@ -936,12 +937,16 @@ export class PaymentRepository {
     const feeLevel = (feeRecord?.tuition_level as string) || ''
     const feeClass = (feeRecord?.class_name as string) || ''
     if (isPersonnelChild) return { price: 0, level: feeLevel || studentClass || '' }
+    const monthly = feeRecord?.monthly_tuition
+    if (monthly !== null && monthly !== undefined && monthly !== '') {
+      return { price: Number(monthly) || 0, level: feeLevel || feeClass || studentClass || '' }
+    }
     const candidates = [studentClass, feeLevel, feeClass].filter(Boolean) as string[]
     for (const candidate of candidates) {
       const config = StudentRepository.resolveTuitionConfig(candidate)
       if (config.price > 0) return { price: config.price, level: config.key || candidate }
     }
-    return { price: Number(feeRecord?.monthly_tuition) || 0, level: feeLevel || feeClass }
+    return { price: 0, level: feeLevel || feeClass }
   }
 
   /** Règle Terminale centralisée (TA/TD/Terminale) — partagée par alertes, fiche et rapports. */
@@ -974,12 +979,15 @@ export class PaymentRepository {
   static getTuitionStatus(studentId: string, schoolYear: string): Record<string, unknown> {
     const cleanYear = schoolYear.replace(/['"]/g, '').trim()
 
-    // 1. Get Fee Structure
+    // 1. Get Fee Structure (même sélection déterministe que getUnpaidAlerts : plus ancienne fiche active)
     let feeRecord = db
       .prepare(
         `
       SELECT * FROM student_fees 
       WHERE student_id = ? AND REPLACE(REPLACE(school_year, '"', ''), '''', '') = ?
+        AND deleted = 0
+      ORDER BY created_at ASC, id ASC
+      LIMIT 1
     `
       )
       .get(studentId, cleanYear) as Record<string, unknown> | undefined
@@ -1398,11 +1406,7 @@ export class PaymentRepository {
         }
 
         // --- Tuition (Centralized Dynamic Pricing) ---
-        const isPersonnelChild =
-          student.is_personnel_child === 1 ||
-          student.is_personnel_child === '1' ||
-          student.is_personnel_child === true ||
-          student.is_personnel_child === 'true'
+        const isPersonnelChild = StudentRepository.parseBoolean(student.is_personnel_child)
 
         let tuitionCost = 0
         if (!isPersonnelChild) {

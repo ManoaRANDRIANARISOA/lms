@@ -738,7 +738,13 @@ export class StudentRepository {
         needsUpdate = true
       }
       const isPC = this.parseBoolean(student.is_personnel_child)
-      if (!isPC && (!fees.monthly_tuition || Number(fees.monthly_tuition) <= 0)) {
+      // Ne combler qu'un tarif NULL/vide (legacy) — un 0 explicite est une exonération accordée, jamais l'écraser
+      if (
+        !isPC &&
+        (fees.monthly_tuition === null ||
+          fees.monthly_tuition === undefined ||
+          String(fees.monthly_tuition) === '')
+      ) {
         const tuitionFee = this.getTuitionPrice(student.class as string, false)
         if (tuitionFee > 0) {
           fees.monthly_tuition = tuitionFee

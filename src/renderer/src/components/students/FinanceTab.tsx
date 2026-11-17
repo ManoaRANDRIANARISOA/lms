@@ -88,6 +88,14 @@ const getTuitionCost = (
 ) => {
   if (isPersonnelChild) return 0
   if (!record) return 0
+  // La fiche fait foi (y compris 0 = exonération) — même priorité que resolveEffectiveTuition côté main
+  if (
+    record.monthly_tuition !== null &&
+    record.monthly_tuition !== undefined &&
+    String(record.monthly_tuition) !== ''
+  ) {
+    return Number(record.monthly_tuition) || 0
+  }
   if (record.tuition_level && prices?.tuition?.[record.tuition_level]) {
     return prices.tuition[record.tuition_level]
   }
@@ -95,7 +103,7 @@ const getTuitionCost = (
   if (resolved && prices?.tuition?.[resolved]) {
     return prices.tuition[resolved]
   }
-  return record.monthly_tuition || 0
+  return 0
 }
 
 const getBusCost = (record: FeeRecord | undefined | null, prices: FinancePrices | null) => {

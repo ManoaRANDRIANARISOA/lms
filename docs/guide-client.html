@@ -71,6 +71,7 @@
   <strong>Sommaire</strong>
   <ol>
     <li><a href="#auto">Ce que la mise à jour fait automatiquement</a></li>
+    <li><a href="#demarrage">Démarrage : incidents, causes &amp; règles d'exploitation</a></li>
     <li><a href="#etapes">Les 5 étapes à faire sur chaque PC</a></li>
     <li><a href="#poste">Régler l'identifiant du poste de caisse</a></li>
     <li><a href="#matrice">Lire la matrice de convergence</a></li>
@@ -87,7 +88,7 @@
 <section id="auto">
   <h2>1. Ce que la mise à jour v2.4.1 fait automatiquement</h2>
   <p>La mise à jour s'installe toute seule au démarrage de l'application (auto-update). Une fois installée, <b>aucune manipulation technique de base de données n'est nécessaire</b> : tout est intégré.</p>
-  <div class="callout c-info"><b>Accès rapide :</b> ce guide est consultable à tout moment depuis le logiciel — <b>Paramètres → bouton « Guide client »</b> (en haut à droite). Lecture seule, sans risque de modification.</div>
+  <div class="callout c-info"><b>Accès rapide :</b> ce guide est consultable à tout moment par <b>tous les comptes</b> — bouton <b>« Guide client »</b> en bas du menu latéral, à côté du numéro de version (également disponible dans Paramètres). Lecture seule, sans risque de modification. Le bouton <b>« Mettre à jour »</b> se trouve en haut de ce guide.</div>
   <table>
     <tr><th>Nouveauté</th><th>Effet concret</th><th>Action client</th></tr>
     <tr><td>Colonne <code>deleted</code> sur les paiements d'événements</td><td>Les participations supprimées ne réapparaissent plus ; parité local/Cloud correcte.</td><td><span class="badge b-ok">Automatique</span> au démarrage</td></tr>
@@ -101,11 +102,36 @@
   <div class="callout c-ok"><b>État vérifié côté Cloud :</b> parité exacte (0 écart) sur les 7 tables — élèves 790, frais 840, paiements 5173, caisse 5636, comptes 7, événements 1, paiements d'événements 2355. File de synchronisation 100&nbsp;% envoyée, aucun blocage. Aucune commande SQL supplémentaire n'est requise.</div>
 </section>
 
+<section id="demarrage">
+  <h2>2. Démarrage : comprendre les incidents et les règles d'exploitation</h2>
+  <div class="callout c-ok"><b>Point essentiel — aucun argent perdu, aucun double comptage.</b> L'audit complet de la base (16 novembre 2026) l'a prouvé : les 219 numéros de reçus en conflit correspondent à <b>441 paiements réels et distincts</b> (élèves, montants et dates différents). Le problème portait uniquement sur l'unicité des numéros, jamais sur les montants. Les reçus papier remis aux parents restent valides et sont préservés.</div>
+  <h3>Causes identifiées (audit documenté)</h3>
+  <table>
+    <tr><th>Incident constaté</th><th>Cause exacte</th><th>Mesure prise</th></tr>
+    <tr><td>Numéros de reçus attribués deux fois</td><td>Plusieurs sessions simultanées sous des comptes partagés ou parallèles (« admin » / « Administrateur ») : chaque session calculait le prochain numéro depuis sa propre base locale, avant propagation de l'autre.</td><td>Numérotation sécurisée + règle d'exploitation : <b>un compte nominatif par caissier</b>.</td></tr>
+    <tr><td>Tous les postes émettaient des reçus « C1 »</td><td>Identifiant du poste non renseigné sur les PC lors du déploiement (réglage local à chaque machine).</td><td>Réglage du code poste sur chaque PC — voir section 4.</td></tr>
+    <tr><td>Compteur de reçus reparti de zéro en septembre</td><td>Un poste reconfiguré sur site avait redémarré sa numérotation sans l'historique de juillet (rapatriement bloqué à ce moment-là).</td><td>Synchronisation complète avant remise en service + parité automatique entre postes.</td></tr>
+    <tr><td>Écritures en attente, échanges interrompus</td><td>Coupures de courant en pleine saisie ou synchronisation.</td><td>File de synchronisation auto-réparante, rattrapage automatique, convergence non-destructive : les saisies ne sont jamais perdues.</td></tr>
+    <tr><td>Vrais doublons de saisie</td><td>Même élève, même mois, même montant saisis deux fois.</td><td>Assistant de cohérence : unification « keep-old » avec trace, reçu papier d'origine préservé.</td></tr>
+  </table>
+  <h3>Ce qui a été renforcé côté logiciel</h3>
+  <p>La version initiale a été durcie en profondeur pour supporter les conditions réelles d'exploitation (multi-postes, hors-ligne, coupures) : synchronisation auto-réparante entre postes, protection des tarifs et configurations personnalisées, clôture de caisse par poste et par caissier, calcul unique des impayés, et un assistant qui propose les corrections <b>au cas par cas, sans jamais supprimer un paiement réel</b>. Chaque correction est tracée et réversible.</p>
+  <h3>Règles d'exploitation partagées (pour que les incidents ne se reproduisent pas)</h3>
+  <ul>
+    <li><b>Un compte nominatif par caissier, jamais partagé</b> — c'est la garantie de reçus uniques et d'une clôture fiable par compte.</li>
+    <li><b>Chaque comptable clôture sur son poste attitré</b> (règle déjà en vigueur) ; en cas de panne d'un poste, travailler sur un autre poste et clôturer cette session avec un Ticket Z.</li>
+    <li><b>Code poste vérifié sur chaque PC</b> après toute réinstallation ou changement de machine (section 4).</li>
+    <li><b>Fermer proprement l'application</b> avant d'éteindre un PC ; si possible, protéger les postes de caisse contre les coupures brutales (onduleur).</li>
+    <li><b>Ne jamais forcer un statut « envoyé » ni purger une file</b> : un compteur d'erreur est un signal à expliquer, pas à masquer.</li>
+  </ul>
+  <div class="callout c-info"><b>Notre démarche depuis le début :</b> aucune donnée effacée, aucune correction forcée, chaque décision validée avec l'établissement. Les cas restants (tarifs, groupes orphelins, collisions de reçus) sont traités au cas par cas via l'Assistant, en préservant toujours les reçus papier déjà remis aux parents.</div>
+</section>
+
 <section id="etapes">
-  <h2>2. Les 5 étapes à faire sur chaque PC (une seule fois)</h2>
+  <h2>3. Les 5 étapes à faire sur chaque PC (une seule fois)</h2>
   <ol class="steps">
     <li><b>Laisser la mise à jour s'installer.</b> Ouvrir l'application, accepter la mise à jour si elle est proposée, puis laisser redémarrer. <span class="path">La migration de la base se fait toute seule au démarrage.</span></li>
-    <li><b>Régler l'identifiant du poste de caisse</b> (C1, C2, C3…). <span class="path">Voir section 3 — c'est l'intervention la plus importante.</span></li>
+    <li><b>Régler l'identifiant du poste de caisse</b> (C1, C2, C3…). <span class="path">Voir section 4 — c'est l'intervention la plus importante.</span></li>
     <li><b>Lancer une synchronisation complète.</b> <span class="path">Bouton de synchronisation → « Lancer la synchronisation maintenant ». Attendre la fin du bilan.</span></li>
     <li><b>Vérifier la matrice de convergence.</b> <span class="path">Paramètres → Moniteur des postes : toutes les pastilles doivent être vertes, écarts à 0, file locale à 0.</span></li>
     <li><b>Ouvrir l'Assistant de cohérence.</b> <span class="path">Paramètres → Assistant : lancer le scan, traiter les éventuels doublons « certains » et les écritures orphelines.</span></li>
@@ -114,7 +140,7 @@
 </section>
 
 <section id="poste">
-  <h2>3. Régler l'identifiant du poste de caisse</h2>
+  <h2>4. Régler l'identifiant du poste de caisse</h2>
   <p class="path"><b>Paramètres</b> → section <b>Imprimante Thermique / Poste</b> → champ <b>« Identifiant du Poste de Caisse (Multi-Postes) »</b> → choisir la caisse correspondant à ce PC → enregistrer.</p>
   <table>
     <tr><th>Choix</th><th>Usage type</th><th>Exemple de reçu</th></tr>
@@ -127,7 +153,7 @@
 </section>
 
 <section id="matrice">
-  <h2>4. Lire la matrice de convergence</h2>
+  <h2>5. Lire la matrice de convergence</h2>
   <p class="path"><b>Paramètres</b> → <b>Moniteur des postes</b> (réservé administrateur). Compare chaque PC au Cloud Supabase.</p>
   <h3>Les colonnes</h3>
   <table>
@@ -141,14 +167,14 @@
   <h3>Interpréter un écart</h3>
   <ul>
     <li><b>Delta négatif (local &lt; Cloud)</b> : ce PC n'a pas encore tout reçu → lancer une synchronisation complète. La parité automatique déclenche aussi un rattrapage (au plus une fois toutes les 6 h).</li>
-    <li><b>Delta positif (local &gt; Cloud)</b> : envois possiblement perdus/non confirmés → ouvrir l'Assistant / la file bloquée (section 5). <b>Ne jamais forcer</b> le statut « envoyé ».</li>
+    <li><b>Delta positif (local &gt; Cloud)</b> : envois possiblement perdus/non confirmés → ouvrir l'Assistant / la file bloquée (section 6). <b>Ne jamais forcer</b> le statut « envoyé ».</li>
     <li><b>Poste hors-ligne</b> : normal si le PC est éteint ou sans internet. Les données restent en local et partiront à la reconnexion.</li>
   </ul>
   <div class="callout c-info"><b>Limite à connaître :</b> la matrice est une <b>photo à la dernière synchronisation</b>, pas un temps réel. Un PC éteint affiche son dernier bilan connu. Les compteurs mesurent le volume, pas la qualité ligne à ligne — d'où l'intérêt de l'Assistant.</div>
 </section>
 
 <section id="assistant">
-  <h2>5. Assistant de cohérence &amp; file de synchronisation bloquée</h2>
+  <h2>6. Assistant de cohérence &amp; file de synchronisation bloquée</h2>
   <p class="path"><b>Paramètres</b> → <b>Assistant de cohérence</b> (administrateur). Regroupe le scan multi-classes, les doublons et la file bloquée.</p>
   <h3>a) Doublons « certains »</h3>
   <p>Le bouton <b>« Unifier les certains »</b> fusionne en un clic uniquement les doublons <b>prouvés à 100&nbsp;%</b> (même élève, même paiement, mêmes montants). Les reçus papier déjà imprimés sont préservés. Les cas ambigus restent proposés <b>au cas par cas</b> avec preuve et niveau de confiance — vous décidez.</p>
@@ -165,14 +191,14 @@
 </section>
 
 <section id="impayes">
-  <h2>6. Alertes impayés</h2>
+  <h2>7. Alertes impayés</h2>
   <p>Le calcul est désormais <b>unique et centralisé</b> : la liste des impayés, la fiche de paiement de l'élève et le module finance utilisent exactement la même logique (même année scolaire, mêmes mois dus, même tarif résolu, seuil de solde, mois courant, élèves partis, cas Terminale). </p>
   <div class="callout c-ok"><b>Vérifié empiriquement :</b> sur 790 élèves et 2365 mois dus, 329 mois signalés impayés — <b>0 faux positif, 0 écart avec la fiche, 0 alerte manquée</b>. Si un mois apparaît impayé, c'est qu'aucun paiement correspondant n'existe en finance pour ce mois.</div>
   <p>Un élève « enfant du personnel » est exonéré (tuition 0) : il n'apparaît pas en impayé. Les tarifs personnalisés (transport, uniformes, écolage) sont <b>toujours préservés</b> lors des synchronisations.</p>
 </section>
 
 <section id="caisse">
-  <h2>7. Reçus &amp; clôture de caisse</h2>
+  <h2>8. Reçus &amp; clôture de caisse</h2>
   <h3>Numérotation des reçus</h3>
   <p>Norme stricte par poste : <code>REC-ANNÉE-C&lt;poste&gt;-XXXXX</code> (ex. <code>REC-2026-C3-00012</code>). L'impression thermique 80 mm sort un double exemplaire (Parent + Caisse). Le compteur d'impressions distingue les reçus légalement imprimés.</p>
   <h3>Clôture de caisse</h3>
@@ -185,7 +211,7 @@
 </section>
 
 <section id="auto-manuel">
-  <h2>8. Automatique vs manuel</h2>
+  <h2>9. Automatique vs manuel</h2>
   <div class="grid">
     <div class="mini">
       <h4><span class="badge b-ok">Automatique</span></h4>
@@ -213,7 +239,7 @@
 </section>
 
 <section id="astuces">
-  <h2>9. Astuces &amp; bonnes pratiques</h2>
+  <h2>10. Astuces &amp; bonnes pratiques</h2>
   <ul>
     <li><b>Hors-ligne : tout continue de fonctionner.</b> Les saisies sont enregistrées en local et partiront automatiquement à la reconnexion. Pas besoin d'attendre internet pour encaisser.</li>
     <li><b>Un PC = un code caisse.</b> Vérifiez le code après chaque réinstallation ou changement de PC.</li>
@@ -226,7 +252,7 @@
 </section>
 
 <section id="depannage">
-  <h2>10. Dépannage rapide</h2>
+  <h2>11. Dépannage rapide</h2>
   <table>
     <tr><th>Symptôme</th><th>Cause probable</th><th>Action</th></tr>
     <tr><td>Carte événement « sans titre » dans un dossier</td><td>Ancienne version (avant v2.4.1)</td><td>Installer la mise à jour ; le filtrage est automatique.</td></tr>
@@ -241,7 +267,7 @@
 </section>
 
 <section id="checklist">
-  <h2>11. Checklist de mise en service (par poste)</h2>
+  <h2>12. Checklist de mise en service (par poste)</h2>
   <p>À cocher pour chaque PC (C1 à C5). Imprimable.</p>
   <ul class="check">
     <li>Mise à jour v2.4.1 installée et application redémarrée</li>
@@ -257,7 +283,7 @@
 </section>
 
 <footer>
-  LMS École · Guide client v2.4.2 · Document autonome (ouvrable dans tout navigateur, imprimable, ou via Paramètres → Guide client).<br>
+  LMS École · Guide client v2.4.2 · Document autonome (ouvrable dans tout navigateur, imprimable, ou via le bouton « Guide client » en bas du menu latéral).<br>
   Les interventions techniques de schéma Cloud ont déjà été appliquées ; ce guide couvre l'exploitation côté client.
 </footer>
 

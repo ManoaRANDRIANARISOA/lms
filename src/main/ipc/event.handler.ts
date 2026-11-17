@@ -133,7 +133,10 @@ export function registerEventHandlers(): void {
     if (!canWrite('events')) {
       return { success: false, error: 'Accès refusé: écriture événements' }
     }
-    const cashierName = getCurrentUser()?.username || 'Administrateur'
+    const cashierName = getCurrentUser()?.username
+    if (!cashierName) {
+      return { success: false, error: 'Session opérateur introuvable. Veuillez vous reconnecter.' }
+    }
     const result = EventRepository.recordPayment(eventId, studentId, amount, paymentMethod, cashierName)
     if (result.success) {
       logAction(
