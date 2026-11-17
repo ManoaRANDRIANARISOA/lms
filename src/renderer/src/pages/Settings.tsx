@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react'
 import { getStudentPhotoUrl } from '../lib/image-utils'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useClasses } from '@/lib/useClasses'
-import { Trash2, Plus, AlertTriangle, Printer, CheckCircle2, RefreshCw, Wrench, Loader2, Ban, Building2 } from 'lucide-react'
+import { Trash2, Plus, AlertTriangle, Printer, CheckCircle2, RefreshCw, Wrench, Loader2, Ban, Building2, BookOpen } from 'lucide-react'
 import { toast } from 'sonner'
 import defaultSchoolLogo from '@/assets/logo.png'
 import EmailSettings from '@/pages/settings/EmailSettings'
@@ -14,6 +14,7 @@ import AssessmentSettings from '@/pages/settings/AssessmentSettings'
 import { DuplicateManager } from '@/components/settings/DuplicateManager'
 import { WorkstationMonitor } from '@/components/settings/WorkstationMonitor'
 import { DataConsistencyAssistant } from '@/components/settings/DataConsistencyAssistant'
+import { ClientGuideModal } from '@/components/settings/ClientGuideModal'
 
 function normalizeStationCode(raw?: string | null): string {
   if (!raw) return 'C1'
@@ -46,6 +47,7 @@ export default function Settings() {
   const [printerName, setPrinterName] = useState('POS-80')
   const [printerCopies, setPrinterCopies] = useState('2')
   const [stationCode, setStationCode] = useState('C1')
+  const [guideOpen, setGuideOpen] = useState(false)
   const [availablePrinters, setAvailablePrinters] = useState<Array<{ name: string; isDefault: boolean }>>([])
   const [availableUsbPorts, setAvailableUsbPorts] = useState<string[]>(['USB001', 'USB002', 'USB003'])
   const [switchingPort, setSwitchingPort] = useState<string | null>(null)
@@ -445,7 +447,12 @@ export default function Settings() {
             Configuration générale de l'établissement, caisse locale, imprimante thermique et synchronisation
           </p>
         </div>
+        <Button variant="outline" size="sm" onClick={() => setGuideOpen(true)} className="gap-1.5 shrink-0">
+          <BookOpen className="w-4 h-4" />
+          Guide client
+        </Button>
       </div>
+      <ClientGuideModal isOpen={guideOpen} onClose={() => setGuideOpen(false)} />
 
       <div className="space-y-6">
         {/* Section 1 : Configuration de l'Établissement & Logo */}
