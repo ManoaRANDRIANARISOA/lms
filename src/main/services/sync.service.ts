@@ -1012,7 +1012,11 @@ export function addToSyncQueue(
  * - event_payments réattribués (montants cumulés si collision sur le même événement) ;
  * - l'élève source est tombstoné et mis en file, jamais supprimé physiquement en local.
  */
-export function mergeStudentRecordsSafe(oldId: string, newId: string): void {
+export function mergeStudentRecordsSafe(
+  oldId: string,
+  newId: string,
+  opts: { tombstoneSource?: boolean } = {}
+): void {
   const nowIso = new Date().toISOString()
   const tombstone = (table: string, id: string): void => {
     db.prepare(
@@ -1154,14 +1158,18 @@ export function mergeStudentRecordsSafe(oldId: string, newId: string): void {
     }
   }
 
-  // 6. Élève source : tombstone propagée (jamais de DELETE physique local)
-  db.prepare(
-    `UPDATE students SET deleted = 1, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ?`
-  ).run(oldId)
-  addToSyncQueue('students', oldId, 'delete', { id: oldId, deleted: true })
-  db.prepare(
-    `DELETE FROM sync_queue WHERE table_name = 'students' AND record_id = ? AND action != 'delete' AND status IN ('pending', 'error')`
-  ).run(oldId)
+  // 6. Élève source : tombstone propagée (jamais de DELETE physique local).
+  // tombstoneSource=false : la fiche source a déjà été renommée vers newId (adoption push),
+  // il ne reste plus de ligne oldId à tombstoner ni de file à purger.
+  if (opts.tombstoneSource !== false) {
+    db.prepare(
+      `UPDATE students SET deleted = 1, updated_at = CURRENT_TIMESTAMP, sync_status = 'pending' WHERE id = ?`
+    ).run(oldId)
+    addToSyncQueue('students', oldId, 'delete', { id: oldId, deleted: true })
+    db.prepare(
+      `DELETE FROM sync_queue WHERE table_name = 'students' AND record_id = ? AND action != 'delete' AND status IN ('pending', 'error')`
+    ).run(oldId)
+  }
 }
 
 /**
@@ -2567,6 +2575,7 @@ async function pushLocalChanges() {
               .from('students')
               .select('id, first_name, last_name, registration_number')
               .eq('registration_number', payload.registration_number)
+              .eq('deleted', false)
               .maybeSingle()
 
             if (
@@ -2574,12 +2583,21 @@ async function pushLocalChanges() {
               cloudMatch.first_name?.trim().toLowerCase() === payload.first_name?.trim().toLowerCase() &&
               cloudMatch.last_name?.trim().toLowerCase() === payload.last_name?.trim().toLowerCase()
             ) {
-              // Same student created under different UUID across stations: adopt cloud ID locally
+              // Same student created under different UUID across stations: adopt cloud ID locally.
+              // Réattribution COMPLÈTE de l'historique (paiements + miroirs caisse, fiches, notes,
+              // présences bus/cantine, participations événements) via mergeStudentRecordsSafe :
+              // collisions UNIQUE gérées, cumul des montants événements, tombstones propagées.
               console.warn(`[Auto-healing sync] Matching student found in cloud (ID: ${cloudMatch.id}). Aligning local UUID...`)
-              db.prepare("UPDATE students SET id = ?, sync_status = 'synced' WHERE id = ?").run(cloudMatch.id, item.record_id)
-              db.prepare('UPDATE student_fees SET student_id = ? WHERE student_id = ?').run(cloudMatch.id, item.record_id)
-              db.prepare('UPDATE student_payments SET student_id = ? WHERE student_id = ?').run(cloudMatch.id, item.record_id)
-              db.prepare('UPDATE cash_journal SET related_student_id = ? WHERE related_student_id = ?').run(cloudMatch.id, item.record_id)
+              const oldId = item.record_id
+              const newId = cloudMatch.id
+              db.transaction(() => {
+                const targetLocal = db.prepare('SELECT id FROM students WHERE id = ?').get(newId)
+                if (!targetLocal) {
+                  // Élève cloud pas encore rapatrié : la fiche locale adopte son UUID.
+                  db.prepare("UPDATE students SET id = ?, sync_status = 'synced' WHERE id = ?").run(newId, oldId)
+                }
+                mergeStudentRecordsSafe(oldId, newId, { tombstoneSource: !!targetLocal })
+              })()
               autoHealed = true
             } else {
               // Distinct student: allocate next non-colliding registration number
