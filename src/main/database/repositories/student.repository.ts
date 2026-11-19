@@ -11,6 +11,7 @@ export class StudentRepository {
   private static feeFields = [
     'bus_subscribed',
     'bus_route',
+    'bus_free',
     'canteen_subscribed',
     'canteen_days_per_week',
     'canteen_days',
@@ -393,11 +394,11 @@ export class StudentRepository {
           `
                 INSERT INTO student_fees (
                     id, student_id, school_year, tuition_level, monthly_tuition, class_name,
-                    bus_subscribed, bus_route, 
+                    bus_subscribed, bus_route, bus_free,
                     canteen_subscribed, canteen_days_per_week,
                     uniform_items_purchased,
                     fram_paid_by_parent, is_reenrollment
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
             `
         ).run(
           feeId,
@@ -408,6 +409,7 @@ export class StudentRepository {
           studentDataClean.class,
           feeData.bus_subscribed ? 1 : 0,
           feeData.bus_route || null,
+          feeData.bus_free ? 1 : 0,
           feeData.canteen_subscribed ? 1 : 0,
           feeData.canteen_days_per_week || 0,
           feeData.uniform_items_purchased ? JSON.stringify(feeData.uniform_items_purchased) : '[]',

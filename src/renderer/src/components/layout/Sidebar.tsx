@@ -273,6 +273,7 @@ export default function Sidebar(): React.JSX.Element {
           isOpen={openModule === 'Administration'}
           onToggle={() => handleToggle('Administration')}
           items={[
+            { to: '/assistant', label: 'Assistant de cohérence', resource: 'payments', allowedRoles: ['admin', 'direction'] },
             { to: '/settings', label: 'Paramètres', resource: 'settings', exact: true },
             { to: '/users', label: 'Utilisateurs', resource: 'users' },
             { to: '/audit', label: "Journal d'audit", resource: 'audit' }

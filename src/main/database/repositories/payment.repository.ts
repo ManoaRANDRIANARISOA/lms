@@ -836,7 +836,7 @@ export class PaymentRepository {
       limit?: number
       offset?: number
     } = {}
-  ): { rows: Record<string, unknown>[]; total: number } {
+  ): { rows: Record<string, unknown>[]; total: number; signals: Record<string, number> } {
     const conditions: string[] = []
     const params: unknown[] = []
 
@@ -907,7 +907,35 @@ export class PaymentRepository {
       const m = String(r.receipt_number || '').match(/^REC-\d{4}-([A-Z0-9]+)-/)
       r.origin_station = m ? m[1] : ''
     }
-    return { rows, total }
+
+    // Signaux agrégés sur l'ENSEMBLE du jeu filtré (indépendants de la pagination) :
+    // le filtre « Tous » page 1 ne doit plus masquer les antidatés/mois décalés des pages suivantes.
+    const sig = db
+      .prepare(
+        `
+        SELECT
+          SUM(CASE WHEN sp.deleted = 1 THEN 1 ELSE 0 END) as deleted,
+          SUM(CASE WHEN sq.status IN ('error','failed','quarantined') THEN 1 ELSE 0 END) as blocked,
+          SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM cash_journal cj WHERE cj.related_payment_id = sp.id) THEN 1 ELSE 0 END) as orphan,
+          SUM(CASE WHEN sp.payment_date IS NOT NULL AND sp.created_at IS NOT NULL AND date(sp.payment_date) < date(sp.created_at) THEN 1 ELSE 0 END) as backdated,
+          SUM(CASE WHEN sp.month IS NOT NULL AND sp.month != '' AND sp.payment_date IS NOT NULL AND substr(sp.month,1,7) != substr(sp.payment_date,1,7) THEN 1 ELSE 0 END) as shifted
+        FROM student_payments sp
+        LEFT JOIN students s ON sp.student_id = s.id
+        LEFT JOIN sync_queue sq ON sq.id = (
+          SELECT MAX(id) FROM sync_queue WHERE table_name = 'student_payments' AND record_id = sp.id
+        )
+        ${where}
+      `
+      )
+      .get(...params) as Record<string, number | null> | undefined
+    const signals = {
+      deleted: Number(sig?.deleted) || 0,
+      blocked: Number(sig?.blocked) || 0,
+      orphan: Number(sig?.orphan) || 0,
+      backdated: Number(sig?.backdated) || 0,
+      shifted: Number(sig?.shifted) || 0
+    }
+    return { rows, total, signals }
   }
 
   /** Piste d'audit complète d'un paiement (création, modifications, suppressions). */
@@ -1192,8 +1220,9 @@ export class PaymentRepository {
         .prepare(
           `
         SELECT s.id, s.first_name, s.last_name, s.class, s.departure_date, s.is_personnel_child,
+               s.enrollment_date, s.siblings,
                sf.monthly_tuition, sf.tuition_level, sf.bus_subscribed, sf.bus_route, sf.bus_monthly_fee,
-               sf.canteen_subscribed, sf.canteen_days_per_week, sf.canteen_days,
+               sf.bus_free, sf.canteen_subscribed, sf.canteen_days_per_week, sf.canteen_days,
                sf.is_reenrollment, sf.enrollment_fee, sf.reenrollment_fee, sf.class_name,
                (SELECT COUNT(*) FROM student_fees sf_past 
                 WHERE sf_past.student_id = s.id 
@@ -1345,12 +1374,66 @@ export class PaymentRepository {
         eventsMap.set(sid, Array.from(byEvent.values()))
       }
 
+      // Couverture fratrie des événements : un événement est couvert pour toute la famille
+      // dès qu'un membre a payé intégralement ou que le cumul famille atteint amount_per_parent.
+      // Aligné sur EventRepository.getByStudent pour éviter la divergence badge / alertes.
+      const epFullRows = db
+        .prepare(
+          `
+        SELECT ep.student_id, ep.event_id, ep.amount_paid, ep.paid, e.amount_per_parent
+        FROM event_payments ep
+        JOIN parent_events e ON ep.event_id = e.id
+        WHERE ep.deleted = 0 AND e.deleted = 0
+          AND (e.school_year = ? OR e.school_year IS NULL)
+      `
+        )
+        .all(targetYear) as Array<{
+        student_id: string
+        event_id: string
+        amount_paid: number
+        paid: number
+        amount_per_parent: number
+      }>
+      const epByStudent = new Map<string, Map<string, { paid: number; amount_paid: number }>>()
+      const amountPerParent = new Map<string, number>()
+      for (const r of epFullRows) {
+        amountPerParent.set(r.event_id, Number(r.amount_per_parent) || 0)
+        if (!epByStudent.has(r.student_id)) epByStudent.set(r.student_id, new Map())
+        epByStudent.get(r.student_id)!.set(r.event_id, {
+          paid: Number(r.paid) || 0,
+          amount_paid: Number(r.amount_paid) || 0
+        })
+      }
+      const isEventCoveredByFamily = (student: Record<string, any>, eventId: string): boolean => {
+        let siblingIds: string[] = []
+        try {
+          const parsed = student.siblings ? JSON.parse(student.siblings) : []
+          if (Array.isArray(parsed)) siblingIds = parsed.filter((x) => typeof x === 'string')
+        } catch {
+          siblingIds = []
+        }
+        const familyIds = [student.id, ...siblingIds]
+        const due = amountPerParent.get(eventId) || 0
+        let familyPaid = 0
+        for (const fid of familyIds) {
+          const row = epByStudent.get(fid)?.get(eventId)
+          if (!row) continue
+          if (row.paid === 1) return true
+          familyPaid += row.amount_paid
+        }
+        return due > 0 && familyPaid >= due
+      }
+
       const now = new Date()
       const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
       const alerts: Array<Record<string, unknown>> = []
 
       students.forEach((student) => {
+        // Décision Direction : les élèves partis (departure_date renseigné) sont exclus de
+        // toutes les alertes d'impayés, même s'ils n'ont rien payé (traçabilité conservée ailleurs).
+        if (student.departure_date && String(student.departure_date).trim()) return
+
         const resolvedClass = student.class || student.class_name || ''
         const isTerminale = this.isTerminaleClass(resolvedClass)
         const studentMonths = isTerminale ? terminaleMonths : months
@@ -1372,7 +1455,8 @@ export class PaymentRepository {
           if (monthlyCost <= 0) return
           studentMonths.forEach((m) => {
             if (m > currentMonth) return // Not yet due
-            if (student.departure_date && m > student.departure_date.substring(0, 7)) return // After departure
+            // Inscription tardive : aucun mois d'écolage/service facturé avant le mois d'inscription.
+            if (student.enrollment_date && m < String(student.enrollment_date).substring(0, 7)) return
 
             const paidAmount = paymentMap.get(`${student.id}_${type}_${m}`) || 0
             const balance = monthlyCost - paidAmount
@@ -1452,12 +1536,30 @@ export class PaymentRepository {
         }
         checkMonthlyService('tuition', tuitionCost, 'Écolage')
 
-        // --- Bus ---
-        if (student.bus_subscribed && student.bus_route) {
-          const customBusFee = Number(student.bus_monthly_fee) || 0
-          const busCost =
-            customBusFee > 0 ? customBusFee : prices?.bus?.[student.bus_route] || 0
-          checkMonthlyService('bus', busCost, 'Transport')
+        // --- Bus (transport exceptionnel : gratuité explicite vs donnée manquante) ---
+        // bus_free = gratuité accordée (ni facture ni alerte). Sinon un abonnement sans axe
+        // ou sans tarif est un signal de configuration à corriger, pas une facture silencieuse.
+        if (student.bus_subscribed && !StudentRepository.parseBoolean(student.bus_free)) {
+          if (student.bus_route) {
+            const customBusFee = Number(student.bus_monthly_fee) || 0
+            const busCost =
+              customBusFee > 0 ? customBusFee : prices?.bus?.[student.bus_route] || 0
+            if (busCost > 0) {
+              checkMonthlyService('bus', busCost, 'Transport')
+            } else {
+              unpaidItems.push({
+                type: 'bus_config',
+                description: `Transport : tarif manquant pour l'axe « ${student.bus_route} »`,
+                amount: 0
+              })
+            }
+          } else {
+            unpaidItems.push({
+              type: 'bus_config',
+              description: 'Transport abonné sans axe renseigné',
+              amount: 0
+            })
+          }
         }
 
         // --- Canteen ---
@@ -1486,14 +1588,9 @@ export class PaymentRepository {
         // --- Events ---
         const sEvents = eventsMap.get(student.id) || []
         sEvents.forEach((ev) => {
-          // Élève parti avant la date de l'événement : non facturable (aligné sur la garde scolarité)
-          if (
-            student.departure_date &&
-            ev.event_date &&
-            student.departure_date.substring(0, 10) < ev.event_date
-          ) {
-            return
-          }
+          // Fratrie : événement déjà couvert par la famille → pas d'alerte pour cet élève
+          // (même règle que le badge « Payé (fratrie) » de la fiche événement).
+          if (isEventCoveredByFamily(student, ev.event_id)) return
           const balance = ev.amount_due - ev.amount_paid
           if (balance > 0) {
             unpaidItems.push({
@@ -1578,10 +1675,11 @@ export class PaymentRepository {
       const siblingsWithFramParent = db
         .prepare(
           `
-        SELECT id FROM student_fees 
-        WHERE student_id IN (${placeholders}) 
-        AND REPLACE(REPLACE(school_year, '"', ''), '''', '') = ? 
+        SELECT id FROM student_fees
+        WHERE student_id IN (${placeholders})
+        AND REPLACE(REPLACE(school_year, '"', ''), '''', '') = ?
         AND fram_paid_by_parent = 1
+        AND deleted = 0
       `
         )
         .all(...siblings, cleanYear)
@@ -1597,7 +1695,8 @@ export class PaymentRepository {
         SELECT p.student_id, s.first_name, s.last_name
         FROM student_payments p
         JOIN students s ON p.student_id = s.id
-        WHERE p.payment_type = 'fram' 
+        WHERE p.payment_type = 'fram'
+        AND p.deleted = 0
         AND p.student_id IN (${placeholders})
         AND (
           REPLACE(REPLACE(p.school_year, '"', ''), '''', '') = ?

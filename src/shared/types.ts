@@ -232,6 +232,7 @@ export interface FeeRecord {
   bus_subscribed: boolean
   bus_route?: string
   bus_monthly_fee?: number
+  bus_free?: boolean | number
 
   canteen_subscribed: boolean
   canteen_days_per_week: number

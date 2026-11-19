@@ -295,6 +295,7 @@ interface APIType {
       success: boolean
       rows?: Array<Record<string, unknown>>
       total?: number
+      signals?: { deleted: number; blocked: number; orphan: number; backdated: number; shifted: number }
       error?: string
     }>
     getAuditTrail: (paymentId: string) => Promise<{

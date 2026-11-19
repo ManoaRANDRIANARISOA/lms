@@ -129,6 +129,133 @@ async function fetchCloudIdSet(
   return map
 }
 
+/** Fetch cloud active event participations keyed by `event_id|student_id` (read-only). */
+async function fetchCloudEventPaymentsActive(): Promise<
+  Map<string, { id: string; amount_paid: number; amount_due: number; paid: boolean }>
+> {
+  const map = new Map<string, { id: string; amount_paid: number; amount_due: number; paid: boolean }>()
+  const pageSize = 1000
+  let from = 0
+  for (;;) {
+    const { data, error } = await supabase
+      .from('event_payments')
+      .select('id, event_id, student_id, amount_paid, amount_due, paid')
+      .eq('deleted', false)
+      .order('id', { ascending: true })
+      .range(from, from + pageSize - 1)
+    if (error) throw new Error(`event_payments: ${error.message}`)
+    const rows = (data || []) as Array<{
+      id: string
+      event_id: string
+      student_id: string
+      amount_paid: number
+      amount_due: number
+      paid: boolean
+    }>
+    for (const r of rows) {
+      map.set(`${r.event_id}|${r.student_id}`, {
+        id: r.id,
+        amount_paid: Number(r.amount_paid || 0),
+        amount_due: Number(r.amount_due || 0),
+        paid: !!r.paid
+      })
+    }
+    if (rows.length < pageSize) break
+    from += pageSize
+    if (from > 200000) break
+  }
+  return map
+}
+
+/** Lignes de la file de sync bloquées sur event_payments (collision de participation active). */
+function blockedEventPaymentRows(): Array<{
+  queueId: number
+  recordId: string
+  eventId: string
+  studentId: string
+  localPaid: number
+  localDue: number
+  studentName: string
+  eventName: string
+  errorMessage: string
+}> {
+  const items = db
+    .prepare(
+      `SELECT id, record_id, error_message FROM sync_queue
+       WHERE table_name = 'event_payments'
+         AND status IN ('error', 'failed', 'quarantined')
+         AND (error_message LIKE '%23505%' OR error_message LIKE '%uq_event_payments%' OR error_message LIKE '%duplicate key%')`
+    )
+    .all() as Array<{ id: number; record_id: string; error_message: string }>
+  const out: Array<{
+    queueId: number
+    recordId: string
+    eventId: string
+    studentId: string
+    localPaid: number
+    localDue: number
+    studentName: string
+    eventName: string
+    errorMessage: string
+  }> = []
+  for (const it of items) {
+    const ep = db
+      .prepare('SELECT event_id, student_id, amount_paid, amount_due FROM event_payments WHERE id = ?')
+      .get(it.record_id) as
+      | { event_id: string; student_id: string; amount_paid: number; amount_due: number }
+      | undefined
+    if (!ep) continue
+    const st = db
+      .prepare('SELECT first_name, last_name FROM students WHERE id = ?')
+      .get(ep.student_id) as { first_name: string; last_name: string } | undefined
+    const ev = db.prepare('SELECT name FROM parent_events WHERE id = ?').get(ep.event_id) as
+      | { name: string }
+      | undefined
+    out.push({
+      queueId: it.id,
+      recordId: it.record_id,
+      eventId: ep.event_id,
+      studentId: ep.student_id,
+      localPaid: Number(ep.amount_paid || 0),
+      localDue: Number(ep.amount_due || 0),
+      studentName: st ? `${st.last_name} ${st.first_name}`.trim() : `Élève ${ep.student_id.slice(0, 8)}`,
+      eventName: ev?.name || `Événement ${ep.event_id.slice(0, 8)}`,
+      errorMessage: it.error_message || ''
+    })
+  }
+  return out
+}
+
+/**
+ * Aligne une participation locale sur la ligne cloud canonique (UUID différent inter-postes).
+ * Non destructif : si la ligne canonique existe déjà en local, la ligne locale est tombstonée
+ * (réversible) ; sinon son UUID est renommé vers celui du Cloud. Les éléments de file bloqués
+ * sont marqués 'synced' car le Cloud a bien reçu la participation canonique (pas de purge cosmétique).
+ */
+function adoptCloudEventPayment(localId: string, cloudId: string, nowIso: string): void {
+  db.transaction(() => {
+    const existing = db.prepare('SELECT id FROM event_payments WHERE id = ?').get(cloudId)
+    if (existing) {
+      db.prepare(
+        "UPDATE event_payments SET deleted = 1, sync_status = 'synced', updated_at = ? WHERE id = ?"
+      ).run(nowIso, localId)
+      db.prepare(
+        "UPDATE sync_queue SET status = 'synced', synced_at = CURRENT_TIMESTAMP, error_message = NULL WHERE table_name = 'event_payments' AND record_id = ? AND status IN ('error','failed','quarantined','pending')"
+      ).run(localId)
+    } else {
+      db.prepare(
+        "UPDATE event_payments SET id = ?, sync_status = 'synced', updated_at = ? WHERE id = ?"
+      ).run(cloudId, nowIso, localId)
+      db.prepare(
+        "UPDATE sync_queue SET record_id = ? WHERE table_name = 'event_payments' AND record_id = ?"
+      ).run(cloudId, localId)
+      db.prepare(
+        "UPDATE sync_queue SET status = 'synced', synced_at = CURRENT_TIMESTAMP, error_message = NULL WHERE table_name = 'event_payments' AND record_id = ? AND status IN ('error','failed','quarantined','pending')"
+      ).run(cloudId)
+    }
+  })()
+}
+
 // --------------------------------------------
 // Scanner (LECTURE SEULE)
 // --------------------------------------------
@@ -195,6 +322,7 @@ export async function scanStationInconsistencies(): Promise<RemediationScanResul
         studentId: g.student_id,
         studentName: label,
         registrationNumber: g.registration_number || '',
+        studentDeleted: g.student_deleted === 1,
         paymentCount: g.c,
         amount: g.total || 0,
         candidates: candidates.map((c) => ({
@@ -940,6 +1068,110 @@ export async function scanStationInconsistencies(): Promise<RemediationScanResul
     console.warn('[Remediation] closure scan failed:', e)
   }
 
+  // --- N. Participations événement bloquées en file de sync (collision uq_event_payments_active) ---
+  // Le Cloud détient déjà la participation canonique (UUID différent inter-postes). Le montant
+  // réel est porté indépendamment par student_payments + cash_journal ; event_payments n'est qu'un
+  // agrégat cumulé. Cas sûr : cumul cloud >= local → adoption d'UUID sans perte ni double compte.
+  // Cas ambigu : cumul local > cloud (branche divergente) ou absence de ligne cloud → revue humaine.
+  if (cloudAvailable) {
+    try {
+      const blocked = blockedEventPaymentRows()
+      if (blocked.length > 0) {
+        const cloudMap = await fetchCloudEventPaymentsActive()
+        const safeLines: Array<Record<string, unknown>> = []
+        const reviewRows: Array<{ row: (typeof blocked)[number]; cloudId: string | null; cloudPaid: number; cloudDue: number; reason: string }> = []
+        for (const b of blocked) {
+          const cloud = cloudMap.get(`${b.eventId}|${b.studentId}`)
+          if (cloud && cloud.amount_paid >= b.localPaid) {
+            safeLines.push({
+              id: b.recordId,
+              student: b.studentName,
+              event: b.eventName,
+              localPaid: b.localPaid,
+              cloudPaid: cloud.amount_paid,
+              localDue: b.localDue,
+              cloudDue: cloud.amount_due,
+              verdict: 'safe',
+              reason: 'Le Cloud couvre déjà ce cumul : adoption de la participation canonique.'
+            })
+          } else if (cloud) {
+            reviewRows.push({
+              row: b,
+              cloudId: cloud.id,
+              cloudPaid: cloud.amount_paid,
+              cloudDue: cloud.amount_due,
+              reason: `Cumul local (${b.localPaid.toLocaleString('fr-FR')} Ar) supérieur au Cloud (${cloud.amount_paid.toLocaleString('fr-FR')} Ar) : branche divergente possible.`
+            })
+          } else {
+            reviewRows.push({
+              row: b,
+              cloudId: null,
+              cloudPaid: 0,
+              cloudDue: 0,
+              reason: "Aucune participation active côté Cloud : vérifier si la suppression cloud était volontaire avant de repousser."
+            })
+          }
+        }
+
+        if (safeLines.length > 0) {
+          findings.push({
+            id: 'event_payment_blocked:safe',
+            category: 'event_payment_blocked',
+            classification: 'auto',
+            severity: 'medium',
+            title: `Participations événement bloquées — ${safeLines.length} cas sûr(s)`,
+            detail: `${safeLines.length} participation(s) en file de sync bloquée(s) par une collision d'UUID inter-postes : le Cloud détient déjà la ligne canonique dont le cumul couvre celui du poste. Le montant réel est porté par les écritures de caisse (indépendantes).`,
+            recommendation: `Prévisualiser (dry-run) puis exécuter : adoption de l'UUID cloud canonique, sans perte ni double compte. Les cas ambigus restent en revue.`,
+            action: 'reconcile_blocked_event_payments',
+            params: { mode: 'safe' },
+            affectedCount: safeLines.length,
+            evidence: { safeCount: safeLines.length, reviewCount: reviewRows.length, lines: safeLines }
+          })
+        }
+
+        for (const r of reviewRows) {
+          findings.push({
+            id: `event_payment_blocked:review:${r.row.recordId}`,
+            category: 'event_payment_blocked',
+            classification: 'decision',
+            severity: 'high',
+            title: `Participation événement à arbitrer — ${r.row.studentName}`,
+            detail: `${r.row.eventName} : ${r.reason} Le montant encaissé reste tracé dans les écritures de caisse quel que soit le choix.`,
+            recommendation: r.cloudId
+              ? `Comparer les cumuls. « Pousser le cumul local » aligne le Cloud sur le total le plus élevé du poste ; « Garder le Cloud » conserve l'agrégat cloud (l'argent reste dans la caisse). En cas de doute, consulter la Traçabilité.`
+              : `Vérifier dans la Traçabilité si la participation cloud a été supprimée volontairement. Repousser uniquement si la suppression n'était pas voulue.`,
+            action: 'resolve_event_payment_aggregate',
+            params: {
+              recordId: r.row.recordId,
+              cloudId: r.cloudId,
+              localPaid: r.row.localPaid,
+              cloudPaid: r.cloudPaid,
+              hasCloud: !!r.cloudId
+            },
+            affectedCount: 1,
+            evidence: {
+              lines: [
+                {
+                  id: r.row.recordId,
+                  student: r.row.studentName,
+                  event: r.row.eventName,
+                  localPaid: r.row.localPaid,
+                  cloudPaid: r.cloudPaid,
+                  localDue: r.row.localDue,
+                  cloudDue: r.cloudDue,
+                  verdict: 'review',
+                  reason: r.reason
+                }
+              ]
+            }
+          })
+        }
+      }
+    } catch (e) {
+      console.warn('[Remediation] blocked event_payments scan skipped:', e)
+    }
+  }
+
   const autoCount = findings.filter((f) => f.classification === 'auto').length
   const decisionCount = findings.filter((f) => f.classification === 'decision').length
 
@@ -964,7 +1196,9 @@ export async function scanStationInconsistencies(): Promise<RemediationScanResul
  * l'élève (ou son miroir caisse) appartient à une journée scellée. Toute
  * remédiation doit alors être refusée sans déverrouillage formel.
  */
-function sealedClosureLabel(studentId: string): string | null {
+function sealedClosureLabel(studentId: string, bypass = false): string | null {
+  // Outre passe Ticket Z réservée à l'Assistant (Direction), explicitement demandée et tracée.
+  if (bypass) return null
   const payments = db
     .prepare(
       'SELECT id, payment_date, receipt_number FROM student_payments WHERE student_id = ? AND deleted = 0'
@@ -992,6 +1226,17 @@ export async function applyRemediation(
 ): Promise<{ success: boolean; message?: string; error?: string; details?: Record<string, unknown> }> {
   const user = actingUser()
   const nowIso = new Date().toISOString()
+  // Outre passe Ticket Z : uniquement si l'Assistant le demande explicitement (Direction).
+  // Toute utilisation est tracée pour l'audit ; les remédiations restent non destructives.
+  const bypassZ = params.bypassTicketZ === true
+  if (bypassZ) {
+    trace(
+      `remediation:ticketZ_bypass:${action}`,
+      { action },
+      { bypassedAt: nowIso, reason: String(params.bypassReason || 'Assistant de cohérence (Direction)') },
+      user
+    )
+  }
 
   try {
     switch (action) {
@@ -1008,7 +1253,7 @@ export async function applyRemediation(
         if (!target) {
           return { success: false, error: "L'élève cible doit être actif." }
         }
-        const sealed = sealedClosureLabel(oldId)
+        const sealed = sealedClosureLabel(oldId, bypassZ)
         if (sealed) {
           return { success: false, error: `Journée scellée par Ticket Z (${sealed}). Déverrouillage formel requis avant toute remédiation.` }
         }
@@ -1043,7 +1288,7 @@ export async function applyRemediation(
           .prepare('SELECT id FROM students WHERE id = ? AND deleted = 0')
           .get(newId) as { id: string } | undefined
         if (!target) return { success: false, error: "L'élève cible doit être actif." }
-        const sealed = sealedClosureLabel(oldId)
+        const sealed = sealedClosureLabel(oldId, bypassZ)
         if (sealed) {
           return { success: false, error: `Journée scellée par Ticket Z (${sealed}). Déverrouillage formel requis avant toute remédiation.` }
         }
@@ -1069,7 +1314,7 @@ export async function applyRemediation(
         const reason = String(params.reason || '').trim()
         if (!oldId) return { success: false, error: 'Élève introuvable.' }
         if (!reason) return { success: false, error: "Un motif d'archivage est requis pour l'audit." }
-        const sealed = sealedClosureLabel(oldId)
+        const sealed = sealedClosureLabel(oldId, bypassZ)
         if (sealed) {
           return { success: false, error: `Journée scellée par Ticket Z (${sealed}). Déverrouillage formel requis avant tout archivage.` }
         }
@@ -1101,6 +1346,68 @@ export async function applyRemediation(
         )
         syncWithCloud().catch((e) => console.error('[Remediation] sync after archive:', e))
         return { success: true, message: `${payments.length} paiement(s) archivé(s) avec traçabilité.` }
+      }
+
+      // --- Restauration d'une fiche élève supprimée (paiements conservés rattachés) ---
+      // Non destructif : réactive la fiche (deleted=0) et sa fiche de frais, sans toucher aux
+      // encaissements. Refusé si un jumeau ACTIF porte déjà le même matricule (→ fusionner plutôt).
+      case 'restore_student': {
+        const studentId = String(params.studentId || '')
+        if (!studentId) return { success: false, error: 'Élève introuvable.' }
+        if (!params.confirm) {
+          return { success: false, error: 'Confirmation explicite requise (confirm) pour restaurer une fiche supprimée.' }
+        }
+        const st = db
+          .prepare('SELECT id, registration_number, first_name, last_name, deleted FROM students WHERE id = ?')
+          .get(studentId) as
+          | { id: string; registration_number: string | null; first_name: string; last_name: string; deleted: number }
+          | undefined
+        if (!st) return { success: false, error: 'Fiche élève introuvable.' }
+        if (st.deleted === 0) return { success: true, message: 'Cette fiche est déjà active.' }
+        if (st.registration_number) {
+          const twin = db
+            .prepare('SELECT id FROM students WHERE registration_number = ? AND deleted = 0 AND id != ?')
+            .get(st.registration_number, studentId) as { id: string } | undefined
+          if (twin) {
+            return { success: false, error: `Un jumeau actif porte déjà le matricule ${st.registration_number}. Réattribuez les écritures au jumeau (fusion sécurisée) plutôt que restaurer cette fiche.` }
+          }
+        }
+        const sealed = sealedClosureLabel(studentId, bypassZ)
+        if (sealed) {
+          return { success: false, error: `Journée scellée par Ticket Z (${sealed}). Déverrouillage formel requis avant toute remédiation.` }
+        }
+        const payCount = db
+          .prepare('SELECT COUNT(*) AS c FROM student_payments WHERE student_id = ? AND deleted = 0')
+          .get(studentId) as { c: number }
+        let feesRestored = 0
+        db.transaction(() => {
+          db.prepare("UPDATE students SET deleted = 0, sync_status = 'pending', updated_at = ? WHERE id = ?").run(nowIso, studentId)
+          addToSyncQueue('students', studentId, 'update', db.prepare('SELECT * FROM students WHERE id = ?').get(studentId))
+          const fees = db
+            .prepare('SELECT id, school_year FROM student_fees WHERE student_id = ? AND deleted = 1')
+            .all(studentId) as Array<{ id: string; school_year: string }>
+          for (const f of fees) {
+            const activeTwin = db
+              .prepare('SELECT id FROM student_fees WHERE student_id = ? AND school_year = ? AND deleted = 0 AND id != ?')
+              .get(studentId, f.school_year, f.id)
+            if (activeTwin) continue
+            db.prepare("UPDATE student_fees SET deleted = 0, sync_status = 'pending', updated_at = ? WHERE id = ?").run(nowIso, f.id)
+            addToSyncQueue('student_fees', f.id, 'update', db.prepare('SELECT * FROM student_fees WHERE id = ?').get(f.id))
+            feesRestored++
+          }
+        })()
+        trace(
+          `remediation:restore_student:${studentId}`,
+          { deleted: 1 },
+          { deleted: 0, activePayments: payCount.c, feesRestored, restoredAt: nowIso },
+          user
+        )
+        syncWithCloud().catch((e) => console.error('[Remediation] sync after restore:', e))
+        return {
+          success: true,
+          message: `Fiche restaurée : ${st.last_name} ${st.first_name}. ${payCount.c} paiement(s) actif(s) rattaché(s)${feesRestored ? `, ${feesRestored} fiche(s) de frais réactivée(s)` : ''}. Propagation en cours.`,
+          details: { restoredPayments: payCount.c, feesRestored }
+        }
       }
 
       // --- Décision tarifaire par élève : appliquer la grille ou conserver le tarif négocié ---
@@ -1218,10 +1525,10 @@ export async function applyRemediation(
           return { success: false, error: 'Décision attendue : renumber_later ou keep_both.' }
         }
         const lock = CashJournalRepository.closureLockForDate(p.payment_date, p.receipt_number)
-        if (lock.locked) {
+        if (!bypassZ && lock.locked) {
           return { success: false, error: `Journée scellée par Ticket Z (${lock.label || 'Z'}). Déverrouillage formel requis.` }
         }
-        const sealed = sealedClosureLabel(p.student_id)
+        const sealed = sealedClosureLabel(p.student_id, bypassZ)
         if (sealed) {
           return { success: false, error: `Journée scellée par Ticket Z (${sealed}). Déverrouillage formel requis.` }
         }
@@ -1290,7 +1597,7 @@ export async function applyRemediation(
           .prepare('SELECT * FROM student_payments WHERE id = ? AND deleted = 0')
           .get(keepId) as Record<string, any> | undefined
         if (!keep) return { success: false, error: "L'écriture à conserver est introuvable ou supprimée." }
-        const sealed = sealedClosureLabel(keep.student_id)
+        const sealed = sealedClosureLabel(keep.student_id, bypassZ)
         if (sealed) {
           return { success: false, error: `Journée scellée par Ticket Z (${sealed}). Déverrouillage formel requis avant toute remédiation.` }
         }
@@ -1358,7 +1665,7 @@ export async function applyRemediation(
           .get(journalId) as Record<string, any> | undefined
         if (!j) return { success: false, error: 'Écriture de caisse introuvable ou supprimée.' }
         const lock = CashJournalRepository.closureLockForDate(j.transaction_date, j.receipt_number)
-        if (lock.locked) {
+        if (!bypassZ && lock.locked) {
           return { success: false, error: `Journée scellée par Ticket Z (${lock.label || 'Z'}). Déverrouillage formel requis.` }
         }
         db.transaction(() => {
@@ -1417,6 +1724,159 @@ export async function applyRemediation(
         )
         syncWithCloud().catch((e) => console.error('[Remediation] sync after fee dedupe:', e))
         return { success: true, message: `${targets.length} fiche(s) dupliquée(s) archivée(s). Fiche d'origine conservée.` }
+      }
+
+      // --- Réconciliation des participations événement bloquées (dry-run puis exécution validée) ---
+      // dryRun=true (défaut) : AUCUNE mutation, renvoie le détail des lignes + classification.
+      // dryRun=false : applique UNIQUEMENT les cas sûrs (cumul cloud >= local) par adoption d'UUID.
+      case 'reconcile_blocked_event_payments': {
+        const dryRun = params.dryRun !== false
+        const blocked = blockedEventPaymentRows()
+        if (blocked.length === 0) {
+          return { success: true, message: 'Aucune participation événement bloquée en file de sync.', details: { safeCount: 0, reviewCount: 0, applied: 0, rows: [] } }
+        }
+        const cloudMap = await fetchCloudEventPaymentsActive()
+        const safe: Array<{ b: (typeof blocked)[number]; cloudId: string; cloudPaid: number }> = []
+        const rows: Array<Record<string, unknown>> = []
+        let reviewCount = 0
+        for (const b of blocked) {
+          const cloud = cloudMap.get(`${b.eventId}|${b.studentId}`)
+          const verdict = cloud && cloud.amount_paid >= b.localPaid ? 'safe' : 'review'
+          if (verdict === 'safe' && cloud) {
+            safe.push({ b, cloudId: cloud.id, cloudPaid: cloud.amount_paid })
+          } else {
+            reviewCount++
+          }
+          rows.push({
+            id: b.recordId,
+            student: b.studentName,
+            event: b.eventName,
+            localPaid: b.localPaid,
+            cloudPaid: cloud ? cloud.amount_paid : null,
+            localDue: b.localDue,
+            cloudDue: cloud ? cloud.amount_due : null,
+            verdict,
+            reason:
+              verdict === 'safe'
+                ? 'Le Cloud couvre déjà ce cumul : adoption sans perte.'
+                : cloud
+                  ? 'Cumul local supérieur au Cloud : arbitrage humain requis.'
+                  : 'Aucune participation active côté Cloud : vérifier avant de repousser.'
+          })
+        }
+
+        if (dryRun) {
+          trace('remediation:event_payments_dryrun', null, { safeCount: safe.length, reviewCount, at: nowIso }, user)
+          return {
+            success: true,
+            message: `Prévisualisation : ${safe.length} cas sûr(s) adoptables, ${reviewCount} cas à arbitrer. Aucune donnée modifiée.`,
+            details: { safeCount: safe.length, reviewCount, applied: 0, rows }
+          }
+        }
+
+        let applied = 0
+        for (const s of safe) {
+          // Re-vérification fraîche avant mutation (le Cloud a pu changer depuis le scan).
+          const localEp = db
+            .prepare('SELECT amount_paid FROM event_payments WHERE id = ?')
+            .get(s.b.recordId) as { amount_paid: number } | undefined
+          if (!localEp) continue
+          const { data: cloudEp } = await supabase
+            .from('event_payments')
+            .select('id, amount_paid')
+            .eq('event_id', s.b.eventId)
+            .eq('student_id', s.b.studentId)
+            .eq('deleted', false)
+            .maybeSingle()
+          if (!cloudEp?.id || Number(cloudEp.amount_paid || 0) < Number(localEp.amount_paid || 0)) continue
+          adoptCloudEventPayment(s.b.recordId, cloudEp.id, nowIso)
+          trace(
+            `remediation:event_payment_adopt:${s.b.recordId}`,
+            { localPaid: localEp.amount_paid },
+            { cloudId: cloudEp.id, cloudPaid: cloudEp.amount_paid, at: nowIso },
+            user
+          )
+          applied++
+        }
+        syncWithCloud().catch((e) => console.error('[Remediation] sync after event reconciliation:', e))
+        return {
+          success: true,
+          message: `${applied} participation(s) alignée(s) sur le Cloud (cas sûrs). ${reviewCount} cas restent à arbitrer.`,
+          details: { safeCount: safe.length, reviewCount, applied, rows }
+        }
+      }
+
+      // --- Arbitrage humain d'une participation événement divergente (cumul local > cloud) ---
+      case 'resolve_event_payment_aggregate': {
+        const recordId = String(params.recordId || '')
+        const decision = String(params.decision || '')
+        if (!recordId) return { success: false, error: 'Participation introuvable.' }
+        const ep = db
+          .prepare('SELECT id, event_id, student_id, amount_paid, amount_due FROM event_payments WHERE id = ?')
+          .get(recordId) as
+          | { id: string; event_id: string; student_id: string; amount_paid: number; amount_due: number }
+          | undefined
+        if (!ep) return { success: false, error: 'Participation introuvable ou déjà traitée.' }
+
+        if (decision === 'review') {
+          trace(`remediation:event_payment_review:${recordId}`, null, { reviewedAt: nowIso }, user)
+          return { success: true, message: 'Constat marqué comme consulté (aucune donnée modifiée).' }
+        }
+
+        const { data: cloudEp } = await supabase
+          .from('event_payments')
+          .select('id, amount_paid, amount_due')
+          .eq('event_id', ep.event_id)
+          .eq('student_id', ep.student_id)
+          .eq('deleted', false)
+          .maybeSingle()
+
+        if (decision === 'keep_cloud') {
+          if (!cloudEp?.id) return { success: false, error: 'Aucune participation cloud active à conserver.' }
+          adoptCloudEventPayment(recordId, cloudEp.id, nowIso)
+          trace(
+            `remediation:event_payment_keep_cloud:${recordId}`,
+            { localPaid: ep.amount_paid },
+            { cloudId: cloudEp.id, cloudPaid: cloudEp.amount_paid, at: nowIso },
+            user
+          )
+          syncWithCloud().catch((e) => console.error('[Remediation] sync after keep_cloud:', e))
+          return { success: true, message: "Agrégat cloud conservé ; participation alignée. L'argent encaissé reste tracé dans la caisse." }
+        }
+
+        if (decision === 'push_local') {
+          if (!params.confirm) {
+            return { success: false, error: 'Confirmation explicite requise (confirm) pour pousser le cumul local vers le Cloud.' }
+          }
+          if (!cloudEp?.id) {
+            // Pas de ligne cloud active : repousser réellement la participation (retry, pas de purge).
+            db.prepare(
+              "UPDATE sync_queue SET status = 'pending', error_message = NULL, retry_count = 0, updated_at = CURRENT_TIMESTAMP WHERE table_name = 'event_payments' AND record_id = ? AND status IN ('error','failed','quarantined')"
+            ).run(recordId)
+            trace(`remediation:event_payment_repush:${recordId}`, null, { repushedAt: nowIso }, user)
+            syncWithCloud().catch((e) => console.error('[Remediation] sync after repush:', e))
+            return { success: true, message: 'Participation remise en file pour envoi réel vers le Cloud.' }
+          }
+          const localPaid = Number(ep.amount_paid || 0)
+          const dueMax = Math.max(Number(ep.amount_due || 0), Number(cloudEp.amount_due || 0))
+          const paidFlag = localPaid >= dueMax
+          const { error: updErr } = await supabase
+            .from('event_payments')
+            .update({ amount_paid: localPaid, amount_due: dueMax, paid: paidFlag, updated_at: nowIso })
+            .eq('id', cloudEp.id)
+          if (updErr) return { success: false, error: `Mise à jour cloud échouée : ${updErr.message}` }
+          adoptCloudEventPayment(recordId, cloudEp.id, nowIso)
+          trace(
+            `remediation:event_payment_push_local:${recordId}`,
+            { cloudPaid: cloudEp.amount_paid },
+            { cloudId: cloudEp.id, newCloudPaid: localPaid, at: nowIso },
+            user
+          )
+          syncWithCloud().catch((e) => console.error('[Remediation] sync after push_local:', e))
+          return { success: true, message: `Cumul local (${localPaid.toLocaleString('fr-FR')} Ar) poussé vers le Cloud ; participation alignée.` }
+        }
+
+        return { success: false, error: 'Décision attendue : push_local, keep_cloud ou review.' }
       }
 
       // --- Simple marquage consulté (aucune modification de donnée) ---

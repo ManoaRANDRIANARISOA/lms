@@ -13,7 +13,13 @@ import React, { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/useAuthStore'
+import {
+  useAssistantStore,
+  type AssistantFinding as Finding,
+  type AssistantScanResult as ScanResult
+} from '@/store/useAssistantStore'
 import { SyncQueuePanel } from '@/components/sync/SyncQueuePanel'
 import { toast } from 'sonner'
 import {
@@ -31,35 +37,10 @@ import {
   ArrowDownToLine,
   Search,
   Info,
-  ExternalLink
+  ExternalLink,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react'
-
-interface Finding {
-  id: string
-  category: string
-  classification: 'auto' | 'decision'
-  severity: 'high' | 'medium' | 'low'
-  title: string
-  detail: string
-  recommendation: string
-  action: string
-  params: Record<string, any>
-  affectedCount: number
-  amountImpact?: number
-  evidence?: Record<string, any>
-}
-
-interface ScanResult {
-  success: boolean
-  stationCode?: string
-  schoolYear?: string
-  scannedAt?: string
-  cloudAvailable?: boolean
-  autoCount?: number
-  decisionCount?: number
-  findings?: Finding[]
-  error?: string
-}
 
 interface StudentOption {
   id: string
@@ -92,7 +73,8 @@ const categoryMeta: Record<string, { label: string; guidance: string; order: num
   creator_identity: { label: 'Identités créateur dupliquées', guidance: 'Comptes désignant la même personne (cause racine des collisions). Normalisation via migration tracée, hors assistant.', order: 12 },
   duplicate_closure: { label: 'Clôtures dupliquées', guidance: 'Plusieurs clôtures même poste/jour/compte. Examiner dans le module Caisse.', order: 13 },
   missing_closure: { label: 'Journées sans clôture', guidance: 'Paiements sans clôture de caisse. Vérifier le processus journalier.', order: 14 },
-  audit_signal: { label: "Signaux d'audit", guidance: 'Mois décalé ou antidaté. Contrôler dans la Traçabilité.', order: 15 }
+  audit_signal: { label: "Signaux d'audit", guidance: 'Mois décalé ou antidaté. Contrôler dans la Traçabilité.', order: 15 },
+  event_payment_blocked: { label: 'Participations événement bloquées', guidance: "Collision d'UUID inter-postes : le Cloud détient déjà la participation canonique. Cas sûr (cumul cloud ≥ local) adoptable sans perte ; cumul local supérieur → arbitrage. L'argent encaissé reste tracé dans la caisse.", order: 16 }
 }
 const catOrder = (c: string): number => categoryMeta[c]?.order ?? 99
 
@@ -102,7 +84,8 @@ export const DataConsistencyAssistant: React.FC = () => {
   const isAdmin = user?.role === 'admin' || user?.role === 'direction'
 
   const [scanning, setScanning] = useState(false)
-  const [result, setResult] = useState<ScanResult | null>(null)
+  const result = useAssistantStore((s) => s.result)
+  const setResult = useAssistantStore((s) => s.setResult)
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [batchRunning, setBatchRunning] = useState(false)
 
@@ -115,6 +98,9 @@ export const DataConsistencyAssistant: React.FC = () => {
   const [showHelp, setShowHelp] = useState(false)
   const [filter, setFilter] = useState('')
   const [unifyRunning, setUnifyRunning] = useState(false)
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const [bypassZ, setBypassZ] = useState(false)
+  const [epPreview, setEpPreview] = useState<Record<string, { safeCount: number; reviewCount: number; rows: Array<Record<string, any>> }>>({})
 
   const runScan = useCallback(async () => {
     if (!window.api?.sync?.scanInconsistencies) return
@@ -143,7 +129,8 @@ export const DataConsistencyAssistant: React.FC = () => {
       if (!window.api?.sync?.applyRemediation) return
       setProcessingId(finding.id)
       try {
-        const res = await window.api.sync.applyRemediation(action, params)
+        const finalParams = bypassZ ? { ...params, bypassTicketZ: true } : params
+        const res = await window.api.sync.applyRemediation(action, finalParams)
         if (res.success) {
           toast.success(res.message || successFallback)
           await runScan()
@@ -157,18 +144,45 @@ export const DataConsistencyAssistant: React.FC = () => {
         setProcessingId(null)
       }
     },
-    [runScan]
+    [runScan, bypassZ]
   )
 
+  const runEpPreview = useCallback(async (finding: Finding) => {
+    if (!window.api?.sync?.applyRemediation) return
+    setProcessingId(finding.id)
+    try {
+      const res = await window.api.sync.applyRemediation('reconcile_blocked_event_payments', { dryRun: true })
+      if (res.success) {
+        const d = (res.details || {}) as { safeCount?: number; reviewCount?: number; rows?: Array<Record<string, any>> }
+        setEpPreview((p) => ({
+          ...p,
+          [finding.id]: { safeCount: d.safeCount || 0, reviewCount: d.reviewCount || 0, rows: d.rows || [] }
+        }))
+        toast.success(res.message || 'Prévisualisation prête (aucune donnée modifiée).')
+      } else {
+        toast.error(res.error || 'Échec de la prévisualisation')
+      }
+    } catch (err: unknown) {
+      toast.error(`Erreur : ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setProcessingId(null)
+    }
+  }, [])
+
   const runAutoBatch = useCallback(async () => {
-    const autos = (result?.findings || []).filter((f) => f.classification === 'auto')
+    const autos = (result?.findings || []).filter(
+      (f) => f.classification === 'auto' && f.action !== 'reconcile_blocked_event_payments'
+    )
     if (autos.length === 0) return
     if (!confirm(`Appliquer automatiquement les ${autos.length} correction(s) évidente(s) ? Aucune donnée ne sera perdue.`)) return
     setBatchRunning(true)
     let ok = 0
     for (const f of autos) {
       try {
-        const res = await window.api.sync.applyRemediation(f.action, f.params)
+        const res = await window.api.sync.applyRemediation(
+          f.action,
+          bypassZ ? { ...f.params, bypassTicketZ: true } : f.params
+        )
         if (res.success) ok++
         else toast.error(`${f.title} : ${res.error || 'échec'}`)
       } catch {
@@ -178,7 +192,7 @@ export const DataConsistencyAssistant: React.FC = () => {
     setBatchRunning(false)
     toast.success(`${ok}/${autos.length} correction(s) automatique(s) appliquée(s).`)
     await runScan()
-  }, [result, runScan])
+  }, [result, runScan, bypassZ])
 
   const runUnifyCertain = useCallback(async () => {
     const certains = (result?.findings || []).filter(
@@ -204,7 +218,8 @@ export const DataConsistencyAssistant: React.FC = () => {
         const res = await window.api.sync.applyRemediation('resolve_duplicate_candidate', {
           decision: 'keep_old',
           keepId: f.params.keepId,
-          studentId: f.params.studentId
+          studentId: f.params.studentId,
+          ...(bypassZ ? { bypassTicketZ: true } : {})
         })
         if (res.success) ok++
         else toast.error(`${f.title} : ${res.error || 'échec'}`)
@@ -215,7 +230,7 @@ export const DataConsistencyAssistant: React.FC = () => {
     setUnifyRunning(false)
     toast.success(`${ok}/${certains.length} groupe(s) de doublons certains unifié(s).`)
     await runScan()
-  }, [result, runScan])
+  }, [result, runScan, bypassZ])
 
   const searchStudents = useCallback(async (findingId: string, term: string) => {
     setOrphanSearch((p) => ({ ...p, [findingId]: term }))
@@ -243,6 +258,7 @@ export const DataConsistencyAssistant: React.FC = () => {
     (categoryMeta[f.category]?.label || '').toLowerCase().includes(term)
   const findings = (result?.findings || []).filter(matchesFilter)
   const autos = findings.filter((f) => f.classification === 'auto')
+  const batchAutos = autos.filter((f) => f.action !== 'reconcile_blocked_event_payments')
   const decisions = findings
     .filter((f) => f.classification === 'decision')
     .sort((a, b) => catOrder(a.category) - catOrder(b.category))
@@ -294,6 +310,30 @@ export const DataConsistencyAssistant: React.FC = () => {
           </div>
         )}
       </div>
+
+      <label
+        className={cn(
+          'flex items-start gap-2 mb-4 p-2.5 rounded-lg border text-[11px] cursor-pointer transition-colors',
+          bypassZ
+            ? 'bg-amber-50 border-amber-300 text-amber-900'
+            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+        )}
+      >
+        <input
+          type="checkbox"
+          checked={bypassZ}
+          onChange={(e) => setBypassZ(e.target.checked)}
+          className="mt-0.5 w-3.5 h-3.5 accent-amber-600"
+        />
+        <span className="leading-relaxed">
+          <span className="font-semibold flex items-center gap-1">
+            <ShieldAlert className="w-3.5 h-3.5" /> Outrepasser le Ticket Z (Direction)
+          </span>
+          Autorise les corrections même si la caisse du jour est scellée. Réservé à la Direction pour
+          ce module de remédiation ; chaque action reste tracée (motif : « Assistant de cohérence »).
+          À n'activer qu'en connaissance de cause.
+        </span>
+      </label>
 
       {showHelp && (
         <div className="mb-4 p-3 rounded-lg bg-indigo-50 border border-indigo-200 text-[11px] text-gray-700 space-y-1.5 leading-relaxed">
@@ -361,11 +401,11 @@ export const DataConsistencyAssistant: React.FC = () => {
             <Button
               size="sm"
               onClick={runAutoBatch}
-              disabled={batchRunning || processingId !== null}
+              disabled={batchRunning || processingId !== null || batchAutos.length === 0}
               className="text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               {batchRunning ? <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5 mr-1" />}
-              Tout corriger ({autos.length})
+              Tout corriger ({batchAutos.length})
             </Button>
           </div>
           <div className="space-y-2">
@@ -389,15 +429,74 @@ export const DataConsistencyAssistant: React.FC = () => {
                       <Info className="w-3 h-3 shrink-0 mt-0.5" /> {f.recommendation}
                     </p>
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={() => apply(f, f.action, f.params, 'Correction appliquée.')}
-                    disabled={processingId === f.id || batchRunning}
-                    className="text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
-                  >
-                    {processingId === f.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Appliquer'}
-                  </Button>
+                  {f.action !== 'reconcile_blocked_event_payments' && (
+                    <Button
+                      size="sm"
+                      onClick={() => apply(f, f.action, f.params, 'Correction appliquée.')}
+                      disabled={processingId === f.id || batchRunning}
+                      className="text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+                    >
+                      {processingId === f.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Appliquer'}
+                    </Button>
+                  )}
                 </div>
+                {f.action === 'reconcile_blocked_event_payments' && (() => {
+                  const preview = epPreview[f.id]
+                  const lines = (preview?.rows || (f.evidence?.lines as Array<Record<string, any>>) || [])
+                  const safeCount = preview?.safeCount ?? (f.evidence?.safeCount as number) ?? f.affectedCount
+                  const reviewCount = preview?.reviewCount ?? (f.evidence?.reviewCount as number) ?? 0
+                  return (
+                    <div className="mt-2 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                        <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold">{safeCount} cas sûr(s)</span>
+                        {reviewCount > 0 && (
+                          <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-semibold">{reviewCount} à arbitrer</span>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={processingId === f.id}
+                          onClick={() => runEpPreview(f)}
+                          className="text-xs h-7 text-indigo-700 border-indigo-300 hover:bg-indigo-50"
+                        >
+                          {processingId === f.id ? <RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" /> : <ScanSearch className="w-3.5 h-3.5 mr-1" />}
+                          Prévisualiser (dry-run)
+                        </Button>
+                        <Button
+                          size="sm"
+                          disabled={processingId === f.id || safeCount === 0}
+                          onClick={() => {
+                            if (!confirm(`Exécuter l'adoption des ${safeCount} participation(s) sûre(s) ? Le Cloud détient déjà la ligne canonique (cumul ≥ local). Aucune perte ni double compte.`)) return
+                            apply(f, 'reconcile_blocked_event_payments', { dryRun: false, mode: 'safe' }, 'Participations sûres alignées sur le Cloud.')
+                          }}
+                          className="text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5 mr-1" /> Exécuter les cas sûrs
+                        </Button>
+                      </div>
+                      {lines.length > 0 && (
+                        <div className="border border-gray-200 rounded bg-white divide-y divide-gray-100 max-h-48 overflow-y-auto custom-scrollbar">
+                          {lines.map((l) => (
+                            <div key={l.id} className="p-2 text-[11px] flex flex-wrap items-center justify-between gap-1">
+                              <span className="font-semibold text-gray-800">{l.student}</span>
+                              <span className="text-gray-600">{l.event}</span>
+                              <span className="font-mono">
+                                local {(l.localPaid || 0).toLocaleString('fr-FR')} / cloud {l.cloudPaid == null ? '—' : (l.cloudPaid || 0).toLocaleString('fr-FR')} Ar
+                              </span>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${l.verdict === 'safe' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                                {l.verdict === 'safe' ? 'sûr' : 'à arbitrer'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-[10px] text-gray-500 leading-relaxed">
+                        Le montant encaissé est porté par les écritures de caisse (student_payments / cash_journal),
+                        indépendantes de cet agrégat. L'adoption ne modifie aucun encaissement.
+                      </p>
+                    </div>
+                  )
+                })()}
               </div>
             ))}
           </div>
@@ -456,13 +555,26 @@ export const DataConsistencyAssistant: React.FC = () => {
               return (
                 <React.Fragment key={f.id}>
                 {showHeader && meta && (
-                  <div className="pt-2 pb-1 border-b border-gray-200">
-                    <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wide">
+                  <button
+                    type="button"
+                    onClick={() => setCollapsed((p) => ({ ...p, [f.category]: !p[f.category] }))}
+                    className="w-full text-left pt-2 pb-1 border-b border-gray-200 hover:bg-gray-50 rounded-t transition-colors"
+                  >
+                    <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                      {collapsed[f.category] ? (
+                        <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+                      )}
                       {meta.label} <span className="text-gray-400 normal-case">({familyCount})</span>
+                      <span className="ml-auto text-[10px] font-normal normal-case text-indigo-500">
+                        {collapsed[f.category] ? 'déplier' : 'replier'}
+                      </span>
                     </h4>
-                    <p className="text-[11px] text-gray-500 leading-relaxed">{meta.guidance}</p>
-                  </div>
+                    <p className="text-[11px] text-gray-500 leading-relaxed pl-5">{meta.guidance}</p>
+                  </button>
                 )}
+                {!collapsed[f.category] && (
                 <div className="p-3 border border-rose-200 bg-rose-50/30 rounded-lg space-y-2">
                   <div className="flex items-center gap-2 mb-1">
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${severityStyle[f.severity]}`}>
@@ -546,6 +658,19 @@ export const DataConsistencyAssistant: React.FC = () => {
                         </div>
                       )}
                       <div className="flex flex-wrap items-center gap-2">
+                        {!!f.evidence?.studentDeleted && (
+                          <Button
+                            size="sm"
+                            disabled={processingId === f.id}
+                            onClick={() => {
+                              if (!confirm(`Restaurer la fiche supprimée « ${f.evidence?.studentName || ''} » ? Ses ${f.evidence?.paymentCount || 0} paiement(s) actif(s) restent rattachés et la fiche de frais est réactivée. Choix sûr si la suppression n'était pas volontaire.`)) return
+                              apply(f, 'restore_student', { studentId: f.params.studentId, confirm: true }, 'Fiche restaurée, paiements rattachés.')
+                            }}
+                            className="text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Restaurer la fiche
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           disabled={!target || processingId === f.id}
@@ -764,6 +889,76 @@ export const DataConsistencyAssistant: React.FC = () => {
                     )
                   })()}
 
+                  {/* Participation événement divergente : arbitrage humain par ligne */}
+                  {f.action === 'resolve_event_payment_aggregate' && (() => {
+                    const lines = (f.evidence?.lines || []) as Array<Record<string, any>>
+                    const hasCloud = !!f.params.hasCloud
+                    return (
+                      <div className="space-y-2 pt-1">
+                        <div className="border border-gray-200 rounded bg-white divide-y divide-gray-100">
+                          {lines.map((l) => (
+                            <div key={l.id} className="p-2 text-[11px] space-y-0.5">
+                              <div className="flex flex-wrap justify-between gap-1">
+                                <span className="font-semibold text-gray-800">{l.student}</span>
+                                <span className="text-gray-600">{l.event}</span>
+                              </div>
+                              <div className="flex flex-wrap gap-3 font-mono text-[10px]">
+                                <span className="text-blue-700">Cumul local : {(l.localPaid || 0).toLocaleString('fr-FR')} Ar</span>
+                                <span className="text-gray-700">Cumul cloud : {l.cloudPaid == null ? '—' : (l.cloudPaid || 0).toLocaleString('fr-FR')} Ar</span>
+                              </div>
+                              <p className="text-[10px] text-amber-700">{l.reason}</p>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            size="sm"
+                            disabled={processingId === f.id}
+                            onClick={() => {
+                              const msg = hasCloud
+                                ? "Pousser le cumul local (le plus élevé) vers la participation cloud ? L'argent encaissé reste tracé dans la caisse ; seul l'agrégat de participation est aligné."
+                                : "Repousser réellement cette participation vers le Cloud (aucune ligne active côté Cloud) ? Vérifiez d'abord que la suppression cloud n'était pas volontaire."
+                              if (!confirm(msg)) return
+                              apply(f, 'resolve_event_payment_aggregate', { ...f.params, decision: 'push_local', confirm: true }, 'Participation arbitrée et alignée.')
+                            }}
+                            className="text-xs h-7 bg-amber-600 hover:bg-amber-700 text-white"
+                          >
+                            <ArrowUpToLine className="w-3.5 h-3.5 mr-1" /> {hasCloud ? 'Pousser le cumul local' : 'Repousser vers le Cloud'}
+                          </Button>
+                          {hasCloud && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={processingId === f.id}
+                              onClick={() => {
+                                if (!confirm("Conserver l'agrégat cloud et aligner la participation locale ? L'argent encaissé reste tracé dans la caisse.")) return
+                                apply(f, 'resolve_event_payment_aggregate', { ...f.params, decision: 'keep_cloud' }, 'Agrégat cloud conservé, participation alignée.')
+                              }}
+                              className="text-xs h-7 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                            >
+                              <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Garder le Cloud
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={processingId === f.id}
+                            onClick={() => apply(f, 'resolve_event_payment_aggregate', { ...f.params, decision: 'review' }, 'Constat marqué comme consulté.')}
+                            className="text-xs h-7 text-gray-600 border-gray-300 hover:bg-gray-50"
+                          >
+                            Consulter
+                          </Button>
+                          <button
+                            onClick={() => navigate('/finance/tracabilite')}
+                            className="text-[10px] text-indigo-600 hover:underline flex items-center gap-1 w-fit"
+                          >
+                            <ExternalLink className="w-3 h-3" /> Vérifier dans la Traçabilité
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })()}
+
                   {/* Journal orphelin (classe D) : archiver avec motif ou consulter */}
                   {f.action === 'resolve_orphan_journal' && (
                     <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -823,6 +1018,7 @@ export const DataConsistencyAssistant: React.FC = () => {
                     </div>
                   )}
                 </div>
+                )}
                 </React.Fragment>
               )
             })}

@@ -157,7 +157,8 @@ const runMigrations = (): void => {
     '049_align_student_fees_with_finance_prices.sql',
     '050_realign_errant_2028_payments_and_fees.sql',
     '051_heal_and_align_sync_outbox.sql',
-    '052_add_deleted_to_event_payments.sql'
+    '052_add_deleted_to_event_payments.sql',
+    '053_add_bus_free_to_student_fees.sql'
   ]
   migrations.forEach(applyMigration)
 }
@@ -214,6 +215,7 @@ ensureTableColumns('student_fees', [
   'bus_subscribed',
   'bus_route',
   'bus_monthly_fee',
+  'bus_free',
   'canteen_subscribed',
   'canteen_days_per_week',
   'canteen_days',

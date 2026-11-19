@@ -423,7 +423,7 @@ export function getReconciliationItems(): ReconciliationItem[] {
         `SELECT id, table_name, record_id, action, status, error_message, data, created_at
          FROM sync_queue
          WHERE status IN ('error', 'failed', 'quarantined')
-           AND table_name IN ('student_payments', 'cash_journal')
+           AND table_name IN ('student_payments', 'cash_journal', 'event_payments', 'student_fees', 'parent_events', 'students')
          ORDER BY id DESC LIMIT 100`
       )
       .all() as Array<{
@@ -497,6 +497,23 @@ export function getReconciliationItems(): ReconciliationItem[] {
           createdBy = createdBy || localCj.created_by
           studentId = studentId || localCj.related_student_id
           description = description || localCj.description
+        }
+      } else if (r.table_name === 'event_payments') {
+        const localEp = db
+          .prepare(
+            'SELECT student_id, event_id, amount_due, amount_paid, payment_date FROM event_payments WHERE id = ?'
+          )
+          .get(r.record_id) as any
+        if (localEp) {
+          studentId = studentId || localEp.student_id
+          amount = amount !== undefined ? amount : localEp.amount_paid
+          date = date || localEp.payment_date
+          const ev = db.prepare('SELECT name FROM parent_events WHERE id = ?').get(localEp.event_id) as
+            | { name?: string }
+            | undefined
+          description =
+            description ||
+            `Participation événement${ev?.name ? ` : ${ev.name}` : ''} (dû ${localEp.amount_due}, payé ${localEp.amount_paid})`
         }
       }
 
@@ -2066,6 +2083,7 @@ function sanitizeRowPayload(tableName: string, action: string, rawData: any, rec
     'deleted',
     'active',
     'bus_subscribed',
+    'bus_free',
     'canteen_subscribed',
     'uniform_tshirt_purchased',
     'uniform_apron_purchased',
@@ -2637,6 +2655,70 @@ async function pushLocalChanges() {
             }
           } catch (stHealErr) {
             console.warn('[Auto-healing sync] Student registration_number collision auto-heal failed:', stHealErr)
+          }
+        }
+
+        // 2c. Auto-heal: Participation événement déjà canonique côté Cloud (23505 / uq_event_payments_active)
+        // Une seule participation active par (événement, élève). Le montant réel est porté
+        // indépendamment par student_payments + cash_journal ; event_payments n'est qu'un agrégat
+        // cumulé. Si le Cloud détient déjà la ligne canonique dont le cumul COUVRE celui du poste
+        // (cloud >= local), la ligne locale est un doublon d'UUID inter-postes : on adopte l'UUID
+        // cloud et on marque synced SANS perte ni double compte (le Cloud a bien reçu la ligne).
+        // Si local > cloud (branche divergente possible), on NE touche à rien : revue humaine (Assistant).
+        if (
+          !autoHealed &&
+          error?.code === '23505' &&
+          item.table_name === 'event_payments' &&
+          /uq_event_payments|duplicate key/i.test(errMsg)
+        ) {
+          try {
+            const localEp = db
+              .prepare('SELECT id, event_id, student_id, amount_paid FROM event_payments WHERE id = ?')
+              .get(item.record_id) as
+              | { id: string; event_id: string; student_id: string; amount_paid: number }
+              | undefined
+            if (localEp) {
+              const { data: cloudEp } = await supabase
+                .from('event_payments')
+                .select('id, amount_paid')
+                .eq('event_id', localEp.event_id)
+                .eq('student_id', localEp.student_id)
+                .eq('deleted', false)
+                .maybeSingle()
+              if (cloudEp?.id) {
+                const localPaid = Number(localEp.amount_paid || 0)
+                const cloudPaid = Number(cloudEp.amount_paid || 0)
+                if (cloudPaid >= localPaid) {
+                  const healIso = new Date().toISOString()
+                  db.transaction(() => {
+                    const existing = db
+                      .prepare('SELECT id FROM event_payments WHERE id = ?')
+                      .get(cloudEp.id)
+                    if (existing) {
+                      // La ligne canonique existe déjà en local : doublon pur → tombstone réversible.
+                      db.prepare(
+                        "UPDATE event_payments SET deleted = 1, sync_status = 'synced', updated_at = ? WHERE id = ?"
+                      ).run(healIso, item.record_id)
+                    } else {
+                      // Adoption de l'UUID cloud (les écritures caisse/ledger référencent student_id, pas ep.id).
+                      db.prepare(
+                        "UPDATE event_payments SET id = ?, sync_status = 'synced', updated_at = ? WHERE id = ?"
+                      ).run(cloudEp.id, healIso, item.record_id)
+                      // Réaligne les autres éléments de file visant l'ancien UUID pour éviter un résidu.
+                      db.prepare(
+                        "UPDATE sync_queue SET record_id = ? WHERE table_name = 'event_payments' AND record_id = ?"
+                      ).run(cloudEp.id, item.record_id)
+                    }
+                  })()
+                  console.warn(
+                    `[Auto-healing sync] event_payments '${item.record_id}' aligné sur la ligne cloud canonique '${cloudEp.id}' (cloud ${cloudPaid} >= local ${localPaid}).`
+                  )
+                  autoHealed = true
+                }
+              }
+            }
+          } catch (epHealErr) {
+            console.warn('[Auto-healing sync] event_payments collision heal failed:', epHealErr)
           }
         }
 

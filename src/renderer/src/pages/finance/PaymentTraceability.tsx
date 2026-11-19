@@ -9,7 +9,7 @@
  * @module pages/finance/PaymentTraceability
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -123,6 +123,7 @@ export default function PaymentTraceability(): React.JSX.Element {
 
   const [rows, setRows] = useState<TraceRow[]>([])
   const [total, setTotal] = useState(0)
+  const [signals, setSignals] = useState({ deleted: 0, blocked: 0, orphan: 0, backdated: 0, shifted: 0 })
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(0)
 
@@ -163,6 +164,7 @@ export default function PaymentTraceability(): React.JSX.Element {
         if (res.success) {
           setRows((res.rows || []) as unknown as TraceRow[])
           setTotal(res.total || 0)
+          setSignals(res.signals || { deleted: 0, blocked: 0, orphan: 0, backdated: 0, shifted: 0 })
         } else {
           toast.error(res.error || 'Erreur de chargement de la traçabilité')
         }
@@ -199,22 +201,9 @@ export default function PaymentTraceability(): React.JSX.Element {
     }
   }
 
-  const summary = useMemo(() => {
-    let deleted = 0
-    let blocked = 0
-    let orphan = 0
-    let backdated = 0
-    let shifted = 0
-    for (const r of rows) {
-      const f = computeFlags(r)
-      if (f.deleted) deleted++
-      if (f.syncBlocked) blocked++
-      if (f.noCashMirror) orphan++
-      if (f.backdated) backdated++
-      if (f.shiftedMonth) shifted++
-    }
-    return { deleted, blocked, orphan, backdated, shifted }
-  }, [rows])
+  // Signaux globaux fournis par le backend sur tout le jeu filtré (pas seulement la page
+  // affichée) : le filtre « Tous » reflète désormais les antidatés/mois décalés de toutes les pages.
+  const summary = signals
 
   const exportCsv = () => {
     const headers = [
@@ -411,16 +400,16 @@ export default function PaymentTraceability(): React.JSX.Element {
         </div>
       </div>
 
-      {/* Synthèse anomalies (page courante) */}
+      {/* Synthèse anomalies (globale, sur tout le jeu filtré) */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mr-1">
-          Signaux (page affichée) :
+          Signaux (tous les paiements filtrés) :
         </span>
-        <Badge icon={<Trash2 className="w-3.5 h-3.5" />} label="Supprimés" value={summary.deleted} tone="red" />
-        <Badge icon={<ShieldAlert className="w-3.5 h-3.5" />} label="Sync bloquée" value={summary.blocked} tone="red" />
-        <Badge icon={<AlertTriangle className="w-3.5 h-3.5" />} label="Sans miroir caisse" value={summary.orphan} tone="amber" />
-        <Badge icon={<AlertTriangle className="w-3.5 h-3.5" />} label="Antidatés" value={summary.backdated} tone="amber" />
-        <Badge icon={<AlertTriangle className="w-3.5 h-3.5" />} label="Mois ≠ date" value={summary.shifted} tone="amber" />
+        <Badge icon={<Trash2 className="w-3.5 h-3.5" />} label="Supprimés" value={summary.deleted} tone="red" title="Paiements marqués supprimés (deleted = 1), conservés pour la traçabilité." />
+        <Badge icon={<ShieldAlert className="w-3.5 h-3.5" />} label="Sync bloquée" value={summary.blocked} tone="red" title="Dernière écriture de file en erreur / échec / quarantaine : non confirmée par le cloud." />
+        <Badge icon={<AlertTriangle className="w-3.5 h-3.5" />} label="Sans miroir caisse" value={summary.orphan} tone="amber" title="Aucune écriture cash_journal rattachée à ce paiement (miroir caisse absent)." />
+        <Badge icon={<AlertTriangle className="w-3.5 h-3.5" />} label="Antidatés" value={summary.backdated} tone="amber" title="Date de paiement antérieure à la date de saisie (payment_date < created_at) : saisie rétroactive." />
+        <Badge icon={<AlertTriangle className="w-3.5 h-3.5" />} label="Mois ≠ date" value={summary.shifted} tone="amber" title="Le mois facturé (champ « mois ») ne correspond pas au mois de la date de paiement." />
         <span className="ml-auto text-xs text-gray-500 self-center">
           {total} paiement(s) — page {page + 1}/{pageCount}
         </span>
@@ -559,12 +548,14 @@ function Badge({
   icon,
   label,
   value,
-  tone
+  tone,
+  title
 }: {
   icon: React.ReactNode
   label: string
   value: number
   tone: 'red' | 'amber'
+  title?: string
 }): React.JSX.Element {
   const cls =
     value === 0
@@ -573,7 +564,10 @@ function Badge({
         ? 'bg-red-50 text-red-700 border-red-200'
         : 'bg-amber-50 text-amber-700 border-amber-200'
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium ${cls}`}>
+    <span
+      title={title}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium ${cls} ${title ? 'cursor-help' : ''}`}
+    >
       {icon}
       {label} : <strong>{value}</strong>
     </span>

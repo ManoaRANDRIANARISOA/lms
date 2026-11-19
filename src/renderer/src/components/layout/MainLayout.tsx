@@ -37,6 +37,7 @@ import SubjectManager from '@/pages/grades/SubjectManager'
 import ReportCardView from '@/pages/grades/ReportCardView'
 import UserManagementPage from '@/pages/auth/UserManagementPage'
 import AuditLogPage from '@/pages/auth/AuditLogPage'
+import AssistantPage from '@/pages/AssistantPage'
 
 function StudentDetailRoute(): React.JSX.Element | null {
   const { id } = useParams<{ id: string }>()
@@ -193,6 +194,14 @@ export default function MainLayout(): React.JSX.Element {
               element={
                 <ProtectedRoute resource="audit">
                   <AuditLogPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/assistant"
+              element={
+                <ProtectedRoute resource="payments" allowedRoles={['admin', 'direction']}>
+                  <AssistantPage />
                 </ProtectedRoute>
               }
             />

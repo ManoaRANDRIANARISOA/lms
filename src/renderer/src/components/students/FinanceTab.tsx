@@ -40,6 +40,7 @@ interface EventWithPayment {
   family_payment_status?: {
     is_paid: boolean
     total_paid: number
+    self_paid?: boolean
   }
 }
 
@@ -107,7 +108,9 @@ const getTuitionCost = (
 }
 
 const getBusCost = (record: FeeRecord | undefined | null, prices: FinancePrices | null) => {
-  if (!record?.bus_subscribed || !record?.bus_route) return 0
+  if (!record?.bus_subscribed) return 0
+  if (record.bus_free === true || Number(record.bus_free) === 1) return 0
+  if (!record?.bus_route) return 0
   if (record.bus_monthly_fee && Number(record.bus_monthly_fee) > 0) {
     return Number(record.bus_monthly_fee)
   }
@@ -1043,6 +1046,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {events.map((event) => {
               const isPaid = event.family_payment_status?.is_paid
+              const selfPaid = event.family_payment_status?.self_paid
               const balance = Math.max(
                 0,
                 event.amount_per_parent - (event.family_payment_status?.total_paid || 0)
@@ -1095,7 +1099,9 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
                         }`}
                       >
                         {isPaid
-                          ? 'RÉGLÉ (FRATRIE)'
+                          ? selfPaid
+                            ? 'RÉGLÉ'
+                            : 'RÉGLÉ (FRATRIE)'
                           : balance < event.amount_per_parent
                             ? `RESTE: ${balance.toLocaleString()} Ar`
                             : `${event.amount_per_parent.toLocaleString()} Ar`}

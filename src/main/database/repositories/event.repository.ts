@@ -506,6 +506,13 @@ export class EventRepository {
         const totalPaid = familyPayments.reduce((sum, p) => sum + p.amount_paid, 0)
         // If any sibling is fully paid, the event is considered paid for the family
         const isPaid = familyPayments.some((p) => p.paid === 1) || totalPaid >= ev.amount_per_parent
+        // L'élève a-t-il réglé lui-même (vs couvert uniquement par un frère/sœur) ?
+        // Sert au badge « RÉGLÉ » vs « RÉGLÉ (FRATRIE) » — un élève sans fratrie qui paie
+        // lui-même ne doit jamais voir la mention fratrie.
+        const selfPayment = familyPayments.find((p) => p.student_id === studentId)
+        const selfPaid =
+          !!selfPayment &&
+          (selfPayment.paid === 1 || selfPayment.amount_paid >= ev.amount_per_parent)
 
         return {
           ...ev,
@@ -513,6 +520,7 @@ export class EventRepository {
           family_payment_status: {
             total_paid: totalPaid,
             is_paid: isPaid,
+            self_paid: selfPaid,
             payments: familyPayments
           }
         }
