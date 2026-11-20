@@ -3,6 +3,39 @@
 Toutes les modifications notables apportées à ce projet sont documentées dans ce fichier.
 Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/) et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [2.4.6] - 2026-11-19
+
+### 🧭 Assistant Direction, auto-heal événements, transport gratuit & remédiation Cloud non destructive
+
+- **Assistant de cohérence accessible Direction** : page autonome `/assistant` (module Administration), restreinte aux rôles `admin`/`direction` (`ProtectedRoute`), résultat de scan **persistant** (store Zustand `useAssistantStore`) conservé lors de la navigation entre onglets.
+- **Mode Dry-Run** pour la réconciliation des participations événements bloquées (`reconcile_blocked_event_payments`) : décompte exact des cas sûrs (`safe`) et à arbitrer (`review`) **sans aucune mutation**, puis exécution validée.
+- **Auto-guérison des collisions d'UUID `event_payments`** (erreur Postgres `23505` / `uq_event_payments_active`) : si le Cloud détient un cumul `amount_paid >= local`, le poste adopte l'UUID canonique et marque la ligne `synced` **sans perte financière** (l'encaissement réel reste porté par `student_payments` + `cash_journal`) ; si `local > cloud`, arbitrage humain (pousser le local / conserver le Cloud).
+- **Transport gratuit explicite `bus_free`** (migration SQLite `053` + miroir Cloud `supabase_student_fees_bus_free.sql`) : case « Bus gratuit » masquant zone/tarif, coût bus 0 Ar, et signal `bus_config` pour un abonné sans axe/tarif ni gratuité (fin de la facturation silencieuse à 0).
+- **Moteur impayés « la fiche fait foi »** : couverture fratrie des événements (`isEventCoveredByFamily`), badge « RÉGLÉ » vs « RÉGLÉ (FRATRIE) » (`self_paid`), garde-fous chronologiques (aucun écolage/service avant `enrollment_date`), élèves partis (`departure_date`) exclus, filtre `deleted = 0` sur la cotisation FRAM.
+- **Traçabilité paiements** : compteurs d'anomalies (supprimés, bloqués sync, sans miroir caisse, antidatés, mois décalés) calculés par **agrégat SQL sur l'ensemble des données filtrées**, non plus limités à la page courante.
+- **Dépassement contrôlé du Ticket Z** (`bypassTicketZ`) réservé Direction, journalisé dans `settings_history` (`remediation:ticketZ_bypass`).
+- **Remédiation Cloud non destructive exécutée et prouvée sans perte** : 208 renumérotations de reçus non imprimés (`original_receipt_number` préservé, miroirs `cash_journal` mis à jour, numéros au-dessus du high-water-mark), 2 fusions de fiches doublons (6 paiements réattribués, participations événements dupliquées tombstonées), 1 restauration de fiche ; chaque action tracée `audit_logs`. 5 174 paiements actifs inchangés, 0 orphelin restant.
+
+## [2.4.5] - 2026-11-18
+
+- Adoption UUID complète lors des collisions de matricule inter-postes ; traçabilité des outils SQL.
+
+## [2.4.4] - 2026-11-17
+
+- Fin de la double facturation des événements : participations uniques (index unique actif par événement/élève), élèves partis exclus.
+
+## [2.4.3] - 2026-11-17
+
+- La fiche élève fait foi pour les impayés ; garde-fous événements ; guide client pour tous ; installateur allégé.
+
+## [2.4.2] - 2026-11-17
+
+- Guide client consultable en lecture seule depuis Paramètres.
+
+## [2.4.1] - 2026-11-17
+
+- Fiabilisation du module événements, parité bidirectionnelle et cœur unique impayés.
+
 ## [2.4.0] - 2026-11-16
 
 ### 🛡️ Fiabilité Synchronisation Multi-Postes, Cohérence Impayés, Clôture par Poste & Protection des Tarifs
