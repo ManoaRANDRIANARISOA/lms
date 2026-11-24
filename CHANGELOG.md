@@ -3,6 +3,23 @@
 Toutes les modifications notables apportées à ce projet sont documentées dans ce fichier.
 Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/) et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [2.4.7] - 2026-11-24
+
+### 💼 Clôture Caisse Ticket Z, Pointages Réactifs & Calcul de Salaires Centralisé
+
+- **Rattachement Caisse & Billetage Ticket Z des Dépenses de Salaires** :
+  - Les avances sur salaire et les règlements de salaires issus du module Personnel sont désormais directement attribués à l'opérateur en session (`created_by`) avec le mode de paiement en espèces (`payment_method = 'cash'`).
+  - Fin des faux écarts de caisse : ces décaissements sont immédiatement intégrés dans le récapitulatif journalier du caissier et dans son Ticket Z.
+- **Étanchéité et Exclusion Stricte des Éléments Supprimés (Soft-Delete)** :
+  - Le moteur de calcul de salaire (`calculateSalary`) exclut rigoureusement les pointages, absences, avances et déductions annulés (`deleted = 1`).
+- **Synchronisation et Réactivité Instantanée des Pointages** :
+  - Le calendrier de pointage est synchronisé en temps réel avec le mois sélectionné.
+  - Tout ajout, modification ou suppression de pointage, d'avance ou de retenue déclenche immédiatement le recalcul du salaire sans nécessiter de rechargement.
+- **Heures Mensuelles Sans Doublon (`setTimeTracking`)** :
+  - L'ajustement global des heures mensuelles réutilise l'ID existant et s'enregistre proprement dans la file de synchronisation sans créer de doublon.
+- **Déblocage du Tableau de Bord des Salaires Impayés (`PersonnelPayroll`)** :
+  - En mode de filtrage par mois spécifique, les membres du personnel actif sont automatiquement évalués et affichés, y compris si leur date de début d'exercice n'a pas encore été renseignée, avec un avertissement administratif clair.
+
 ## [2.4.6] - 2026-11-19
 
 ### 🧭 Assistant Direction, auto-heal événements, transport gratuit & remédiation Cloud non destructive
