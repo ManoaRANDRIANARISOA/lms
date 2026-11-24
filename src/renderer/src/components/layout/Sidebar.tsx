@@ -32,6 +32,7 @@ import { SyncStatusWidget } from '@/components/sync/SyncStatusWidget'
 import { SyncProgressModal } from '@/components/sync/SyncProgressModal'
 import { ClientGuideModal } from '@/components/settings/ClientGuideModal'
 import { useSyncStore } from '@/store/useSyncStore'
+import { useAssistantStore } from '@/store/useAssistantStore'
 
 // --------------------------------------------
 // Types
@@ -44,6 +45,7 @@ interface NavLeafProps {
   indent?: boolean
   icon?: LucideIcon
   exact?: boolean
+  badge?: number
 }
 
 interface SubItem {
@@ -52,6 +54,7 @@ interface SubItem {
   resource?: Resource
   allowedRoles?: UserRole[]
   exact?: boolean
+  badge?: number
 }
 
 interface NavModuleProps {
@@ -65,7 +68,7 @@ interface NavModuleProps {
 // --------------------------------------------
 // Simple link (leaf node)
 // --------------------------------------------
-function NavLeaf({ to, label, resource, allowedRoles, indent = false, icon: Icon, exact = false }: NavLeafProps) {
+function NavLeaf({ to, label, resource, allowedRoles, indent = false, icon: Icon, exact = false, badge }: NavLeafProps) {
   const location = useLocation()
   const canRead = useAuthStore((s) => s.canRead)
   const user = useAuthStore((s) => s.user)
@@ -94,6 +97,14 @@ function NavLeaf({ to, label, resource, allowedRoles, indent = false, icon: Icon
     >
       {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
       <span className="flex-1">{label}</span>
+      {badge && badge > 0 ? (
+        <span
+          className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-rose-500 text-white leading-none"
+          title={`${badge} élément(s) en attente de réconciliation`}
+        >
+          {badge}
+        </span>
+      ) : null}
     </Link>
   )
 }
@@ -112,6 +123,8 @@ function NavModule({ label, icon: Icon, items, isOpen, onToggle }: NavModuleProp
     return true
   })
   if (visibleItems.length === 0) return null
+
+  const totalBadge = visibleItems.reduce((sum, it) => sum + (it.badge || 0), 0)
 
   // Highlight parent if any child route is active
   const hasActiveChild = visibleItems.some((item) =>
@@ -133,6 +146,14 @@ function NavModule({ label, icon: Icon, items, isOpen, onToggle }: NavModuleProp
       >
         <Icon className="w-4 h-4 flex-shrink-0" />
         <span className="flex-1">{label}</span>
+        {!isOpen && totalBadge > 0 && (
+          <span
+            className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-rose-500 text-white leading-none"
+            title={`${totalBadge} décision(s) en attente dans ${label}`}
+          >
+            {totalBadge}
+          </span>
+        )}
         {isOpen ? (
           <ChevronDown className="w-3.5 h-3.5 opacity-60" />
         ) : (
@@ -150,6 +171,7 @@ function NavModule({ label, icon: Icon, items, isOpen, onToggle }: NavModuleProp
               allowedRoles={item.allowedRoles}
               indent
               exact={item.exact}
+              badge={item.badge}
             />
           ))}
         </div>
@@ -188,6 +210,9 @@ export default function Sidebar(): React.JSX.Element {
   }
 
   const appVersion = useSyncStore((s) => s.appVersion)
+  const assistantResult = useAssistantStore((s) => s.result)
+  const assistantAlertCount =
+    (assistantResult?.decisionCount || 0) + (assistantResult?.autoCount || 0)
 
   return (
     <aside className="w-64 bg-primary text-primary-foreground p-4 flex flex-col shadow-xl z-10">
@@ -273,7 +298,13 @@ export default function Sidebar(): React.JSX.Element {
           isOpen={openModule === 'Administration'}
           onToggle={() => handleToggle('Administration')}
           items={[
-            { to: '/assistant', label: 'Assistant de cohérence', resource: 'payments', allowedRoles: ['admin', 'direction'] },
+            {
+              to: '/assistant',
+              label: 'Assistant de cohérence',
+              resource: 'payments',
+              allowedRoles: ['admin', 'direction'],
+              badge: assistantAlertCount
+            },
             { to: '/settings', label: 'Paramètres', resource: 'settings', exact: true },
             { to: '/users', label: 'Utilisateurs', resource: 'users' },
             { to: '/audit', label: "Journal d'audit", resource: 'audit' }

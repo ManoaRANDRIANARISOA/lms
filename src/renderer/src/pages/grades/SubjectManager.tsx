@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { useGradeStore } from '@/store/useGradeStore'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useClasses } from '@/lib/useClasses'
@@ -130,12 +131,13 @@ export default function SubjectManager(): React.JSX.Element {
   }
 
   const handleDeleteSubject = async (id: string, name: string) => {
-    if (
-      !confirm(
-        `Supprimer définitivement "${name}" du catalogue ?\nLes notes associées ne seront plus visibles.`
-      )
-    )
-      return
+    const okConfirm = await confirmDialog({
+      title: 'Supprimer la matière',
+      message: `Supprimer définitivement "${name}" du catalogue ?\nLes notes associées ne seront plus visibles.`,
+      confirmText: 'Supprimer',
+      variant: 'danger'
+    })
+    if (!okConfirm) return
     const ok = await deleteSubject(id)
     if (ok) {
       setMsg(`"${name}" supprimée du catalogue.`)

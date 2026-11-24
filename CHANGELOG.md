@@ -3,6 +3,25 @@
 Toutes les modifications notables apportées à ce projet sont documentées dans ce fichier.
 Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/) et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [2.4.8] - 2026-11-24
+
+### 🛡️ Cohérence Multi-Postes, Ergonomie Windows & Heures Manuelles Complètes
+
+- **Synchro `payroll_start_date` & Propagation Suppressions (`sync.service.ts`)** :
+  - Suppression du filtre qui bloquait l'envoi de `payroll_start_date` vers Supabase, avec garde anti-régression lors du pull.
+  - Ajout systématique d'un `updated_at` frais lors des suppressions (`action === 'delete'`) vers Supabase pour garantir la propagation des fusions et tombstones sur tous les postes.
+  - Sécurisation de l'absorption de `departure_date` distant lors du pull.
+- **Zéro Gel Clavier Windows (Remplacement de 76 `alert()`/`confirm()` natifs)** :
+  - Nouveau composant global non-bloquant `<GlobalConfirmDialog />` et utilisation généralisée des notifications `toast` (Sonner) sur l'ensemble des écrans (Personnel, Finance, Élèves, Paramètres, Assistant).
+- **Heures Manuelles (`time_tracking`) Complètes (`PersonnelDetail.tsx`)** :
+  - Pré-remplissage automatique des heures manuelles actives du mois, modification directe et bouton de suppression (« Revenir au calendrier ») via `personnel:deleteTimeTracking` (verrouillé si mois déjà payé).
+- **Assistant de Cohérence & Notifications (`remediation.service.ts`, `DataConsistencyAssistant.tsx`, `Sidebar.tsx`)** :
+  - Détection des paiements enregistrés sur une mauvaise année scolaire ou un mois décalé (réalignement contrôlé ou conservation tracée).
+  - Détection des doublons d'élèves actifs (fusion transactionnelle via `mergeStudentRecordsSafe` ou maintien séparé mémorisé).
+  - Scan silencieux en arrière-plan (Direction/Admin) et badge compteur rouge dans la barre latérale sur *Assistant de cohérence*.
+- **Filtres Paie (`PersonnelPayroll.tsx`)** :
+  - Exclusion effective des employés mensuels partis avant le mois filtré et restriction du bandeau `payroll_start_date` au mode *Tous les impayés*.
+
 ## [2.4.7] - 2026-11-24
 
 ### 💼 Clôture Caisse Ticket Z, Pointages Réactifs & Calcul de Salaires Centralisé

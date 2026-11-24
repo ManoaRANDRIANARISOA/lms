@@ -22,6 +22,7 @@ import {
 } from '@/store/useAssistantStore'
 import { SyncQueuePanel } from '@/components/sync/SyncQueuePanel'
 import { toast } from 'sonner'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import {
   ScanSearch,
   RefreshCw,
@@ -74,7 +75,9 @@ const categoryMeta: Record<string, { label: string; guidance: string; order: num
   duplicate_closure: { label: 'Clôtures dupliquées', guidance: 'Plusieurs clôtures même poste/jour/compte. Examiner dans le module Caisse.', order: 13 },
   missing_closure: { label: 'Journées sans clôture', guidance: 'Paiements sans clôture de caisse. Vérifier le processus journalier.', order: 14 },
   audit_signal: { label: "Signaux d'audit", guidance: 'Mois décalé ou antidaté. Contrôler dans la Traçabilité.', order: 15 },
-  event_payment_blocked: { label: 'Participations événement bloquées', guidance: "Collision d'UUID inter-postes : le Cloud détient déjà la participation canonique. Cas sûr (cumul cloud ≥ local) adoptable sans perte ; cumul local supérieur → arbitrage. L'argent encaissé reste tracé dans la caisse.", order: 16 }
+  event_payment_blocked: { label: 'Participations événement bloquées', guidance: "Collision d'UUID inter-postes : le Cloud détient déjà la participation canonique. Cas sûr (cumul cloud ≥ local) adoptable sans perte ; cumul local supérieur → arbitrage. L'argent encaissé reste tracé dans la caisse.", order: 16 },
+  wrong_school_year: { label: 'Paiements sur année scolaire / mois décalé', guidance: "Paiements encaissés mais enregistrés sur une mauvaise année scolaire (ex. 2027-2028 au lieu de 2026-2027), empêchant les mois d'apparaître cochés. Réaligner sur l'année active ou conserver si paiement anticipé volontaire.", order: 17 },
+  student_duplicate_candidate: { label: "Doublons d'élèves potentiels", guidance: "Fiches actives portant le même nom (ou même date de naissance et classe). Fusionner si c'est le même élève, ou laisser séparés s'il s'agit d'homonymes / jumeaux.", order: 18 }
 }
 const catOrder = (c: string): number => categoryMeta[c]?.order ?? 99
 
@@ -174,7 +177,11 @@ export const DataConsistencyAssistant: React.FC = () => {
       (f) => f.classification === 'auto' && f.action !== 'reconcile_blocked_event_payments'
     )
     if (autos.length === 0) return
-    if (!confirm(`Appliquer automatiquement les ${autos.length} correction(s) évidente(s) ? Aucune donnée ne sera perdue.`)) return
+    const okConfirm = await confirmDialog({
+      title: 'Corrections automatiques',
+      message: `Appliquer automatiquement les ${autos.length} correction(s) évidente(s) ? Aucune donnée ne sera perdue.`
+    })
+    if (!okConfirm) return
     setBatchRunning(true)
     let ok = 0
     for (const f of autos) {
@@ -203,14 +210,16 @@ export const DataConsistencyAssistant: React.FC = () => {
     )
     if (certains.length === 0) return
     const totalAmount = certains.reduce((s, f) => s + (f.amountImpact || 0), 0)
-    if (
-      !confirm(
+    const okConfirm = await confirmDialog({
+      title: 'Unifier les doublons certains',
+      message:
         `Unifier ${certains.length} groupe(s) de doublons CERTAINS ?\n\n` +
-          `Le plus récent de chaque groupe sera archivé (soft-delete réversible) ; l'écriture la plus ancienne et son reçu d'origine sont conservés. Aucun reçu papier imprimé n'est concerné. Journée non scellée (Ticket Z).\n\n` +
-          `Montant total dédupliqué : ${totalAmount.toLocaleString('fr-FR')} Ar. Chaque décision est tracée et propagée aux autres postes.\n\nContinuer ?`
-      )
-    )
-      return
+        `Le plus récent de chaque groupe sera archivé (soft-delete réversible) ; l'écriture la plus ancienne et son reçu d'origine sont conservés. Aucun reçu papier imprimé n'est concerné. Journée non scellée (Ticket Z).\n\n` +
+        `Montant total dédupliqué : ${totalAmount.toLocaleString('fr-FR')} Ar. Chaque décision est tracée et propagée aux autres postes.\n\nContinuer ?`,
+      confirmText: 'Unifier',
+      variant: 'danger'
+    })
+    if (!okConfirm) return
     setUnifyRunning(true)
     let ok = 0
     for (const f of certains) {
@@ -465,8 +474,12 @@ export const DataConsistencyAssistant: React.FC = () => {
                         <Button
                           size="sm"
                           disabled={processingId === f.id || safeCount === 0}
-                          onClick={() => {
-                            if (!confirm(`Exécuter l'adoption des ${safeCount} participation(s) sûre(s) ? Le Cloud détient déjà la ligne canonique (cumul ≥ local). Aucune perte ni double compte.`)) return
+                          onClick={async () => {
+                            const ok = await confirmDialog({
+                              title: 'Adoption des participations sûres',
+                              message: `Exécuter l'adoption des ${safeCount} participation(s) sûre(s) ? Le Cloud détient déjà la ligne canonique (cumul ≥ local). Aucune perte ni double compte.`
+                            })
+                            if (!ok) return
                             apply(f, 'reconcile_blocked_event_payments', { dryRun: false, mode: 'safe' }, 'Participations sûres alignées sur le Cloud.')
                           }}
                           className="text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -662,8 +675,12 @@ export const DataConsistencyAssistant: React.FC = () => {
                           <Button
                             size="sm"
                             disabled={processingId === f.id}
-                            onClick={() => {
-                              if (!confirm(`Restaurer la fiche supprimée « ${f.evidence?.studentName || ''} » ? Ses ${f.evidence?.paymentCount || 0} paiement(s) actif(s) restent rattachés et la fiche de frais est réactivée. Choix sûr si la suppression n'était pas volontaire.`)) return
+                            onClick={async () => {
+                              const ok = await confirmDialog({
+                                title: 'Restaurer la fiche élève',
+                                message: `Restaurer la fiche supprimée « ${f.evidence?.studentName || ''} » ? Ses ${f.evidence?.paymentCount || 0} paiement(s) actif(s) restent rattachés et la fiche de frais est réactivée. Choix sûr si la suppression n'était pas volontaire.`
+                              })
+                              if (!ok) return
                               apply(f, 'restore_student', { studentId: f.params.studentId, confirm: true }, 'Fiche restaurée, paiements rattachés.')
                             }}
                             className="text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -691,8 +708,14 @@ export const DataConsistencyAssistant: React.FC = () => {
                           size="sm"
                           variant="outline"
                           disabled={!reason.trim() || processingId === f.id}
-                          onClick={() => {
-                            if (!confirm('Archiver ces paiements orphelins ? Ils seront marqués supprimés et propagés.')) return
+                          onClick={async () => {
+                            const ok = await confirmDialog({
+                              title: 'Archiver les paiements orphelins',
+                              message: 'Archiver ces paiements orphelins ? Ils seront marqués supprimés et propagés.',
+                              confirmText: 'Archiver',
+                              variant: 'danger'
+                            })
+                            if (!ok) return
                             apply(f, 'archive_orphan_group', { studentId: f.params.studentId, reason: reason.trim() }, 'Paiements archivés.')
                           }}
                           className="text-xs h-7 text-rose-600 border-rose-300 hover:bg-rose-50"
@@ -709,8 +732,14 @@ export const DataConsistencyAssistant: React.FC = () => {
                       <Button
                         size="sm"
                         disabled={processingId === f.id}
-                        onClick={() => {
-                          if (!confirm('Confirmer la suppression dans le Cloud (pousser la tombstone locale) ?')) return
+                        onClick={async () => {
+                          const ok = await confirmDialog({
+                            title: 'Pousser la suppression au Cloud',
+                            message: 'Confirmer la suppression dans le Cloud (pousser la tombstone locale) ?',
+                            confirmText: 'Confirmer',
+                            variant: 'danger'
+                          })
+                          if (!ok) return
                           apply(f, 'resolve_reverse_tombstone', { ...f.params, decision: 'push_tombstone' }, 'Tombstone poussée.')
                         }}
                         className="text-xs h-7 bg-rose-600 hover:bg-rose-700 text-white"
@@ -760,8 +789,12 @@ export const DataConsistencyAssistant: React.FC = () => {
                       <Button
                         size="sm"
                         disabled={processingId === f.id}
-                        onClick={() => {
-                          if (!confirm('Appliquer la grille centralisée à cette fiche ? Le tarif enregistré sera remplacé et propagé au Cloud.')) return
+                        onClick={async () => {
+                          const ok = await confirmDialog({
+                            title: 'Appliquer la grille centralisée',
+                            message: 'Appliquer la grille centralisée à cette fiche ? Le tarif enregistré sera remplacé et propagé au Cloud.'
+                          })
+                          if (!ok) return
                           apply(f, 'realign_fee_single', { ...f.params, decision: 'apply_grid' }, 'Tarif appliqué selon la grille.')
                         }}
                         className="text-xs h-7 bg-blue-600 hover:bg-blue-700 text-white"
@@ -811,12 +844,18 @@ export const DataConsistencyAssistant: React.FC = () => {
                           <Button
                             size="sm"
                             disabled={processingId === f.id}
-                            onClick={() => {
+                            onClick={async () => {
                               const keepId = chosen
                               const msg = anyPrinted
                                 ? "ATTENTION : au moins un reçu a déjà été imprimé (document légal). Archiver le(s) doublon(s) en conservant la sélection ? Confirmez-vous que les reçus papier archivés ne font pas foi ?"
                                 : "Archiver le(s) doublon(s) et conserver l'écriture sélectionnée ? Le reçu d'origine est préservé."
-                              if (!confirm(msg)) return
+                              const ok = await confirmDialog({
+                                title: 'Résolution de doublon',
+                                message: msg,
+                                confirmText: 'Confirmer',
+                                variant: anyPrinted ? 'danger' : 'default'
+                              })
+                              if (!ok) return
                               apply(
                                 f,
                                 'resolve_duplicate_candidate',
@@ -873,11 +912,17 @@ export const DataConsistencyAssistant: React.FC = () => {
                           <Button
                             size="sm"
                             disabled={processingId === f.id}
-                            onClick={() => {
+                            onClick={async () => {
                               const msg = laterPrinted
                                 ? "ATTENTION : le reçu le plus récent a DÉJÀ été imprimé et est détenu par le parent. Le renuméroter créera un écart papier↔système (la référence d'origine sera conservée). Confirmer explicitement ?"
                                 : "Renuméroter le paiement le plus récent (jamais imprimé) pour lever la collision ? La référence d'origine sera conservée et propagée."
-                              if (!confirm(msg)) return
+                              const ok = await confirmDialog({
+                                title: 'Renuméroter le reçu',
+                                message: msg,
+                                confirmText: 'Renuméroter',
+                                variant: laterPrinted ? 'danger' : 'default'
+                              })
+                              if (!ok) return
                               apply(f, 'resolve_receipt_collision', { ...f.params, decision: 'renumber_later', confirmPrinted: true }, 'Reçu renuméroté, référence d\'origine préservée.')
                             }}
                             className="text-xs h-7 bg-amber-600 hover:bg-amber-700 text-white"
@@ -914,11 +959,15 @@ export const DataConsistencyAssistant: React.FC = () => {
                           <Button
                             size="sm"
                             disabled={processingId === f.id}
-                            onClick={() => {
+                            onClick={async () => {
                               const msg = hasCloud
                                 ? "Pousser le cumul local (le plus élevé) vers la participation cloud ? L'argent encaissé reste tracé dans la caisse ; seul l'agrégat de participation est aligné."
                                 : "Repousser réellement cette participation vers le Cloud (aucune ligne active côté Cloud) ? Vérifiez d'abord que la suppression cloud n'était pas volontaire."
-                              if (!confirm(msg)) return
+                              const ok = await confirmDialog({
+                                title: 'Arbitrage participation événement',
+                                message: msg
+                              })
+                              if (!ok) return
                               apply(f, 'resolve_event_payment_aggregate', { ...f.params, decision: 'push_local', confirm: true }, 'Participation arbitrée et alignée.')
                             }}
                             className="text-xs h-7 bg-amber-600 hover:bg-amber-700 text-white"
@@ -930,8 +979,12 @@ export const DataConsistencyAssistant: React.FC = () => {
                               size="sm"
                               variant="outline"
                               disabled={processingId === f.id}
-                              onClick={() => {
-                                if (!confirm("Conserver l'agrégat cloud et aligner la participation locale ? L'argent encaissé reste tracé dans la caisse.")) return
+                              onClick={async () => {
+                                const ok = await confirmDialog({
+                                  title: 'Conserver le cumul Cloud',
+                                  message: "Conserver l'agrégat cloud et aligner la participation locale ? L'argent encaissé reste tracé dans la caisse."
+                                })
+                                if (!ok) return
                                 apply(f, 'resolve_event_payment_aggregate', { ...f.params, decision: 'keep_cloud' }, 'Agrégat cloud conservé, participation alignée.')
                               }}
                               className="text-xs h-7 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
@@ -972,8 +1025,14 @@ export const DataConsistencyAssistant: React.FC = () => {
                         size="sm"
                         variant="outline"
                         disabled={!(archiveReason[f.id] || '').trim() || processingId === f.id}
-                        onClick={() => {
-                          if (!confirm('Archiver cette écriture de caisse orpheline ? Soft-delete tracé et propagé.')) return
+                        onClick={async () => {
+                          const ok = await confirmDialog({
+                            title: 'Archiver écriture orpheline',
+                            message: 'Archiver cette écriture de caisse orpheline ? Soft-delete tracé et propagé.',
+                            confirmText: 'Archiver',
+                            variant: 'danger'
+                          })
+                          if (!ok) return
                           apply(f, 'resolve_orphan_journal', { ...f.params, decision: 'archive', reason: (archiveReason[f.id] || '').trim() }, 'Écriture archivée.')
                         }}
                         className="text-xs h-7 text-rose-600 border-rose-300 hover:bg-rose-50"
@@ -998,8 +1057,14 @@ export const DataConsistencyAssistant: React.FC = () => {
                       <Button
                         size="sm"
                         disabled={processingId === f.id}
-                        onClick={() => {
-                          if (!confirm('Archiver les fiches dupliquées et conserver la plus ancienne ?')) return
+                        onClick={async () => {
+                          const ok = await confirmDialog({
+                            title: 'Archiver les fiches dupliquées',
+                            message: 'Archiver les fiches dupliquées et conserver la plus ancienne ?',
+                            confirmText: 'Archiver',
+                            variant: 'danger'
+                          })
+                          if (!ok) return
                           apply(f, 'resolve_duplicate_fee', { ...f.params, decision: 'keep_old' }, 'Fiche(s) dupliquée(s) archivée(s).')
                         }}
                         className="text-xs h-7 bg-blue-600 hover:bg-blue-700 text-white"
@@ -1017,6 +1082,151 @@ export const DataConsistencyAssistant: React.FC = () => {
                       </Button>
                     </div>
                   )}
+
+                  {/* Paiements sur mauvaise année scolaire / mois décalé */}
+                  {f.action === 'realign_payment_school_year' && (() => {
+                    const lines = (f.evidence?.lines || []) as Array<Record<string, any>>
+                    return (
+                      <div className="space-y-2 pt-1">
+                        <div className="border border-gray-200 rounded bg-white divide-y divide-gray-100 max-h-44 overflow-y-auto">
+                          {lines.map((l) => (
+                            <div key={l.id} className="p-2 text-[11px] flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <span className="font-semibold text-gray-800">{l.paymentType}</span>
+                                <span className="text-gray-500"> · {(l.amount || 0).toLocaleString('fr-FR')} Ar · encaissé le {l.paymentDate}</span>
+                                {l.receiptNumber ? <span className="font-mono text-[10px] text-gray-400"> · {l.receiptNumber}</span> : null}
+                              </div>
+                              <div className="flex items-center gap-1.5 font-mono text-[10px]">
+                                <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-800">
+                                  {l.currentYear}{l.currentMonth ? ` (${l.currentMonth})` : ''}
+                                </span>
+                                <span>→</span>
+                                <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                                  {l.proposedYear}{l.proposedMonth ? ` (${l.proposedMonth})` : ''}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            size="sm"
+                            disabled={processingId === f.id}
+                            onClick={async () => {
+                              const ok = await confirmDialog({
+                                title: "Réaligner sur l'année scolaire active",
+                                message: `Réaligner ${lines.length} paiement(s) de ${f.evidence?.studentName || ''} sur l'année ${f.params.targetSchoolYear} ? Les mois apparaîtront immédiatement cochés sur sa fiche.`,
+                                confirmText: 'Réaligner'
+                              })
+                              if (!ok) return
+                              apply(f, 'realign_payment_school_year', { ...f.params, decision: 'realign' }, "Paiement(s) réaligné(s) sur l'année scolaire active.")
+                            }}
+                            className="text-xs h-7 bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5 mr-1" /> Réaligner sur {f.params.targetSchoolYear}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={processingId === f.id}
+                            onClick={async () => {
+                              const ok = await confirmDialog({
+                                title: 'Conserver tel quel',
+                                message: "Conserver ces paiements sur leur année d'enregistrement actuelle ? Ce signalement ne s'affichera plus."
+                              })
+                              if (!ok) return
+                              apply(f, 'realign_payment_school_year', { ...f.params, decision: 'keep' }, 'Paiement(s) conservé(s) tel quel.')
+                            }}
+                            className="text-xs h-7 text-gray-600 border-gray-300 hover:bg-gray-50"
+                          >
+                            Conserver tel quel
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Doublon d'élève actif */}
+                  {f.action === 'resolve_student_duplicate' && (() => {
+                    const lines = (f.evidence?.lines || []) as Array<Record<string, any>>
+                    const chosenKeepId = dupChoice[f.id] || (f.params.suggestedKeepId as string)
+                    return (
+                      <div className="space-y-2 pt-1">
+                        <div className="border border-gray-200 rounded bg-white divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                          {lines.map((l) => (
+                            <button
+                              key={l.id}
+                              onClick={() => setDupChoice((p) => ({ ...p, [f.id]: l.id }))}
+                              className={`w-full text-left p-2 text-[11px] flex flex-wrap items-center justify-between gap-2 ${
+                                chosenKeepId === l.id ? 'bg-blue-50 font-semibold' : 'hover:bg-gray-50'
+                              }`}
+                            >
+                              <div>
+                                <span className="font-mono text-gray-500 mr-1.5">{l.registrationNumber || l.id.slice(0, 8)}</span>
+                                <span className="text-gray-900">{l.fullName}</span>
+                                <span className="text-gray-500"> · {l.className || 'Sans classe'}{l.dob ? ` · Né(e) ${l.dob}` : ''}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-emerald-700 font-mono">
+                                  {l.paymentCount} pmt ({(l.paymentTotal || 0).toLocaleString('fr-FR')} Ar)
+                                </span>
+                                <span className="text-[10px] text-blue-700">
+                                  {chosenKeepId === l.id ? '✓ fiche principale' : ''}
+                                </span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            size="sm"
+                            disabled={processingId === f.id}
+                            onClick={async () => {
+                              const ok = await confirmDialog({
+                                title: 'Fusionner les fiches doublons',
+                                message:
+                                  'Fusionner toutes les fiches de ce groupe vers la fiche sélectionnée ?\n\n' +
+                                  "Tous les paiements, notes et présences seront réunis sur la fiche conservée sans double comptage en caisse, et la fiche doublon sera désactivée (deleted = 1) et propagée au Cloud.",
+                                confirmText: 'Fusionner',
+                                variant: 'danger'
+                              })
+                              if (!ok) return
+                              apply(
+                                f,
+                                'resolve_student_duplicate',
+                                { ...f.params, decision: 'merge', keepId: chosenKeepId },
+                                'Fiches fusionnées vers le dossier sélectionné.'
+                              )
+                            }}
+                            className="text-xs h-7 bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <UserCheck className="w-3.5 h-3.5 mr-1" /> Fusionner vers la sélection
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={processingId === f.id}
+                            onClick={async () => {
+                              const ok = await confirmDialog({
+                                title: 'Laisser séparés',
+                                message: "Confirmer qu'il s'agit bien de deux élèves distincts (homonymes ou jumeaux) ? Ce signalement ne s'affichera plus."
+                              })
+                              if (!ok) return
+                              apply(
+                                f,
+                                'resolve_student_duplicate',
+                                { ...f.params, decision: 'keep_both' },
+                                'Fiches conservées séparément.'
+                              )
+                            }}
+                            className="text-xs h-7 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Laisser séparés
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
                 )}
                 </React.Fragment>

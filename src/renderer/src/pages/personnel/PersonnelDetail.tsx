@@ -6,8 +6,10 @@
  * @module pages/personnel/PersonnelDetail
  */
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { usePersonnelStore } from '@/store/usePersonnelStore'
 import { useAuthStore } from '@/store/useAuthStore'
 import { Button } from '@/components/ui/button'
@@ -82,6 +84,19 @@ export default function PersonnelDetail(): React.JSX.Element {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   })
 
+  // Total mensuel manuel (employés horaires)
+  const [manualHours, setManualHours] = useState('')
+  const manualHoursInputRef = useRef<HTMLInputElement>(null)
+  const activeManualEntry = timeTracking.find((t) => t.month === currentMonth && t.manually_edited)
+
+  useEffect(() => {
+    if (activeManualEntry) {
+      setManualHours(String(activeManualEntry.hours_worked))
+    } else {
+      setManualHours('')
+    }
+  }, [activeManualEntry?.id, activeManualEntry?.hours_worked, currentMonth])
+
   useEffect(() => {
     if (id) getPerson(id)
   }, [id])
@@ -124,10 +139,15 @@ export default function PersonnelDetail(): React.JSX.Element {
                 variant="outline"
                 size="sm"
                 onClick={async () => {
-                  if (confirm(`Marquer ${p.first_name} comme Actif ?`)) {
+                  const ok = await confirmDialog({
+                    title: 'Réactivation',
+                    message: `Marquer ${p.first_name} comme Actif ?`
+                  })
+                  if (ok) {
                     await usePersonnelStore
                       .getState()
                       .updatePerson(p.id!, { departure_date: null as any })
+                    toast.success(`${p.first_name} marqué comme Actif.`)
                   }
                 }}
               >
@@ -138,10 +158,15 @@ export default function PersonnelDetail(): React.JSX.Element {
                 variant="outline"
                 size="sm"
                 onClick={async () => {
-                  if (confirm(`Marquer ${p.first_name} comme Inactif (départ aujourd'hui) ?`)) {
+                  const ok = await confirmDialog({
+                    title: 'Départ du personnel',
+                    message: `Marquer ${p.first_name} comme Inactif (départ aujourd'hui) ?`
+                  })
+                  if (ok) {
                     await usePersonnelStore.getState().updatePerson(p.id!, {
                       departure_date: new Date().toISOString().split('T')[0]
                     })
+                    toast.success(`${p.first_name} marqué comme Inactif.`)
                   }
                 }}
               >
@@ -154,9 +179,16 @@ export default function PersonnelDetail(): React.JSX.Element {
             <Button
               variant="destructive"
               size="sm"
-              onClick={() => {
-                if (confirm(`Supprimer ${p.last_name} ${p.first_name} ?`)) {
-                  usePersonnelStore.getState().deletePerson(p.id!)
+              onClick={async () => {
+                const ok = await confirmDialog({
+                  title: 'Suppression',
+                  message: `Supprimer ${p.last_name} ${p.first_name} ?`,
+                  confirmText: 'Supprimer',
+                  variant: 'danger'
+                })
+                if (ok) {
+                  await usePersonnelStore.getState().deletePerson(p.id!)
+                  toast.success('Personnel supprimé.')
                   navigate('/personnel')
                 }
               }}
@@ -365,20 +397,30 @@ export default function PersonnelDetail(): React.JSX.Element {
             {/* Section Forçage Horaire (seulement pour les employés horaires) */}
             {p.salary_type === 'hourly' && canWrite('personnel') && (
               <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                  Total mensuel manuel — {currentMonth} (Optionnel)
-                </h3>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <h3 className="text-sm font-semibold text-gray-700">
+                    Total mensuel manuel — {currentMonth} (Optionnel)
+                  </h3>
+                  {activeManualEntry && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      Heures manuelles actives : {activeManualEntry.hours_worked}h (modifiables tant que le mois n&apos;est pas payé)
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-gray-500 mb-4">
-                  Si vous n'utilisez pas le calendrier, vous pouvez forcer le total d'heures
+                  Si vous n&apos;utilisez pas le calendrier, vous pouvez forcer le total d&apos;heures
                   effectuées pour le mois en cours. Cette valeur écrase le total du calendrier.
                 </p>
-                <div className="flex items-end gap-4">
+                <div className="flex flex-wrap items-end gap-4">
                   <div>
                     <Label className="text-xs">Heures totales du mois</Label>
                     <Input
+                      ref={manualHoursInputRef}
                       type="number"
                       placeholder="Ex: 45"
-                      id="manualHoursInput"
+                      value={manualHours}
+                      onChange={(e) => setManualHours(e.target.value)}
+                      disabled={salaryCalculation?.isPaid}
                       className="w-32 bg-white"
                     />
                   </div>
@@ -387,50 +429,133 @@ export default function PersonnelDetail(): React.JSX.Element {
                     disabled={salaryCalculation?.isPaid}
                     onClick={async () => {
                       if (salaryCalculation?.isPaid) {
-                        return alert(
-                          'Ce mois est déjà payé, vous ne pouvez plus modifier le pointage.'
-                        )
+                        toast.error('Ce mois est déjà payé, vous ne pouvez plus modifier le pointage.')
+                        return
                       }
-                      const inputEl = document.getElementById(
-                        'manualHoursInput'
-                      ) as HTMLInputElement
-                      const val = inputEl?.value
-                      if (!val) return
+                      if (!manualHours || Number(manualHours) < 0) {
+                        toast.error('Veuillez saisir un nombre d’heures valide.')
+                        return
+                      }
                       const res = await window.api.personnel.setTimeTracking({
                         personnel_id: id!,
                         month: currentMonth,
-                        hours_worked: Number(val),
+                        hours_worked: Number(manualHours),
                         manually_edited: true,
                         edit_reason: 'Saisie manuelle'
                       })
                       if (res?.success) {
-                        alert('Total enregistré avec succès.')
-                        if (inputEl) inputEl.value = ''
+                        toast.success('Total enregistré avec succès.')
                         await getPerson(id!)
                         await calculateSalary(id!, currentMonth)
                       } else {
-                        alert(res?.error || "Erreur lors de l'enregistrement.")
+                        toast.error(res?.error || "Erreur lors de l'enregistrement.")
                       }
                     }}
                   >
                     <Save className="w-4 h-4 mr-1" /> Enregistrer le total
                   </Button>
+                  {activeManualEntry && !salaryCalculation?.isPaid && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-600 border-red-200 hover:bg-red-50"
+                      onClick={async () => {
+                        const ok = await confirmDialog({
+                          title: 'Annuler le forçage manuel',
+                          message: `Supprimer les heures manuelles (${activeManualEntry.hours_worked}h) pour ${currentMonth} et revenir au calcul automatique du calendrier ?`,
+                          confirmText: 'Revenir au calendrier',
+                          variant: 'danger'
+                        })
+                        if (!ok) return
+                        const res = await window.api.personnel.deleteTimeTracking(activeManualEntry.id)
+                        if (res?.success) {
+                          toast.success('Forçage manuel supprimé, calcul basé sur le calendrier rétabli.')
+                          setManualHours('')
+                          await getPerson(id!)
+                          await calculateSalary(id!, currentMonth)
+                        } else {
+                          toast.error(res?.error || 'Erreur lors de la suppression.')
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" /> Revenir au calendrier
+                    </Button>
+                  )}
                 </div>
                 {/* Historique time_tracking */}
-                {timeTracking.length > 0 && (
+                {timeTracking.some((t) => t.manually_edited) && (
                   <div className="mt-4 border-t pt-4">
                     <h4 className="text-xs font-semibold mb-2 text-gray-600">
                       Historique des saisies manuelles
                     </h4>
-                    <ul className="text-xs text-gray-600 space-y-1">
+                    <ul className="text-xs text-gray-600 space-y-1.5">
                       {timeTracking
                         .filter((t) => t.manually_edited)
-                        .map((t) => (
-                          <li key={t.id} className="flex justify-between max-w-sm">
-                            <span>Mois : {t.month}</span>
-                            <span className="font-semibold">{t.hours_worked}h</span>
-                          </li>
-                        ))}
+                        .map((t) => {
+                          const isCurrentPaid =
+                            t.month === currentMonth && Boolean(salaryCalculation?.isPaid)
+                          return (
+                            <li
+                              key={t.id}
+                              className="flex items-center justify-between max-w-md bg-white px-3 py-1.5 rounded border border-gray-100"
+                            >
+                              <span>
+                                Mois : <strong className="text-gray-800">{t.month}</strong> —{' '}
+                                <span className="font-semibold text-blue-700">{t.hours_worked}h</span>
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 px-2 text-xs text-blue-600 hover:text-blue-800"
+                                  disabled={isCurrentPaid}
+                                  onClick={() => {
+                                    setCurrentMonth(t.month)
+                                    setManualHours(String(t.hours_worked))
+                                    setTimeout(() => manualHoursInputRef.current?.focus(), 50)
+                                  }}
+                                >
+                                  <Edit className="w-3 h-3 mr-1" /> Modifier
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 px-2 text-xs text-red-600 hover:text-red-800 hover:bg-red-50"
+                                  disabled={isCurrentPaid}
+                                  onClick={async () => {
+                                    const calcCheck = await window.api.personnel.calculateSalary(
+                                      id!,
+                                      t.month
+                                    )
+                                    if (calcCheck.success && calcCheck.calculation?.isPaid) {
+                                      toast.error(
+                                        `Le mois ${t.month} est déjà payé, suppression impossible.`
+                                      )
+                                      return
+                                    }
+                                    const ok = await confirmDialog({
+                                      title: 'Supprimer la saisie manuelle',
+                                      message: `Supprimer les heures manuelles (${t.hours_worked}h) pour ${t.month} et revenir au calendrier ?`,
+                                      confirmText: 'Supprimer',
+                                      variant: 'danger'
+                                    })
+                                    if (!ok) return
+                                    const res = await window.api.personnel.deleteTimeTracking(t.id)
+                                    if (res?.success) {
+                                      toast.success(`Saisie manuelle de ${t.month} supprimée.`)
+                                      await getPerson(id!)
+                                      await calculateSalary(id!, currentMonth)
+                                    } else {
+                                      toast.error(res?.error || 'Erreur lors de la suppression.')
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="w-3 h-3 mr-1" /> Supprimer
+                                </Button>
+                              </div>
+                            </li>
+                          )
+                        })}
                     </ul>
                   </div>
                 )}
@@ -599,11 +724,11 @@ export default function PersonnelDetail(): React.JSX.Element {
                                   variant="outline"
                                   className="border-gray-300 text-gray-600 hover:bg-gray-100"
                                   onClick={async () => {
-                                    if (
-                                      confirm(
-                                        `Ignorer la paie de ${p.first_name} pour ${currentMonth} ?`
-                                      )
-                                    ) {
+                                    const ok = await confirmDialog({
+                                      title: 'Ignorer ce mois',
+                                      message: `Ignorer la paie de ${p.first_name} pour ${currentMonth} ?`
+                                    })
+                                    if (ok) {
                                       await window.api.personnel.ignoreMonth(p.id!, currentMonth)
                                       calculateSalary(p.id!, currentMonth)
                                     }
@@ -636,7 +761,7 @@ export default function PersonnelDetail(): React.JSX.Element {
                                     if (result.success && result.filePath) {
                                       await window.api.pdf.openFile(result.filePath)
                                     } else {
-                                      alert(result.error || 'Erreur génération PDF')
+                                      toast.error(result.error || 'Erreur génération PDF')
                                     }
                                   }}
                                 >
@@ -653,12 +778,12 @@ export default function PersonnelDetail(): React.JSX.Element {
                                   <Button
                                     className="bg-green-600 hover:bg-green-700 text-white"
                                     onClick={async () => {
-                                      if (
-                                        !confirm(
-                                          `Valider le paiement de ${salaryCalculation.netSalary.toLocaleString('fr-MG')} Ar pour ${currentMonth} ?\n\nUne dépense sera créée dans le Journal de Caisse.`
-                                        )
-                                      )
-                                        return
+                                      const ok = await confirmDialog({
+                                        title: 'Valider le paiement',
+                                        message: `Valider le paiement de ${salaryCalculation.netSalary.toLocaleString('fr-MG')} Ar pour ${currentMonth} ?\n\nUne dépense sera créée dans le Journal de Caisse.`,
+                                        confirmText: 'Valider le paiement'
+                                      })
+                                      if (!ok) return
                                       const success = await createSalaryExpense(
                                         id!,
                                         currentMonth,
@@ -666,10 +791,10 @@ export default function PersonnelDetail(): React.JSX.Element {
                                         `Paiement Salaire (${currentMonth}) - ${p.first_name} ${p.last_name}`
                                       )
                                       if (success) {
-                                        alert('Paiement enregistré avec succès dans la finance.')
+                                        toast.success('Paiement enregistré avec succès dans la finance.')
                                         calculateSalary(id!, currentMonth) // Rafraîchir pour afficher 'Déjà payé'
                                       } else {
-                                        alert("Erreur lors de l'enregistrement du paiement.")
+                                        toast.error("Erreur lors de l'enregistrement du paiement.")
                                       }
                                     }}
                                   >
@@ -829,8 +954,10 @@ export default function PersonnelDetail(): React.JSX.Element {
                         size="sm"
                         className="w-full h-9 bg-indigo-600 hover:bg-indigo-700 text-white"
                         onClick={async () => {
-                          if (!adjustmentAmount || parseFloat(adjustmentAmount) <= 0)
-                            return alert('Erreur : montant invalide')
+                          if (!adjustmentAmount || parseFloat(adjustmentAmount) <= 0) {
+                            toast.error('Erreur : montant invalide')
+                            return
+                          }
                           if (adjustmentType === 'advance') {
                             const success = await createAdvance({
                               personnel_id: id!,
@@ -841,15 +968,19 @@ export default function PersonnelDetail(): React.JSX.Element {
                             if (success) {
                               setAdjustmentAmount('')
                               setAdjustmentReason('')
+                              toast.success('Avance ajoutée.')
                               await calculateSalary(id!, currentMonth)
                             }
                           } else {
-                            if (!adjustmentReason)
-                              return alert('Erreur : libellé requis pour une déduction')
+                            if (!adjustmentReason) {
+                              toast.error('Erreur : libellé requis pour une déduction')
+                              return
+                            }
                             if (adjustmentMonth === currentMonth && salaryCalculation?.isPaid) {
-                              return alert(
+                              toast.error(
                                 'Erreur : La fiche de paie de ce mois est déjà validée, vous ne pouvez plus y ajouter de déductions.'
                               )
+                              return
                             }
                             const success = await createDeduction({
                               personnel_id: id!,
@@ -860,6 +991,7 @@ export default function PersonnelDetail(): React.JSX.Element {
                             if (success) {
                               setAdjustmentAmount('')
                               setAdjustmentReason('')
+                              toast.success('Déduction ajoutée.')
                               await calculateSalary(id!, currentMonth)
                             }
                           }
@@ -913,15 +1045,16 @@ export default function PersonnelDetail(): React.JSX.Element {
                                       variant="ghost"
                                       className="h-7 text-xs text-green-600 hover:text-green-700"
                                       onClick={async () => {
-                                        if (
-                                          confirm(
-                                            `Marquer l'avance de ${a.amount} Ar comme remboursée ?`
-                                          )
-                                        ) {
+                                        const ok = await confirmDialog({
+                                          title: 'Remboursement d’avance',
+                                          message: `Marquer l'avance de ${a.amount} Ar comme remboursée ?`
+                                        })
+                                        if (ok) {
                                           await markAdvanceRepaid(
                                             a.id,
                                             new Date().toISOString().split('T')[0]
                                           )
+                                          toast.success('Avance marquée comme remboursée.')
                                           await calculateSalary(id!, currentMonth)
                                         }
                                       }}
@@ -977,8 +1110,15 @@ export default function PersonnelDetail(): React.JSX.Element {
                                       variant="ghost"
                                       className="h-7 w-7 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
                                       onClick={async () => {
-                                        if (confirm('Supprimer cette déduction ?')) {
+                                        const ok = await confirmDialog({
+                                          title: 'Supprimer la déduction',
+                                          message: 'Supprimer cette déduction ?',
+                                          confirmText: 'Supprimer',
+                                          variant: 'danger'
+                                        })
+                                        if (ok) {
                                           await deleteDeduction(d.id)
+                                          toast.success('Déduction supprimée.')
                                           await calculateSalary(id!, currentMonth)
                                         }
                                       }}

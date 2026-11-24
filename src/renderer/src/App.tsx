@@ -21,6 +21,7 @@ import ErrorBoundary from '@/components/shared/ErrorBoundary'
 import LoginPage from '@/pages/auth/LoginPage'
 import MainLayout from '@/components/layout/MainLayout'
 import { UpdateModal } from '@/components/shared/UpdateModal'
+import { GlobalConfirmDialog } from '@/components/shared/ConfirmDialog'
 
 import { useFinanceStore } from '@/store/useFinanceStore'
 
@@ -83,6 +84,7 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
           <AuthInitializer>
             <AppRoutes />
             <UpdateModal />
+            <GlobalConfirmDialog />
             <Toaster position="top-right" richColors closeButton />
           </AuthInitializer>
         </ErrorBoundary>

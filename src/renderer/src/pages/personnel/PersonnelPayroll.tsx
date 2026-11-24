@@ -34,83 +34,23 @@ export default function PersonnelPayroll(): React.JSX.Element {
   useEffect(() => {
     async function computeAll() {
       setLoading(true)
-      const data: UnpaidRow[] = []
-      const missingStart: Personnel[] = []
+      try {
+        const data: UnpaidRow[] = []
+        const missingStart: Personnel[] = []
 
-      const d = new Date()
-      const realCurrentMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        const d = new Date()
+        const realCurrentMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 
-      for (const p of personnel) {
-        if (p.status === 'parttime' || p.status === 'fulltime') {
-          if (filterType === 'specific') {
-            if (!p.payroll_start_date) {
-              missingStart.push(p)
-            } else if (specificMonth < p.payroll_start_date.substring(0, 7)) {
-              continue
-            }
-
-            const res = await window.api.personnel.calculateSalary(p.id, specificMonth)
-            if (
-              res.success &&
-              res.calculation &&
-              !res.calculation.isPaid &&
-              !res.calculation.isIgnored &&
-              res.calculation.netSalary > 0
-            ) {
-              const [y, m] = specificMonth.split('-')
-              const lastDay = new Date(parseInt(y, 10), parseInt(m, 10), 0).getDate()
-              const monthStart = `${specificMonth}-01`
-              const monthEnd = `${specificMonth}-${lastDay}`
-
-              const isNotHiredYet = p.hire_date && p.hire_date > monthEnd
-              const hasLeftBefore = p.departure_date && p.departure_date < monthStart
-              const hasWorked =
-                res.calculation.details.hoursWorked !== undefined &&
-                res.calculation.details.hoursWorked > 0
-
-              if (
-                (isNotHiredYet || hasLeftBefore) &&
-                !hasWorked &&
-                res.calculation.grossSalary === 0
-              ) {
+        for (const p of personnel) {
+          if (p.status === 'parttime' || p.status === 'fulltime') {
+            if (filterType === 'specific') {
+              if (!p.payroll_start_date) {
+                missingStart.push(p)
+              } else if (specificMonth < p.payroll_start_date.substring(0, 7)) {
                 continue
               }
 
-              data.push({ person: p, month: specificMonth, calc: res.calculation })
-            }
-          } else {
-            // Si l'utilisateur n'a pas défini manuellement de début d'exercice pour ce personnel,
-            // on ne génère aucun impayé rétroactif.
-            if (!p.payroll_start_date) {
-              missingStart.push(p)
-              continue
-            }
-
-            const effectiveStartMonth = p.payroll_start_date.substring(0, 7)
-
-            // Tous les impayés depuis son début d'exercice jusqu'au mois en cours
-            const monthsToCheck: string[] = []
-            const [sYear, sMonth] = effectiveStartMonth.split('-').map(Number)
-            const curr = new Date(sYear, (sMonth || 1) - 1, 1)
-            const endDate = new Date()
-
-            while (curr <= endDate) {
-              const monthStr = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}`
-              if (monthStr >= effectiveStartMonth) {
-                monthsToCheck.push(monthStr)
-              }
-              curr.setMonth(curr.getMonth() + 1)
-            }
-
-            if (
-              !monthsToCheck.includes(realCurrentMonth) &&
-              realCurrentMonth >= effectiveStartMonth
-            ) {
-              monthsToCheck.push(realCurrentMonth)
-            }
-
-            for (const m of monthsToCheck) {
-              const res = await window.api.personnel.calculateSalary(p.id, m)
+              const res = await window.api.personnel.calculateSalary(p.id, specificMonth)
               if (
                 res.success &&
                 res.calculation &&
@@ -118,22 +58,81 @@ export default function PersonnelPayroll(): React.JSX.Element {
                 !res.calculation.isIgnored &&
                 res.calculation.netSalary > 0
               ) {
-                data.push({ person: p, month: m, calc: res.calculation })
+                const [y, m] = specificMonth.split('-')
+                const lastDay = new Date(parseInt(y, 10), parseInt(m, 10), 0).getDate()
+                const monthStart = `${specificMonth}-01`
+                const monthEnd = `${specificMonth}-${lastDay}`
+
+                const isNotHiredYet = p.hire_date && p.hire_date > monthEnd
+                const hasLeftBefore = p.departure_date && p.departure_date < monthStart
+                const hasWorked =
+                  res.calculation.details.hoursWorked !== undefined &&
+                  res.calculation.details.hoursWorked > 0
+
+                if (isNotHiredYet || (hasLeftBefore && !hasWorked)) {
+                  continue
+                }
+
+                data.push({ person: p, month: specificMonth, calc: res.calculation })
+              }
+            } else {
+              // Si l'utilisateur n'a pas défini manuellement de début d'exercice pour ce personnel,
+              // on ne génère aucun impayé rétroactif.
+              if (!p.payroll_start_date) {
+                missingStart.push(p)
+                continue
+              }
+
+              const effectiveStartMonth = p.payroll_start_date.substring(0, 7)
+
+              // Tous les impayés depuis son début d'exercice jusqu'au mois en cours
+              const monthsToCheck: string[] = []
+              const [sYear, sMonth] = effectiveStartMonth.split('-').map(Number)
+              const curr = new Date(sYear, (sMonth || 1) - 1, 1)
+              const endDate = new Date()
+
+              while (curr <= endDate) {
+                const monthStr = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}`
+                if (monthStr >= effectiveStartMonth) {
+                  monthsToCheck.push(monthStr)
+                }
+                curr.setMonth(curr.getMonth() + 1)
+              }
+
+              if (
+                !monthsToCheck.includes(realCurrentMonth) &&
+                realCurrentMonth >= effectiveStartMonth
+              ) {
+                monthsToCheck.push(realCurrentMonth)
+              }
+
+              for (const m of monthsToCheck) {
+                const res = await window.api.personnel.calculateSalary(p.id, m)
+                if (
+                  res.success &&
+                  res.calculation &&
+                  !res.calculation.isPaid &&
+                  !res.calculation.isIgnored &&
+                  res.calculation.netSalary > 0
+                ) {
+                  data.push({ person: p, month: m, calc: res.calculation })
+                }
               }
             }
           }
         }
+
+        // Sort by month desc, then name
+        data.sort((a, b) => {
+          if (a.month !== b.month) return b.month.localeCompare(a.month)
+          return a.person.last_name.localeCompare(b.person.last_name)
+        })
+
+        setUnpaidData(data)
+        setMissingPayrollStartDate(missingStart)
+      } finally {
+        setLoading(false)
       }
-
-      // Sort by month desc, then name
-      data.sort((a, b) => {
-        if (a.month !== b.month) return b.month.localeCompare(a.month)
-        return a.person.last_name.localeCompare(b.person.last_name)
-      })
-
-      setUnpaidData(data)
-      setMissingPayrollStartDate(missingStart)
-      setLoading(false)
     }
 
     if (personnel.length > 0) {
@@ -178,7 +177,7 @@ export default function PersonnelPayroll(): React.JSX.Element {
       </div>
 
       <div className="bg-white rounded-xl border border-red-100 shadow-sm overflow-hidden">
-        {missingPayrollStartDate.length > 0 && (
+        {filterType === 'all' && missingPayrollStartDate.length > 0 && (
           <div className="bg-amber-50 border-b border-amber-200 p-4 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div>

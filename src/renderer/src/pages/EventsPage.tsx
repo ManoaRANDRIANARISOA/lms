@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog } from '@/components/ui/dialog'
@@ -116,11 +118,11 @@ export default function EventsPage() {
   const handleCreateEvent = async () => {
     const targetYear = getSchoolYearFromDate(newEvent.event_date)
     if (targetYear !== schoolYear) {
-      if (
-        !confirm(
-          `Attention, la date de cet événement correspond à l'année scolaire ${targetYear}.\n\nVoulez-vous tout de même l'enregistrer sous cette année ?\n\nSi vous vous êtes trompé de date, cliquez sur "Annuler" pour rectifier.`
-        )
-      ) {
+      const ok = await confirmDialog({
+        title: 'Année scolaire différente',
+        message: `Attention, la date de cet événement correspond à l'année scolaire ${targetYear}.\n\nVoulez-vous tout de même l'enregistrer sous cette année ?\n\nSi vous vous êtes trompé de date, cliquez sur "Annuler" pour rectifier.`
+      })
+      if (!ok) {
         return
       }
     }
@@ -169,26 +171,34 @@ export default function EventsPage() {
   const handlePayment = async (p: Participation) => {
     if (!selectedEvent) return
 
-    if (
-      confirm(
-        `Confirmer le paiement de ${selectedEvent.amount_per_parent} Ar pour ${p.first_name} ${p.last_name} ?`
-      )
-    ) {
+    const ok = await confirmDialog({
+      title: 'Confirmer le paiement',
+      message: `Confirmer le paiement de ${selectedEvent.amount_per_parent} Ar pour ${p.first_name} ${p.last_name} ?`
+    })
+    if (ok) {
       await window.api.event.recordPayment(
         selectedEvent.id,
         p.student_id,
         selectedEvent.amount_per_parent,
         'cash'
       )
+      toast.success('Paiement enregistré.')
       loadParticipation(selectedEvent.id)
     }
   }
 
   const handleDeleteEvent = async () => {
     if (!selectedEvent) return
-    if (confirm(`Êtes-vous sûr de vouloir supprimer l'événement "${selectedEvent.name}" ?`)) {
+    const ok = await confirmDialog({
+      title: "Supprimer l'événement",
+      message: `Êtes-vous sûr de vouloir supprimer l'événement "${selectedEvent.name}" ?`,
+      confirmText: 'Supprimer',
+      variant: 'danger'
+    })
+    if (ok) {
       await window.api.event.delete(selectedEvent.id)
       setSelectedEvent(null)
+      toast.success('Événement supprimé.')
       loadEvents()
     }
   }
@@ -209,11 +219,11 @@ export default function EventsPage() {
     const targetYear = getSchoolYearFromDate(newEvent.event_date)
 
     if (targetYear !== selectedEvent.school_year && targetYear !== schoolYear) {
-      if (
-        !confirm(
-          `Attention, la nouvelle date correspond à l'année scolaire ${targetYear}. Voulez-vous la déplacer dans cette année ?`
-        )
-      ) {
+      const ok = await confirmDialog({
+        title: 'Changement d’année scolaire',
+        message: `Attention, la nouvelle date correspond à l'année scolaire ${targetYear}. Voulez-vous la déplacer dans cette année ?`
+      })
+      if (!ok) {
         return
       }
     }

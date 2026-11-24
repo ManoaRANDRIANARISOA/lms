@@ -361,6 +361,24 @@ export class PersonnelRepository {
     }
   }
 
+  static deleteTimeTracking(id: string) {
+    const transaction = db.transaction(() => {
+      db.prepare(
+        `UPDATE time_tracking SET deleted = 1, updated_at = CURRENT_TIMESTAMP, version = version + 1, sync_status = 'pending' WHERE id = ?`
+      ).run(id)
+      addToSyncQueue('time_tracking', id, 'delete', { deleted: true })
+    })
+
+    try {
+      transaction()
+      return { success: true }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.error('Delete time tracking error:', error)
+      return { success: false, error: message }
+    }
+  }
+
   // ============================================
   // ABSENCES
   // ============================================

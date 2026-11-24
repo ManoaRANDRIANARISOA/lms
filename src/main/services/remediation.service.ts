@@ -1172,6 +1172,315 @@ export async function scanStationInconsistencies(): Promise<RemediationScanResul
     }
   }
 
+  // --- O. Paiements enregistrés sur une mauvaise année scolaire ou mois décalé ---
+  // Ex. Élodie Maria : paiements d'octobre 2026 saisis sous '2027-2028' / '2027-09'
+  // (apparaissent non cochés dans la grille de l'année active '2026-2027').
+  try {
+    const [yearStart, yearEnd] = year.split('-')
+    const ignoredRows = db
+      .prepare("SELECT key FROM settings_history WHERE key LIKE 'remediation:wrong_school_year_keep:%'")
+      .all() as Array<{ key: string }>
+    const ignoredPayments = new Set(
+      ignoredRows.map((r) => r.key.replace('remediation:wrong_school_year_keep:', ''))
+    )
+
+    const allActivePayments = db
+      .prepare(
+        `SELECT sp.id, sp.student_id, sp.payment_type, sp.school_year, sp.month, sp.amount,
+                sp.payment_date, sp.receipt_number, s.first_name, s.last_name, s.class, s.registration_number
+         FROM student_payments sp
+         JOIN students s ON s.id = sp.student_id AND s.deleted = 0
+         WHERE sp.deleted = 0`
+      )
+      .all() as Array<{
+      id: string
+      student_id: string
+      payment_type: string
+      school_year: string | null
+      month: string | null
+      amount: number
+      payment_date: string
+      receipt_number: string | null
+      first_name: string
+      last_name: string
+      class: string | null
+      registration_number: string | null
+    }>
+
+    const byStudentWrongYear = new Map<
+      string,
+      {
+        studentName: string
+        className: string
+        registrationNumber: string
+        items: Array<{
+          id: string
+          paymentType: string
+          currentYear: string
+          currentMonth: string | null
+          proposedYear: string
+          proposedMonth: string | null
+          amount: number
+          paymentDate: string
+          receiptNumber: string
+          reason: string
+        }>
+      }
+    >()
+
+    const monthPattern = /^\d{4}-\d{2}$/
+    for (const p of allActivePayments) {
+      if (ignoredPayments.has(p.id)) continue
+      const cleanSy = String(p.school_year || '').replace(/['"]/g, '').trim()
+      const pDate = String(p.payment_date || '').slice(0, 10)
+      let issueReason: string | null = null
+
+      if (yearStart && yearEnd) {
+        if (cleanSy && cleanSy > year) {
+          issueReason = `Année scolaire future (${cleanSy} au lieu de ${year})`
+        } else if (cleanSy && cleanSy < year && pDate >= `${yearStart}-07-01`) {
+          issueReason = `Année scolaire antérieure (${cleanSy}) pour un encaissement du ${pDate}`
+        } else if (!cleanSy) {
+          issueReason = 'Année scolaire manquante'
+        } else if (p.payment_type === 'tuition') {
+          if (!p.month || !monthPattern.test(p.month)) {
+            issueReason = `Mois d'écolage invalide (${p.month || 'vide'})`
+          } else if (!p.month.startsWith(`${yearStart}-`) && !p.month.startsWith(`${yearEnd}-`)) {
+            issueReason = `Mois (${p.month}) hors de l'année scolaire ${year}`
+          }
+        }
+      }
+
+      if (!issueReason) continue
+
+      let proposedMonth: string | null = p.month
+      if (p.month && monthPattern.test(p.month) && yearStart && yearEnd) {
+        const mm = p.month.slice(5, 7)
+        const mmNum = parseInt(mm, 10)
+        if (mmNum >= 8 && mmNum <= 12) {
+          proposedMonth = `${yearStart}-${mm}`
+        } else if (mmNum >= 1 && mmNum <= 7) {
+          proposedMonth = `${yearEnd}-${mm}`
+        }
+      }
+
+      let group = byStudentWrongYear.get(p.student_id)
+      if (!group) {
+        group = {
+          studentName: `${p.last_name || ''} ${p.first_name || ''}`.trim(),
+          className: p.class || '',
+          registrationNumber: p.registration_number || '',
+          items: []
+        }
+        byStudentWrongYear.set(p.student_id, group)
+      }
+      group.items.push({
+        id: p.id,
+        paymentType: p.payment_type,
+        currentYear: cleanSy || 'vide',
+        currentMonth: p.month,
+        proposedYear: year,
+        proposedMonth,
+        amount: Number(p.amount || 0),
+        paymentDate: pDate,
+        receiptNumber: p.receipt_number || '',
+        reason: issueReason
+      })
+    }
+
+    for (const [studentId, grp] of byStudentWrongYear) {
+      const totalAmt = grp.items.reduce((s, it) => s + it.amount, 0)
+      findings.push({
+        id: `wrong_school_year:${studentId}`,
+        category: 'wrong_school_year',
+        classification: 'decision',
+        severity: 'high',
+        title: `Année scolaire / mois décalé — ${grp.studentName} (${grp.className || 'Sans classe'})`,
+        detail: `${grp.items.length} paiement(s) (${totalAmt.toLocaleString('fr-FR')} Ar) sont enregistrés sur une autre année scolaire que ${year} (ex. ${grp.items[0].currentYear}${grp.items[0].currentMonth ? ` / ${grp.items[0].currentMonth}` : ''}). Cela empêche les mois d'apparaître cochés dans la fiche élève.`,
+        recommendation: `Vérifier les dates d'encaissement et choisir « Réaligner sur ${year} » pour corriger l'année scolaire et le mois, ou « Conserver tel quel » s'il s'agit d'une archive / avance volontaire.`,
+        action: 'realign_payment_school_year',
+        params: {
+          studentId,
+          targetSchoolYear: year,
+          paymentIds: grp.items.map((it) => it.id),
+          adjustments: grp.items.map((it) => ({
+            id: it.id,
+            newSchoolYear: it.proposedYear,
+            newMonth: it.proposedMonth
+          }))
+        },
+        affectedCount: grp.items.length,
+        amountImpact: totalAmt,
+        evidence: {
+          studentName: grp.studentName,
+          className: grp.className,
+          registrationNumber: grp.registrationNumber,
+          lines: grp.items
+        }
+      })
+    }
+  } catch (e) {
+    console.warn('[Remediation] wrong school year scan failed:', e)
+  }
+
+  // --- P. Doublons de fiches élèves actifs (noms identiques ou même DOB + nom proche) ---
+  try {
+    const ignoredDupRows = db
+      .prepare("SELECT key FROM settings_history WHERE key LIKE 'remediation:student_dup_keep_both:%'")
+      .all() as Array<{ key: string }>
+    const ignoredDupKeys = new Set(
+      ignoredDupRows.map((r) => r.key.replace('remediation:student_dup_keep_both:', ''))
+    )
+
+    const activeStudents = db
+      .prepare(
+        `SELECT id, registration_number, last_name, first_name, class, date_of_birth, created_at
+         FROM students
+         WHERE deleted = 0 AND (departure_date IS NULL OR TRIM(departure_date) = '')`
+      )
+      .all() as Array<{
+      id: string
+      registration_number: string | null
+      last_name: string | null
+      first_name: string | null
+      class: string | null
+      date_of_birth: string | null
+      created_at: string | null
+    }>
+
+    const payStatsRows = db
+      .prepare(
+        `SELECT student_id, COUNT(*) AS cnt, COALESCE(SUM(amount), 0) AS tot
+         FROM student_payments WHERE deleted = 0 GROUP BY student_id`
+      )
+      .all() as Array<{ student_id: string; cnt: number; tot: number }>
+    const payStatsMap = new Map<string, { cnt: number; tot: number }>()
+    for (const r of payStatsRows) {
+      payStatsMap.set(r.student_id, { cnt: Number(r.cnt || 0), tot: Number(r.tot || 0) })
+    }
+
+    const tokenKey = (s: (typeof activeStudents)[number]): string => {
+      const tokens = normalizeName(`${s.last_name || ''} ${s.first_name || ''}`)
+        .split(' ')
+        .filter(Boolean)
+        .sort()
+      return tokens.join(' ')
+    }
+
+    const byTokenKey = new Map<string, typeof activeStudents>()
+    const byDob = new Map<string, typeof activeStudents>()
+
+    for (const s of activeStudents) {
+      const tk = tokenKey(s)
+      if (tk) {
+        const arr = byTokenKey.get(tk) || []
+        arr.push(s)
+        byTokenKey.set(tk, arr)
+      }
+      const dob = String(s.date_of_birth || '').trim()
+      if (dob && dob.length >= 8) {
+        const dArr = byDob.get(dob) || []
+        dArr.push(s)
+        byDob.set(dob, dArr)
+      }
+    }
+
+    // Build candidate clusters without duplicating pairs
+    const seenPairKeys = new Set<string>()
+    const candidateGroups: Array<{ reason: string; members: typeof activeStudents }> = []
+
+    for (const [, grp] of byTokenKey) {
+      if (grp.length < 2) continue
+      const pairKey = grp.map((g) => g.id).sort().join('|')
+      if (seenPairKeys.has(pairKey)) continue
+      seenPairKeys.add(pairKey)
+      candidateGroups.push({ reason: 'Nom et prénoms identiques', members: grp })
+    }
+
+    for (const [dob, grp] of byDob) {
+      if (grp.length < 2) continue
+      for (let i = 0; i < grp.length; i++) {
+        for (let j = i + 1; j < grp.length; j++) {
+          const a = grp[i]
+          const b = grp[j]
+          const normClA = (a.class || '').trim().toLowerCase()
+          const normClB = (b.class || '').trim().toLowerCase()
+          if (normClA && normClB && normClA !== normClB) continue // classes différentes = probables jumeaux
+          const tokA = new Set(normalizeName(`${a.last_name || ''} ${a.first_name || ''}`).split(' ').filter(Boolean))
+          const tokB = new Set(normalizeName(`${b.last_name || ''} ${b.first_name || ''}`).split(' ').filter(Boolean))
+          let common = 0
+          for (const t of tokA) if (tokB.has(t)) common++
+          const minLen = Math.min(tokA.size, tokB.size)
+          if (minLen >= 2 && common >= minLen - 1) {
+            const pairKey = [a.id, b.id].sort().join('|')
+            if (seenPairKeys.has(pairKey)) continue
+            seenPairKeys.add(pairKey)
+            candidateGroups.push({
+              reason: `Même date de naissance (${dob}) et même classe (${a.class || b.class || '-'})`,
+              members: [a, b]
+            })
+          }
+        }
+      }
+    }
+
+    for (const cg of candidateGroups) {
+      const sortedIds = cg.members.map((m) => m.id).sort()
+      const pairKey = sortedIds.join('|')
+      if (ignoredDupKeys.has(pairKey)) continue
+
+      // Sort members by payment count DESC, then oldest created_at ASC
+      const enriched = cg.members
+        .map((m) => {
+          const st = payStatsMap.get(m.id) || { cnt: 0, tot: 0 }
+          return {
+            id: m.id,
+            registrationNumber: m.registration_number || '',
+            fullName: `${m.last_name || ''} ${m.first_name || ''}`.trim(),
+            className: m.class || '',
+            dob: m.date_of_birth || '',
+            createdAt: m.created_at || '',
+            paymentCount: st.cnt,
+            paymentTotal: st.tot
+          }
+        })
+        .sort((x, y) => {
+          if (y.paymentCount !== x.paymentCount) return y.paymentCount - x.paymentCount
+          return (x.createdAt || '').localeCompare(y.createdAt || '')
+        })
+
+      const suggestedKeepId = enriched[0].id
+      const sameDobAndClass =
+        new Set(enriched.map((e) => e.dob).filter(Boolean)).size <= 1 &&
+        new Set(enriched.map((e) => e.className.toLowerCase()).filter(Boolean)).size <= 1
+
+      findings.push({
+        id: `student_duplicate:${pairKey}`,
+        category: 'student_duplicate_candidate',
+        classification: 'decision',
+        severity: 'high',
+        title: `Doublon d'élève potentiel — ${enriched[0].fullName} (${enriched.length} fiches)`,
+        detail: `${cg.reason}. Fiches : ${enriched.map((e) => `${e.registrationNumber || e.id.slice(0, 8)} (${e.className || '?'}, ${e.paymentCount} pmt / ${e.paymentTotal.toLocaleString('fr-FR')} Ar)`).join(' vs ')}.`,
+        recommendation: sameDobAndClass
+          ? `Même nom et mêmes informations (classe/naissance) : probable vrai doublon. Sélectionnez la fiche principale et cliquez sur « Fusionner » pour réunir tous les paiements sans double comptage.`
+          : `Classes ou dates de naissance différentes : vérifiez s'il s'agit de frères/sœurs ou homonymes avant de décider. Cliquez sur « Laisser séparés » si ce sont bien 2 élèves distincts.`,
+        action: 'resolve_student_duplicate',
+        params: {
+          studentIds: enriched.map((e) => e.id),
+          suggestedKeepId,
+          pairKey
+        },
+        affectedCount: enriched.length,
+        evidence: {
+          sameDobAndClass,
+          lines: enriched
+        }
+      })
+    }
+  } catch (e) {
+    console.warn('[Remediation] student duplicate scan failed:', e)
+  }
+
   const autoCount = findings.filter((f) => f.classification === 'auto').length
   const decisionCount = findings.filter((f) => f.classification === 'decision').length
 
@@ -1576,6 +1885,125 @@ export async function applyRemediation(
           success: true,
           message: `Reçu renuméroté ${oldReceipt} → ${newReceipt}. Référence d'origine préservée et propagée.`,
           details: { oldReceipt, newReceipt }
+        }
+      }
+
+      // --- Réalignement année scolaire / mois d'un paiement ---
+      case 'realign_payment_school_year': {
+        const decision = String(params.decision || '')
+        const studentId = String(params.studentId || '')
+        const paymentIds = Array.isArray(params.paymentIds) ? params.paymentIds.map(String) : []
+        const adjustments = Array.isArray(params.adjustments)
+          ? (params.adjustments as Array<{ id: string; newSchoolYear: string; newMonth: string | null }>)
+          : []
+
+        if (decision === 'keep') {
+          for (const pid of paymentIds) {
+            trace(`remediation:wrong_school_year_keep:${pid}`, null, { keptAt: nowIso }, user)
+          }
+          return {
+            success: true,
+            message: `${paymentIds.length} paiement(s) conservé(s) tel quel (décision tracée).`
+          }
+        }
+
+        if (decision !== 'realign') {
+          return { success: false, error: 'Décision attendue : realign ou keep.' }
+        }
+        if (!studentId || adjustments.length === 0) {
+          return { success: false, error: 'Aucun ajustement à appliquer.' }
+        }
+        const sealed = sealedClosureLabel(studentId, bypassZ)
+        if (sealed) {
+          return {
+            success: false,
+            error: `Journée scellée par Ticket Z (${sealed}). Déverrouillage formel requis.`
+          }
+        }
+
+        const before: Array<Record<string, unknown>> = []
+        db.transaction(() => {
+          for (const adj of adjustments) {
+            const existing = db
+              .prepare('SELECT id, school_year, month FROM student_payments WHERE id = ? AND deleted = 0')
+              .get(adj.id) as { id: string; school_year: string | null; month: string | null } | undefined
+            if (!existing) continue
+            before.push(existing)
+            db.prepare(
+              "UPDATE student_payments SET school_year = ?, month = ?, sync_status = 'pending', updated_at = ? WHERE id = ?"
+            ).run(adj.newSchoolYear, adj.newMonth, nowIso, adj.id)
+            addToSyncQueue('student_payments', adj.id, 'update', {
+              id: adj.id,
+              school_year: adj.newSchoolYear,
+              month: adj.newMonth,
+              updated_at: nowIso
+            })
+          }
+        })()
+
+        trace(
+          `remediation:wrong_school_year_realign:${studentId}`,
+          before,
+          { adjustments, at: nowIso },
+          user
+        )
+        syncWithCloud().catch((e) => console.error('[Remediation] sync after year realign:', e))
+        return {
+          success: true,
+          message: `${before.length} paiement(s) réaligné(s) sur l'année scolaire active et propagé(s).`
+        }
+      }
+
+      // --- Résolution d'un doublon d'élève actif ---
+      case 'resolve_student_duplicate': {
+        const decision = String(params.decision || '')
+        const pairKey = String(params.pairKey || '')
+        const keepId = String(params.keepId || '')
+        const studentIds = Array.isArray(params.studentIds) ? params.studentIds.map(String) : []
+
+        if (decision === 'keep_both') {
+          if (pairKey) {
+            trace(`remediation:student_dup_keep_both:${pairKey}`, null, { keptBothAt: nowIso }, user)
+          }
+          return {
+            success: true,
+            message: 'Les fiches restent séparées (décision mémorisée).'
+          }
+        }
+
+        if (decision !== 'merge') {
+          return { success: false, error: 'Décision attendue : merge ou keep_both.' }
+        }
+        if (!keepId || studentIds.length < 2) {
+          return { success: false, error: 'Sélectionnez la fiche principale à conserver.' }
+        }
+        const removeIds = studentIds.filter((sid) => sid !== keepId)
+        for (const rid of removeIds) {
+          const sealed = sealedClosureLabel(rid, bypassZ)
+          if (sealed) {
+            return {
+              success: false,
+              error: `Journée scellée par Ticket Z (${sealed}) sur la fiche doublon. Déverrouillage formel requis.`
+            }
+          }
+        }
+
+        db.transaction(() => {
+          for (const rid of removeIds) {
+            mergeStudentRecordsSafe(rid, keepId, { tombstoneSource: true })
+          }
+        })()
+
+        trace(
+          `remediation:student_dup_merge:${keepId}`,
+          { mergedFrom: removeIds },
+          { keepId, at: nowIso },
+          user
+        )
+        syncWithCloud().catch((e) => console.error('[Remediation] sync after student merge:', e))
+        return {
+          success: true,
+          message: `${removeIds.length} fiche(s) doublon(s) fusionnée(s) vers la fiche sélectionnée et propagée(s) au Cloud.`
         }
       }
 

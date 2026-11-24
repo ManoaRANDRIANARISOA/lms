@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/useAuthStore'
 import { useClasses } from '@/lib/useClasses'
 import { Trash2, Plus, AlertTriangle, Printer, CheckCircle2, RefreshCw, Wrench, Loader2, Ban, Building2, BookOpen } from 'lucide-react'
 import { toast } from 'sonner'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import defaultSchoolLogo from '@/assets/logo.png'
 import EmailSettings from '@/pages/settings/EmailSettings'
 import AssessmentSettings from '@/pages/settings/AssessmentSettings'
@@ -168,9 +169,11 @@ export default function Settings() {
     setInstallSuccess(null)
 
     if (printerSetupStatus?.isInstalled) {
-      const confirmRepair = window.confirm(
-        "L'imprimante POS-80 est déjà enregistrée dans Windows.\n\nSouhaitez-vous relancer la détection automatique et la réaffectation du port USB (utile si le câble de l'imprimante a été changé de prise USB) ?"
-      )
+      const confirmRepair = await confirmDialog({
+        title: 'Reconfiguration imprimante POS-80',
+        message:
+          "L'imprimante POS-80 est déjà enregistrée dans Windows.\n\nSouhaitez-vous relancer la détection automatique et la réaffectation du port USB (utile si le câble de l'imprimante a été changé de prise USB) ?"
+      })
       if (!confirmRepair) return
     }
 
@@ -310,11 +313,14 @@ export default function Settings() {
   const [clearingQueue, setClearingQueue] = useState(false)
   const handleClearPrinterQueue = async () => {
     if (!window.api?.printer?.clearQueue) return
-    if (
-      !confirm(
-        "Arrêt d'urgence de l'impression :\n\nVoulez-vous forcer l'annulation immédiate de toutes les impressions en cours et vider la file d'attente Windows de l'imprimante thermique ?"
-      )
-    ) {
+    const ok = await confirmDialog({
+      title: "Arrêt d'urgence de l'impression",
+      message:
+        "Arrêt d'urgence de l'impression :\n\nVoulez-vous forcer l'annulation immédiate de toutes les impressions en cours et vider la file d'attente Windows de l'imprimante thermique ?",
+      confirmText: 'Vider la file',
+      variant: 'danger'
+    })
+    if (!ok) {
       return
     }
     setClearingQueue(true)
@@ -336,7 +342,7 @@ export default function Settings() {
 
   const handleLogoSelect = async () => {
     if (!window.api) {
-      alert("Le sélecteur de fichiers n'est disponible que sur l'application Desktop.")
+      toast.error("Le sélecteur de fichiers n'est disponible que sur l'application Desktop.")
       return
     }
 
@@ -368,7 +374,13 @@ export default function Settings() {
       ? "ATTENTION: Cela va effacer TOUTES les données LOCALES et CLOUD (Supabase). C'est IRRÉVERSIBLE. Êtes-vous VRAIMENT sûr ?"
       : 'ATTENTION: Cela va effacer TOUTES les données locales (Élèves, Paiements, etc.). Cette action est irréversible. Êtes-vous sûr ?'
 
-    if (!confirm(confirmMsg)) return
+    const ok = await confirmDialog({
+      title: 'Réinitialisation de la base',
+      message: confirmMsg,
+      confirmText: 'Réinitialiser',
+      variant: 'danger'
+    })
+    if (!ok) return
 
     setLoading(true)
     try {
@@ -397,12 +409,13 @@ export default function Settings() {
   }
 
   const handleRemoveClass = async (name: string) => {
-    if (
-      !confirm(
-        `Supprimer la classe "${name}" ?\n\nLes élèves dans cette classe ne seront pas supprimés, mais il faudra les réassigner.`
-      )
-    )
-      return
+    const ok = await confirmDialog({
+      title: 'Supprimer la classe',
+      message: `Supprimer la classe "${name}" ?\n\nLes élèves dans cette classe ne seront pas supprimés, mais il faudra les réassigner.`,
+      confirmText: 'Supprimer',
+      variant: 'danger'
+    })
+    if (!ok) return
     await removeClass(name)
     setMessage('Classe supprimée.')
   }
@@ -1105,12 +1118,12 @@ export default function Settings() {
               variant="outline"
               className="bg-white hover:bg-orange-100 border-orange-300 text-orange-700"
               onClick={async () => {
-                if (
-                  !confirm(
+                const ok = await confirmDialog({
+                  title: 'Réparation de la Synchronisation',
+                  message:
                     "Êtes-vous sûr de vouloir réparer la synchronisation ? L'application va recompter et re-vérifier toutes les données avec le serveur."
-                  )
-                )
-                  return
+                })
+                if (!ok) return
                 setLoading(true)
                 try {
                   const res = await window.api.student.repairSync()

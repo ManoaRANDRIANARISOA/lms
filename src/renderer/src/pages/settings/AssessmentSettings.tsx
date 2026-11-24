@@ -1,5 +1,7 @@
 import { useAppStore } from '@/store/useAppStore'
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -82,11 +84,17 @@ export default function AssessmentSettings() {
 
   const handleDelete = async (id: string, isGlobal: boolean) => {
     if (isGlobal) {
-      alert('Les trimestres par défaut (globaux) ne peuvent pas être supprimés.')
+      toast.warning('Les trimestres par défaut (globaux) ne peuvent pas être supprimés.')
       return
     }
 
-    if (!confirm('Voulez-vous vraiment supprimer cette évaluation ?')) return
+    const ok = await confirmDialog({
+      title: "Supprimer l'évaluation",
+      message: 'Voulez-vous vraiment supprimer cette évaluation ?',
+      confirmText: 'Supprimer',
+      variant: 'danger'
+    })
+    if (!ok) return
 
     try {
       setLoading(true)

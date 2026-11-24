@@ -2011,14 +2011,11 @@ function sanitizeRowPayload(tableName: string, action: string, rawData: any, rec
       }
     }
   }
-  if (tableName === 'personnel') {
-    delete payload.payroll_start_date
-  }
-
   const dateFields = [
     'date_of_birth',
     'departure_date',
     'hire_date',
+    'payroll_start_date',
     'start_date',
     'end_date',
     'payment_date',
@@ -2496,7 +2493,7 @@ async function pushLocalChanges() {
         } else if (item.action === 'delete') {
           const { error } = await supabase
             .from(item.table_name)
-            .update({ deleted: true })
+            .update({ deleted: true, updated_at: new Date().toISOString() })
             .eq('id', item.record_id)
           if (error) throw error
         }
@@ -3356,6 +3353,18 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
             }
           }
 
+          // Protect payroll_start_date from regression when remote has null/empty
+          if (table === 'personnel') {
+            if (!recordToSave.payroll_start_date && local?.payroll_start_date) {
+              recordToSave.payroll_start_date = local.payroll_start_date
+              addToSyncQueue('personnel', local.id, 'update', {
+                id: local.id,
+                payroll_start_date: local.payroll_start_date,
+                updated_at: new Date().toISOString()
+              })
+            }
+          }
+
           // Safe conflict resolution for unique constraints (tables with composite candidate keys)
           const uniqueConstraints: Record<string, string[]> = {
             student_fees: ['student_id', 'school_year'],
@@ -3484,8 +3493,12 @@ async function pullRemoteChanges(forceFullSync: boolean = false) {
                 const hasNewerPrint =
                   table === 'student_payments' &&
                   (recordToSave.print_count || 0) > (local.print_count || 0)
+                const hasNewerDeparture =
+                  table === 'students' &&
+                  Boolean(recordToSave.departure_date) &&
+                  !local?.departure_date
 
-                if (localDate <= cloudDate || forceFullSync || hasNewerPrint) {
+                if (localDate <= cloudDate || forceFullSync || hasNewerPrint || hasNewerDeparture) {
                   // Un élève supprimé dans le cloud mais ayant encore des paiements actifs locaux
                   // ne doit pas être tombstoné silencieusement : divergence à réconcilier cas par cas.
                   if (

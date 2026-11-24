@@ -1,5 +1,6 @@
 import { useAppStore } from '@/store/useAppStore'
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -122,9 +123,9 @@ export default function AttendancePage() {
         await window.api.attendance.recordCanteen(date, records)
       }
       // Simple feedback
-      alert('Pointage enregistré avec succès !')
+      toast.success('Pointage enregistré avec succès !')
     } catch (e: unknown) {
-      alert('Erreur: ' + (e instanceof Error ? e.message : String(e)))
+      toast.error('Erreur: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setSaving(false)
     }

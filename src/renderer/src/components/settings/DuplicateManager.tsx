@@ -1,4 +1,6 @@
 import React, { useState } from 'react'
+import { toast } from 'sonner'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { Button } from '@/components/ui/button'
 import {
   CreditCard,
@@ -53,15 +55,15 @@ export const DuplicateManager: React.FC = () => {
 
   // Auto Resolve Collisions
   const handleAutoResolveCollisions = async () => {
-    if (
-      !confirm(
+    const ok = await confirmDialog({
+      title: 'Résolution automatique multi-postes',
+      message:
         'Résolution automatique multi-postes :\n\n' +
         'Le système va parcourir tous les paiements en double (ex: écolage payé sur PC1 et PC2).\n' +
-        'Il conservera automatiquement le 1er reçu émis (l\'original le plus ancien) et annulera le doublon en caisse et sur le cloud.\n\n' +
+        "Il conservera automatiquement le 1er reçu émis (l'original le plus ancien) et annulera le doublon en caisse et sur le cloud.\n\n" +
         'Voulez-vous lancer la résolution automatique ?'
-      )
-    )
-      return
+    })
+    if (!ok) return
 
     setAutoResolving(true)
     try {
@@ -97,7 +99,13 @@ export const DuplicateManager: React.FC = () => {
       `Cette action va passer le reçu ${removeRecord.receipt_number || ''} en annulé, déduire son montant du journal de caisse pour équilibrer la trésorerie et propager l'annulation sur le Cloud Supabase.\n\n` +
       `Voulez-vous continuer ?`
 
-    if (!confirm(confirmMsg)) return
+    const ok = await confirmDialog({
+      title: 'Annulation de paiement en doublon',
+      message: confirmMsg,
+      confirmText: 'Continuer',
+      variant: 'danger'
+    })
+    if (!ok) return
 
     setResolvingPaymentId(removeRecord.id)
     try {
@@ -108,13 +116,14 @@ export const DuplicateManager: React.FC = () => {
           `Doublon résolu inter-caisses (${keepRecord.station || 'Caisse'} conservée)`
         )
         if (res.success) {
+          toast.success('Doublon résolu avec succès.')
           await handleScanPayments()
         } else {
-          alert('Erreur lors de la résolution : ' + res.error)
+          toast.error('Erreur lors de la résolution : ' + res.error)
         }
       }
     } catch (e: any) {
-      alert('Erreur : ' + (e?.message || 'Erreur inconnue'))
+      toast.error('Erreur : ' + (e?.message || 'Erreur inconnue'))
     } finally {
       setResolvingPaymentId(null)
     }
@@ -145,26 +154,28 @@ export const DuplicateManager: React.FC = () => {
 
   // Merge Students
   const handleMergeStudents = async (keepId: string, removeId: string) => {
-    if (
-      !confirm(
-        'Voulez-vous vraiment fusionner ces dossiers ?\nTous les paiements, notes et présences seront rattachés au profil conservé. Le profil en doublon sera désactivé.'
-      )
-    ) {
-      return
-    }
+    const ok = await confirmDialog({
+      title: 'Fusionner les dossiers',
+      message:
+        'Voulez-vous vraiment fusionner ces dossiers ?\nTous les paiements, notes et présences seront rattachés au profil conservé. Le profil en doublon sera désactivé.',
+      confirmText: 'Fusionner',
+      variant: 'danger'
+    })
+    if (!ok) return
 
     setMergingStudentId(removeId)
     try {
       if (window.api?.duplicates?.merge) {
         const res = await window.api.duplicates.merge(keepId, removeId)
         if (res.success) {
+          toast.success('Dossiers fusionnés avec succès.')
           await handleScanStudents()
         } else {
-          alert('Erreur fusion : ' + res.error)
+          toast.error('Erreur fusion : ' + res.error)
         }
       }
     } catch (e: any) {
-      alert('Erreur : ' + (e?.message || 'Erreur inconnue'))
+      toast.error('Erreur : ' + (e?.message || 'Erreur inconnue'))
     } finally {
       setMergingStudentId(null)
     }

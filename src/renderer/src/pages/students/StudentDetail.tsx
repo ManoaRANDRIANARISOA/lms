@@ -1,6 +1,8 @@
 import { useAppStore, getDynamicSchoolYear } from '@/store/useAppStore'
 import { useEffect, useState } from 'react'
 import { useStudentStore } from '@/store/useStudentStore'
+import { toast } from 'sonner'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ReEnrollModal } from '@/components/students/ReEnrollModal'
@@ -157,8 +159,15 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
   }, [currentFees, currentFeesHistory, searchParams])
 
   const handleDelete = async () => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cet élève ?')) {
+    const ok = await confirmDialog({
+      title: 'Supprimer cet élève',
+      message: 'Êtes-vous sûr de vouloir supprimer cet élève ?',
+      confirmText: 'Supprimer',
+      variant: 'danger'
+    })
+    if (ok) {
       await deleteStudent(studentId)
+      toast.success('Élève supprimé.')
       onBack()
     }
   }
@@ -506,8 +515,13 @@ export default function StudentDetail({ studentId, onBack, onEdit }: StudentDeta
                           size="sm"
                           className="text-xs h-7"
                           onClick={async () => {
-                            if (confirm('Réintégrer cet élève ? Sa date de départ sera effacée.')) {
+                            const ok = await confirmDialog({
+                              title: 'Réintégrer l’élève',
+                              message: 'Réintégrer cet élève ? Sa date de départ sera effacée.'
+                            })
+                            if (ok) {
                               await updateStudent(studentId, { departure_date: null as any })
+                              toast.success('Élève réintégré.')
                             }
                           }}
                         >

@@ -385,6 +385,7 @@ interface APIType {
     getTimeTracking: (
       personnelId: string
     ) => Promise<{ success: boolean; records?: TimeTracking[]; error?: string }>
+    deleteTimeTracking: (id: string) => Promise<{ success: boolean; error?: string }>
     createAbsence: (
       data: Partial<PersonnelAbsence>
     ) => Promise<{ success: boolean; id?: string; error?: string }>

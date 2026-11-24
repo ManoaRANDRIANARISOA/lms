@@ -15,6 +15,8 @@
  */
 
 import React, { useState, useEffect } from 'react'
+import { toast } from 'sonner'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { useAuthStore } from '@/store/useAuthStore'
 import { RefreshCw } from 'lucide-react'
 import type { UserRow, UserRole } from '@shared/types'
@@ -97,17 +99,23 @@ export default function UserManagementPage(): React.JSX.Element {
   }
 
   const handleDeactivate = async (user: UserRow) => {
-    if (!confirm(`Désactiver l'utilisateur "${user.username}" ? Cette action est irréversible.`))
-      return
+    const ok = await confirmDialog({
+      title: 'Désactiver l’utilisateur',
+      message: `Désactiver l'utilisateur "${user.username}" ? Cette action est irréversible.`,
+      confirmText: 'Désactiver',
+      variant: 'danger'
+    })
+    if (!ok) return
     try {
       const result = await window.api.auth.deactivateUser(user.id)
       if (result.success) {
+        toast.success(`Utilisateur "${user.username}" désactivé.`)
         await fetchUsers()
       } else {
-        alert(result.error || 'Erreur lors de la désactivation')
+        toast.error(result.error || 'Erreur lors de la désactivation')
       }
     } catch (e: any) {
-      alert(e?.message || 'Erreur réseau')
+      toast.error(e?.message || 'Erreur réseau')
     }
   }
 

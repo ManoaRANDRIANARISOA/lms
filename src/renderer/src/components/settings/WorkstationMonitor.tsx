@@ -19,6 +19,7 @@ import {
   Zap
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
 export interface TelemetryReportItem {
   id: number
@@ -162,13 +163,16 @@ export const WorkstationMonitor: React.FC = () => {
   }
 
   const handleClearCloudTelemetry = async () => {
-    if (
-      !confirm(
+    const ok = await confirmDialog({
+      title: 'Purger la télémétrie Cloud Supabase',
+      message:
         'Purger la télémétrie Cloud Supabase :\n\n' +
-        'Cette action va effacer définitivement toutes les alertes et journaux d\'incidents synchronisés sur Supabase pour tous les postes.\n\n' +
-        'Voulez-vous continuer ?'
-      )
-    ) {
+        "Cette action va effacer définitivement toutes les alertes et journaux d'incidents synchronisés sur Supabase pour tous les postes.\n\n" +
+        'Voulez-vous continuer ?',
+      confirmText: 'Purger',
+      variant: 'danger'
+    })
+    if (!ok) {
       return
     }
 
@@ -300,7 +304,13 @@ export const WorkstationMonitor: React.FC = () => {
             variant="outline"
             size="sm"
             onClick={async () => {
-              if (!confirm('Voulez-vous vider le journal des erreurs locales sur cette machine ?')) return
+              const ok = await confirmDialog({
+                title: 'Vider les logs locaux',
+                message: 'Voulez-vous vider le journal des erreurs locales sur cette machine ?',
+                confirmText: 'Vider',
+                variant: 'danger'
+              })
+              if (!ok) return
               if (window.api?.logs?.clear) {
                 await window.api.logs.clear()
                 toast.success('Journal local vidé avec succès.')

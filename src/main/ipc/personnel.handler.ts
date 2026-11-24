@@ -181,6 +181,23 @@ export function registerPersonnelHandlers(): void {
     }
   })
 
+  ipcMain.handle('personnel:deleteTimeTracking', async (_, id: string) => {
+    if (!canWrite('personnel')) {
+      return { success: false, error: 'Accès refusé' }
+    }
+
+    try {
+      const result = PersonnelRepository.deleteTimeTracking(id)
+      if (result.success) {
+        const user = getCurrentUser()
+        logAction(user?.id || null, 'delete', 'time_tracking', id, null, null)
+      }
+      return result
+    } catch (error: unknown) {
+      return { success: false, error: 'Erreur lors de la suppression des heures' }
+    }
+  })
+
   // --------------------------------------------
   // ABSENCES
   // --------------------------------------------

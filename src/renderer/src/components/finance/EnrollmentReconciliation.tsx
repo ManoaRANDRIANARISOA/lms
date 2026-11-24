@@ -10,6 +10,7 @@ import {
   Sparkles
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { useAppStore } from '@/store/useAppStore'
 import { cn } from '@/lib/utils'
 
@@ -102,11 +103,12 @@ export default function EnrollmentReconciliation({ onUpdated }: EnrollmentReconc
   const handleBatchRectify = async () => {
     if (selectedIds.length === 0) return
     const count = selectedIds.length
-    if (
-      !confirm(
-        `Confirmez-vous la conversion de ces ${count} élève(s) en "Réinscription (Ancien élève)" ?\n\nLeur reçu et paiement seront requalifiés en réinscription (115 000 Ar), supprimant le reste à payer de 25 000 Ar.`
-      )
-    ) {
+    const ok = await confirmDialog({
+      title: 'Conversion en Réinscription',
+      message: `Confirmez-vous la conversion de ces ${count} élève(s) en "Réinscription (Ancien élève)" ?\n\nLeur reçu et paiement seront requalifiés en réinscription (115 000 Ar), supprimant le reste à payer de 25 000 Ar.`,
+      confirmText: 'Convertir'
+    })
+    if (!ok) {
       return
     }
 

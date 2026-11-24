@@ -9,6 +9,8 @@
 
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { usePersonnelStore } from '@/store/usePersonnelStore'
 import { useAuthStore } from '@/store/useAuthStore'
 import { Button } from '@/components/ui/button'
@@ -269,9 +271,16 @@ export default function PersonnelList(): React.JSX.Element {
                               variant="ghost"
                               size="sm"
                               className="text-red-600"
-                              onClick={() => {
-                                if (confirm(`Supprimer ${p.last_name} ${p.first_name} ?`)) {
-                                  usePersonnelStore.getState().deletePerson(p.id)
+                              onClick={async () => {
+                                const ok = await confirmDialog({
+                                  title: 'Suppression',
+                                  message: `Supprimer ${p.last_name} ${p.first_name} ?`,
+                                  confirmText: 'Supprimer',
+                                  variant: 'danger'
+                                })
+                                if (ok) {
+                                  await usePersonnelStore.getState().deletePerson(p.id)
+                                  toast.success('Personnel supprimé.')
                                 }
                               }}
                             >

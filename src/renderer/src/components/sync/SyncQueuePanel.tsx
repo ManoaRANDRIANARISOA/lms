@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useSyncStore } from '@/store/useSyncStore'
 import { toast } from 'sonner'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import {
   AlertTriangle,
   UserCheck,
@@ -433,7 +434,13 @@ export const SyncQueuePanel: React.FC = () => {
                         className="text-xs h-7 shrink-0 font-medium"
                         disabled={processingId === item.id}
                         onClick={async () => {
-                          if (!confirm(`Confirmez-vous l'annulation et l'archivage de ce doublon (${item.duplicate_warning?.existing_receipt || 'reçu existant'}) ?`)) return
+                          const ok = await confirmDialog({
+                            title: 'Archiver ce doublon',
+                            message: `Confirmez-vous l'annulation et l'archivage de ce doublon (${item.duplicate_warning?.existing_receipt || 'reçu existant'}) ?`,
+                            confirmText: 'Archiver',
+                            variant: 'danger'
+                          })
+                          if (!ok) return
                           setProcessingId(item.id)
                           try {
                             const reason = `Doublon confirmé avec reçu ${item.duplicate_warning?.existing_receipt || 'existant'}`
@@ -474,7 +481,13 @@ export const SyncQueuePanel: React.FC = () => {
                         className="text-xs h-7 text-gray-700 hover:bg-gray-100 shrink-0"
                         disabled={processingId === item.id}
                         onClick={async () => {
-                          if (!confirm('Voulez-vous archiver cette transaction orpheline (élève supprimé définitivement dans le passé) ?')) return
+                          const ok = await confirmDialog({
+                            title: 'Archiver une transaction orpheline',
+                            message: 'Voulez-vous archiver cette transaction orpheline (élève supprimé définitivement dans le passé) ?',
+                            confirmText: 'Archiver',
+                            variant: 'danger'
+                          })
+                          if (!ok) return
                           setProcessingId(item.id)
                           try {
                             const res = await window.api.sync.reconcileDiscardOrphan(item.id, 'Élève supprimé définitivement / introuvable')

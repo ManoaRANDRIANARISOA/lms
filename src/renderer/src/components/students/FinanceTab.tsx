@@ -332,7 +332,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
           const targetBalance = actualBalance - discount
 
           if (amount > targetBalance) {
-            alert(
+            toast.error(
               `Le montant encaissé (${amount.toLocaleString()} Ar) dépasse le reste à payer convenu (${targetBalance.toLocaleString()} Ar) pour ce mois.`
             )
             return
@@ -762,7 +762,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
     if (!service.enabled) return
 
     if (!status?.feeRecord && service.id !== 'other') {
-      alert(
+      toast.warning(
         "Cet élève n'est pas encore inscrit dans une classe pour l'année " +
           schoolYear +
           ". Veuillez d'abord l'inscrire via le bouton 'Inscrire' en haut à droite."
@@ -776,9 +776,9 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
         setSelectedPayment(payment)
         setIsViewPaymentOpen(true)
       } else if (service.status === 'paid_fratrie') {
-        alert('Cette cotisation a déjà été couverte par un membre de la fratrie.')
+        toast.info('Cette cotisation a déjà été couverte par un membre de la fratrie.')
       } else {
-        alert("Le paiement a été enregistré avec l'inscription.")
+        toast.info("Le paiement a été enregistré avec l'inscription.")
       }
     } else {
       setFormData((prev) => ({
@@ -795,7 +795,7 @@ export function FinanceTab({ studentId, schoolYear, feeRecord, events = [] }: Fi
 
   const handleMonthClick = (type: string, monthData: MonthStatus) => {
     if (!status?.feeRecord) {
-      alert(
+      toast.warning(
         "Cet élève n'est pas encore inscrit dans une classe pour l'année " +
           schoolYear +
           ". Veuillez d'abord l'inscrire via le bouton 'Inscrire' en haut à droite."

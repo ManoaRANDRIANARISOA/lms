@@ -12,6 +12,7 @@ import { useAuthStore } from '@/store/useAuthStore'
 import Sidebar from '@/components/layout/Sidebar'
 import ProtectedRoute from '@/components/shared/ProtectedRoute'
 import { useAppStore } from '@/store/useAppStore'
+import { useAssistantStore } from '@/store/useAssistantStore'
 // Pages
 import StudentList from '@/pages/students/StudentList'
 import StudentDetail from '@/pages/students/StudentDetail'
@@ -80,6 +81,7 @@ function StudentDetailRoute(): React.JSX.Element | null {
 
 export default function MainLayout(): React.JSX.Element {
   const token = useAuthStore((s) => s.token)
+  const user = useAuthStore((s) => s.user)
   const fetchSettings = useAppStore((s) => s.fetchSettings)
   const globalYear = useAppStore((s) => s.currentYear)
   const activityPingInterval = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -87,6 +89,29 @@ export default function MainLayout(): React.JSX.Element {
   useEffect(() => {
     fetchSettings()
   }, [])
+
+  // Scan silencieux des incohérences pour notifier l'Administration / Direction
+  useEffect(() => {
+    if (!user || (user.role !== 'admin' && user.role !== 'direction')) return
+    const runBgScan = async () => {
+      try {
+        if (window.api?.sync?.scanInconsistencies) {
+          const res = await window.api.sync.scanInconsistencies()
+          if (res?.success) {
+            useAssistantStore.getState().setResult(res)
+          }
+        }
+      } catch {
+        // Ignorer silencieusement en arrière-plan
+      }
+    }
+    const timer = setTimeout(runBgScan, 2500)
+    window.addEventListener('app:sync-completed', runBgScan)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('app:sync-completed', runBgScan)
+    }
+  }, [user?.id, user?.role])
 
   // Ping d'activité toutes les 5 min pour maintenir la session
   useEffect(() => {

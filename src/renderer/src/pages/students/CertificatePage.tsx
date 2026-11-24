@@ -1,5 +1,6 @@
 import { useAppStore } from '@/store/useAppStore'
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useStudentStore } from '@/store/useStudentStore'
 import { Button } from '@/components/ui/button'
@@ -217,7 +218,7 @@ export default function CertificatePage() {
                   // Open the generated PDF automatically
                   window.api.pdf.openFile(res.filePath)
                 } else {
-                  alert('Erreur lors de la génération du PDF: ' + (res.error || 'Erreur inconnue'))
+                  toast.error('Erreur lors de la génération du PDF: ' + (res.error || 'Erreur inconnue'))
                 }
               } catch (err) {
                 console.error(err)

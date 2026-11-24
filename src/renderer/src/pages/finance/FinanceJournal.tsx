@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState, useMemo } from 'react'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -440,13 +441,19 @@ export default function FinanceJournal() {
 
   const handleDelete = async (entry: CashJournalEntry) => {
     if (entry.related_student_id) {
-      alert(
+      toast.warning(
         "Ceci est un paiement d'élève synchronisé. Veuillez aller sur le dossier de l'élève pour annuler ce paiement afin de garder les données à jour."
       )
       return
     }
 
-    if (!confirm('Voulez-vous vraiment annuler cette entrée manuelle ?')) return
+    const ok = await confirmDialog({
+      title: 'Annuler l’entrée manuelle',
+      message: 'Voulez-vous vraiment annuler cette entrée manuelle ?',
+      confirmText: 'Annuler l’entrée',
+      variant: 'danger'
+    })
+    if (!ok) return
     const result = await deleteEntry(entry.id)
     if (result.success) {
       setMessage({ text: 'Entrée annulée avec succès', type: 'success' })
@@ -1632,7 +1639,7 @@ export default function FinanceJournal() {
                                 department: entry.department
                               })
                               if (r.success && r.filePath) await window.api.pdf.openFile(r.filePath)
-                              else alert(r.error || 'Erreur PDF')
+                              else toast.error(r.error || 'Erreur PDF')
                             }}
                           >
                             <FileText className="w-4 h-4 text-gray-400 hover:text-blue-600" />

@@ -509,7 +509,7 @@ export default function StudentForm({
                             setIsLoadingImage(false)
                           }
                         } else {
-                          alert(
+                          toast.error(
                             "Le sélecteur de fichiers n'est disponible que sur l'application Desktop."
                           )
                         }

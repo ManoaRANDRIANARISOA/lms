@@ -7,6 +7,7 @@ import { useAppStore } from '@/store/useAppStore'
 
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import { useGradeStore } from '@/store/useGradeStore'
 import { useStudentStore } from '@/store/useStudentStore'
 import { Button } from '@/components/ui/button'
@@ -120,7 +121,7 @@ export default function ReportCardView(): React.JSX.Element {
               if (result.success && result.filePath) {
                 await window.api.pdf.openFile(result.filePath)
               } else {
-                alert(result.error || 'Erreur génération PDF')
+                toast.error(result.error || 'Erreur génération PDF')
               }
             }}
           >

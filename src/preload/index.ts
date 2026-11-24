@@ -190,6 +190,7 @@ const api = {
       ipcRenderer.invoke('personnel:setTimeTracking', data),
     getTimeTracking: (personnelId: string) =>
       ipcRenderer.invoke('personnel:getTimeTracking', personnelId),
+    deleteTimeTracking: (id: string) => ipcRenderer.invoke('personnel:deleteTimeTracking', id),
     createAbsence: (data: Record<string, unknown>) =>
       ipcRenderer.invoke('personnel:createAbsence', data),
     getAbsences: (personnelId: string) => ipcRenderer.invoke('personnel:getAbsences', personnelId),

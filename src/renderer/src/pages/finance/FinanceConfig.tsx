@@ -10,6 +10,7 @@ import { useClasses } from '@/lib/useClasses'
 import { usePermissions } from '@/lib/usePermissions'
 import ReadOnlyBanner from '@/components/shared/ReadOnlyBanner'
 import { toast } from 'sonner'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import EnrollmentReconciliation from '@/components/finance/EnrollmentReconciliation'
 
 export default function FinanceConfig() {
@@ -172,13 +173,14 @@ export default function FinanceConfig() {
     setEditingBusRoute(null)
   }
 
-  const handleRemoveBusRoute = (route: string) => {
-    if (
-      !confirm(
-        `Supprimer définitivement la zone "${route}" ?\nAttention : cette suppression sera synchronisée sur tous les postes.`
-      )
-    )
-      return
+  const handleRemoveBusRoute = async (route: string) => {
+    const ok = await confirmDialog({
+      title: 'Supprimer la zone',
+      message: `Supprimer définitivement la zone "${route}" ?\nAttention : cette suppression sera synchronisée sur tous les postes.`,
+      confirmText: 'Supprimer',
+      variant: 'danger'
+    })
+    if (!ok) return
     setPrices((prev) => {
       const newRoutes = (prev.busRoutes || []).filter((r) => r !== route)
       const newBus = { ...prev.bus }
@@ -250,13 +252,14 @@ export default function FinanceConfig() {
     setEditingUniformItem(null)
   }
 
-  const handleRemoveUniformItem = (item: string) => {
-    if (
-      !confirm(
-        `Supprimer définitivement l'article "${item}" ?\nAttention : cette suppression sera synchronisée sur tous les postes.`
-      )
-    )
-      return
+  const handleRemoveUniformItem = async (item: string) => {
+    const ok = await confirmDialog({
+      title: "Supprimer l'article",
+      message: `Supprimer définitivement l'article "${item}" ?\nAttention : cette suppression sera synchronisée sur tous les postes.`,
+      confirmText: 'Supprimer',
+      variant: 'danger'
+    })
+    if (!ok) return
     setPrices((prev) => {
       const newItems = (prev.uniformItems || []).filter((i) => i !== item)
       const newUniforms = { ...prev.uniforms }
