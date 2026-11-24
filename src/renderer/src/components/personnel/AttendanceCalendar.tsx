@@ -76,6 +76,9 @@ interface AttendanceCalendarProps {
   workPattern?: string
   workDays?: string[]
   canWrite: boolean
+  selectedMonth?: string // format "YYYY-MM"
+  onMonthChange?: (month: string) => void
+  onAttendanceChanged?: () => void
 }
 
 export default function AttendanceCalendar({
@@ -85,14 +88,29 @@ export default function AttendanceCalendar({
   dailyHours,
   workPattern,
   workDays,
-  canWrite
+  canWrite,
+  selectedMonth,
+  onMonthChange,
+  onAttendanceChanged
 }: AttendanceCalendarProps): React.JSX.Element {
   const { dailyAttendance, fetchMonthlyAttendance, setAttendance, deleteAttendance } =
     usePersonnelStore()
 
   const today = new Date()
-  const [currentYear, setCurrentYear] = useState(today.getFullYear())
-  const [currentMonth, setCurrentMonth] = useState(today.getMonth() + 1)
+  const initialY = selectedMonth ? parseInt(selectedMonth.split('-')[0], 10) : today.getFullYear()
+  const initialM = selectedMonth ? parseInt(selectedMonth.split('-')[1], 10) : today.getMonth() + 1
+  const [currentYear, setCurrentYear] = useState(initialY)
+  const [currentMonth, setCurrentMonth] = useState(initialM)
+
+  React.useEffect(() => {
+    if (selectedMonth && /^\d{4}-\d{2}$/.test(selectedMonth)) {
+      const [y, m] = selectedMonth.split('-').map(Number)
+      if (y !== currentYear || m !== currentMonth) {
+        setCurrentYear(y)
+        setCurrentMonth(m)
+      }
+    }
+  }, [selectedMonth])
 
   const [selectedDates, setSelectedDates] = useState<string[]>([])
   const [showModal, setShowModal] = useState(false)
@@ -232,6 +250,7 @@ export default function AttendanceCalendar({
       )
     )
     closeModal()
+    onAttendanceChanged?.()
   }
 
   const handleDelete = async () => {
@@ -240,24 +259,39 @@ export default function AttendanceCalendar({
       selectedDates.map(async (dateStr) => {
         const existing = attendanceMap[dateStr]
         if (existing?.id) {
-          await deleteAttendance(existing.id)
+          await deleteAttendance(existing.id, currentYear, currentMonth)
         }
       })
     )
     closeModal()
+    onAttendanceChanged?.()
   }
 
   const prevMonth = () => {
+    let nextY = currentYear
+    let nextM = currentMonth - 1
     if (currentMonth === 1) {
+      nextM = 12
+      nextY = currentYear - 1
       setCurrentMonth(12)
       setCurrentYear((y) => y - 1)
-    } else setCurrentMonth((m) => m - 1)
+    } else {
+      setCurrentMonth(nextM)
+    }
+    onMonthChange?.(`${nextY}-${String(nextM).padStart(2, '0')}`)
   }
   const nextMonth = () => {
+    let nextY = currentYear
+    let nextM = currentMonth + 1
     if (currentMonth === 12) {
+      nextM = 1
+      nextY = currentYear + 1
       setCurrentMonth(1)
       setCurrentYear((y) => y + 1)
-    } else setCurrentMonth((m) => m + 1)
+    } else {
+      setCurrentMonth(nextM)
+    }
+    onMonthChange?.(`${nextY}-${String(nextM).padStart(2, '0')}`)
   }
 
   const monthLabel = new Date(currentYear, currentMonth - 1, 1).toLocaleDateString('fr-FR', {

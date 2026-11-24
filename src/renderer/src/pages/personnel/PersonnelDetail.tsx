@@ -87,7 +87,7 @@ export default function PersonnelDetail(): React.JSX.Element {
   }, [id])
 
   useEffect(() => {
-    if (id && activeTab === 'Salaire') {
+    if (id && (activeTab === 'Salaire' || activeTab === 'Pointage')) {
       calculateSalary(id, currentMonth)
     }
   }, [id, activeTab, currentMonth])
@@ -356,6 +356,9 @@ export default function PersonnelDetail(): React.JSX.Element {
                 workPattern={currentPerson?.work_pattern}
                 workDays={currentPerson?.work_days}
                 canWrite={canWrite('personnel')}
+                selectedMonth={currentMonth}
+                onMonthChange={setCurrentMonth}
+                onAttendanceChanged={() => calculateSalary(id!, currentMonth)}
               />
             </div>
 
@@ -363,7 +366,7 @@ export default function PersonnelDetail(): React.JSX.Element {
             {p.salary_type === 'hourly' && canWrite('personnel') && (
               <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                 <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                  Total mensuel manuel (Optionnel)
+                  Total mensuel manuel — {currentMonth} (Optionnel)
                 </h3>
                 <p className="text-xs text-gray-500 mb-4">
                   Si vous n'utilisez pas le calendrier, vous pouvez forcer le total d'heures
@@ -393,19 +396,20 @@ export default function PersonnelDetail(): React.JSX.Element {
                       ) as HTMLInputElement
                       const val = inputEl?.value
                       if (!val) return
-                      const success = await window.api.personnel.setTimeTracking({
+                      const res = await window.api.personnel.setTimeTracking({
                         personnel_id: id!,
                         month: currentMonth,
                         hours_worked: Number(val),
                         manually_edited: true,
                         edit_reason: 'Saisie manuelle'
                       })
-                      if (success) {
+                      if (res?.success) {
                         alert('Total enregistré avec succès.')
                         if (inputEl) inputEl.value = ''
                         await getPerson(id!)
+                        await calculateSalary(id!, currentMonth)
                       } else {
-                        alert("Erreur lors de l'enregistrement.")
+                        alert(res?.error || "Erreur lors de l'enregistrement.")
                       }
                     }}
                   >
@@ -837,6 +841,7 @@ export default function PersonnelDetail(): React.JSX.Element {
                             if (success) {
                               setAdjustmentAmount('')
                               setAdjustmentReason('')
+                              await calculateSalary(id!, currentMonth)
                             }
                           } else {
                             if (!adjustmentReason)
@@ -855,6 +860,7 @@ export default function PersonnelDetail(): React.JSX.Element {
                             if (success) {
                               setAdjustmentAmount('')
                               setAdjustmentReason('')
+                              await calculateSalary(id!, currentMonth)
                             }
                           }
                         }}
@@ -911,11 +917,13 @@ export default function PersonnelDetail(): React.JSX.Element {
                                           confirm(
                                             `Marquer l'avance de ${a.amount} Ar comme remboursée ?`
                                           )
-                                        )
+                                        ) {
                                           await markAdvanceRepaid(
                                             a.id,
                                             new Date().toISOString().split('T')[0]
                                           )
+                                          await calculateSalary(id!, currentMonth)
+                                        }
                                       }}
                                     >
                                       Rembourser
@@ -969,8 +977,10 @@ export default function PersonnelDetail(): React.JSX.Element {
                                       variant="ghost"
                                       className="h-7 w-7 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
                                       onClick={async () => {
-                                        if (confirm('Supprimer cette déduction ?'))
+                                        if (confirm('Supprimer cette déduction ?')) {
                                           await deleteDeduction(d.id)
+                                          await calculateSalary(id!, currentMonth)
+                                        }
                                       }}
                                     >
                                       <Trash2 className="w-4 h-4" />

@@ -43,7 +43,7 @@ interface PersonnelStore {
     expected_hours?: number
     notes?: string
   }) => Promise<boolean>
-  deleteAttendance: (id: string) => Promise<boolean>
+  deleteAttendance: (id: string, year?: number, month?: number) => Promise<boolean>
   createSalaryExpense: (
     personnelId: string,
     month: string,
@@ -83,13 +83,14 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
     try {
       const result = await window.api.personnel.get(id)
       if (result.success) {
+        const isSamePerson = get().currentPerson?.id === id
         set({
           currentPerson: result.person,
           timeTracking: result.timeTracking || [],
           absences: result.absences || [],
           advances: result.advances || [],
           deductions: result.deductions || [],
-          salaryCalculation: null,
+          ...(isSamePerson ? {} : { salaryCalculation: null }),
           loading: false
         })
       } else {
@@ -318,7 +319,7 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
     }
   },
 
-  deleteAttendance: async (id) => {
+  deleteAttendance: async (id, year, month) => {
     set({ loading: true, error: null })
     try {
       const result = await window.api.personnel.deleteAttendance(id)
@@ -326,7 +327,9 @@ export const usePersonnelStore = create<PersonnelStore>((set, get) => ({
         const currentId = get().currentPerson?.id
         if (currentId) {
           const d = new Date()
-          await get().fetchMonthlyAttendance(currentId, d.getFullYear(), d.getMonth() + 1)
+          const targetYear = year ?? d.getFullYear()
+          const targetMonth = month ?? d.getMonth() + 1
+          await get().fetchMonthlyAttendance(currentId, targetYear, targetMonth)
         }
         set({ loading: false })
         return true

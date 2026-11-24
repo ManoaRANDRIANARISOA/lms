@@ -296,24 +296,28 @@ export class PersonnelRepository {
   static setTimeTracking(
     data: Omit<TimeTracking, 'id' | 'created_at' | 'updated_at' | 'version' | 'sync_status'>
   ) {
-    const id = uuidv4()
+    const existing = db
+      .prepare('SELECT id FROM time_tracking WHERE personnel_id = ? AND month = ?')
+      .get(data.personnel_id, data.month) as { id: string } | undefined
+    const recordId = existing?.id || uuidv4()
 
     const transaction = db.transaction(() => {
       db.prepare(
         `
-        INSERT INTO time_tracking (id, personnel_id, month, hours_worked, manually_edited, edited_by, edit_reason, created_at, updated_at, version, sync_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, 'pending')
+        INSERT INTO time_tracking (id, personnel_id, month, hours_worked, manually_edited, edited_by, edit_reason, created_at, updated_at, version, sync_status, deleted)
+        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, 'pending', 0)
         ON CONFLICT(personnel_id, month) DO UPDATE SET
         hours_worked = excluded.hours_worked,
         manually_edited = excluded.manually_edited,
         edited_by = excluded.edited_by,
         edit_reason = excluded.edit_reason,
+        deleted = 0,
         updated_at = CURRENT_TIMESTAMP,
         version = version + 1,
         sync_status = 'pending'
       `
       ).run(
-        id,
+        recordId,
         data.personnel_id,
         data.month,
         data.hours_worked,
@@ -321,12 +325,21 @@ export class PersonnelRepository {
         data.edited_by || null,
         data.edit_reason || null
       )
-      addToSyncQueue('time_tracking', id, 'update', data)
+      addToSyncQueue('time_tracking', recordId, existing ? 'update' : 'create', {
+        id: recordId,
+        personnel_id: data.personnel_id,
+        month: data.month,
+        hours_worked: data.hours_worked,
+        manually_edited: Boolean(data.manually_edited),
+        edited_by: data.edited_by || null,
+        edit_reason: data.edit_reason || null,
+        deleted: 0
+      })
     })
 
     try {
       transaction()
-      return { success: true, id }
+      return { success: true, id: recordId }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
       console.error('Set time tracking error:', error)
@@ -421,7 +434,8 @@ export class PersonnelRepository {
   // ============================================
 
   static createAdvance(
-    data: Omit<SalaryAdvance, 'id' | 'created_at' | 'updated_at' | 'version' | 'sync_status'>
+    data: Omit<SalaryAdvance, 'id' | 'created_at' | 'updated_at' | 'version' | 'sync_status'>,
+    createdBy = 'admin'
   ) {
     const id = uuidv4()
 
@@ -446,8 +460,8 @@ export class PersonnelRepository {
       const cashId = uuidv4()
       db.prepare(
         `
-        INSERT INTO cash_journal (id, transaction_date, type, department, category, amount, description, related_personnel_id, created_at, updated_at, version, sync_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, 'pending')
+        INSERT INTO cash_journal (id, transaction_date, type, department, category, amount, description, payment_method, related_personnel_id, created_by, created_at, updated_at, version, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'cash', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, 'pending')
       `
       ).run(
         cashId,
@@ -457,7 +471,8 @@ export class PersonnelRepository {
         'avance',
         data.amount,
         `Avance sur salaire - ${data.reason || ''}`,
-        data.personnel_id
+        data.personnel_id,
+        createdBy
       )
 
       addToSyncQueue('cash_journal', cashId, 'create', {
@@ -468,7 +483,9 @@ export class PersonnelRepository {
         category: 'avance',
         amount: data.amount,
         description: `Avance sur salaire - ${data.reason || ''}`,
-        related_personnel_id: data.personnel_id
+        payment_method: 'cash',
+        related_personnel_id: data.personnel_id,
+        created_by: createdBy
       })
     })
 
@@ -811,7 +828,8 @@ export class PersonnelRepository {
     personnelId: string,
     month: string,
     netAmount: number,
-    description?: string
+    description?: string,
+    createdBy = 'admin'
   ) {
     const id = uuidv4()
     const transactionDate = new Date().toISOString().split('T')[0]
@@ -832,10 +850,20 @@ export class PersonnelRepository {
     const transaction = db.transaction(() => {
       db.prepare(
         `
-        INSERT INTO cash_journal (id, transaction_date, type, department, category, amount, description, related_personnel_id, created_at, updated_at, version, sync_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, 'pending')
+        INSERT INTO cash_journal (id, transaction_date, type, department, category, amount, description, payment_method, related_personnel_id, created_by, created_at, updated_at, version, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'cash', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, 'pending')
       `
-      ).run(id, transactionDate, 'expense', department, 'salaire', netAmount, desc, personnelId)
+      ).run(
+        id,
+        transactionDate,
+        'expense',
+        department,
+        'salaire',
+        netAmount,
+        desc,
+        personnelId,
+        createdBy
+      )
       addToSyncQueue('cash_journal', id, 'create', {
         id,
         transaction_date: transactionDate,
@@ -844,7 +872,9 @@ export class PersonnelRepository {
         category: 'salaire',
         amount: netAmount,
         description: desc,
-        related_personnel_id: personnelId
+        payment_method: 'cash',
+        related_personnel_id: personnelId,
+        created_by: createdBy
       })
 
       // Mark outstanding advances as repaid since they are deducted from this salary
@@ -897,7 +927,7 @@ export class PersonnelRepository {
     // Daily attendance for the month
     const attendance = db
       .prepare(
-        'SELECT * FROM daily_attendance WHERE personnel_id = ? AND attendance_date >= ? AND attendance_date <= ? ORDER BY attendance_date'
+        'SELECT * FROM daily_attendance WHERE personnel_id = ? AND attendance_date >= ? AND attendance_date <= ? AND deleted = 0 ORDER BY attendance_date'
       )
       .all(personnelId, monthStart, monthEnd) as DailyAttendance[]
 
@@ -912,15 +942,19 @@ export class PersonnelRepository {
     // Informational absences (for display only — salary is based on actual hours)
     const absences = db
       .prepare(
-        'SELECT * FROM personnel_absences WHERE personnel_id = ? AND start_date <= ? AND end_date >= ?'
+        'SELECT * FROM personnel_absences WHERE personnel_id = ? AND start_date <= ? AND end_date >= ? AND deleted = 0'
       )
       .all(personnelId, monthEnd, monthStart) as PersonnelAbsence[]
 
     const advances = db
-      .prepare('SELECT * FROM salary_advances WHERE personnel_id = ? AND repaid = 0')
+      .prepare(
+        'SELECT * FROM salary_advances WHERE personnel_id = ? AND repaid = 0 AND deleted = 0'
+      )
       .all(personnelId) as SalaryAdvance[]
     const deductions = db
-      .prepare('SELECT * FROM custom_deductions WHERE personnel_id = ? AND month = ?')
+      .prepare(
+        'SELECT * FROM custom_deductions WHERE personnel_id = ? AND month = ? AND deleted = 0'
+      )
       .all(personnelId, month) as CustomDeduction[]
 
     // Base salary calculation
@@ -936,7 +970,7 @@ export class PersonnelRepository {
     if (person.salary_type === 'hourly' && person.hourly_rate) {
       // Hourly: Calendar hours by default, but manual tracking overrides if set
       const tracking = db
-        .prepare('SELECT * FROM time_tracking WHERE personnel_id = ? AND month = ?')
+        .prepare('SELECT * FROM time_tracking WHERE personnel_id = ? AND month = ? AND deleted = 0')
         .get(personnelId, month) as TimeTracking | undefined
 
       if (tracking && tracking.manually_edited) {

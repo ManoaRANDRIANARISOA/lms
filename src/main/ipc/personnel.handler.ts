@@ -258,9 +258,10 @@ export function registerPersonnelHandlers(): void {
       }
 
       try {
-        const result = PersonnelRepository.createAdvance(data)
+        const user = getCurrentUser()
+        const operatorUsername = user?.username || 'admin'
+        const result = PersonnelRepository.createAdvance(data, operatorUsername)
         if (result.success) {
-          const user = getCurrentUser()
           logAction(
             user?.id || null,
             'create',
@@ -500,14 +501,16 @@ export function registerPersonnelHandlers(): void {
       }
 
       try {
+        const user = getCurrentUser()
+        const operatorUsername = user?.username || 'admin'
         const result = PersonnelRepository.createSalaryExpense(
           personnelId,
           month,
           netAmount,
-          description
+          description,
+          operatorUsername
         )
         if (result.success) {
-          const user = getCurrentUser()
           logAction(
             user?.id || null,
             'create',

@@ -42,28 +42,52 @@ export default function PersonnelPayroll(): React.JSX.Element {
 
       for (const p of personnel) {
         if (p.status === 'parttime' || p.status === 'fulltime') {
-          // Si l'utilisateur n'a pas défini manuellement de début d'exercice pour ce personnel,
-          // on ne génère aucun impayé rétroactif.
-          if (!p.payroll_start_date) {
-            missingStart.push(p)
-            continue
-          }
-
-          const effectiveStartMonth = p.payroll_start_date.substring(0, 7)
-
           if (filterType === 'specific') {
-            if (specificMonth >= effectiveStartMonth) {
-              const res = await window.api.personnel.calculateSalary(p.id, specificMonth)
+            if (!p.payroll_start_date) {
+              missingStart.push(p)
+            } else if (specificMonth < p.payroll_start_date.substring(0, 7)) {
+              continue
+            }
+
+            const res = await window.api.personnel.calculateSalary(p.id, specificMonth)
+            if (
+              res.success &&
+              res.calculation &&
+              !res.calculation.isPaid &&
+              !res.calculation.isIgnored &&
+              res.calculation.netSalary > 0
+            ) {
+              const [y, m] = specificMonth.split('-')
+              const lastDay = new Date(parseInt(y, 10), parseInt(m, 10), 0).getDate()
+              const monthStart = `${specificMonth}-01`
+              const monthEnd = `${specificMonth}-${lastDay}`
+
+              const isNotHiredYet = p.hire_date && p.hire_date > monthEnd
+              const hasLeftBefore = p.departure_date && p.departure_date < monthStart
+              const hasWorked =
+                res.calculation.details.hoursWorked !== undefined &&
+                res.calculation.details.hoursWorked > 0
+
               if (
-                res.success &&
-                res.calculation &&
-                !res.calculation.isPaid &&
-                res.calculation.netSalary > 0
+                (isNotHiredYet || hasLeftBefore) &&
+                !hasWorked &&
+                res.calculation.grossSalary === 0
               ) {
-                data.push({ person: p, month: specificMonth, calc: res.calculation })
+                continue
               }
+
+              data.push({ person: p, month: specificMonth, calc: res.calculation })
             }
           } else {
+            // Si l'utilisateur n'a pas défini manuellement de début d'exercice pour ce personnel,
+            // on ne génère aucun impayé rétroactif.
+            if (!p.payroll_start_date) {
+              missingStart.push(p)
+              continue
+            }
+
+            const effectiveStartMonth = p.payroll_start_date.substring(0, 7)
+
             // Tous les impayés depuis son début d'exercice jusqu'au mois en cours
             const monthsToCheck: string[] = []
             const [sYear, sMonth] = effectiveStartMonth.split('-').map(Number)
@@ -91,6 +115,7 @@ export default function PersonnelPayroll(): React.JSX.Element {
                 res.success &&
                 res.calculation &&
                 !res.calculation.isPaid &&
+                !res.calculation.isIgnored &&
                 res.calculation.netSalary > 0
               ) {
                 data.push({ person: p, month: m, calc: res.calculation })
@@ -158,10 +183,13 @@ export default function PersonnelPayroll(): React.JSX.Element {
             <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div>
               <h3 className="text-sm font-semibold text-amber-800">
-                Début d'exercice à définir ({missingPayrollStartDate.length} employé(s))
+                Début d&apos;exercice à définir ({missingPayrollStartDate.length} employé(s))
               </h3>
               <p className="text-sm text-amber-700 mt-1">
-                <span className="font-bold">{missingPayrollStartDate.length} employé(s)</span> n'ont pas encore de « Début de paie (Exercice) » défini dans leur fiche et sont donc exclus du calcul des impayés. Vous pouvez définir leur mois de démarrage manuellement dans la Liste du personnel.
+                <span className="font-bold">{missingPayrollStartDate.length} employé(s)</span> n&apos;ont
+                pas encore de « Début de paie (Exercice) » défini dans leur fiche et sont donc
+                exclus du calcul des impayés. Vous pouvez définir leur mois de démarrage manuellement
+                dans la Liste du personnel.
               </p>
             </div>
           </div>
@@ -194,10 +222,14 @@ export default function PersonnelPayroll(): React.JSX.Element {
                         <div className="flex flex-col items-center justify-center">
                           <AlertTriangle className="w-12 h-12 text-green-300 mb-3" />
                           <span className="text-lg font-medium text-gray-700">
-                            Aucun salaire impayé.
+                            {filterType === 'all' && missingPayrollStartDate.length > 0
+                              ? 'Aucun impayé calculable en mode global'
+                              : 'Aucun salaire impayé.'}
                           </span>
-                          <span className="text-sm">
-                            Tout le personnel est à jour pour la période sélectionnée !
+                          <span className="text-sm text-center max-w-md">
+                            {filterType === 'all' && missingPayrollStartDate.length > 0
+                              ? `${missingPayrollStartDate.length} employé(s) n'ont pas encore de "Début de paie (Exercice)". Utilisez le filtre "Mois spécifique" pour payer le mois en cours, ou renseignez leur début d'exercice dans leur fiche.`
+                              : 'Tout le personnel est à jour pour la période sélectionnée !'}
                           </span>
                         </div>
                       </td>
