@@ -3,6 +3,22 @@
 Toutes les modifications notables apportées à ce projet sont documentées dans ce fichier.
 Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/) et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [2.4.9] - 2026-11-25
+
+### ✨ Assistant de Cohérence Enrichi, Tarifs Bus « Variable » & Assainissement Cloud
+
+- **Souscriptions Bus / Cantine (`remediation.service.ts`, `DataConsistencyAssistant.tsx`, `StudentForm.tsx`, `payment.repository.ts`)** :
+  - Correction des faux positifs : les abonnements bus dont la ligne est déjà tarifée dans `finance_prices` (`bus_monthly_fee = 0` = tarif standard) et les abonnements cantine utilisant la grille globale ne sont plus signalés à tort.
+  - Ajout d'une interface d'affectation unitaire ou groupée (sélection multiple) dans l'Assistant permettant d'assigner une ligne de bus, de marquer **« Tarif variable »** (`variable`), d'accorder la gratuité transport ou de désabonner.
+- **Fiches de Frais Orphelines (`resolve_orphan_fee`)** :
+  - Affichage détaillé par fiche (élève, matricule, classe, année scolaire, montant d'écolage, paiements actifs liés) avec actions directes : restaurer l'élève supprimé, rattacher à un élève actif ou archiver la fiche (auto-archivage proposé lorsque l'élève est supprimé sans aucun paiement actif).
+- **Journal Orphelin Enrichi (`resolve_orphan_journal`)** :
+  - Affichage structuré de l'élève rattaché, du libellé/motif de caisse, de la cause exacte (ex. paiement d'origine supprimé), de l'action recommandée et pré-remplissage du motif d'audit.
+- **Réalignement Automatique des Années Futures (`wrong_school_year`)** :
+  - Les paiements encaissés sur une année scolaire future (ex. `2027-2028`) ou hors exercice sont désormais classés en correction évidente (1 clic) pour réalignement immédiat sur l'année active.
+- **Paie & Guide Client (`PersonnelPayroll.tsx`, `guide-client.html`)** :
+  - Suppression du bouton temporaire d'initialisation groupée suite à l'application directe de `payroll_start_date = 2026-09` sur le Cloud pour le personnel éligible, et mise à jour du Guide Client non-technique.
+
 ## [2.4.8] - 2026-11-24
 
 ### 🛡️ Cohérence Multi-Postes, Ergonomie Windows & Heures Manuelles Complètes

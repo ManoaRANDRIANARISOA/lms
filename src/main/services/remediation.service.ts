@@ -801,11 +801,23 @@ export async function scanStationInconsistencies(): Promise<RemediationScanResul
     const orphanJournals = db
       .prepare(
         `SELECT cj.id, cj.receipt_number, cj.amount, cj.transaction_date, cj.related_payment_id,
-                cj.related_student_id, cj.created_by, cj.description
+                cj.related_student_id, cj.created_by, cj.description, cj.category, cj.payment_method,
+                sp_any.id AS linked_payment_exists, sp_any.deleted AS linked_payment_deleted,
+                sp_any.updated_at AS linked_payment_updated_at, sp_any.payment_type AS linked_payment_type,
+                sp_any.month AS linked_payment_month,
+                COALESCE(s_cj.id, s_sp.id) AS resolved_student_id,
+                COALESCE(s_cj.last_name, s_sp.last_name) AS student_last_name,
+                COALESCE(s_cj.first_name, s_sp.first_name) AS student_first_name,
+                COALESCE(s_cj.class, s_sp.class) AS student_class,
+                COALESCE(s_cj.registration_number, s_sp.registration_number) AS student_matricule
          FROM cash_journal cj
          LEFT JOIN student_payments sp ON sp.id = cj.related_payment_id AND sp.deleted = 0
+         LEFT JOIN student_payments sp_any ON sp_any.id = cj.related_payment_id
+         LEFT JOIN students s_cj ON s_cj.id = cj.related_student_id
+         LEFT JOIN students s_sp ON s_sp.id = sp_any.student_id
          WHERE cj.deleted = 0 AND cj.related_payment_id IS NOT NULL AND cj.related_payment_id != ''
-           AND sp.id IS NULL`
+           AND sp.id IS NULL
+         ORDER BY cj.transaction_date DESC, cj.id ASC`
       )
       .all() as Array<{
       id: string
@@ -816,18 +828,43 @@ export async function scanStationInconsistencies(): Promise<RemediationScanResul
       related_student_id: string | null
       created_by: string | null
       description: string | null
+      category: string | null
+      payment_method: string | null
+      linked_payment_exists: string | null
+      linked_payment_deleted: number | null
+      linked_payment_updated_at: string | null
+      linked_payment_type: string | null
+      linked_payment_month: string | null
+      resolved_student_id: string | null
+      student_last_name: string | null
+      student_first_name: string | null
+      student_class: string | null
+      student_matricule: string | null
     }>
     for (const j of orphanJournals) {
+      const studentName = `${j.student_last_name || ''} ${j.student_first_name || ''}`.trim()
+      const parentDeleted = Boolean(j.linked_payment_exists && j.linked_payment_deleted === 1)
+      const deletedDate = j.linked_payment_updated_at ? j.linked_payment_updated_at.slice(0, 10) : ''
+      const causeLabel = parentDeleted
+        ? `Le paiement lié a été supprimé${deletedDate ? ` le ${deletedDate}` : ''}, mais son écriture miroir en caisse est restée active.`
+        : `Le paiement référencé (${j.related_payment_id.slice(0, 12)}…) est introuvable sur ce poste.`
+      const suggestedReason = parentDeleted
+        ? `Nettoyage écriture caisse résiduelle (paiement d'origine supprimé${deletedDate ? ` le ${deletedDate}` : ''})`
+        : ''
+      const recommendedAction = parentDeleted
+        ? `Archiver cette écriture de caisse résiduelle (le paiement source n'existe plus dans les encaissements actifs). Soft-delete tracé et propagé.`
+        : `Lancer d'abord une synchronisation ou vérifier la Traçabilité avant d'archiver avec un motif d'audit.`
+
       findings.push({
         id: `orphan_journal:${j.id}`,
         category: 'orphan_journal',
         classification: 'decision',
         severity: 'medium',
-        title: `Journal orphelin — ${j.receipt_number || j.id.slice(0, 8)} (${(j.amount || 0).toLocaleString('fr-FR')} Ar)`,
-        detail: `L'écriture de caisse du ${j.transaction_date} référence un paiement inexistant ou supprimé (${j.related_payment_id.slice(0, 12)}…). Créateur : ${j.created_by || 'inconnu'}.`,
-        recommendation: `Vérifier la traçabilité : rattacher à un paiement existant, ou archiver l'écriture si elle est résiduelle. Aucune suppression automatique. Archiver = soft-delete tracé et propagé.`,
+        title: `Journal orphelin — ${j.receipt_number || j.id.slice(0, 8)}${studentName ? ` · ${studentName}` : ''} (${(j.amount || 0).toLocaleString('fr-FR')} Ar)`,
+        detail: `${causeLabel}${j.description ? ` Motif caisse : « ${j.description} ».` : ''} Date : ${j.transaction_date} · Caissier : ${j.created_by || 'inconnu'}.`,
+        recommendation: recommendedAction,
         action: 'resolve_orphan_journal',
-        params: { journalId: j.id },
+        params: { journalId: j.id, suggestedReason },
         affectedCount: 1,
         amountImpact: j.amount || 0,
         evidence: {
@@ -836,9 +873,20 @@ export async function scanStationInconsistencies(): Promise<RemediationScanResul
           amount: j.amount,
           date: j.transaction_date,
           relatedPaymentId: j.related_payment_id,
-          relatedStudentId: j.related_student_id || '',
+          relatedStudentId: j.resolved_student_id || j.related_student_id || '',
+          studentName: studentName || 'Non renseigné',
+          studentClass: j.student_class || '',
+          studentMatricule: j.student_matricule || '',
           createdBy: j.created_by || '',
-          description: j.description || ''
+          description: j.description || '',
+          category: j.category || '',
+          paymentMethod: j.payment_method || '',
+          parentDeleted,
+          parentDeletedDate: deletedDate,
+          parentType: j.linked_payment_type || '',
+          parentMonth: j.linked_payment_month || '',
+          causeLabel,
+          recommendedAction
         }
       })
     }
@@ -922,62 +970,220 @@ export async function scanStationInconsistencies(): Promise<RemediationScanResul
         }
       })
     }
-    const orphanFees = db
+    const orphanFeeRows = db
       .prepare(
-        `SELECT COUNT(*) AS c FROM student_fees f
+        `SELECT f.id, f.student_id, f.school_year, f.class_name, f.monthly_tuition,
+                f.bus_subscribed, f.bus_route, f.canteen_subscribed,
+                s.id AS student_exists, s.deleted AS student_deleted,
+                s.first_name, s.last_name, s.registration_number, s.class AS student_class,
+                (SELECT COUNT(*) FROM student_payments p WHERE p.student_id = f.student_id AND p.deleted = 0) AS active_pmt_count,
+                (SELECT COALESCE(SUM(p.amount), 0) FROM student_payments p WHERE p.student_id = f.student_id AND p.deleted = 0) AS active_pmt_total
+         FROM student_fees f
          LEFT JOIN students s ON s.id = f.student_id
-         WHERE f.deleted = 0 AND (s.id IS NULL OR s.deleted = 1)`
+         WHERE f.deleted = 0 AND (s.id IS NULL OR s.deleted = 1)
+         ORDER BY active_pmt_count DESC, f.school_year DESC`
       )
-      .get() as { c: number }
-    if ((orphanFees?.c || 0) > 0) {
+      .all() as Array<{
+      id: string
+      student_id: string
+      school_year: string
+      class_name: string | null
+      monthly_tuition: number | null
+      bus_subscribed: number | null
+      bus_route: string | null
+      canteen_subscribed: number | null
+      student_exists: string | null
+      student_deleted: number | null
+      first_name: string | null
+      last_name: string | null
+      registration_number: string | null
+      student_class: string | null
+      active_pmt_count: number
+      active_pmt_total: number
+    }>
+    for (const fRow of orphanFeeRows) {
+      const studentName =
+        `${fRow.last_name || ''} ${fRow.first_name || ''}`.trim() ||
+        `Élève introuvable (${fRow.student_id.slice(0, 8)})`
+      const studentDeleted = Boolean(fRow.student_exists && fRow.student_deleted === 1)
+      const cleanSy = String(fRow.school_year || '').replace(/['"]/g, '').trim()
+      const hasActivePmts = (fRow.active_pmt_count || 0) > 0
+      const isSafeAutoArchive = studentDeleted && !hasActivePmts
+
       findings.push({
-        id: 'orphan_fees',
+        id: `orphan_fee:${fRow.id}`,
         category: 'orphan_fee',
-        classification: 'decision',
-        severity: 'low',
-        title: `Fiches de frais orphelines : ${orphanFees.c}`,
-        detail: `${orphanFees.c} fiche(s) de frais active(s) rattachée(s) à un élève supprimé ou introuvable.`,
-        recommendation: `Examiner dans la Traçabilité : rattacher à un élève existant ou archiver si la suppression était volontaire. Aucune action automatique.`,
-        action: 'review_only',
-        params: {},
-        affectedCount: orphanFees.c,
-        evidence: { count: orphanFees.c }
+        classification: isSafeAutoArchive ? 'auto' : 'decision',
+        severity: hasActivePmts ? 'medium' : 'low',
+        title: `Fiche de frais orpheline — ${studentName} (${cleanSy || 'N/A'})`,
+        detail: `Fiche active (${fRow.class_name || fRow.student_class || 'Sans classe'}, écolage ${(fRow.monthly_tuition || 0).toLocaleString('fr-FR')} Ar) rattachée à un élève ${studentDeleted ? 'supprimé (deleted=1)' : 'introuvable'}. ${hasActivePmts ? `${fRow.active_pmt_count} paiement(s) actif(s) (${(fRow.active_pmt_total || 0).toLocaleString('fr-FR')} Ar) encore liés.` : 'Aucun paiement actif.'}`,
+        recommendation: isSafeAutoArchive
+          ? `L'élève est supprimé et n'a aucun paiement actif : archiver cette fiche de frais orpheline (réversible et propagé).`
+          : studentDeleted
+            ? `Cet élève supprimé a encore ${fRow.active_pmt_count} paiement(s) actif(s) : restaurer sa fiche s'il s'agissait d'une erreur, rattacher à un autre élève, ou archiver la fiche.`
+            : `Élève introuvable : rattacher cette fiche à un élève actif ou l'archiver si c'est un résidu.`,
+        action: 'resolve_orphan_fee',
+        params: isSafeAutoArchive
+          ? {
+              feeId: fRow.id,
+              studentId: fRow.student_id,
+              decision: 'archive',
+              reason: 'Élève supprimé sans paiement actif'
+            }
+          : { feeId: fRow.id, studentId: fRow.student_id },
+        affectedCount: 1,
+        amountImpact: fRow.active_pmt_total || undefined,
+        evidence: {
+          feeId: fRow.id,
+          studentId: fRow.student_id,
+          studentName,
+          studentDeleted,
+          studentMatricule: fRow.registration_number || '',
+          schoolYear: cleanSy,
+          className: fRow.class_name || fRow.student_class || '',
+          monthlyTuition: Number(fRow.monthly_tuition || 0),
+          busSubscribed: Boolean(fRow.bus_subscribed),
+          busRoute: fRow.bus_route || '',
+          canteenSubscribed: Boolean(fRow.canteen_subscribed),
+          activePaymentsCount: fRow.active_pmt_count || 0,
+          activePaymentsTotal: fRow.active_pmt_total || 0
+        }
       })
     }
   } catch (e) {
     console.warn('[Remediation] fee duplicate scan failed:', e)
   }
 
-  // --- K. Souscriptions bus/cantine incohérentes (classe H) — informationnel ---
+  // --- K. Souscriptions bus/cantine incohérentes (classe H) — avec affectation groupée ---
   try {
-    const bus = db
+    const rawPrices = SettingsRepository.get('finance_prices')
+    const pricesObj =
+      typeof rawPrices === 'string'
+        ? (JSON.parse(rawPrices) as Record<string, any>)
+        : ((rawPrices || {}) as Record<string, any>)
+    const busPrices: Record<string, number> = (pricesObj?.bus || {}) as Record<string, number>
+    const canteenDailyDefault = Number(pricesObj?.canteen?.daily || 0)
+    const canteenMonthlyDefault = Number(pricesObj?.canteen?.monthly || 0)
+    const routesList = Object.entries(busPrices)
+      .filter(([, p]) => Number(p) > 0)
+      .map(([name, price]) => ({ name, price: Number(price) }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+
+    const busSubscribers = db
       .prepare(
-        `SELECT COUNT(*) AS c FROM student_fees f
+        `SELECT f.id AS fee_id, f.student_id, f.school_year, f.class_name,
+                f.bus_route, f.bus_monthly_fee, f.bus_free,
+                s.first_name, s.last_name, s.class AS student_class, s.registration_number,
+                (SELECT COUNT(*) FROM student_payments p WHERE p.student_id = f.student_id AND p.payment_type = 'bus' AND p.deleted = 0) AS bus_pmts
+         FROM student_fees f
          JOIN students s ON s.id = f.student_id AND s.deleted = 0
-         WHERE f.deleted = 0 AND f.bus_subscribed = 1
-           AND (f.bus_route IS NULL OR f.bus_route = '' OR f.bus_monthly_fee <= 0)`
+         WHERE f.deleted = 0 AND f.bus_subscribed = 1 AND (f.bus_free IS NULL OR f.bus_free = 0)
+           AND (s.departure_date IS NULL OR TRIM(s.departure_date) = '')`
       )
-      .get() as { c: number }
-    const cant = db
+      .all() as Array<{
+      fee_id: string
+      student_id: string
+      school_year: string
+      class_name: string | null
+      bus_route: string | null
+      bus_monthly_fee: number | null
+      bus_free: number | null
+      first_name: string
+      last_name: string
+      student_class: string | null
+      registration_number: string | null
+      bus_pmts: number
+    }>
+
+    const badBus = busSubscribers.filter((r) => {
+      const customFee = Number(r.bus_monthly_fee || 0)
+      if (customFee > 0) return false
+      const route = (r.bus_route || '').trim()
+      if (route === 'variable') return false
+      if (route && Number(busPrices[route] || 0) > 0) return false
+      return true
+    })
+
+    const canteenSubscribers = db
       .prepare(
-        `SELECT COUNT(*) AS c FROM student_fees f
+        `SELECT f.id AS fee_id, f.student_id, f.school_year, f.class_name, f.canteen_daily_rate,
+                s.first_name, s.last_name, s.class AS student_class, s.registration_number
+         FROM student_fees f
          JOIN students s ON s.id = f.student_id AND s.deleted = 0
-         WHERE f.deleted = 0 AND f.canteen_subscribed = 1 AND f.canteen_daily_rate <= 0`
+         WHERE f.deleted = 0 AND f.canteen_subscribed = 1
+           AND (f.canteen_daily_rate IS NULL OR f.canteen_daily_rate <= 0)
+           AND (s.departure_date IS NULL OR TRIM(s.departure_date) = '')`
       )
-      .get() as { c: number }
-    if ((bus?.c || 0) + (cant?.c || 0) > 0) {
+      .all() as Array<{
+      fee_id: string
+      student_id: string
+      school_year: string
+      class_name: string | null
+      canteen_daily_rate: number | null
+      first_name: string
+      last_name: string
+      student_class: string | null
+      registration_number: string | null
+    }>
+
+    // Si finance_prices.canteen est configuré (daily > 0 ou monthly > 0), canteen_daily_rate = 0 utilise le tarif global (normal).
+    const badCanteen =
+      canteenDailyDefault > 0 || canteenMonthlyDefault > 0 ? [] : canteenSubscribers
+
+    if (badBus.length > 0) {
       findings.push({
-        id: 'subscription_incoherence',
+        id: 'subscription_incoherence:bus',
         category: 'subscription_incoherence',
         classification: 'decision',
         severity: 'low',
-        title: `Souscriptions incohérentes : ${bus?.c || 0} bus, ${cant?.c || 0} cantine`,
-        detail: `Des élèves sont marqués abonnés bus sans axe/tarif renseigné, ou abonnés cantine sans tarif journalier. Cela peut fausser les alertes d'impayés.`,
-        recommendation: `Vérifier la fiche de frais de chaque élève (axe de transport, tarif). Respecter les axes personnalisés et les tombstones existants. Aucune modification automatique.`,
-        action: 'review_only',
-        params: {},
-        affectedCount: (bus?.c || 0) + (cant?.c || 0),
-        evidence: { bus: bus?.c || 0, canteen: cant?.c || 0 }
+        title: `Abonnés bus sans axe/tarif valide (${badBus.length} élève${badBus.length > 1 ? 's' : ''})`,
+        detail: `${badBus.length} élève(s) actif(s) sont abonnés au transport scolaire sans axe reconnu dans la grille tarifaire et sans tarif spécial/gratuité.`,
+        recommendation: `Sélectionnez un ou plusieurs élèves ci-dessous pour leur assigner une ligne de bus existante, les marquer « variable » (tarif libre selon le mois), accorder une gratuité ou les désabonner du bus.`,
+        action: 'resolve_subscription_incoherence',
+        params: { kind: 'bus', feeIds: badBus.map((r) => r.fee_id) },
+        affectedCount: badBus.length,
+        evidence: {
+          kind: 'bus',
+          routes: routesList,
+          lines: badBus.map((r) => ({
+            feeId: r.fee_id,
+            studentId: r.student_id,
+            studentName: `${r.last_name || ''} ${r.first_name || ''}`.trim(),
+            className: r.class_name || r.student_class || '',
+            registrationNumber: r.registration_number || '',
+            schoolYear: String(r.school_year || '').replace(/['"]/g, '').trim(),
+            currentRoute: (r.bus_route || '').trim(),
+            currentFee: Number(r.bus_monthly_fee || 0),
+            busPaymentsCount: r.bus_pmts || 0
+          }))
+        }
+      })
+    }
+
+    if (badCanteen.length > 0) {
+      findings.push({
+        id: 'subscription_incoherence:canteen',
+        category: 'subscription_incoherence',
+        classification: 'decision',
+        severity: 'low',
+        title: `Abonnés cantine sans tarif configuré (${badCanteen.length} élève${badCanteen.length > 1 ? 's' : ''})`,
+        detail: `${badCanteen.length} élève(s) sont inscrits à la cantine mais ni la fiche ni les paramètres globaux n'ont de tarif journalier/mensuel.`,
+        recommendation: `Renseignez un tarif journalier ou désabonnez les élèves concernés.`,
+        action: 'resolve_subscription_incoherence',
+        params: { kind: 'canteen', feeIds: badCanteen.map((r) => r.fee_id) },
+        affectedCount: badCanteen.length,
+        evidence: {
+          kind: 'canteen',
+          lines: badCanteen.map((r) => ({
+            feeId: r.fee_id,
+            studentId: r.student_id,
+            studentName: `${r.last_name || ''} ${r.first_name || ''}`.trim(),
+            className: r.class_name || r.student_class || '',
+            registrationNumber: r.registration_number || '',
+            schoolYear: String(r.school_year || '').replace(/['"]/g, '').trim(),
+            currentRate: Number(r.canteen_daily_rate || 0)
+          }))
+        }
       })
     }
   } catch (e) {
@@ -1213,6 +1419,7 @@ export async function scanStationInconsistencies(): Promise<RemediationScanResul
         studentName: string
         className: string
         registrationNumber: string
+        allAuto: boolean
         items: Array<{
           id: string
           paymentType: string
@@ -1224,6 +1431,7 @@ export async function scanStationInconsistencies(): Promise<RemediationScanResul
           paymentDate: string
           receiptNumber: string
           reason: string
+          isAuto: boolean
         }>
       }
     >()
@@ -1235,18 +1443,22 @@ export async function scanStationInconsistencies(): Promise<RemediationScanResul
       const pDate = String(p.payment_date || '').slice(0, 10)
       let issueReason: string | null = null
 
+      let isFutureYearAuto = false
       if (yearStart && yearEnd) {
         if (cleanSy && cleanSy > year) {
           issueReason = `Année scolaire future (${cleanSy} au lieu de ${year})`
+          isFutureYearAuto = true
         } else if (cleanSy && cleanSy < year && pDate >= `${yearStart}-07-01`) {
           issueReason = `Année scolaire antérieure (${cleanSy}) pour un encaissement du ${pDate}`
         } else if (!cleanSy) {
           issueReason = 'Année scolaire manquante'
+          isFutureYearAuto = true
         } else if (p.payment_type === 'tuition') {
           if (!p.month || !monthPattern.test(p.month)) {
             issueReason = `Mois d'écolage invalide (${p.month || 'vide'})`
           } else if (!p.month.startsWith(`${yearStart}-`) && !p.month.startsWith(`${yearEnd}-`)) {
             issueReason = `Mois (${p.month}) hors de l'année scolaire ${year}`
+            isFutureYearAuto = true
           }
         }
       }
@@ -1270,10 +1482,12 @@ export async function scanStationInconsistencies(): Promise<RemediationScanResul
           studentName: `${p.last_name || ''} ${p.first_name || ''}`.trim(),
           className: p.class || '',
           registrationNumber: p.registration_number || '',
+          allAuto: isFutureYearAuto,
           items: []
         }
         byStudentWrongYear.set(p.student_id, group)
       }
+      if (!isFutureYearAuto) group.allAuto = false
       group.items.push({
         id: p.id,
         paymentType: p.payment_type,
@@ -1284,7 +1498,8 @@ export async function scanStationInconsistencies(): Promise<RemediationScanResul
         amount: Number(p.amount || 0),
         paymentDate: pDate,
         receiptNumber: p.receipt_number || '',
-        reason: issueReason
+        reason: issueReason,
+        isAuto: isFutureYearAuto
       })
     }
 
@@ -1293,15 +1508,18 @@ export async function scanStationInconsistencies(): Promise<RemediationScanResul
       findings.push({
         id: `wrong_school_year:${studentId}`,
         category: 'wrong_school_year',
-        classification: 'decision',
+        classification: grp.allAuto ? 'auto' : 'decision',
         severity: 'high',
         title: `Année scolaire / mois décalé — ${grp.studentName} (${grp.className || 'Sans classe'})`,
         detail: `${grp.items.length} paiement(s) (${totalAmt.toLocaleString('fr-FR')} Ar) sont enregistrés sur une autre année scolaire que ${year} (ex. ${grp.items[0].currentYear}${grp.items[0].currentMonth ? ` / ${grp.items[0].currentMonth}` : ''}). Cela empêche les mois d'apparaître cochés dans la fiche élève.`,
-        recommendation: `Vérifier les dates d'encaissement et choisir « Réaligner sur ${year} » pour corriger l'année scolaire et le mois, ou « Conserver tel quel » s'il s'agit d'une archive / avance volontaire.`,
+        recommendation: grp.allAuto
+          ? `Année future ou mois hors exercice évident : réaligner automatiquement sur ${year} pour cocher les mois et supprimer les faux impayés.`
+          : `Vérifier les dates d'encaissement et choisir « Réaligner sur ${year} » pour corriger l'année scolaire et le mois, ou « Conserver tel quel » s'il s'agit d'une archive / avance volontaire.`,
         action: 'realign_payment_school_year',
         params: {
           studentId,
           targetSchoolYear: year,
+          ...(grp.allAuto ? { decision: 'realign' } : {}),
           paymentIds: grp.items.map((it) => it.id),
           adjustments: grp.items.map((it) => ({
             id: it.id,
@@ -2305,6 +2523,232 @@ export async function applyRemediation(
         }
 
         return { success: false, error: 'Décision attendue : push_local, keep_cloud ou review.' }
+      }
+
+      // --- Fiches de frais orphelines (classe G) : archiver, rattacher ou restaurer l'élève ---
+      case 'resolve_orphan_fee': {
+        const feeId = String(params.feeId || '')
+        const decision = String(params.decision || '')
+        if (!feeId) return { success: false, error: 'Fiche de frais introuvable.' }
+        const fee = db
+          .prepare('SELECT * FROM student_fees WHERE id = ? AND deleted = 0')
+          .get(feeId) as Record<string, any> | undefined
+        if (!fee) return { success: false, error: 'Fiche de frais introuvable ou déjà archivée.' }
+
+        if (decision === 'archive') {
+          const reason = String(params.reason || 'Archivage fiche de frais orpheline').trim()
+          db.transaction(() => {
+            db.prepare(
+              "UPDATE student_fees SET deleted = 1, sync_status = 'pending', updated_at = ? WHERE id = ?"
+            ).run(nowIso, feeId)
+            addToSyncQueue('student_fees', feeId, 'delete', {
+              id: feeId,
+              deleted: true,
+              updated_at: nowIso
+            })
+          })()
+          trace(
+            `remediation:orphan_fee_archive:${feeId}`,
+            { student_id: fee.student_id, school_year: fee.school_year },
+            { reason, archivedAt: nowIso },
+            user
+          )
+          syncWithCloud().catch((e) => console.error('[Remediation] sync after orphan fee archive:', e))
+          return { success: true, message: 'Fiche de frais orpheline archivée et propagée au Cloud.' }
+        }
+
+        if (decision === 'reassign') {
+          const targetStudentId = String(params.targetStudentId || '')
+          if (!targetStudentId || targetStudentId === fee.student_id) {
+            return { success: false, error: 'Sélectionnez un élève cible actif valide.' }
+          }
+          const target = db
+            .prepare('SELECT id FROM students WHERE id = ? AND deleted = 0')
+            .get(targetStudentId) as { id: string } | undefined
+          if (!target) return { success: false, error: "L'élève cible doit être actif." }
+
+          const duplicateTarget = db
+            .prepare(
+              `SELECT id FROM student_fees WHERE deleted = 0 AND student_id = ?
+               AND REPLACE(REPLACE(school_year, '"', ''), '''', '') = REPLACE(REPLACE(?, '"', ''), '''', '')`
+            )
+            .get(targetStudentId, fee.school_year) as { id: string } | undefined
+          if (duplicateTarget) {
+            return {
+              success: false,
+              error: `L'élève cible possède déjà une fiche de frais active pour ${fee.school_year}. Archivez plutôt la fiche orpheline.`
+            }
+          }
+
+          db.transaction(() => {
+            db.prepare(
+              "UPDATE student_fees SET student_id = ?, sync_status = 'pending', updated_at = ? WHERE id = ?"
+            ).run(targetStudentId, nowIso, feeId)
+            const updated = db.prepare('SELECT * FROM student_fees WHERE id = ?').get(feeId)
+            addToSyncQueue('student_fees', feeId, 'update', updated)
+          })()
+          trace(
+            `remediation:orphan_fee_reassign:${feeId}`,
+            { student_id: fee.student_id },
+            { targetStudentId, reassignedAt: nowIso },
+            user
+          )
+          syncWithCloud().catch((e) => console.error('[Remediation] sync after orphan fee reassign:', e))
+          return { success: true, message: "Fiche de frais rattachée à l'élève sélectionné et propagée." }
+        }
+
+        return { success: false, error: 'Décision attendue : archive ou reassign.' }
+      }
+
+      // --- Souscriptions bus / cantine incohérentes (classe H) : affectation groupée ou unitaire ---
+      case 'resolve_subscription_incoherence': {
+        const mode = String(params.mode || '')
+        const feeIds = Array.isArray(params.feeIds)
+          ? params.feeIds.map(String).filter(Boolean)
+          : params.feeId
+            ? [String(params.feeId)]
+            : []
+        if (feeIds.length === 0) {
+          return { success: false, error: 'Aucune fiche sélectionnée.' }
+        }
+
+        let updatedCount = 0
+        const beforeSnap: Array<Record<string, unknown>> = []
+
+        if (mode === 'set_route' || mode === 'set_variable') {
+          const busRoute = mode === 'set_variable' ? 'variable' : String(params.busRoute || '').trim()
+          if (!busRoute) return { success: false, error: 'Veuillez choisir une ligne de bus.' }
+          const customFee = Math.max(0, Number(params.customFee || 0) || 0)
+          db.transaction(() => {
+            for (const fid of feeIds) {
+              const row = db
+                .prepare('SELECT id, bus_route, bus_monthly_fee, bus_free FROM student_fees WHERE id = ? AND deleted = 0')
+                .get(fid) as Record<string, unknown> | undefined
+              if (!row) continue
+              beforeSnap.push(row)
+              db.prepare(
+                `UPDATE student_fees
+                 SET bus_subscribed = 1, bus_free = 0, bus_route = ?, bus_monthly_fee = ?,
+                     sync_status = 'pending', updated_at = ?
+                 WHERE id = ?`
+              ).run(busRoute, customFee, nowIso, fid)
+              const updated = db.prepare('SELECT * FROM student_fees WHERE id = ?').get(fid)
+              addToSyncQueue('student_fees', fid, 'update', updated)
+              updatedCount++
+            }
+          })()
+          trace(
+            `remediation:subscription_bus:${mode}`,
+            beforeSnap,
+            { feeIds, busRoute, customFee, at: nowIso },
+            user
+          )
+          syncWithCloud().catch((e) => console.error('[Remediation] sync after bus route update:', e))
+          return {
+            success: true,
+            message: `${updatedCount} fiche(s) mise(s) à jour : ligne « ${busRoute} »${customFee > 0 ? ` (${customFee.toLocaleString('fr-FR')} Ar)` : ''}.`
+          }
+        }
+
+        if (mode === 'set_free') {
+          db.transaction(() => {
+            for (const fid of feeIds) {
+              const row = db
+                .prepare('SELECT id, bus_route, bus_monthly_fee, bus_free FROM student_fees WHERE id = ? AND deleted = 0')
+                .get(fid) as Record<string, unknown> | undefined
+              if (!row) continue
+              beforeSnap.push(row)
+              db.prepare(
+                `UPDATE student_fees
+                 SET bus_subscribed = 1, bus_free = 1, bus_monthly_fee = 0,
+                     sync_status = 'pending', updated_at = ?
+                 WHERE id = ?`
+              ).run(nowIso, fid)
+              const updated = db.prepare('SELECT * FROM student_fees WHERE id = ?').get(fid)
+              addToSyncQueue('student_fees', fid, 'update', updated)
+              updatedCount++
+            }
+          })()
+          trace(`remediation:subscription_bus:free`, beforeSnap, { feeIds, at: nowIso }, user)
+          syncWithCloud().catch((e) => console.error('[Remediation] sync after bus free update:', e))
+          return { success: true, message: `${updatedCount} élève(s) passé(s) en gratuité transport.` }
+        }
+
+        if (mode === 'unsubscribe_bus') {
+          db.transaction(() => {
+            for (const fid of feeIds) {
+              const row = db
+                .prepare('SELECT id, bus_subscribed, bus_route, bus_monthly_fee FROM student_fees WHERE id = ? AND deleted = 0')
+                .get(fid) as Record<string, unknown> | undefined
+              if (!row) continue
+              beforeSnap.push(row)
+              db.prepare(
+                `UPDATE student_fees
+                 SET bus_subscribed = 0, bus_free = 0, bus_route = NULL, bus_monthly_fee = 0,
+                     sync_status = 'pending', updated_at = ?
+                 WHERE id = ?`
+              ).run(nowIso, fid)
+              const updated = db.prepare('SELECT * FROM student_fees WHERE id = ?').get(fid)
+              addToSyncQueue('student_fees', fid, 'update', updated)
+              updatedCount++
+            }
+          })()
+          trace(`remediation:subscription_bus:unsubscribe`, beforeSnap, { feeIds, at: nowIso }, user)
+          syncWithCloud().catch((e) => console.error('[Remediation] sync after bus unsubscribe:', e))
+          return { success: true, message: `${updatedCount} élève(s) désabonné(s) du transport.` }
+        }
+
+        if (mode === 'set_canteen_rate') {
+          const dailyRate = Math.max(0, Number(params.canteenDailyRate || 0) || 0)
+          if (dailyRate <= 0) return { success: false, error: 'Saisissez un tarif journalier > 0 Ar.' }
+          db.transaction(() => {
+            for (const fid of feeIds) {
+              const row = db
+                .prepare('SELECT id, canteen_subscribed, canteen_daily_rate FROM student_fees WHERE id = ? AND deleted = 0')
+                .get(fid) as Record<string, unknown> | undefined
+              if (!row) continue
+              beforeSnap.push(row)
+              db.prepare(
+                `UPDATE student_fees
+                 SET canteen_subscribed = 1, canteen_daily_rate = ?,
+                     sync_status = 'pending', updated_at = ?
+                 WHERE id = ?`
+              ).run(dailyRate, nowIso, fid)
+              const updated = db.prepare('SELECT * FROM student_fees WHERE id = ?').get(fid)
+              addToSyncQueue('student_fees', fid, 'update', updated)
+              updatedCount++
+            }
+          })()
+          trace(`remediation:subscription_canteen:rate`, beforeSnap, { feeIds, dailyRate, at: nowIso }, user)
+          syncWithCloud().catch((e) => console.error('[Remediation] sync after canteen rate update:', e))
+          return { success: true, message: `${updatedCount} fiche(s) cantine mise(s) à jour (${dailyRate.toLocaleString('fr-FR')} Ar/jour).` }
+        }
+
+        if (mode === 'unsubscribe_canteen') {
+          db.transaction(() => {
+            for (const fid of feeIds) {
+              const row = db
+                .prepare('SELECT id, canteen_subscribed, canteen_daily_rate FROM student_fees WHERE id = ? AND deleted = 0')
+                .get(fid) as Record<string, unknown> | undefined
+              if (!row) continue
+              beforeSnap.push(row)
+              db.prepare(
+                `UPDATE student_fees
+                 SET canteen_subscribed = 0, canteen_daily_rate = 0,
+                     sync_status = 'pending', updated_at = ?
+                 WHERE id = ?`
+              ).run(nowIso, fid)
+              const updated = db.prepare('SELECT * FROM student_fees WHERE id = ?').get(fid)
+              addToSyncQueue('student_fees', fid, 'update', updated)
+              updatedCount++
+            }
+          })()
+          trace(`remediation:subscription_canteen:unsubscribe`, beforeSnap, { feeIds, at: nowIso }, user)
+          syncWithCloud().catch((e) => console.error('[Remediation] sync after canteen unsubscribe:', e))
+          return { success: true, message: `${updatedCount} élève(s) désabonné(s) de la cantine.` }
+        }
+
+        return { success: false, error: `Mode d'abonnement inconnu : ${mode}` }
       }
 
       // --- Simple marquage consulté (aucune modification de donnée) ---

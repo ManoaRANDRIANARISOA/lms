@@ -69,8 +69,8 @@ const categoryMeta: Record<string, { label: string; guidance: string; order: num
   fee_misalignment: { label: 'Écarts tarifaires', guidance: 'Fiche vs grille centralisée. Conserver si tarif négocié, sinon appliquer la grille. Décision par élève.', order: 7 },
   receipt_compliance: { label: 'Conformité des reçus', guidance: 'Reçus manquants, hors norme ou année incohérente. Examiner au cas par cas ; un reçu remis est un document légal.', order: 8 },
   abnormal_amount: { label: 'Montants anormaux', guidance: 'Montants négatifs ou nuls hors remise. Contrôler dans la Traçabilité.', order: 9 },
-  orphan_fee: { label: 'Fiches de frais orphelines', guidance: 'Fiches rattachées à un élève supprimé. Examiner avant toute action.', order: 10 },
-  subscription_incoherence: { label: 'Souscriptions incohérentes', guidance: 'Abonnés bus/cantine sans axe ou tarif. Vérifier la fiche de frais.', order: 11 },
+  orphan_fee: { label: 'Fiches de frais orphelines', guidance: 'Fiches actives rattachées à un élève supprimé ou introuvable. Restaurer l\'élève, rattacher à un élève actif ou archiver.' , order: 10 },
+  subscription_incoherence: { label: 'Souscriptions incohérentes', guidance: 'Abonnés bus sans axe/tarif valide (ou cantine sans tarif). Affecter une ligne, marquer « variable », gratuité ou désabonner (individuellement ou en lot).', order: 11 },
   creator_identity: { label: 'Identités créateur dupliquées', guidance: 'Comptes désignant la même personne (cause racine des collisions). Normalisation via migration tracée, hors assistant.', order: 12 },
   duplicate_closure: { label: 'Clôtures dupliquées', guidance: 'Plusieurs clôtures même poste/jour/compte. Examiner dans le module Caisse.', order: 13 },
   missing_closure: { label: 'Journées sans clôture', guidance: 'Paiements sans clôture de caisse. Vérifier le processus journalier.', order: 14 },
@@ -104,6 +104,10 @@ export const DataConsistencyAssistant: React.FC = () => {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [bypassZ, setBypassZ] = useState(false)
   const [epPreview, setEpPreview] = useState<Record<string, { safeCount: number; reviewCount: number; rows: Array<Record<string, any>> }>>({})
+  const [subSelected, setSubSelected] = useState<Record<string, Record<string, boolean>>>({})
+  const [subRouteChoice, setSubRouteChoice] = useState<Record<string, string>>({})
+  const [subCustomFee, setSubCustomFee] = useState<Record<string, string>>({})
+  const [subCanteenRate, setSubCanteenRate] = useState<Record<string, string>>({})
 
   const runScan = useCallback(async () => {
     if (!window.api?.sync?.scanInconsistencies) return
@@ -449,6 +453,27 @@ export const DataConsistencyAssistant: React.FC = () => {
                     </Button>
                   )}
                 </div>
+                {f.action === 'realign_payment_school_year' && Array.isArray(f.evidence?.lines) && (
+                  <div className="mt-2 border border-emerald-200 rounded bg-white divide-y divide-gray-100 max-h-36 overflow-y-auto">
+                    {(f.evidence.lines as Array<Record<string, any>>).map((l) => (
+                      <div key={l.id} className="p-1.5 text-[11px] flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <span className="font-semibold text-gray-800">{l.paymentType}</span>
+                          <span className="text-gray-500"> · {(l.amount || 0).toLocaleString('fr-FR')} Ar · {l.paymentDate}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 font-mono text-[10px]">
+                          <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-800">
+                            {l.currentYear}{l.currentMonth ? ` (${l.currentMonth})` : ''}
+                          </span>
+                          <span>→</span>
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                            {l.proposedYear}{l.proposedMonth ? ` (${l.proposedMonth})` : ''}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {f.action === 'reconcile_blocked_event_payments' && (() => {
                   const preview = epPreview[f.id]
                   const lines = (preview?.rows || (f.evidence?.lines as Array<Record<string, any>>) || [])
@@ -616,7 +641,7 @@ export const DataConsistencyAssistant: React.FC = () => {
                     </span>
                   )}
 
-                  {['resolve_duplicate_candidate', 'resolve_receipt_collision', 'resolve_orphan_journal', 'resolve_duplicate_fee'].includes(f.action) && (
+                  {['resolve_duplicate_candidate', 'resolve_receipt_collision', 'resolve_orphan_journal', 'resolve_duplicate_fee', 'resolve_orphan_fee'].includes(f.action) && (
                     <button
                       onClick={() => navigate('/finance/tracabilite')}
                       className="text-[10px] text-indigo-600 hover:underline flex items-center gap-1 w-fit"
@@ -1012,44 +1037,432 @@ export const DataConsistencyAssistant: React.FC = () => {
                     )
                   })()}
 
-                  {/* Journal orphelin (classe D) : archiver avec motif ou consulter */}
-                  {f.action === 'resolve_orphan_journal' && (
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      <Input
-                        placeholder="Motif d'archivage (audit)..."
-                        value={archiveReason[f.id] || ''}
-                        onChange={(e) => setArchiveReason((p) => ({ ...p, [f.id]: e.target.value }))}
-                        className="text-xs h-7 bg-white flex-1 min-w-[180px]"
-                      />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={!(archiveReason[f.id] || '').trim() || processingId === f.id}
-                        onClick={async () => {
-                          const ok = await confirmDialog({
-                            title: 'Archiver écriture orpheline',
-                            message: 'Archiver cette écriture de caisse orpheline ? Soft-delete tracé et propagé.',
-                            confirmText: 'Archiver',
-                            variant: 'danger'
-                          })
-                          if (!ok) return
-                          apply(f, 'resolve_orphan_journal', { ...f.params, decision: 'archive', reason: (archiveReason[f.id] || '').trim() }, 'Écriture archivée.')
-                        }}
-                        className="text-xs h-7 text-rose-600 border-rose-300 hover:bg-rose-50"
-                      >
-                        <Trash2 className="w-3.5 h-3.5 mr-1" /> Archiver
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={processingId === f.id}
-                        onClick={() => apply(f, 'resolve_orphan_journal', { ...f.params, decision: 'review' }, 'Constat marqué consulté.')}
-                        className="text-xs h-7 text-gray-600"
-                      >
-                        Marquer consulté
-                      </Button>
-                    </div>
-                  )}
+                  {/* Journal orphelin (classe D) : détails complets + archiver avec motif pré-rempli ou consulter */}
+                  {f.action === 'resolve_orphan_journal' && (() => {
+                    const ev = (f.evidence || {}) as Record<string, any>
+                    const effectiveReason = archiveReason[f.id] ?? String(f.params?.suggestedReason || '')
+                    return (
+                      <div className="space-y-2 pt-1">
+                        <div className="border border-gray-200 rounded bg-white p-2.5 text-[11px] space-y-1">
+                          <div className="flex flex-wrap gap-x-4 gap-y-1">
+                            <span>
+                              <b className="text-gray-700">Élève rattaché :</b>{' '}
+                              <span className="text-gray-900 font-medium">{ev.studentName || 'Non renseigné'}</span>
+                              {ev.studentClass ? <span className="text-gray-500"> ({ev.studentClass})</span> : null}
+                              {ev.studentMatricule ? <span className="font-mono text-[10px] text-gray-400"> · {ev.studentMatricule}</span> : null}
+                            </span>
+                            <span>
+                              <b className="text-gray-700">Date / Caissier :</b>{' '}
+                              <span>{ev.date} · {ev.createdBy || 'inconnu'}</span>
+                            </span>
+                            {ev.receipt ? (
+                              <span>
+                                <b className="text-gray-700">Reçu :</b>{' '}
+                                <span className="font-mono">{ev.receipt}</span>
+                              </span>
+                            ) : null}
+                          </div>
+                          <div>
+                            <b className="text-gray-700">Libellé / Motif caisse :</b>{' '}
+                            <span className="text-gray-800">{ev.description || 'Aucun libellé'}</span>
+                            {ev.category ? <span className="text-gray-500"> ({ev.category}{ev.paymentMethod ? ` · ${ev.paymentMethod}` : ''})</span> : null}
+                          </div>
+                          <div>
+                            <b className="text-gray-700">Origine du blocage :</b>{' '}
+                            <span className={ev.parentDeleted ? 'text-amber-800 font-medium' : 'text-rose-700 font-medium'}>
+                              {ev.causeLabel || `Paiement lié absent (${ev.relatedPaymentId || ''})`}
+                            </span>
+                          </div>
+                          <div className="text-emerald-800">
+                            <b>Action recommandée :</b> {ev.recommendedAction || f.recommendation}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Input
+                            placeholder="Motif d'archivage (audit)..."
+                            value={effectiveReason}
+                            onChange={(e) => setArchiveReason((p) => ({ ...p, [f.id]: e.target.value }))}
+                            className="text-xs h-7 bg-white flex-1 min-w-[220px]"
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!effectiveReason.trim() || processingId === f.id}
+                            onClick={async () => {
+                              const ok = await confirmDialog({
+                                title: 'Archiver écriture orpheline',
+                                message: `Archiver cette écriture de caisse orpheline ?\n\nMotif : ${effectiveReason.trim()}\nSoft-delete tracé et propagé.`,
+                                confirmText: 'Archiver',
+                                variant: 'danger'
+                              })
+                              if (!ok) return
+                              apply(f, 'resolve_orphan_journal', { ...f.params, decision: 'archive', reason: effectiveReason.trim() }, 'Écriture archivée.')
+                            }}
+                            className="text-xs h-7 text-rose-600 border-rose-300 hover:bg-rose-50"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-1" /> Archiver
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={processingId === f.id}
+                            onClick={() => apply(f, 'resolve_orphan_journal', { ...f.params, decision: 'review' }, 'Constat marqué consulté.')}
+                            className="text-xs h-7 text-gray-600"
+                          >
+                            Marquer consulté
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Fiches de frais orphelines (classe G) : détails + restaurer élève, rattacher ou archiver */}
+                  {f.action === 'resolve_orphan_fee' && (() => {
+                    const ev = (f.evidence || {}) as Record<string, any>
+                    const hasPmts = Number(ev.activePaymentsCount || 0) > 0
+                    return (
+                      <div className="space-y-2 pt-1">
+                        <div className="border border-gray-200 rounded bg-white p-2.5 text-[11px] flex flex-wrap gap-x-4 gap-y-1">
+                          <span><b className="text-gray-700">Élève :</b> {ev.studentName}</span>
+                          {ev.studentMatricule ? <span><b className="text-gray-700">Matricule :</b> <span className="font-mono">{ev.studentMatricule}</span></span> : null}
+                          <span><b className="text-gray-700">Année :</b> {ev.schoolYear || 'N/A'}</span>
+                          <span><b className="text-gray-700">Classe :</b> {ev.className || 'N/A'}</span>
+                          <span><b className="text-gray-700">Écolage :</b> {Number(ev.monthlyTuition || 0).toLocaleString('fr-FR')} Ar</span>
+                          {ev.busSubscribed ? <span><b className="text-gray-700">Bus :</b> {ev.busRoute || 'Sans axe'}</span> : null}
+                          <span className={hasPmts ? 'text-rose-700 font-semibold' : 'text-gray-500'}>
+                            {ev.activePaymentsCount || 0} paiement(s) actif(s)
+                            {hasPmts ? ` (${Number(ev.activePaymentsTotal || 0).toLocaleString('fr-FR')} Ar)` : ''}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Search className="w-3.5 h-3.5 text-gray-400" />
+                          <Input
+                            placeholder="Rechercher un élève actif à qui rattacher cette fiche..."
+                            value={orphanSearch[f.id] || ''}
+                            onChange={(e) => searchStudents(f.id, e.target.value)}
+                            className="text-xs h-7 bg-white"
+                          />
+                        </div>
+                        {results.length > 0 && (
+                          <div className="border border-blue-200 rounded-md bg-white max-h-32 overflow-y-auto divide-y divide-blue-50">
+                            {results.map((s) => (
+                              <button
+                                key={s.id}
+                                onClick={() => setOrphanTarget((p) => ({ ...p, [f.id]: s.id }))}
+                                className={`w-full text-left p-2 text-xs flex justify-between items-center ${
+                                  target === s.id ? 'bg-blue-100 font-semibold text-blue-900' : 'hover:bg-blue-50/50 text-gray-700'
+                                }`}
+                              >
+                                <span>{s.last_name} {s.first_name} {s.class || s.class_name ? `(${s.class || s.class_name})` : ''}</span>
+                                <span className="text-[10px] text-gray-400 font-mono">{s.registration_number || s.id.slice(0, 8)}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {!!ev.studentDeleted && (
+                            <Button
+                              size="sm"
+                              disabled={processingId === f.id}
+                              onClick={async () => {
+                                const ok = await confirmDialog({
+                                  title: 'Restaurer la fiche élève',
+                                  message: `Restaurer l'élève supprimé « ${ev.studentName || ''} » ? Sa fiche redeviendra active avec ses ${ev.activePaymentsCount || 0} paiement(s).`
+                                })
+                                if (!ok) return
+                                apply(f, 'restore_student', { studentId: f.params.studentId, confirm: true }, 'Élève restauré.')
+                              }}
+                              className="text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            >
+                              <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Restaurer l'élève
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            disabled={!target || processingId === f.id}
+                            onClick={() =>
+                              apply(f, 'resolve_orphan_fee', { ...f.params, decision: 'reassign', targetStudentId: target }, 'Fiche rattachée à l\'élève choisi.')
+                            }
+                            className="text-xs h-7 bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <UserCheck className="w-3.5 h-3.5 mr-1" /> Rattacher
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={processingId === f.id}
+                            onClick={async () => {
+                              const ok = await confirmDialog({
+                                title: 'Archiver la fiche de frais orpheline',
+                                message: hasPmts
+                                  ? `Attention : cet élève supprimé a encore ${ev.activePaymentsCount} paiement(s) actif(s). Archiver quand même cette fiche de frais ? (Soft-delete réversible et propagé).`
+                                  : `Archiver cette fiche de frais orpheline pour ${ev.studentName || ''} (${ev.schoolYear || ''}) ?`,
+                                confirmText: 'Archiver',
+                                variant: 'danger'
+                              })
+                              if (!ok) return
+                              apply(
+                                f,
+                                'resolve_orphan_fee',
+                                { ...f.params, decision: 'archive', reason: `Archivage manuel assistant (${ev.schoolYear || ''})` },
+                                'Fiche de frais archivée.'
+                              )
+                            }}
+                            className="text-xs h-7 text-rose-600 border-rose-300 hover:bg-rose-50"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-1" /> Archiver la fiche
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Souscriptions incohérentes (bus / cantine) : regroupement + sélection multiple + ligne ou variable */}
+                  {f.action === 'resolve_subscription_incoherence' && (() => {
+                    const kind = String(f.evidence?.kind || 'bus')
+                    const lines = (f.evidence?.lines || []) as Array<Record<string, any>>
+                    const routes = (f.evidence?.routes || []) as Array<{ name: string; price: number }>
+                    const selectedMap = subSelected[f.id] || {}
+                    const selectedIds = lines.map((l) => l.feeId).filter((fid) => selectedMap[fid])
+                    const allSelected = lines.length > 0 && selectedIds.length === lines.length
+                    const bulkChoice = subRouteChoice[f.id] || ''
+                    const bulkCustom = subCustomFee[f.id] || ''
+                    const bulkRate = subCanteenRate[f.id] || ''
+
+                    const toggleAll = () => {
+                      if (allSelected) {
+                        setSubSelected((p) => ({ ...p, [f.id]: {} }))
+                      } else {
+                        const next: Record<string, boolean> = {}
+                        for (const l of lines) next[l.feeId] = true
+                        setSubSelected((p) => ({ ...p, [f.id]: next }))
+                      }
+                    }
+
+                    const runBusUpdate = async (feeIds: string[], choice: string, feeVal: string) => {
+                      if (feeIds.length === 0 || !choice) return
+                      const customFeeNum = Number(feeVal || 0) || 0
+                      if (choice === '__variable__') {
+                        await apply(
+                          f,
+                          'resolve_subscription_incoherence',
+                          { mode: 'set_variable', feeIds, customFee: customFeeNum },
+                          `${feeIds.length} fiche(s) marquée(s) en tarif variable.`
+                        )
+                      } else if (choice === '__free__') {
+                        await apply(
+                          f,
+                          'resolve_subscription_incoherence',
+                          { mode: 'set_free', feeIds },
+                          `${feeIds.length} élève(s) passé(s) en gratuité transport.`
+                        )
+                      } else if (choice === '__unsubscribe__') {
+                        const ok = await confirmDialog({
+                          title: 'Désabonner du transport',
+                          message: `Désabonner ${feeIds.length} élève(s) du bus ? Ils ne recevront plus d'alerte d'impayé transport.`,
+                          confirmText: 'Désabonner'
+                        })
+                        if (!ok) return
+                        await apply(
+                          f,
+                          'resolve_subscription_incoherence',
+                          { mode: 'unsubscribe_bus', feeIds },
+                          `${feeIds.length} élève(s) désabonné(s) du transport.`
+                        )
+                      } else {
+                        await apply(
+                          f,
+                          'resolve_subscription_incoherence',
+                          { mode: 'set_route', feeIds, busRoute: choice, customFee: customFeeNum },
+                          `${feeIds.length} fiche(s) assignée(s) à « ${choice} ».`
+                        )
+                      }
+                    }
+
+                    return (
+                      <div className="space-y-2 pt-1">
+                        {kind === 'bus' ? (
+                          <>
+                            <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded border border-gray-200">
+                              <button
+                                type="button"
+                                onClick={toggleAll}
+                                className="text-[11px] font-medium text-indigo-700 hover:underline px-1"
+                              >
+                                {allSelected ? 'Tout désélectionner' : `Tout sélectionner (${lines.length})`}
+                              </button>
+                              <select
+                                value={bulkChoice}
+                                onChange={(e) => setSubRouteChoice((p) => ({ ...p, [f.id]: e.target.value }))}
+                                className="h-7 rounded border border-gray-300 bg-white px-2 text-xs text-gray-800 flex-1 min-w-[200px]"
+                              >
+                                <option value="">Choisir une ligne de bus ou action groupée...</option>
+                                <option value="__variable__">Tarif variable (selon le mois)</option>
+                                <option value="__free__">Gratuité transport (bus gratuit)</option>
+                                <option value="__unsubscribe__">Désabonner du transport</option>
+                                {routes.map((r) => (
+                                  <option key={r.name} value={r.name}>
+                                    {r.name} ({r.price.toLocaleString('fr-FR')} Ar)
+                                  </option>
+                                ))}
+                              </select>
+                              {bulkChoice && bulkChoice !== '__free__' && bulkChoice !== '__unsubscribe__' && (
+                                <Input
+                                  type="number"
+                                  placeholder="Tarif fixe Ar (optionnel)"
+                                  value={bulkCustom}
+                                  onChange={(e) => setSubCustomFee((p) => ({ ...p, [f.id]: e.target.value }))}
+                                  className="h-7 text-xs w-36 bg-white"
+                                />
+                              )}
+                              <Button
+                                size="sm"
+                                disabled={selectedIds.length === 0 || !bulkChoice || processingId === f.id}
+                                onClick={() => runBusUpdate(selectedIds, bulkChoice, bulkCustom)}
+                                className="text-xs h-7 bg-blue-600 hover:bg-blue-700 text-white"
+                              >
+                                <CheckCircle className="w-3.5 h-3.5 mr-1" /> Appliquer ({selectedIds.length})
+                              </Button>
+                            </div>
+                            <div className="border border-gray-200 rounded bg-white divide-y divide-gray-100 max-h-64 overflow-y-auto">
+                              {lines.map((l) => {
+                                const rowKey = `${f.id}:${l.feeId}`
+                                const rowChoice = subRouteChoice[rowKey] || ''
+                                return (
+                                  <div key={l.feeId} className="p-2 text-[11px] flex flex-wrap items-center justify-between gap-2">
+                                    <label className="flex items-center gap-2 cursor-pointer min-w-[200px] flex-1">
+                                      <input
+                                        type="checkbox"
+                                        checked={!!selectedMap[l.feeId]}
+                                        onChange={(e) =>
+                                          setSubSelected((p) => ({
+                                            ...p,
+                                            [f.id]: { ...(p[f.id] || {}), [l.feeId]: e.target.checked }
+                                          }))
+                                        }
+                                      />
+                                      <div>
+                                        <span className="font-semibold text-gray-900">{l.studentName}</span>
+                                        <span className="text-gray-500"> · {l.className || 'N/A'} · {l.schoolYear}</span>
+                                        <div className="text-[10px] text-gray-400">
+                                          Axe actuel : <span className="text-rose-700 font-medium">{l.currentRoute || 'Aucun'}</span>
+                                          {l.busPaymentsCount > 0 ? <span className="text-emerald-700 ml-2">({l.busPaymentsCount} paiement(s) bus)</span> : null}
+                                        </div>
+                                      </div>
+                                    </label>
+                                    <div className="flex items-center gap-1.5">
+                                      <select
+                                        value={rowChoice}
+                                        onChange={(e) => setSubRouteChoice((p) => ({ ...p, [rowKey]: e.target.value }))}
+                                        className="h-7 rounded border border-gray-300 bg-white px-1.5 text-[11px] max-w-[180px]"
+                                      >
+                                        <option value="">Ligne...</option>
+                                        <option value="__variable__">Variable</option>
+                                        <option value="__free__">Gratuit</option>
+                                        <option value="__unsubscribe__">Désabonner</option>
+                                        {routes.map((r) => (
+                                          <option key={r.name} value={r.name}>
+                                            {r.name} ({r.price.toLocaleString('fr-FR')})
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={!rowChoice || processingId === f.id}
+                                        onClick={() => runBusUpdate([l.feeId], rowChoice, '')}
+                                        className="text-[11px] h-7 px-2 text-blue-700 border-blue-300 hover:bg-blue-50"
+                                      >
+                                        OK
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={processingId === f.id}
+                                        onClick={() => runBusUpdate([l.feeId], '__variable__', '')}
+                                        className="text-[11px] h-7 px-2 text-amber-800 border-amber-300 hover:bg-amber-50"
+                                        title="Marquer cet élève en tarif variable"
+                                      >
+                                        Variable
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded border border-gray-200">
+                              <button
+                                type="button"
+                                onClick={toggleAll}
+                                className="text-[11px] font-medium text-indigo-700 hover:underline px-1"
+                              >
+                                {allSelected ? 'Tout désélectionner' : `Tout sélectionner (${lines.length})`}
+                              </button>
+                              <Input
+                                type="number"
+                                placeholder="Tarif journalier cantine (Ar)"
+                                value={bulkRate}
+                                onChange={(e) => setSubCanteenRate((p) => ({ ...p, [f.id]: e.target.value }))}
+                                className="h-7 text-xs w-44 bg-white"
+                              />
+                              <Button
+                                size="sm"
+                                disabled={selectedIds.length === 0 || !(Number(bulkRate) > 0) || processingId === f.id}
+                                onClick={() =>
+                                  apply(
+                                    f,
+                                    'resolve_subscription_incoherence',
+                                    { mode: 'set_canteen_rate', feeIds: selectedIds, canteenDailyRate: Number(bulkRate) },
+                                    'Tarif cantine mis à jour.'
+                                  )
+                                }
+                                className="text-xs h-7 bg-blue-600 hover:bg-blue-700 text-white"
+                              >
+                                Appliquer ({selectedIds.length})
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={selectedIds.length === 0 || processingId === f.id}
+                                onClick={() =>
+                                  apply(
+                                    f,
+                                    'resolve_subscription_incoherence',
+                                    { mode: 'unsubscribe_canteen', feeIds: selectedIds },
+                                    'Élèves désabonnés de la cantine.'
+                                  )
+                                }
+                                className="text-xs h-7 text-rose-600 border-rose-300"
+                              >
+                                Désabonner ({selectedIds.length})
+                              </Button>
+                            </div>
+                            <div className="border border-gray-200 rounded bg-white divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                              {lines.map((l) => (
+                                <label key={l.feeId} className="p-2 text-[11px] flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!selectedMap[l.feeId]}
+                                    onChange={(e) =>
+                                      setSubSelected((p) => ({
+                                        ...p,
+                                        [f.id]: { ...(p[f.id] || {}), [l.feeId]: e.target.checked }
+                                      }))
+                                    }
+                                  />
+                                  <span className="font-semibold text-gray-900">{l.studentName}</span>
+                                  <span className="text-gray-500">· {l.className || 'N/A'} · {l.schoolYear}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   {/* Fiches de frais dupliquées (classe G) : garder l'ancienne ou les deux */}
                   {f.action === 'resolve_duplicate_fee' && (

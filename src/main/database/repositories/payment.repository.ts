@@ -1540,7 +1540,13 @@ export class PaymentRepository {
         // bus_free = gratuité accordée (ni facture ni alerte). Sinon un abonnement sans axe
         // ou sans tarif est un signal de configuration à corriger, pas une facture silencieuse.
         if (student.bus_subscribed && !StudentRepository.parseBoolean(student.bus_free)) {
-          if (student.bus_route) {
+          if (student.bus_route === 'variable') {
+            const customBusFee = Number(student.bus_monthly_fee) || 0
+            if (customBusFee > 0) {
+              checkMonthlyService('bus', customBusFee, 'Transport')
+            }
+            // Tarif variable sans forfait mensuel fixe : suivi géré à l'encaissement, pas d'alerte de config manquante.
+          } else if (student.bus_route) {
             const customBusFee = Number(student.bus_monthly_fee) || 0
             const busCost =
               customBusFee > 0 ? customBusFee : prices?.bus?.[student.bus_route] || 0

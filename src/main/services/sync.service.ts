@@ -2121,6 +2121,16 @@ function sanitizeRowPayload(tableName: string, action: string, rawData: any, rec
     }
   }
 
+  // Supabase personnel.payroll_start_date est de type PostgreSQL `date` : convertir YYYY-MM -> YYYY-MM-01 et '' -> null
+  if (tableName === 'personnel' && 'payroll_start_date' in supabasePayload) {
+    const rawPsd = supabasePayload.payroll_start_date
+    if (rawPsd === '' || rawPsd === undefined) {
+      supabasePayload.payroll_start_date = null
+    } else if (typeof rawPsd === 'string' && /^\d{4}-\d{2}$/.test(rawPsd.trim())) {
+      supabasePayload.payroll_start_date = `${rawPsd.trim()}-01`
+    }
+  }
+
   return supabasePayload
 }
 
